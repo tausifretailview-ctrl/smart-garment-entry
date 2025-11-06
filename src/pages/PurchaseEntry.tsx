@@ -105,56 +105,75 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id,
-        size,
-        pur_price,
-        sale_price,
-        barcode,
-        active,
-        products (
-          id,
-          product_name,
-          brand,
-          style,
-          color,
-          hsn_code,
-          gst_per,
-          default_pur_price,
-          default_sale_price
-        )
-      `)
-      .or(`barcode.ilike.%${query}%,products.product_name.ilike.%${query}%,products.brand.ilike.%${query}%,products.style.ilike.%${query}%`)
-      .eq("active", true);
+    try {
+      // First, search products by name, brand, and style
+      const { data: matchingProducts } = await supabase
+        .from("products")
+        .select("id")
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
-    if (error) {
+      const productIds = matchingProducts?.map(p => p.id) || [];
+
+      // Then search product_variants by barcode OR matching product IDs
+      let variantsQuery = supabase
+        .from("product_variants")
+        .select(`
+          id,
+          size,
+          pur_price,
+          sale_price,
+          barcode,
+          active,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            style,
+            color,
+            hsn_code,
+            gst_per,
+            default_pur_price,
+            default_sale_price
+          )
+        `)
+        .eq("active", true);
+
+      // Add barcode or product_id filters
+      if (productIds.length > 0) {
+        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+      } else {
+        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+      }
+
+      const { data, error } = await variantsQuery;
+
+      if (error) throw error;
+
+      const results = (data || []).map((v: any) => ({
+        id: v.id,
+        product_id: v.products?.id || "",
+        size: v.size,
+        pur_price: v.pur_price,
+        sale_price: v.sale_price,
+        barcode: v.barcode || "",
+        product_name: v.products?.product_name || "",
+        brand: v.products?.brand || "",
+        category: v.products?.category || "",
+        gst_per: v.products?.gst_per || 0,
+        hsn_code: v.products?.hsn_code || "",
+      }));
+
+      setSearchResults(results);
+      setShowSearch(true);
+    } catch (error: any) {
       console.error(error);
       toast({
         title: "Error",
         description: "Failed to search products",
         variant: "destructive",
       });
-      return;
     }
-
-    const results = (data || []).map((v: any) => ({
-      id: v.id,
-      product_id: v.products?.id || "",
-      size: v.size,
-      pur_price: v.pur_price,
-      sale_price: v.sale_price,
-      barcode: v.barcode || "",
-      product_name: v.products?.product_name || "",
-      brand: v.products?.brand || "",
-      category: v.products?.category || "",
-      gst_per: v.products?.gst_per || 0,
-      hsn_code: v.products?.hsn_code || "",
-    }));
-
-    setSearchResults(results);
-    setShowSearch(true);
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
