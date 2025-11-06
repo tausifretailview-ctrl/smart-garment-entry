@@ -77,7 +77,7 @@ const PurchaseEntry = () => {
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
-      searchProducts();
+      searchProducts(searchQuery);
     } else {
       setSearchResults([]);
       setShowSearch(false);
@@ -99,10 +99,9 @@ const PurchaseEntry = () => {
     return seven.join("") + String(chk);
   };
 
-  const searchProducts = async () => {
-    if (!searchQuery || searchQuery.length < 1) {
+  const searchProducts = async (query: string) => {
+    if (!query || query.length < 1) {
       setSearchResults([]);
-      setShowSearch(false);
       return;
     }
 
@@ -115,25 +114,23 @@ const PurchaseEntry = () => {
         sale_price,
         barcode,
         active,
-        product_id,
         products (
           id,
           product_name,
           brand,
           style,
           color,
-          category,
           hsn_code,
           gst_per,
           default_pur_price,
           default_sale_price
         )
       `)
-      .or(`barcode.ilike.%${searchQuery}%,products.product_name.ilike.%${searchQuery}%,products.brand.ilike.%${searchQuery}%,products.style.ilike.%${searchQuery}%`)
-      .eq("active", true)
-      .limit(20);
+      .or(`barcode.ilike.%${query}%,products.product_name.ilike.%${query}%,products.brand.ilike.%${query}%,products.style.ilike.%${query}%`)
+      .eq("active", true);
 
     if (error) {
+      console.error(error);
       toast({
         title: "Error",
         description: "Failed to search products",
@@ -142,29 +139,21 @@ const PurchaseEntry = () => {
       return;
     }
 
-    // Group by product_id to show one result per product
-    const productMap = new Map<string, ProductVariant>();
-    
-    (data || []).forEach((v: any) => {
-      const productId = v.products?.id || v.product_id;
-      if (!productMap.has(productId)) {
-        productMap.set(productId, {
-          id: v.id,
-          product_id: productId,
-          size: v.size,
-          pur_price: v.pur_price,
-          sale_price: v.sale_price,
-          barcode: v.barcode || "",
-          product_name: v.products?.product_name || "",
-          brand: v.products?.brand || "",
-          category: v.products?.category || "",
-          gst_per: v.products?.gst_per || 0,
-          hsn_code: v.products?.hsn_code || "",
-        });
-      }
-    });
+    const results = (data || []).map((v: any) => ({
+      id: v.id,
+      product_id: v.products?.id || "",
+      size: v.size,
+      pur_price: v.pur_price,
+      sale_price: v.sale_price,
+      barcode: v.barcode || "",
+      product_name: v.products?.product_name || "",
+      brand: v.products?.brand || "",
+      category: v.products?.category || "",
+      gst_per: v.products?.gst_per || 0,
+      hsn_code: v.products?.hsn_code || "",
+    }));
 
-    setSearchResults(Array.from(productMap.values()));
+    setSearchResults(results);
     setShowSearch(true);
   };
 
