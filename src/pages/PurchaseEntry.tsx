@@ -210,7 +210,7 @@ const PurchaseEntry = () => {
         await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
       }
 
-      addLineItem({
+      addItemRow({
         product_id: productId,
         product_name: product.product_name,
         size: v.size,
@@ -250,14 +250,15 @@ const PurchaseEntry = () => {
     setLineItems([...lineItems, newItem]);
   };
 
-  const addLineItem = (item: Omit<LineItem, "temp_id" | "line_total">) => {
-    const lineTotal = item.qty * item.pur_price;
-    const newItem: LineItem = {
-      temp_id: Date.now().toString() + Math.random(),
-      ...item,
-      line_total: lineTotal,
-    };
-    setLineItems([...lineItems, newItem]);
+  const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        ...item,
+        temp_id: Date.now().toString() + Math.random(),
+        line_total: item.qty * item.pur_price,
+      },
+    ]);
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
@@ -768,7 +769,7 @@ const PurchaseEntry = () => {
                             .eq("id", variant.id);
                         }
 
-                        addLineItem({
+                        addItemRow({
                           product_name: selectedProduct.product_name,
                           product_id: selectedProduct.id,
                           size,
