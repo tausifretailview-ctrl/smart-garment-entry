@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, ShoppingCart, Plus, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface ProductVariant {
   id: string;
@@ -42,11 +47,23 @@ interface LineItem {
 interface SizeQuantity {
   size: string;
   qty: number;
-  pur_price: number;
-  sale_price: number;
+  variant_id: string;
+  barcode: string;
+}
+
+interface SelectedProductData {
+  product_id: string;
+  product_name: string;
+  brand: string;
   gst_per: number;
   hsn_code: string;
-  barcode: string;
+  default_pur_price: number;
+  default_sale_price: number;
+  variants: Array<{
+    id: string;
+    size: string;
+    barcode: string;
+  }>;
 }
 
 const PurchaseEntry = () => {
@@ -56,14 +73,18 @@ const PurchaseEntry = () => {
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<SelectedProductData | null>(null);
   const [sizeQuantities, setSizeQuantities] = useState<SizeQuantity[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
+  const [billDate, setBillDate] = useState<Date>(new Date());
+  const [modalPurPrice, setModalPurPrice] = useState(0);
+  const [modalSalePrice, setModalSalePrice] = useState(0);
+  const firstSizeInputRef = useRef<HTMLInputElement>(null);
 
   const [billData, setBillData] = useState({
     supplier_name: "",
     supplier_invoice_no: "",
-    bill_date: format(new Date(), "yyyy-MM-dd"),
     notes: "",
   });
 
@@ -76,7 +97,20 @@ const PurchaseEntry = () => {
     }
   }, [searchQuery]);
 
+  const generateEAN8 = (): string => {
+    const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
+    const sum = seven[0] * 3 + seven[1] + seven[2] * 3 + seven[3] + seven[4] * 3 + seven[5] + seven[6] * 3;
+    const chk = (10 - (sum % 10)) % 10;
+    return seven.join("") + String(chk);
+  };
+
   const searchProducts = async () => {
+    const { data: productsData, error: productsError } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style")
+      .or(`product_name.ilike.%${searchQuery}%,brand.ilike.%${searchQuery}%,style.ilike.%${searchQuery}%`)
+      .limit(10);
+
     const { data: variantsData, error: variantsError } = await supabase
       .from("product_variants")
       .select(`
@@ -90,14 +124,15 @@ const PurchaseEntry = () => {
           product_name,
           brand,
           category,
+          style,
           gst_per,
           hsn_code
         )
       `)
-      .or(`barcode.ilike.%${searchQuery}%,products.product_name.ilike.%${searchQuery}%,products.brand.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%`)
+      .ilike("barcode", `%${searchQuery}%`)
       .limit(10);
 
-    if (variantsError) {
+    if (productsError || variantsError) {
       toast({
         title: "Error",
         description: "Failed to search products",
@@ -106,33 +141,76 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const formattedResults: ProductVariant[] = (variantsData || []).map((v: any) => ({
-      id: v.id,
-      product_id: v.product_id,
-      size: v.size,
-      pur_price: v.pur_price,
-      sale_price: v.sale_price,
-      barcode: v.barcode,
-      product_name: v.products?.product_name || "",
-      brand: v.products?.brand || "",
-      category: v.products?.category || "",
-      gst_per: v.products?.gst_per || 0,
-      hsn_code: v.products?.hsn_code || "",
-    }));
+    // Combine and deduplicate results
+    const productIds = new Set();
+    const combined: ProductVariant[] = [];
 
-    setSearchResults(formattedResults);
+    (productsData || []).forEach((p: any) => {
+      if (!productIds.has(p.id)) {
+        productIds.add(p.id);
+        combined.push({
+          id: "",
+          product_id: p.id,
+          size: "",
+          pur_price: 0,
+          sale_price: 0,
+          barcode: "",
+          product_name: p.product_name || "",
+          brand: p.brand || "",
+          category: p.category || "",
+          gst_per: 0,
+          hsn_code: "",
+        });
+      }
+    });
+
+    (variantsData || []).forEach((v: any) => {
+      if (!productIds.has(v.product_id)) {
+        productIds.add(v.product_id);
+        combined.push({
+          id: v.id,
+          product_id: v.product_id,
+          size: v.size,
+          pur_price: v.pur_price,
+          sale_price: v.sale_price,
+          barcode: v.barcode,
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          category: v.products?.category || "",
+          gst_per: v.products?.gst_per || 0,
+          hsn_code: v.products?.hsn_code || "",
+        });
+      }
+    });
+
+    setSearchResults(combined);
     setShowSearch(true);
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
-    // Check if product has multiple sizes
-    const { data: allVariants, error } = await supabase
+    // Get product details and all variants
+    const { data: productData, error: productError } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", variant.product_id)
+      .single();
+
+    if (productError) {
+      toast({
+        title: "Error",
+        description: "Failed to load product details",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data: allVariants, error: variantsError } = await supabase
       .from("product_variants")
-      .select("*, products(product_name, brand, gst_per, hsn_code)")
+      .select("*")
       .eq("product_id", variant.product_id)
       .eq("active", true);
 
-    if (error) {
+    if (variantsError) {
       toast({
         title: "Error",
         description: "Failed to load product variants",
@@ -141,33 +219,79 @@ const PurchaseEntry = () => {
       return;
     }
 
-    if (allVariants && allVariants.length > 1) {
+    if (entryMode === "grid" && allVariants && allVariants.length > 1) {
       // Show size grid popup
-      setSelectedProduct(variant);
+      const productInfo: SelectedProductData = {
+        product_id: productData.id,
+        product_name: productData.product_name,
+        brand: productData.brand || "",
+        gst_per: productData.gst_per || 0,
+        hsn_code: productData.hsn_code || "",
+        default_pur_price: productData.default_pur_price || 0,
+        default_sale_price: productData.default_sale_price || 0,
+        variants: allVariants.map((v: any) => ({
+          id: v.id,
+          size: v.size,
+          barcode: v.barcode || "",
+        })),
+      };
+
+      setSelectedProduct(productInfo);
+      setModalPurPrice(productInfo.default_pur_price);
+      setModalSalePrice(productInfo.default_sale_price);
       setSizeQuantities(
-        allVariants.map((v: any) => ({
+        productInfo.variants.map((v) => ({
           size: v.size,
           qty: 0,
-          pur_price: v.pur_price,
-          sale_price: v.sale_price,
-          gst_per: v.products?.gst_per || 0,
-          hsn_code: v.products?.hsn_code || "",
+          variant_id: v.id,
           barcode: v.barcode,
         }))
       );
       setShowSizeGrid(true);
+      
+      // Focus first input after modal opens
+      setTimeout(() => firstSizeInputRef.current?.focus(), 100);
+    } else if (entryMode === "inline") {
+      // Add inline row with size selector
+      const lineTotal = 1 * (productData.default_pur_price || 0);
+      const newItem: LineItem = {
+        temp_id: Date.now().toString() + Math.random(),
+        product_id: variant.product_id,
+        product_name: productData.product_name,
+        size: allVariants?.[0]?.size || "",
+        qty: 1,
+        pur_price: productData.default_pur_price || 0,
+        sale_price: productData.default_sale_price || 0,
+        gst_per: productData.gst_per || 0,
+        hsn_code: productData.hsn_code || "",
+        barcode: allVariants?.[0]?.barcode || "",
+        line_total: lineTotal,
+      };
+      setLineItems([...lineItems, newItem]);
     } else {
-      // Add single item directly
+      // Single variant - add directly
+      const singleVariant = allVariants?.[0];
+      let barcode = singleVariant?.barcode || "";
+      
+      // Auto-generate barcode if missing
+      if (!barcode && singleVariant) {
+        barcode = generateEAN8();
+        await supabase
+          .from("product_variants")
+          .update({ barcode })
+          .eq("id", singleVariant.id);
+      }
+
       addLineItem({
         product_id: variant.product_id,
-        product_name: variant.product_name,
-        size: variant.size,
+        product_name: productData.product_name,
+        size: singleVariant?.size || "",
         qty: 1,
-        pur_price: variant.pur_price,
-        sale_price: variant.sale_price,
-        gst_per: variant.gst_per,
-        hsn_code: variant.hsn_code,
-        barcode: variant.barcode,
+        pur_price: productData.default_pur_price || 0,
+        sale_price: productData.default_sale_price || 0,
+        gst_per: productData.gst_per || 0,
+        hsn_code: productData.hsn_code || "",
+        barcode: barcode,
       });
     }
 
@@ -185,7 +309,7 @@ const PurchaseEntry = () => {
     setLineItems([...lineItems, newItem]);
   };
 
-  const handleSizeGridConfirm = () => {
+  const handleSizeGridConfirm = async () => {
     const itemsToAdd = sizeQuantities.filter((sq) => sq.qty > 0);
     if (itemsToAdd.length === 0) {
       toast({
@@ -196,19 +320,32 @@ const PurchaseEntry = () => {
       return;
     }
 
-    itemsToAdd.forEach((sq) => {
+    if (!selectedProduct) return;
+
+    for (const sq of itemsToAdd) {
+      let barcode = sq.barcode;
+      
+      // Auto-generate barcode if missing and update variant
+      if (!barcode) {
+        barcode = generateEAN8();
+        await supabase
+          .from("product_variants")
+          .update({ barcode })
+          .eq("id", sq.variant_id);
+      }
+
       addLineItem({
         product_id: selectedProduct.product_id,
         product_name: selectedProduct.product_name,
         size: sq.size,
         qty: sq.qty,
-        pur_price: sq.pur_price,
-        sale_price: sq.sale_price,
-        gst_per: sq.gst_per,
-        hsn_code: sq.hsn_code,
-        barcode: sq.barcode,
+        pur_price: modalPurPrice,
+        sale_price: modalSalePrice,
+        gst_per: selectedProduct.gst_per,
+        hsn_code: selectedProduct.hsn_code,
+        barcode: barcode,
       });
-    });
+    }
 
     setShowSizeGrid(false);
     setSelectedProduct(null);
@@ -244,6 +381,27 @@ const PurchaseEntry = () => {
     return { grossAmount, gstAmount, netAmount };
   };
 
+  const handleCopyLastRow = () => {
+    if (lineItems.length === 0) return;
+    const lastItem = lineItems[lineItems.length - 1];
+    const newItem: LineItem = {
+      ...lastItem,
+      temp_id: Date.now().toString() + Math.random(),
+    };
+    setLineItems([...lineItems, newItem]);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === "ArrowDown") {
+        e.preventDefault();
+        handleCopyLastRow();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lineItems]);
+
   const handleSave = async () => {
     if (!billData.supplier_name.trim()) {
       toast({
@@ -254,10 +412,19 @@ const PurchaseEntry = () => {
       return;
     }
 
-    if (lineItems.length === 0) {
+    if (!billData.supplier_invoice_no.trim()) {
       toast({
         title: "Validation Error",
-        description: "Please add at least one product",
+        description: "Supplier invoice number is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (lineItems.length === 0 || !lineItems.some(item => item.qty > 0)) {
+      toast({
+        title: "Validation Error",
+        description: "Please add at least one product with quantity > 0",
         variant: "destructive",
       });
       return;
@@ -273,6 +440,7 @@ const PurchaseEntry = () => {
         .insert([
           {
             ...billData,
+            bill_date: format(billDate, "yyyy-MM-dd"),
             gross_amount: totals.grossAmount,
             gst_amount: totals.gstAmount,
             net_amount: totals.netAmount,
@@ -312,9 +480,9 @@ const PurchaseEntry = () => {
       setBillData({
         supplier_name: "",
         supplier_invoice_no: "",
-        bill_date: format(new Date(), "yyyy-MM-dd"),
         notes: "",
       });
+      setBillDate(new Date());
       setLineItems([]);
     } catch (error: any) {
       toast({
@@ -356,7 +524,7 @@ const PurchaseEntry = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="supplier_invoice_no">Supplier Invoice No</Label>
+                <Label htmlFor="supplier_invoice_no">Supplier Invoice No *</Label>
                 <Input
                   id="supplier_invoice_no"
                   value={billData.supplier_invoice_no}
@@ -369,14 +537,29 @@ const PurchaseEntry = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="bill_date">Bill Date</Label>
-                <Input
-                  id="bill_date"
-                  type="date"
-                  value={billData.bill_date}
-                  onChange={(e) =>
-                    setBillData({ ...billData, bill_date: e.target.value })
-                  }
-                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !billDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {billDate ? format(billDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={billDate}
+                      onSelect={(date) => date && setBillDate(date)}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -395,37 +578,56 @@ const PurchaseEntry = () => {
 
         <Card className="shadow-lg border-border mb-6">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle>Products</CardTitle>
-              <div className="relative w-80">
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by product, brand, size, or barcode..."
-                  className="pr-10"
-                />
-                <Plus className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                {showSearch && searchResults.length > 0 && (
-                  <div className="absolute top-full mt-1 w-full bg-background border border-border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
-                    {searchResults.map((result) => (
-                      <button
-                        key={result.id}
-                        onClick={() => handleProductSelect(result)}
-                        className="w-full text-left px-4 py-3 hover:bg-accent border-b border-border last:border-0"
-                      >
-                        <div className="font-medium">{result.product_name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {result.brand} | Size: {result.size} | ₹{result.pur_price}
-                        </div>
-                        {result.barcode && (
-                          <div className="text-xs text-muted-foreground">
-                            Barcode: {result.barcode}
-                          </div>
-                        )}
-                      </button>
-                    ))}
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="entry-mode" className="text-sm">Entry Mode:</Label>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-sm", entryMode === "grid" ? "font-semibold" : "text-muted-foreground")}>
+                      Size Grid
+                    </span>
+                    <Switch
+                      id="entry-mode"
+                      checked={entryMode === "inline"}
+                      onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+                    />
+                    <span className={cn("text-sm", entryMode === "inline" ? "font-semibold" : "text-muted-foreground")}>
+                      Inline Rows
+                    </span>
                   </div>
-                )}
+                </div>
+                <div className="relative w-80">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by product, brand, style, or barcode..."
+                    className="pr-10"
+                  />
+                  <Plus className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  {showSearch && searchResults.length > 0 && (
+                    <div className="absolute top-full mt-1 w-full bg-background border border-border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
+                      {searchResults.map((result, idx) => (
+                        <button
+                          key={result.product_id + idx}
+                          onClick={() => handleProductSelect(result)}
+                          className="w-full text-left px-4 py-3 hover:bg-accent border-b border-border last:border-0"
+                        >
+                          <div className="font-medium">{result.product_name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {result.brand}
+                            {result.size && ` | Size: ${result.size}`}
+                          </div>
+                          {result.barcode && (
+                            <div className="text-xs text-muted-foreground">
+                              Barcode: {result.barcode}
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -521,7 +723,8 @@ const PurchaseEntry = () => {
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
-                No products added. Search and add products using the search box above.
+                <p>No products added. Search and add products using the search box above.</p>
+                <p className="text-xs mt-2">Tip: Press Alt+↓ to copy the last row</p>
               </div>
             )}
           </CardContent>
@@ -573,45 +776,79 @@ const PurchaseEntry = () => {
 
         {/* Size Grid Popup */}
         <Dialog open={showSizeGrid} onOpenChange={setShowSizeGrid}>
-          <DialogContent className="max-w-4xl">
+          <DialogContent 
+            className="max-w-4xl"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSizeGridConfirm();
+              } else if (e.key === "Escape") {
+                setShowSizeGrid(false);
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle>
-                Select Sizes - {selectedProduct?.product_name}
+                Enter Size-wise Qty - {selectedProduct?.product_name}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {sizeQuantities.map((sq, index) => (
-                  <div key={sq.size} className="space-y-2 p-4 border rounded-lg">
-                    <Label className="font-semibold text-center block">
-                      Size: {sq.size}
-                    </Label>
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Quantity</Label>
+            <div className="space-y-6">
+              {/* Horizontal Size Row */}
+              <div>
+                <Label className="text-sm text-muted-foreground mb-3 block">
+                  Enter quantities (Tab to navigate, Enter to confirm, Esc to cancel)
+                </Label>
+                <div className="flex gap-3 flex-wrap">
+                  {sizeQuantities.map((sq, index) => (
+                    <div key={sq.size} className="flex flex-col items-center gap-2">
+                      <Label className="text-sm font-semibold">{sq.size}</Label>
                       <Input
+                        ref={index === 0 ? firstSizeInputRef : undefined}
                         type="number"
                         min="0"
-                        value={sq.qty}
+                        value={sq.qty || ""}
                         onChange={(e) => {
                           const updated = [...sizeQuantities];
                           updated[index].qty = parseInt(e.target.value) || 0;
                           setSizeQuantities(updated);
                         }}
-                        placeholder="Qty"
+                        placeholder="0"
+                        className="w-20 text-center"
                       />
                     </div>
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <div>Pur: ₹{sq.pur_price}</div>
-                      <div>Sale: ₹{sq.sale_price}</div>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-end gap-2">
+
+              {/* Price Fields */}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div className="space-y-2">
+                  <Label>Purchase Price</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={modalPurPrice}
+                    onChange={(e) => setModalPurPrice(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Sale Price</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={modalSalePrice}
+                    onChange={(e) => setModalSalePrice(parseFloat(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
                 <Button variant="outline" onClick={() => setShowSizeGrid(false)}>
-                  Cancel
+                  Cancel (Esc)
                 </Button>
-                <Button onClick={handleSizeGridConfirm}>Confirm</Button>
+                <Button onClick={handleSizeGridConfirm}>Confirm (Enter)</Button>
               </div>
             </div>
           </DialogContent>
