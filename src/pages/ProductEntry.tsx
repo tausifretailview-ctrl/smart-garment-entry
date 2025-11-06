@@ -191,16 +191,22 @@ const ProductEntry = () => {
 
       if (productError) throw productError;
 
-      // Insert variants
+      // Upsert variants (insert or update based on product_id + size)
       if (variants.length > 0) {
-        const variantsToInsert = variants.map((v) => ({
+        const variantsToUpsert = variants.map((v) => ({
           product_id: productData.id,
-          ...v,
+          size: v.size,
+          pur_price: v.pur_price,
+          sale_price: v.sale_price,
+          barcode: v.barcode,
+          active: v.active,
         }));
 
         const { error: variantsError } = await supabase
           .from("product_variants")
-          .insert(variantsToInsert);
+          .upsert(variantsToUpsert, {
+            onConflict: "product_id,size",
+          });
 
         if (variantsError) throw variantsError;
       }
