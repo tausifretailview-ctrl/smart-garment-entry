@@ -51,21 +51,6 @@ interface SizeQuantity {
   barcode: string;
 }
 
-interface SelectedProductData {
-  product_id: string;
-  product_name: string;
-  brand: string;
-  gst_per: number;
-  hsn_code: string;
-  default_pur_price: number;
-  default_sale_price: number;
-  variants: Array<{
-    id: string;
-    size: string;
-    barcode: string;
-  }>;
-}
-
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -73,13 +58,12 @@ const PurchaseEntry = () => {
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<SelectedProductData | null>(null);
-  const [sizeQuantities, setSizeQuantities] = useState<SizeQuantity[]>([]);
+  const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  const [sizeQty, setSizeQty] = useState<{ [size: string]: number }>({});
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
-  const [modalPurPrice, setModalPurPrice] = useState(0);
-  const [modalSalePrice, setModalSalePrice] = useState(0);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
 
   const [billData, setBillData] = useState({
@@ -186,7 +170,23 @@ const PurchaseEntry = () => {
   const openSizeGridModal = async (productId: string) => {
     const { data, error } = await supabase
       .from("product_variants")
-      .select("id, size, pur_price, sale_price, barcode, active, products!inner(id, product_name, brand, hsn_code, gst_per, default_pur_price, default_sale_price)")
+      .select(`
+        id,
+        size,
+        pur_price,
+        sale_price,
+        barcode,
+        active,
+        products (
+          id,
+          product_name,
+          brand,
+          hsn_code,
+          gst_per,
+          default_pur_price,
+          default_sale_price
+        )
+      `)
       .eq("product_id", productId)
       .eq("active", true);
 
@@ -225,33 +225,9 @@ const PurchaseEntry = () => {
     }
 
     // Show size grid modal
-    const product = data[0].products as any;
-    const productInfo: SelectedProductData = {
-      product_id: product.id,
-      product_name: product.product_name,
-      brand: product.brand || "",
-      gst_per: product.gst_per || 0,
-      hsn_code: product.hsn_code || "",
-      default_pur_price: product.default_pur_price || 0,
-      default_sale_price: product.default_sale_price || 0,
-      variants: data.map((v: any) => ({
-        id: v.id,
-        size: v.size,
-        barcode: v.barcode || "",
-      })),
-    };
-
-    setSelectedProduct(productInfo);
-    setModalPurPrice(productInfo.default_pur_price);
-    setModalSalePrice(productInfo.default_sale_price);
-    setSizeQuantities(
-      productInfo.variants.map((v) => ({
-        size: v.size,
-        qty: 0,
-        variant_id: v.id,
-        barcode: v.barcode,
-      }))
-    );
+    setSelectedProduct(data[0].products);
+    setSizeGridVariants(data);
+    setSizeQty({});
     setShowSizeGrid(true);
     setTimeout(() => firstSizeInputRef.current?.focus(), 100);
   };
@@ -285,7 +261,8 @@ const PurchaseEntry = () => {
   };
 
   const handleSizeGridConfirm = async () => {
-    const itemsToAdd = sizeQuantities.filter((sq) => sq.qty > 0);
+    const itemsToAdd = sizeGridVariants.filter((v) => (sizeQty[v.size] || 0) > 0);
+    
     if (itemsToAdd.length === 0) {
       toast({
         title: "No Items",
@@ -297,8 +274,8 @@ const PurchaseEntry = () => {
 
     if (!selectedProduct) return;
 
-    for (const sq of itemsToAdd) {
-      let barcode = sq.barcode;
+    for (const variant of itemsToAdd) {
+      let barcode = variant.barcode || "";
       
       // Auto-generate barcode if missing and update variant
       if (!barcode) {
@@ -306,25 +283,26 @@ const PurchaseEntry = () => {
         await supabase
           .from("product_variants")
           .update({ barcode })
-          .eq("id", sq.variant_id);
+          .eq("id", variant.id);
       }
 
       addLineItem({
-        product_id: selectedProduct.product_id,
+        product_id: selectedProduct.id,
         product_name: selectedProduct.product_name,
-        size: sq.size,
-        qty: sq.qty,
-        pur_price: modalPurPrice,
-        sale_price: modalSalePrice,
-        gst_per: selectedProduct.gst_per,
-        hsn_code: selectedProduct.hsn_code,
+        size: variant.size,
+        qty: sizeQty[variant.size],
+        pur_price: selectedProduct.default_pur_price || 0,
+        sale_price: selectedProduct.default_sale_price || 0,
+        gst_per: selectedProduct.gst_per || 0,
+        hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
       });
     }
 
     setShowSizeGrid(false);
     setSelectedProduct(null);
-    setSizeQuantities([]);
+    setSizeGridVariants([]);
+    setSizeQty({});
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
@@ -774,18 +752,19 @@ const PurchaseEntry = () => {
                   Enter quantities (Tab to navigate, Enter to confirm, Esc to cancel)
                 </Label>
                 <div className="flex gap-3 flex-wrap">
-                  {sizeQuantities.map((sq, index) => (
-                    <div key={sq.size} className="flex flex-col items-center gap-2">
-                      <Label className="text-sm font-semibold">{sq.size}</Label>
+                  {sizeGridVariants.map((variant, index) => (
+                    <div key={variant.size} className="flex flex-col items-center gap-2">
+                      <Label className="text-sm font-semibold">{variant.size}</Label>
                       <Input
                         ref={index === 0 ? firstSizeInputRef : undefined}
                         type="number"
                         min="0"
-                        value={sq.qty || ""}
+                        value={sizeQty[variant.size] || ""}
                         onChange={(e) => {
-                          const updated = [...sizeQuantities];
-                          updated[index].qty = parseInt(e.target.value) || 0;
-                          setSizeQuantities(updated);
+                          setSizeQty({
+                            ...sizeQty,
+                            [variant.size]: parseInt(e.target.value) || 0,
+                          });
                         }}
                         placeholder="0"
                         className="w-20 text-center"
@@ -803,8 +782,13 @@ const PurchaseEntry = () => {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={modalPurPrice}
-                    onChange={(e) => setModalPurPrice(parseFloat(e.target.value) || 0)}
+                    value={selectedProduct?.default_pur_price || 0}
+                    onChange={(e) =>
+                      setSelectedProduct({
+                        ...selectedProduct,
+                        default_pur_price: parseFloat(e.target.value) || 0,
+                      })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -813,8 +797,13 @@ const PurchaseEntry = () => {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={modalSalePrice}
-                    onChange={(e) => setModalSalePrice(parseFloat(e.target.value) || 0)}
+                    value={selectedProduct?.default_sale_price || 0}
+                    onChange={(e) =>
+                      setSelectedProduct({
+                        ...selectedProduct,
+                        default_sale_price: parseFloat(e.target.value) || 0,
+                      })
+                    }
                   />
                 </div>
               </div>
