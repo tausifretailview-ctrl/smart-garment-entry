@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
+import BarcodePrinting from "./pages/BarcodePrinting";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,12 @@ const Navigation = () => {
               className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
             >
               Purchase Entry
+            </Link>
+            <Link
+              to="/barcode-printing"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Barcode Printing
             </Link>
             <Button
               variant="ghost"
@@ -92,6 +99,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PurchaseEntry />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/barcode-printing"
+              element={
+                <ProtectedRoute>
+                  <BarcodePrinting />
                 </ProtectedRoute>
               }
             />
