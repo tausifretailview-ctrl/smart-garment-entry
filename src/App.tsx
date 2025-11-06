@@ -2,38 +2,64 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 const queryClient = new QueryClient();
 
-const Navigation = () => (
-  <nav className="bg-card border-b border-border sticky top-0 z-50">
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between h-16">
-        <div className="flex items-center gap-2">
-          <span className="text-xl font-bold text-primary">Smart Inventory</span>
-        </div>
-        <div className="flex gap-4">
-          <Link
-            to="/product-entry"
-            className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
-          >
-            Product Entry
-          </Link>
-          <Link
-            to="/purchase-entry"
-            className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
-          >
-            Purchase Entry
-          </Link>
+const Navigation = () => {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
+
+  if (!user) return null;
+
+  return (
+    <nav className="bg-card border-b border-border sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold text-primary">Smart Inventory</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/product-entry"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Product Entry
+            </Link>
+            <Link
+              to="/purchase-entry"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Purchase Entry
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign Out
+            </Button>
+          </div>
         </div>
       </div>
-    </div>
-  </nav>
-);
+    </nav>
+  );
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -41,14 +67,38 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Navigation />
-        <Routes>
-          <Route path="/" element={<ProductEntry />} />
-          <Route path="/product-entry" element={<ProductEntry />} />
-          <Route path="/purchase-entry" element={<PurchaseEntry />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Navigation />
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <ProductEntry />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product-entry"
+              element={
+                <ProtectedRoute>
+                  <ProductEntry />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/purchase-entry"
+              element={
+                <ProtectedRoute>
+                  <PurchaseEntry />
+                </ProtectedRoute>
+              }
+            />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
