@@ -117,6 +117,108 @@ export type Database = {
           },
         ]
       }
+      purchase_bills: {
+        Row: {
+          bill_date: string
+          created_at: string
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          supplier_invoice_no: string | null
+          supplier_name: string
+          updated_at: string
+        }
+        Insert: {
+          bill_date?: string
+          created_at?: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          supplier_invoice_no?: string | null
+          supplier_name: string
+          updated_at?: string
+        }
+        Update: {
+          bill_date?: string
+          created_at?: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          supplier_invoice_no?: string | null
+          supplier_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      purchase_items: {
+        Row: {
+          barcode: string | null
+          bill_id: string
+          created_at: string
+          gst_per: number
+          hsn_code: string | null
+          id: string
+          line_total: number
+          product_id: string
+          pur_price: number
+          qty: number
+          sale_price: number
+          size: string
+          updated_at: string
+        }
+        Insert: {
+          barcode?: string | null
+          bill_id: string
+          created_at?: string
+          gst_per?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          product_id: string
+          pur_price?: number
+          qty?: number
+          sale_price?: number
+          size: string
+          updated_at?: string
+        }
+        Update: {
+          barcode?: string | null
+          bill_id?: string
+          created_at?: string
+          gst_per?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          product_id?: string
+          pur_price?: number
+          qty?: number
+          sale_price?: number
+          size?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       size_groups: {
         Row: {
           created_at: string | null
