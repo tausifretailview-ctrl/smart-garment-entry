@@ -184,40 +184,25 @@ const PurchaseEntry = () => {
   };
 
   const openSizeGridModal = async (productId: string) => {
-    // Get product details and all active variants
-    const { data: productData, error: productError } = await supabase
-      .from("products")
-      .select("*")
-      .eq("id", productId)
-      .single();
-
-    const { data: allVariants, error: variantsError } = await supabase
+    const { data, error } = await supabase
       .from("product_variants")
-      .select("*")
+      .select("id, size, pur_price, sale_price, barcode, active, products!inner(id, product_name, brand, hsn_code, gst_per, default_pur_price, default_sale_price)")
       .eq("product_id", productId)
       .eq("active", true);
 
-    if (productError || variantsError) {
+    if (error || !data || data.length === 0) {
       toast({
         title: "Error",
-        description: "Failed to load product details",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!allVariants || allVariants.length === 0) {
-      toast({
-        title: "No Variants",
-        description: "This product has no active variants",
+        description: "Failed to load product variants",
         variant: "destructive",
       });
       return;
     }
 
     // If only one variant, add directly
-    if (allVariants.length === 1) {
-      const v = allVariants[0];
+    if (data.length === 1) {
+      const v = data[0];
+      const product = v.products as any;
       let barcode = v.barcode || "";
       
       if (!barcode) {
@@ -227,28 +212,29 @@ const PurchaseEntry = () => {
 
       addLineItem({
         product_id: productId,
-        product_name: productData.product_name,
+        product_name: product.product_name,
         size: v.size,
         qty: 1,
-        pur_price: productData.default_pur_price || 0,
-        sale_price: productData.default_sale_price || 0,
-        gst_per: productData.gst_per || 0,
-        hsn_code: productData.hsn_code || "",
+        pur_price: product.default_pur_price || 0,
+        sale_price: product.default_sale_price || 0,
+        gst_per: product.gst_per || 0,
+        hsn_code: product.hsn_code || "",
         barcode: barcode,
       });
       return;
     }
 
     // Show size grid modal
+    const product = data[0].products as any;
     const productInfo: SelectedProductData = {
-      product_id: productData.id,
-      product_name: productData.product_name,
-      brand: productData.brand || "",
-      gst_per: productData.gst_per || 0,
-      hsn_code: productData.hsn_code || "",
-      default_pur_price: productData.default_pur_price || 0,
-      default_sale_price: productData.default_sale_price || 0,
-      variants: allVariants.map((v: any) => ({
+      product_id: product.id,
+      product_name: product.product_name,
+      brand: product.brand || "",
+      gst_per: product.gst_per || 0,
+      hsn_code: product.hsn_code || "",
+      default_pur_price: product.default_pur_price || 0,
+      default_sale_price: product.default_sale_price || 0,
+      variants: data.map((v: any) => ({
         id: v.id,
         size: v.size,
         barcode: v.barcode || "",
