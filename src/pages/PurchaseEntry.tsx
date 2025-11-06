@@ -260,51 +260,6 @@ const PurchaseEntry = () => {
     setLineItems([...lineItems, newItem]);
   };
 
-  const handleSizeGridConfirm = async () => {
-    const itemsToAdd = sizeGridVariants.filter((v) => (sizeQty[v.size] || 0) > 0);
-    
-    if (itemsToAdd.length === 0) {
-      toast({
-        title: "No Items",
-        description: "Please enter quantities for at least one size",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedProduct) return;
-
-    for (const variant of itemsToAdd) {
-      let barcode = variant.barcode || "";
-      
-      // Auto-generate barcode if missing and update variant
-      if (!barcode) {
-        barcode = generateEAN8();
-        await supabase
-          .from("product_variants")
-          .update({ barcode })
-          .eq("id", variant.id);
-      }
-
-      addLineItem({
-        product_id: selectedProduct.id,
-        product_name: selectedProduct.product_name,
-        size: variant.size,
-        qty: sizeQty[variant.size],
-        pur_price: selectedProduct.default_pur_price || 0,
-        sale_price: selectedProduct.default_sale_price || 0,
-        gst_per: selectedProduct.gst_per || 0,
-        hsn_code: selectedProduct.hsn_code || "",
-        barcode: barcode,
-      });
-    }
-
-    setShowSizeGrid(false);
-    setSelectedProduct(null);
-    setSizeGridVariants([]);
-    setSizeQty({});
-  };
-
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
     setLineItems((items) =>
       items.map((item) => {
@@ -728,95 +683,115 @@ const PurchaseEntry = () => {
         </div>
 
         {/* Size Grid Popup */}
-        <Dialog open={showSizeGrid} onOpenChange={setShowSizeGrid}>
-          <DialogContent 
-            className="max-w-4xl"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleSizeGridConfirm();
-              } else if (e.key === "Escape") {
-                setShowSizeGrid(false);
-              }
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle>
-                Enter Size-wise Qty - {selectedProduct?.product_name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-6">
-              {/* Horizontal Size Row */}
-              <div>
-                <Label className="text-sm text-muted-foreground mb-3 block">
-                  Enter quantities (Tab to navigate, Enter to confirm, Esc to cancel)
-                </Label>
-                <div className="flex gap-3 flex-wrap">
-                  {sizeGridVariants.map((variant, index) => (
-                    <div key={variant.size} className="flex flex-col items-center gap-2">
-                      <Label className="text-sm font-semibold">{variant.size}</Label>
-                      <Input
-                        ref={index === 0 ? firstSizeInputRef : undefined}
-                        type="number"
-                        min="0"
-                        value={sizeQty[variant.size] || ""}
-                        onChange={(e) => {
-                          setSizeQty({
-                            ...sizeQty,
-                            [variant.size]: parseInt(e.target.value) || 0,
-                          });
-                        }}
-                        placeholder="0"
-                        className="w-20 text-center"
-                      />
-                    </div>
-                  ))}
-                </div>
+        {showSizeGrid && (
+          <Dialog open={showSizeGrid} onOpenChange={setShowSizeGrid}>
+            <DialogContent 
+              className="max-w-4xl"
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setShowSizeGrid(false);
+                }
+              }}
+            >
+              <DialogHeader>
+                <DialogTitle>Enter Size-wise Qty</DialogTitle>
+              </DialogHeader>
+              
+              <h3 className="mb-2 font-semibold">{selectedProduct?.product_name}</h3>
+
+              <div className="flex gap-2 mb-4 flex-wrap">
+                {sizeGridVariants.map((v, index) => (
+                  <div key={v.id} className="flex flex-col items-center">
+                    <span className="text-sm font-medium">{v.size}</span>
+                    <input
+                      ref={index === 0 ? firstSizeInputRef : undefined}
+                      type="number"
+                      min="0"
+                      className="w-14 text-center border rounded p-1"
+                      value={sizeQty[v.size] || ""}
+                      onChange={(e) => setSizeQty({ ...sizeQty, [v.size]: e.target.value })}
+                    />
+                  </div>
+                ))}
               </div>
 
-              {/* Price Fields */}
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="space-y-2">
                   <Label>Purchase Price</Label>
                   <Input
                     type="number"
-                    min="0"
-                    step="0.01"
                     value={selectedProduct?.default_pur_price || 0}
-                    onChange={(e) =>
-                      setSelectedProduct({
-                        ...selectedProduct,
-                        default_pur_price: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                    readOnly
+                    className="bg-muted"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Sale Price</Label>
+                  <Label>Sale Price (MRP)</Label>
                   <Input
                     type="number"
-                    min="0"
-                    step="0.01"
                     value={selectedProduct?.default_sale_price || 0}
-                    onChange={(e) =>
-                      setSelectedProduct({
-                        ...selectedProduct,
-                        default_sale_price: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                    readOnly
+                    className="bg-muted"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowSizeGrid(false)}>
                   Cancel (Esc)
                 </Button>
-                <Button onClick={handleSizeGridConfirm}>Confirm (Enter)</Button>
+                <Button
+                  onClick={async () => {
+                    const entries = Object.entries(sizeQty);
+                    const hasQty = entries.some(([_, qty]) => Number(qty) > 0);
+                    
+                    if (!hasQty) {
+                      toast({
+                        title: "No Items",
+                        description: "Please enter quantities for at least one size",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    for (const [size, qty] of entries) {
+                      if (Number(qty) > 0) {
+                        const variant = sizeGridVariants.find((v) => v.size === size);
+                        let barcode = variant?.barcode || "";
+                        
+                        // Auto-generate barcode if missing
+                        if (!barcode && variant) {
+                          barcode = generateEAN8();
+                          await supabase
+                            .from("product_variants")
+                            .update({ barcode })
+                            .eq("id", variant.id);
+                        }
+
+                        addLineItem({
+                          product_name: selectedProduct.product_name,
+                          product_id: selectedProduct.id,
+                          size,
+                          qty: Number(qty),
+                          pur_price: variant?.pur_price || selectedProduct.default_pur_price,
+                          sale_price: variant?.sale_price || selectedProduct.default_sale_price,
+                          gst_per: selectedProduct.gst_per,
+                          hsn_code: selectedProduct.hsn_code,
+                          barcode: barcode,
+                        });
+                      }
+                    }
+
+                    setShowSizeGrid(false);
+                    setSizeQty({});
+                  }}
+                >
+                  Confirm (Enter)
+                </Button>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
