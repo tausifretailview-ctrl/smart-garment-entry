@@ -508,65 +508,43 @@ export default function BarcodePrinting() {
       <div id="printArea" className="mt-8"></div>
 
       <style>{`
+        #printArea {
+          width: 210mm;
+          min-height: 297mm;
+          padding: 0;
+          margin: 0;
+        }
+
+        .label-grid {
+          display: grid;
+          grid-template-columns: repeat(8, 33mm);
+          grid-auto-rows: 19mm;
+          gap: 1mm;
+        }
+
         .label-cell {
           padding: 1mm;
           text-align: center;
+          font-size: 9px;
           line-height: 1.05;
-          font-size: 9px;
           overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          border: 1px solid #e0e0e0;
         }
-        .brand {
-          font-weight: 800;
-          font-size: 9px;
-          letter-spacing: 0.2px;
-        }
-        .prod {
-          font-weight: 600;
-          font-size: 8.5px;
-        }
-        .meta {
-          font-size: 8px;
-        }
-        .mrp {
-          font-weight: 700;
-          font-size: 9px;
-        }
+
+        .brand { font-weight: 800; }
+        .prod { font-weight: 600; font-size: 8.5px; }
+        .mrp { font-weight: 700; font-size: 9px; }
+        .meta { font-size: 8px; }
+
         svg.barcode {
           width: 100%;
           height: 24px;
         }
 
-        @page {
-          size: A4;
-          margin: 0;
-        }
+        @page { size: A4; margin: 0; }
         @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          body * {
-            visibility: hidden;
-          }
-          #printArea,
-          #printArea * {
-            visibility: visible;
-          }
-          #printArea {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 210mm;
-            height: 297mm;
-          }
-          .label-cell {
-            border: none;
-          }
+          body * { visibility: hidden; }
+          #printArea, #printArea * { visibility: visible; }
+          #printArea { position: absolute; left: 0; top: 0; }
         }
       `}</style>
     </div>
