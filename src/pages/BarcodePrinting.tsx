@@ -10,12 +10,10 @@ import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
 
 interface LabelItem {
-  skuId: string;
-  productId: string;
-  productName: string;
-  brand: string;
+  sku_id: string;
+  product_name: string;
   size: string;
-  mrp: number;
+  sale_price: number;
   barcode: string;
   qty: number;
 }
@@ -92,12 +90,10 @@ export default function BarcodePrinting() {
       if (error) throw error;
 
       const items: LabelItem[] = (data || []).map((v: any) => ({
-        skuId: v.id,
-        productId: v.products?.id || "",
-        productName: v.products?.product_name || "",
-        brand: v.products?.brand || "",
+        sku_id: v.id,
+        product_name: v.products?.product_name || "",
         size: v.size,
-        mrp: v.sale_price || 0,
+        sale_price: v.sale_price || 0,
         barcode: v.barcode || "",
         qty: 0,
       }));
@@ -195,25 +191,23 @@ export default function BarcodePrinting() {
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("purchase_items")
-        .select("barcode, size, product_id, qty")
+        .select("barcode, size, qty")
         .eq("bill_id", billData.id);
 
       if (itemsError) throw itemsError;
 
       const quantityMap = new Map<string, number>();
       (itemsData || []).forEach((item) => {
-        const key = item.barcode || `${item.product_id}-${item.size}`;
-        quantityMap.set(key, item.qty);
+        if (item.barcode) {
+          quantityMap.set(item.barcode, item.qty);
+        }
       });
 
       setLabelItems((prev) =>
-        prev.map((item) => {
-          const key = item.barcode || `${item.productId}-${item.size}`;
-          return {
-            ...item,
-            qty: quantityMap.get(key) || 0,
-          };
-        })
+        prev.map((item) => ({
+          ...item,
+          qty: item.barcode ? (quantityMap.get(item.barcode) || 0) : 0,
+        }))
       );
 
       toast.success(`Loaded quantities from bill`);
@@ -225,7 +219,7 @@ export default function BarcodePrinting() {
 
   const handleQtyChange = (skuId: string, newQty: number) => {
     setLabelItems((prev) =>
-      prev.map((item) => (item.skuId === skuId ? { ...item, qty: Math.max(0, newQty) } : item))
+      prev.map((item) => (item.sku_id === skuId ? { ...item, qty: Math.max(0, newQty) } : item))
     );
   };
 
@@ -242,30 +236,30 @@ export default function BarcodePrinting() {
       case "BT1":
         return `
           <div class="brand">SMART INVENTORY</div>
-          <div class="prod">${item.productName} (${item.size})</div>
-          <div class="mrp">MRP: ₹${item.mrp}</div>
+          <div class="prod">${item.product_name} (${item.size})</div>
+          <div class="mrp">MRP: ₹${item.sale_price}</div>
           <svg class="barcode" data-code="${barcode}"></svg>
           <div class="meta">${barcode}</div>
         `;
       case "BT2":
         return `
           <div class="brand">SMART INVENTORY</div>
-          <div class="prod" style="font-size: 9.5px">${item.productName} (${item.size})</div>
+          <div class="prod" style="font-size: 9.5px">${item.product_name} (${item.size})</div>
           <svg class="barcode" data-code="${barcode}"></svg>
           <div class="meta">${barcode}</div>
         `;
       case "BT3":
         return `
           <div class="brand">SMART INVENTORY</div>
-          <div class="mrp" style="font-size: 11px">MRP: ₹${item.mrp}</div>
+          <div class="mrp" style="font-size: 11px">MRP: ₹${item.sale_price}</div>
           <svg class="barcode" data-code="${barcode}"></svg>
           <div class="meta">${barcode}</div>
         `;
       case "BT4":
         return `
           <div class="brand" style="font-size: 8px">SMART INVENTORY</div>
-          <div class="prod" style="font-size: 7.5px">${item.productName} (${item.size})</div>
-          <div class="mrp" style="font-size: 8px">MRP: ₹${item.mrp}</div>
+          <div class="prod" style="font-size: 7.5px">${item.product_name} (${item.size})</div>
+          <div class="mrp" style="font-size: 8px">MRP: ₹${item.sale_price}</div>
           <svg class="barcode" data-code="${barcode}" style="height: 20px"></svg>
           <div class="meta" style="font-size: 7px">${barcode}</div>
         `;
@@ -282,7 +276,7 @@ export default function BarcodePrinting() {
     // Validate barcodes
     for (const item of labelItems) {
       if (item.qty > 0 && item.barcode && item.barcode.length !== 8) {
-        toast.error(`Invalid barcode length for ${item.productName} - ${item.size}`);
+        toast.error(`Invalid barcode length for ${item.product_name} - ${item.size}`);
         return;
       }
     }
@@ -419,17 +413,17 @@ export default function BarcodePrinting() {
             </TableHeader>
             <TableBody>
               {labelItems.map((item) => (
-                <TableRow key={item.skuId}>
-                  <TableCell>{item.productName}</TableCell>
+                <TableRow key={item.sku_id}>
+                  <TableCell>{item.product_name}</TableCell>
                   <TableCell>{item.size}</TableCell>
-                  <TableCell>₹{item.mrp}</TableCell>
+                  <TableCell>₹{item.sale_price}</TableCell>
                   <TableCell>{item.barcode || "(auto-generate)"}</TableCell>
                   <TableCell>
                     <Input
                       type="number"
                       min="0"
                       value={item.qty}
-                      onChange={(e) => handleQtyChange(item.skuId, parseInt(e.target.value) || 0)}
+                      onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
                       className="w-20"
                     />
                   </TableCell>
