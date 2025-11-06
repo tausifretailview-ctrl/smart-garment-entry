@@ -235,62 +235,40 @@ export default function BarcodePrinting() {
     toast.success("Cleared all labels");
   };
 
-  const renderLabelCell = (item: LabelItem, format: DesignFormat) => {
+  const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
     const barcode = item.barcode || genEAN8();
 
     switch (format) {
       case "BT1":
-        return (
-          <div className="label-cell" key={`${item.skuId}-${Math.random()}`}>
-            <div className="brand">SMART INVENTORY</div>
-            <div className="prod">
-              {item.productName} ({item.size})
-            </div>
-            <div className="mrp">MRP: ₹{item.mrp}</div>
-            <svg className="barcode" data-code={barcode}></svg>
-            <div className="meta">{barcode}</div>
-          </div>
-        );
+        return `
+          <div class="brand">SMART INVENTORY</div>
+          <div class="prod">${item.productName} (${item.size})</div>
+          <div class="mrp">MRP: ₹${item.mrp}</div>
+          <svg class="barcode" data-code="${barcode}"></svg>
+          <div class="meta">${barcode}</div>
+        `;
       case "BT2":
-        return (
-          <div className="label-cell" key={`${item.skuId}-${Math.random()}`}>
-            <div className="brand">SMART INVENTORY</div>
-            <div className="prod" style={{ fontSize: "9.5px" }}>
-              {item.productName} ({item.size})
-            </div>
-            <svg className="barcode" data-code={barcode}></svg>
-            <div className="meta">{barcode}</div>
-          </div>
-        );
+        return `
+          <div class="brand">SMART INVENTORY</div>
+          <div class="prod" style="font-size: 9.5px">${item.productName} (${item.size})</div>
+          <svg class="barcode" data-code="${barcode}"></svg>
+          <div class="meta">${barcode}</div>
+        `;
       case "BT3":
-        return (
-          <div className="label-cell" key={`${item.skuId}-${Math.random()}`}>
-            <div className="brand">SMART INVENTORY</div>
-            <div className="mrp" style={{ fontSize: "11px" }}>
-              MRP: ₹{item.mrp}
-            </div>
-            <svg className="barcode" data-code={barcode}></svg>
-            <div className="meta">{barcode}</div>
-          </div>
-        );
+        return `
+          <div class="brand">SMART INVENTORY</div>
+          <div class="mrp" style="font-size: 11px">MRP: ₹${item.mrp}</div>
+          <svg class="barcode" data-code="${barcode}"></svg>
+          <div class="meta">${barcode}</div>
+        `;
       case "BT4":
-        return (
-          <div className="label-cell" key={`${item.skuId}-${Math.random()}`} style={{ fontSize: "7.5px" }}>
-            <div className="brand" style={{ fontSize: "8px" }}>
-              SMART INVENTORY
-            </div>
-            <div className="prod" style={{ fontSize: "7.5px" }}>
-              {item.productName} ({item.size})
-            </div>
-            <div className="mrp" style={{ fontSize: "8px" }}>
-              MRP: ₹{item.mrp}
-            </div>
-            <svg className="barcode" data-code={barcode} style={{ height: "20px" }}></svg>
-            <div className="meta" style={{ fontSize: "7px" }}>
-              {barcode}
-            </div>
-          </div>
-        );
+        return `
+          <div class="brand" style="font-size: 8px">SMART INVENTORY</div>
+          <div class="prod" style="font-size: 7.5px">${item.productName} (${item.size})</div>
+          <div class="mrp" style="font-size: 8px">MRP: ₹${item.mrp}</div>
+          <svg class="barcode" data-code="${barcode}" style="height: 20px"></svg>
+          <div class="meta" style="font-size: 7px">${barcode}</div>
+        `;
     }
   };
 
@@ -327,10 +305,12 @@ export default function BarcodePrinting() {
     `;
 
     labelItems.forEach((item) => {
-      for (let i = 0; i < item.qty; i++) {
+      const qty = Number(item.qty) || 0;
+      for (let i = 0; i < qty; i++) {
         const cell = document.createElement("div");
-        cell.innerHTML = renderLabelCell(item, designFormat)?.props.children || "";
-        gridDiv.appendChild(cell.firstChild as Node);
+        cell.className = "label-cell";
+        cell.innerHTML = getLabelHTML(item, designFormat);
+        gridDiv.appendChild(cell);
       }
     });
 
