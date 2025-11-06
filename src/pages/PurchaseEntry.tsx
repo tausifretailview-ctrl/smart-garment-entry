@@ -174,14 +174,30 @@ const PurchaseEntry = () => {
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
-    // Get product details and all variants
+    if (entryMode === "grid") {
+      openSizeGridModal(variant.product_id);
+    } else {
+      addInlineRow(variant);
+    }
+    setSearchQuery("");
+    setShowSearch(false);
+  };
+
+  const openSizeGridModal = async (productId: string) => {
+    // Get product details and all active variants
     const { data: productData, error: productError } = await supabase
       .from("products")
       .select("*")
-      .eq("id", variant.product_id)
+      .eq("id", productId)
       .single();
 
-    if (productError) {
+    const { data: allVariants, error: variantsError } = await supabase
+      .from("product_variants")
+      .select("*")
+      .eq("product_id", productId)
+      .eq("active", true);
+
+    if (productError || variantsError) {
       toast({
         title: "Error",
         description: "Failed to load product details",
@@ -190,88 +206,29 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const { data: allVariants, error: variantsError } = await supabase
-      .from("product_variants")
-      .select("*")
-      .eq("product_id", variant.product_id)
-      .eq("active", true);
-
-    if (variantsError) {
+    if (!allVariants || allVariants.length === 0) {
       toast({
-        title: "Error",
-        description: "Failed to load product variants",
+        title: "No Variants",
+        description: "This product has no active variants",
         variant: "destructive",
       });
       return;
     }
 
-    if (entryMode === "grid" && allVariants && allVariants.length > 1) {
-      // Show size grid popup
-      const productInfo: SelectedProductData = {
-        product_id: productData.id,
-        product_name: productData.product_name,
-        brand: productData.brand || "",
-        gst_per: productData.gst_per || 0,
-        hsn_code: productData.hsn_code || "",
-        default_pur_price: productData.default_pur_price || 0,
-        default_sale_price: productData.default_sale_price || 0,
-        variants: allVariants.map((v: any) => ({
-          id: v.id,
-          size: v.size,
-          barcode: v.barcode || "",
-        })),
-      };
-
-      setSelectedProduct(productInfo);
-      setModalPurPrice(productInfo.default_pur_price);
-      setModalSalePrice(productInfo.default_sale_price);
-      setSizeQuantities(
-        productInfo.variants.map((v) => ({
-          size: v.size,
-          qty: 0,
-          variant_id: v.id,
-          barcode: v.barcode,
-        }))
-      );
-      setShowSizeGrid(true);
+    // If only one variant, add directly
+    if (allVariants.length === 1) {
+      const v = allVariants[0];
+      let barcode = v.barcode || "";
       
-      // Focus first input after modal opens
-      setTimeout(() => firstSizeInputRef.current?.focus(), 100);
-    } else if (entryMode === "inline") {
-      // Add inline row with size selector
-      const lineTotal = 1 * (productData.default_pur_price || 0);
-      const newItem: LineItem = {
-        temp_id: Date.now().toString() + Math.random(),
-        product_id: variant.product_id,
-        product_name: productData.product_name,
-        size: allVariants?.[0]?.size || "",
-        qty: 1,
-        pur_price: productData.default_pur_price || 0,
-        sale_price: productData.default_sale_price || 0,
-        gst_per: productData.gst_per || 0,
-        hsn_code: productData.hsn_code || "",
-        barcode: allVariants?.[0]?.barcode || "",
-        line_total: lineTotal,
-      };
-      setLineItems([...lineItems, newItem]);
-    } else {
-      // Single variant - add directly
-      const singleVariant = allVariants?.[0];
-      let barcode = singleVariant?.barcode || "";
-      
-      // Auto-generate barcode if missing
-      if (!barcode && singleVariant) {
+      if (!barcode) {
         barcode = generateEAN8();
-        await supabase
-          .from("product_variants")
-          .update({ barcode })
-          .eq("id", singleVariant.id);
+        await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
       }
 
       addLineItem({
-        product_id: variant.product_id,
+        product_id: productId,
         product_name: productData.product_name,
-        size: singleVariant?.size || "",
+        size: v.size,
         qty: 1,
         pur_price: productData.default_pur_price || 0,
         sale_price: productData.default_sale_price || 0,
@@ -279,10 +236,56 @@ const PurchaseEntry = () => {
         hsn_code: productData.hsn_code || "",
         barcode: barcode,
       });
+      return;
     }
 
-    setSearchQuery("");
-    setShowSearch(false);
+    // Show size grid modal
+    const productInfo: SelectedProductData = {
+      product_id: productData.id,
+      product_name: productData.product_name,
+      brand: productData.brand || "",
+      gst_per: productData.gst_per || 0,
+      hsn_code: productData.hsn_code || "",
+      default_pur_price: productData.default_pur_price || 0,
+      default_sale_price: productData.default_sale_price || 0,
+      variants: allVariants.map((v: any) => ({
+        id: v.id,
+        size: v.size,
+        barcode: v.barcode || "",
+      })),
+    };
+
+    setSelectedProduct(productInfo);
+    setModalPurPrice(productInfo.default_pur_price);
+    setModalSalePrice(productInfo.default_sale_price);
+    setSizeQuantities(
+      productInfo.variants.map((v) => ({
+        size: v.size,
+        qty: 0,
+        variant_id: v.id,
+        barcode: v.barcode,
+      }))
+    );
+    setShowSizeGrid(true);
+    setTimeout(() => firstSizeInputRef.current?.focus(), 100);
+  };
+
+  const addInlineRow = (variant: ProductVariant) => {
+    const lineTotal = 1 * variant.pur_price;
+    const newItem: LineItem = {
+      temp_id: Date.now().toString() + Math.random(),
+      product_id: variant.product_id,
+      product_name: variant.product_name,
+      size: variant.size,
+      qty: 1,
+      pur_price: variant.pur_price,
+      sale_price: variant.sale_price,
+      gst_per: variant.gst_per,
+      hsn_code: variant.hsn_code,
+      barcode: variant.barcode,
+      line_total: lineTotal,
+    };
+    setLineItems([...lineItems, newItem]);
   };
 
   const addLineItem = (item: Omit<LineItem, "temp_id" | "line_total">) => {
