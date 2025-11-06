@@ -64,6 +64,9 @@ const PurchaseEntry = () => {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("grid");
   const [billDate, setBillDate] = useState<Date>(new Date());
+  const [grossAmount, setGrossAmount] = useState(0);
+  const [gstAmount, setGstAmount] = useState(0);
+  const [netAmount, setNetAmount] = useState(0);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
 
   const [billData, setBillData] = useState({
@@ -80,6 +83,14 @@ const PurchaseEntry = () => {
       setShowSearch(false);
     }
   }, [searchQuery]);
+
+  useEffect(() => {
+    const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+    const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+    setGrossAmount(gross);
+    setGstAmount(gst);
+    setNetAmount(gross + gst);
+  }, [lineItems]);
 
   const generateEAN8 = (): string => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
@@ -280,16 +291,6 @@ const PurchaseEntry = () => {
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
   };
 
-  const calculateTotals = () => {
-    const grossAmount = lineItems.reduce((sum, item) => sum + item.line_total, 0);
-    const gstAmount = lineItems.reduce(
-      (sum, item) => sum + (item.line_total * item.gst_per) / 100,
-      0
-    );
-    const netAmount = grossAmount + gstAmount;
-    return { grossAmount, gstAmount, netAmount };
-  };
-
   const handleCopyLastRow = () => {
     if (lineItems.length === 0) return;
     const lastItem = lineItems[lineItems.length - 1];
@@ -341,8 +342,6 @@ const PurchaseEntry = () => {
 
     setLoading(true);
     try {
-      const totals = calculateTotals();
-
       // Insert purchase bill
       const { data: billDataResult, error: billError } = await supabase
         .from("purchase_bills")
@@ -350,9 +349,9 @@ const PurchaseEntry = () => {
           {
             ...billData,
             bill_date: format(billDate, "yyyy-MM-dd"),
-            gross_amount: totals.grossAmount,
-            gst_amount: totals.gstAmount,
-            net_amount: totals.netAmount,
+            gross_amount: grossAmount,
+            gst_amount: gstAmount,
+            net_amount: netAmount,
           },
         ])
         .select()
@@ -404,7 +403,7 @@ const PurchaseEntry = () => {
     }
   };
 
-  const totals = calculateTotals();
+  const totals = { grossAmount, gstAmount, netAmount };
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
