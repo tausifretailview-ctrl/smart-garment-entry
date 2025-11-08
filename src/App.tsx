@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import ProductDashboard from "./pages/ProductDashboard";
 import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
+import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
 import BarcodePrinting from "./pages/BarcodePrinting";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -52,6 +53,12 @@ const Navigation = () => {
               className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
             >
               Purchase Entry
+            </Link>
+            <Link
+              to="/purchase-bills"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Purchase Bills
             </Link>
             <Link
               to="/barcode-printing"
@@ -106,6 +113,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <PurchaseEntry />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/purchase-bills"
+              element={
+                <ProtectedRoute>
+                  <PurchaseBillDashboard />
                 </ProtectedRoute>
               }
             />
