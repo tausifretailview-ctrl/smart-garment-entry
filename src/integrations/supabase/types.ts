@@ -69,6 +69,7 @@ export type Database = {
           gst_per: number | null
           hsn_code: string | null
           id: string
+          image_url: string | null
           product_name: string
           size_group_id: string | null
           status: string | null
@@ -85,6 +86,7 @@ export type Database = {
           gst_per?: number | null
           hsn_code?: string | null
           id?: string
+          image_url?: string | null
           product_name: string
           size_group_id?: string | null
           status?: string | null
@@ -101,6 +103,7 @@ export type Database = {
           gst_per?: number | null
           hsn_code?: string | null
           id?: string
+          image_url?: string | null
           product_name?: string
           size_group_id?: string | null
           status?: string | null

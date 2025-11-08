@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Package, Barcode } from "lucide-react";
+import { Loader2, Package, Barcode, Upload } from "lucide-react";
 
 interface SizeGroup {
   id: string;
@@ -36,14 +36,17 @@ interface ProductForm {
   default_pur_price: number;
   default_sale_price: number;
   status: string;
+  image_url: string;
 }
 
 const ProductEntry = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
+  const [nextBarcodeNumber, setNextBarcodeNumber] = useState(10001001);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_name: "",
@@ -57,10 +60,12 @@ const ProductEntry = () => {
     default_pur_price: 0,
     default_sale_price: 0,
     status: "active",
+    image_url: "",
   });
 
   useEffect(() => {
     fetchSizeGroups();
+    fetchLastBarcode();
   }, []);
 
   const fetchSizeGroups = async () => {
@@ -87,22 +92,82 @@ const ProductEntry = () => {
     }
   };
 
-  const generateEAN8Checksum = (code: string): string => {
-    const digits = code.split("").map(Number);
-    let sum = 0;
-    for (let i = 0; i < 7; i++) {
-      sum += digits[i] * (i % 2 === 0 ? 3 : 1);
+  const fetchLastBarcode = async () => {
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("barcode")
+      .not("barcode", "is", null)
+      .order("barcode", { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0 && data[0].barcode) {
+      const lastBarcode = parseInt(data[0].barcode);
+      if (!isNaN(lastBarcode) && lastBarcode >= 10001001) {
+        setNextBarcodeNumber(lastBarcode + 1);
+      }
     }
-    const checksum = (10 - (sum % 10)) % 10;
-    return checksum.toString();
   };
 
-  const generateEAN8Barcode = (): string => {
-    const randomDigits = Math.floor(Math.random() * 10000000)
-      .toString()
-      .padStart(7, "0");
-    const checksum = generateEAN8Checksum(randomDigits);
-    return randomDigits + checksum;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Please upload an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "Image size must be less than 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
+
+      setFormData({ ...formData, image_url: publicUrl });
+      toast({
+        title: "Success",
+        description: "Image uploaded successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload image",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const generateSequentialBarcode = (): string => {
+    const barcode = nextBarcodeNumber.toString();
+    setNextBarcodeNumber(nextBarcodeNumber + 1);
+    return barcode;
   };
 
   const handleGenerateSizeVariants = () => {
@@ -131,7 +196,7 @@ const ProductEntry = () => {
   const handleAutoGenerateBarcodes = () => {
     const updatedVariants = variants.map((v) => ({
       ...v,
-      barcode: v.barcode || generateEAN8Barcode(),
+      barcode: v.barcode || generateSequentialBarcode(),
     }));
     setVariants(updatedVariants);
     toast({
@@ -229,6 +294,7 @@ const ProductEntry = () => {
         default_pur_price: 0,
         default_sale_price: 0,
         status: "active",
+        image_url: "",
       });
       setVariants([]);
       setShowVariants(false);
@@ -257,6 +323,29 @@ const ProductEntry = () => {
             <CardDescription>Add new product to your inventory</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Product Image Upload */}
+            <div className="space-y-2">
+              <Label htmlFor="product_image">Product Image</Label>
+              <div className="flex items-center gap-4">
+                <Input
+                  id="product_image"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={uploadingImage}
+                  className="max-w-md"
+                />
+                {uploadingImage && <Loader2 className="h-4 w-4 animate-spin" />}
+                {formData.image_url && (
+                  <img
+                    src={formData.image_url}
+                    alt="Product preview"
+                    className="h-16 w-16 object-cover rounded border"
+                  />
+                )}
+              </div>
+            </div>
+
             {/* Product Details Form */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
