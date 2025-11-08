@@ -150,21 +150,32 @@ const ProductEntry = () => {
   const uploadProductImage = async (): Promise<string | null> => {
     if (!imageFile) return null;
 
-    const fileExt = imageFile.name.split(".").pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${fileName}`;
+    try {
+      setUploadingImage(true);
+      const fileExt = imageFile.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from("product-images")
-      .upload(filePath, imageFile);
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, imageFile);
 
-    if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        throw new Error(`Image upload failed: ${uploadError.message}`);
+      }
 
-    const { data } = supabase.storage
-      .from("product-images")
-      .getPublicUrl(filePath);
+      const { data } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(filePath);
 
-    return data.publicUrl;
+      return data.publicUrl;
+    } catch (error: any) {
+      console.error("Image upload error:", error);
+      throw new Error(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const generateSequentialBarcode = (): string => {
