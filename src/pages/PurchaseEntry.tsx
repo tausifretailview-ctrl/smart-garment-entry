@@ -33,6 +33,7 @@ interface ProductVariant {
 interface LineItem {
   temp_id: string;
   product_id: string;
+  sku_id: string; // variant id for stock tracking
   product_name: string;
   size: string;
   qty: number;
@@ -231,6 +232,7 @@ const PurchaseEntry = () => {
 
       addItemRow({
         product_id: productId,
+        sku_id: v.id,
         product_name: product.product_name,
         size: v.size,
         qty: 1,
@@ -256,6 +258,7 @@ const PurchaseEntry = () => {
     const newItem: LineItem = {
       temp_id: Date.now().toString() + Math.random(),
       product_id: variant.product_id,
+      sku_id: variant.id,
       product_name: variant.product_name,
       size: variant.size,
       qty: 1,
@@ -367,10 +370,11 @@ const PurchaseEntry = () => {
 
       if (billError) throw billError;
 
-      // Insert purchase items
+      // Insert purchase items with sku_id for stock tracking
       const itemsToInsert = lineItems.map((item) => ({
         bill_id: billDataResult.id,
         product_id: item.product_id,
+        sku_id: item.sku_id,
         size: item.size,
         qty: item.qty,
         pur_price: item.pur_price,
@@ -779,6 +783,7 @@ const PurchaseEntry = () => {
                         addItemRow({
                           product_name: selectedProduct.product_name,
                           product_id: selectedProduct.id,
+                          sku_id: variant?.id || "",
                           size,
                           qty: Number(qty),
                           pur_price: variant?.pur_price || selectedProduct.default_pur_price,

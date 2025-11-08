@@ -15,6 +15,7 @@ interface ProductVariant {
   sale_price: number;
   barcode: string;
   active: boolean;
+  stock_qty: number;
 }
 
 interface Product {
@@ -218,14 +219,15 @@ const ProductDashboard = () => {
 
                       {/* Expanded Variants Table */}
                       {expandedProduct === product.id && product.variants && product.variants.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-border">
-                          <h4 className="font-semibold mb-3">Size Variants</h4>
+                          <div className="mt-4 pt-4 border-t border-border">
+                          <h4 className="font-semibold mb-3">Size Variants & Stock</h4>
                           <div className="border rounded-lg overflow-hidden">
                             <Table>
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>Size</TableHead>
                                   <TableHead>Barcode</TableHead>
+                                  <TableHead>Stock Qty</TableHead>
                                   <TableHead>Purchase Price</TableHead>
                                   <TableHead>Sale Price</TableHead>
                                   <TableHead className="text-center">Status</TableHead>
@@ -237,6 +239,14 @@ const ProductDashboard = () => {
                                     <TableCell className="font-medium">{variant.size}</TableCell>
                                     <TableCell className="font-mono text-sm">
                                       {variant.barcode || "—"}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Badge 
+                                        variant={variant.stock_qty <= 0 ? "destructive" : variant.stock_qty <= 10 ? "secondary" : "default"}
+                                        className="font-medium"
+                                      >
+                                        {variant.stock_qty}
+                                      </Badge>
                                     </TableCell>
                                     <TableCell>₹{variant.pur_price}</TableCell>
                                     <TableCell>₹{variant.sale_price}</TableCell>
