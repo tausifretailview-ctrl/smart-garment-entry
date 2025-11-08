@@ -137,6 +137,13 @@ export default function BarcodePrinting() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
+  // Auto-fill quantities on page load for lastPurchase mode
+  useEffect(() => {
+    if (quantityMode === "lastPurchase" && labelItems.length > 0) {
+      fillLastPurchaseQuantities(labelItems);
+    }
+  }, [quantityMode]);
+
   const handleSelectProduct = async (result: SearchResult) => {
     // Check if already added
     if (labelItems.some(item => item.sku_id === result.id)) {
@@ -463,13 +470,13 @@ export default function BarcodePrinting() {
                   {searchResults.map((result) => (
                     <CommandItem
                       key={result.id}
-                      value={result.id}
+                      value={`${result.product_name}-${result.brand}-${result.size}-${result.id}`}
                       onSelect={() => handleSelectProduct(result)}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-2 cursor-pointer py-3"
                     >
                       <Check
                         className={cn(
-                          "h-4 w-4",
+                          "h-4 w-4 shrink-0",
                           labelItems.some(item => item.sku_id === result.id)
                             ? "opacity-100"
                             : "opacity-0"
