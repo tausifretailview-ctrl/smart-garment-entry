@@ -6,16 +6,35 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface LabelItem {
   sku_id: string;
   product_name: string;
+  brand: string;
+  color: string;
+  style: string;
   size: string;
   sale_price: number;
   barcode: string;
   qty: number;
+}
+
+interface SearchResult {
+  id: string;
+  product_name: string;
+  brand: string;
+  color: string;
+  style: string;
+  size: string;
+  sale_price: number;
+  barcode: string;
+  stock_qty: number;
 }
 
 type SheetType = "novajet48" | "novajet40" | "label65" | "a4_12x4";
@@ -31,6 +50,8 @@ const sheetPresets = {
 
 export default function BarcodePrinting() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [billNumber, setBillNumber] = useState("");
@@ -46,126 +67,184 @@ export default function BarcodePrinting() {
     return seven.join("") + String(chk);
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      toast.error("Please enter a search query");
+  // Search for products as user types
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (!searchQuery.trim()) {
+        setSearchResults([]);
+        return;
+      }
+
+      try {
+        const { data: matchingProducts } = await supabase
+          .from("products")
+          .select("id")
+          .or(`product_name.ilike.%${searchQuery}%,brand.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,style.ilike.%${searchQuery}%`);
+
+        const productIds = matchingProducts?.map((p) => p.id) || [];
+
+        let variantsQuery = supabase
+          .from("product_variants")
+          .select(
+            `
+            id,
+            size,
+            sale_price,
+            barcode,
+            stock_qty,
+            product_id,
+            products (
+              product_name,
+              brand,
+              color,
+              style
+            )
+          `
+          )
+          .eq("active", true);
+
+        if (productIds.length > 0) {
+          variantsQuery = variantsQuery.or(
+            `barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
+          );
+        } else {
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%`);
+        }
+
+        const { data, error } = await variantsQuery.limit(50);
+
+        if (error) throw error;
+
+        const results: SearchResult[] = (data || []).map((v: any) => ({
+          id: v.id,
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          color: v.products?.color || "",
+          style: v.products?.style || "",
+          size: v.size,
+          sale_price: v.sale_price || 0,
+          barcode: v.barcode || "",
+          stock_qty: v.stock_qty || 0,
+        }));
+
+        setSearchResults(results);
+      } catch (error: any) {
+        console.error(error);
+      }
+    };
+
+    const debounce = setTimeout(searchProducts, 300);
+    return () => clearTimeout(debounce);
+  }, [searchQuery]);
+
+  const handleSelectProduct = async (result: SearchResult) => {
+    // Check if already added
+    if (labelItems.some(item => item.sku_id === result.id)) {
+      toast.error("Product already added");
+      setIsSearchOpen(false);
       return;
     }
 
-    try {
-      const { data: matchingProducts } = await supabase
-        .from("products")
-        .select("id")
-        .or(`product_name.ilike.%${searchQuery}%,brand.ilike.%${searchQuery}%`);
+    const newItem: LabelItem = {
+      sku_id: result.id,
+      product_name: result.product_name,
+      brand: result.brand,
+      color: result.color,
+      style: result.style,
+      size: result.size,
+      sale_price: result.sale_price,
+      barcode: result.barcode,
+      qty: 0,
+    };
 
-      const productIds = matchingProducts?.map((p) => p.id) || [];
+    setLabelItems(prev => [...prev, newItem]);
+    setIsSearchOpen(false);
+    setSearchQuery("");
 
-      let variantsQuery = supabase
-        .from("product_variants")
-        .select(
-          `
-          id,
-          size,
-          sale_price,
-          barcode,
-          product_id,
-          products (
-            id,
-            product_name,
-            brand
-          )
-        `
-        )
-        .eq("active", true);
-
-      if (productIds.length > 0) {
-        variantsQuery = variantsQuery.or(
-          `barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
-        );
-      } else {
-        variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%`);
-      }
-
-      const { data, error } = await variantsQuery;
-
-      if (error) throw error;
-
-      const items: LabelItem[] = (data || []).map((v: any) => ({
-        sku_id: v.id,
-        product_name: v.products?.product_name || "",
-        size: v.size,
-        sale_price: v.sale_price || 0,
-        barcode: v.barcode || "",
-        qty: 0,
-      }));
-
-      setLabelItems(items);
-
-      if (quantityMode === "lastPurchase") {
-        await fillLastPurchaseQuantities(items);
-      }
-
-      toast.success(`Found ${items.length} product variant(s)`);
-    } catch (error: any) {
-      console.error(error);
-      toast.error("Failed to search products");
+    // Auto-fill quantity based on mode
+    if (quantityMode === "lastPurchase") {
+      await fillLastPurchaseQuantities([newItem]);
+    } else if (quantityMode === "byBill" && billNumber.trim()) {
+      await loadQuantitiesForItem(newItem);
     }
+
+    toast.success("Product added");
   };
 
   const fillLastPurchaseQuantities = async (items: LabelItem[]) => {
     try {
-      const { data, error } = await supabase.rpc("get_latest_purchase_quantities" as any);
+      // Get the latest purchase bill
+      const { data: latestBill } = await supabase
+        .from("purchase_bills")
+        .select("id, bill_date")
+        .order("bill_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
 
-      if (error) {
-        // Fallback to manual query if function doesn't exist
-        const { data: purchaseData } = await supabase
-          .from("purchase_items")
-          .select(
-            `
-            barcode,
-            qty,
-            size,
-            product_id,
-            purchase_bills!inner (
-              bill_date,
-              created_at
-            )
-          `
-          )
-          .order("purchase_bills.bill_date", { ascending: false })
-          .order("purchase_bills.created_at", { ascending: false });
+      if (!latestBill) return;
 
-        if (purchaseData) {
-          const latestByBarcode = new Map<string, number>();
-          purchaseData.forEach((item: any) => {
-            if (item.barcode && !latestByBarcode.has(item.barcode)) {
-              latestByBarcode.set(item.barcode, item.qty);
-            }
-          });
+      // Get items from the latest bill
+      const { data: purchaseData } = await supabase
+        .from("purchase_items")
+        .select("barcode, qty, sku_id")
+        .eq("bill_id", latestBill.id);
 
-          setLabelItems((prev) =>
-            prev.map((item) => ({
-              ...item,
-              qty: latestByBarcode.get(item.barcode) || 0,
-            }))
-          );
-        }
-        return;
+      if (purchaseData) {
+        const quantityMap = new Map<string, number>();
+        const skuQuantityMap = new Map<string, number>();
+        
+        purchaseData.forEach((item: any) => {
+          if (item.barcode) {
+            quantityMap.set(item.barcode, item.qty);
+          }
+          if (item.sku_id) {
+            skuQuantityMap.set(item.sku_id, item.qty);
+          }
+        });
+
+        setLabelItems((prev) =>
+          prev.map((item) => {
+            // Try to match by sku_id first, then by barcode
+            const qty = skuQuantityMap.get(item.sku_id) || quantityMap.get(item.barcode) || 0;
+            return { ...item, qty };
+          })
+        );
       }
-
-      const quantityMap = new Map<string, number>();
-      (data || []).forEach((row: any) => {
-        quantityMap.set(row.barcode, row.qty);
-      });
-
-      setLabelItems((prev) =>
-        prev.map((item) => ({
-          ...item,
-          qty: quantityMap.get(item.barcode) || 0,
-        }))
-      );
     } catch (error) {
       console.error("Failed to fill last purchase quantities:", error);
+      toast.error("Could not load quantities from last purchase");
+    }
+  };
+
+  const loadQuantitiesForItem = async (item: LabelItem) => {
+    if (!billNumber.trim()) return;
+
+    try {
+      const { data: billData } = await supabase
+        .from("purchase_bills")
+        .select("id")
+        .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%`)
+        .limit(1)
+        .single();
+
+      if (!billData) return;
+
+      const { data: itemData } = await supabase
+        .from("purchase_items")
+        .select("qty, sku_id, barcode")
+        .eq("bill_id", billData.id)
+        .or(`sku_id.eq.${item.sku_id},barcode.eq.${item.barcode}`)
+        .limit(1)
+        .single();
+
+      if (itemData) {
+        setLabelItems(prev =>
+          prev.map(i => i.sku_id === item.sku_id ? { ...i, qty: itemData.qty } : i)
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load quantity for item:", error);
     }
   };
 
@@ -175,43 +254,51 @@ export default function BarcodePrinting() {
       return;
     }
 
+    if (labelItems.length === 0) {
+      toast.error("Please add products first");
+      return;
+    }
+
     try {
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
-        .select("id")
+        .select("id, supplier_invoice_no, bill_date")
         .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%`)
         .limit(1)
-        .maybeSingle();
+        .single();
 
-      if (billError) throw billError;
-
-      if (!billData) {
+      if (billError || !billData) {
         toast.error("Bill not found");
         return;
       }
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("purchase_items")
-        .select("barcode, size, qty")
+        .select("barcode, sku_id, qty")
         .eq("bill_id", billData.id);
 
       if (itemsError) throw itemsError;
 
-      const quantityMap = new Map<string, number>();
+      const quantityMapByBarcode = new Map<string, number>();
+      const quantityMapBySku = new Map<string, number>();
+      
       (itemsData || []).forEach((item) => {
         if (item.barcode) {
-          quantityMap.set(item.barcode, item.qty);
+          quantityMapByBarcode.set(item.barcode, item.qty);
+        }
+        if (item.sku_id) {
+          quantityMapBySku.set(item.sku_id, item.qty);
         }
       });
 
       setLabelItems((prev) =>
-        prev.map((item) => ({
-          ...item,
-          qty: item.barcode ? (quantityMap.get(item.barcode) || 0) : 0,
-        }))
+        prev.map((item) => {
+          const qty = quantityMapBySku.get(item.sku_id) || quantityMapByBarcode.get(item.barcode) || 0;
+          return { ...item, qty };
+        })
       );
 
-      toast.success(`Loaded quantities from bill`);
+      toast.success(`Loaded quantities from bill ${billData.supplier_invoice_no || billData.id}`);
     } catch (error: any) {
       console.error(error);
       toast.error("Failed to load bill data");
@@ -350,15 +437,61 @@ export default function BarcodePrinting() {
     <div className="container mx-auto p-6 space-y-6">
       <h1 className="text-3xl font-bold">Barcode Printing</h1>
 
-      {/* Search Bar */}
+      {/* Search Bar with Dropdown */}
       <div className="flex gap-2">
-        <Input
-          placeholder="Search product, brand, size, or barcode"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-        />
-        <Button onClick={handleSearch}>Search</Button>
+        <Popover open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={isSearchOpen}
+              className="flex-1 justify-between"
+            >
+              {searchQuery || "Search product, brand, size, or barcode..."}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[600px] p-0">
+            <Command>
+              <CommandInput
+                placeholder="Type to search..."
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+              />
+              <CommandList>
+                <CommandEmpty>No products found.</CommandEmpty>
+                <CommandGroup>
+                  {searchResults.map((result) => (
+                    <CommandItem
+                      key={result.id}
+                      value={result.id}
+                      onSelect={() => handleSelectProduct(result)}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4",
+                          labelItems.some(item => item.sku_id === result.id)
+                            ? "opacity-100"
+                            : "opacity-0"
+                        )}
+                      />
+                      <div className="flex-1 grid grid-cols-5 gap-2 text-sm">
+                        <div className="font-semibold truncate">{result.product_name}</div>
+                        <div className="text-muted-foreground truncate">{result.brand || "-"}</div>
+                        <div className="text-muted-foreground truncate">{result.color || "-"} / {result.style || "-"}</div>
+                        <div className="font-medium">Size: {result.size}</div>
+                        <div className="text-right">
+                          <span className="font-semibold">₹{result.sale_price}</span>
+                          <span className="text-xs text-muted-foreground ml-2">Stock: {result.stock_qty}</span>
+                        </div>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Label Source Panel */}
@@ -406,6 +539,8 @@ export default function BarcodePrinting() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
+                <TableHead>Brand</TableHead>
+                <TableHead>Color/Style</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>MRP</TableHead>
                 <TableHead>Barcode</TableHead>
@@ -415,10 +550,14 @@ export default function BarcodePrinting() {
             <TableBody>
               {labelItems.map((item) => (
                 <TableRow key={item.sku_id}>
-                  <TableCell>{item.product_name}</TableCell>
+                  <TableCell className="font-medium">{item.product_name}</TableCell>
+                  <TableCell>{item.brand || "-"}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {item.color || "-"} / {item.style || "-"}
+                  </TableCell>
                   <TableCell>{item.size}</TableCell>
                   <TableCell>₹{item.sale_price}</TableCell>
-                  <TableCell>{item.barcode || "(auto-generate)"}</TableCell>
+                  <TableCell className="font-mono text-xs">{item.barcode || "(auto-gen)"}</TableCell>
                   <TableCell>
                     <Input
                       type="number"
