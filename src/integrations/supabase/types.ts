@@ -24,6 +24,7 @@ export type Database = {
           pur_price: number | null
           sale_price: number | null
           size: string
+          stock_qty: number
           updated_at: string | null
         }
         Insert: {
@@ -35,6 +36,7 @@ export type Database = {
           pur_price?: number | null
           sale_price?: number | null
           size: string
+          stock_qty?: number
           updated_at?: string | null
         }
         Update: {
@@ -46,6 +48,7 @@ export type Database = {
           pur_price?: number | null
           sale_price?: number | null
           size?: string
+          stock_qty?: number
           updated_at?: string | null
         }
         Relationships: [
@@ -255,6 +258,44 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          id: string
+          movement_type: string
+          notes: string | null
+          quantity: number
+          reference_id: string | null
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movement_type: string
+          notes?: string | null
+          quantity: number
+          reference_id?: string | null
+          variant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movement_type?: string
+          notes?: string | null
+          quantity?: number
+          reference_id?: string | null
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
