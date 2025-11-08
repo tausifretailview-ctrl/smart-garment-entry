@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Package, Barcode, Upload } from "lucide-react";
+import { Loader2, Package, Barcode, Upload, X } from "lucide-react";
 
 interface SizeGroup {
   id: string;
@@ -36,7 +36,7 @@ interface ProductForm {
   default_pur_price: number;
   default_sale_price: number;
   status: string;
-  image_url: string;
+  image_url?: string;
 }
 
 const ProductEntry = () => {
@@ -46,6 +46,8 @@ const ProductEntry = () => {
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
   const [nextBarcodeNumber, setNextBarcodeNumber] = useState(10001001);
   
   const [formData, setFormData] = useState<ProductForm>({
@@ -60,7 +62,6 @@ const ProductEntry = () => {
     default_pur_price: 0,
     default_sale_price: 0,
     status: "active",
-    image_url: "",
   });
 
   useEffect(() => {
@@ -108,7 +109,7 @@ const ProductEntry = () => {
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -132,36 +133,38 @@ const ProductEntry = () => {
       return;
     }
 
-    setUploadingImage(true);
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${fileName}`;
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
-      const { error: uploadError } = await supabase.storage
-        .from("product-images")
-        .upload(filePath, file);
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview("");
+    setFormData({ ...formData, image_url: undefined });
+  };
 
-      if (uploadError) throw uploadError;
+  const uploadProductImage = async (): Promise<string | null> => {
+    if (!imageFile) return null;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("product-images")
-        .getPublicUrl(filePath);
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${fileName}`;
 
-      setFormData({ ...formData, image_url: publicUrl });
-      toast({
-        title: "Success",
-        description: "Image uploaded successfully",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to upload image",
-        variant: "destructive",
-      });
-    } finally {
-      setUploadingImage(false);
-    }
+    const { error: uploadError } = await supabase.storage
+      .from("product-images")
+      .upload(filePath, imageFile);
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from("product-images")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
   };
 
   const generateSequentialBarcode = (): string => {
@@ -247,10 +250,16 @@ const ProductEntry = () => {
 
     setLoading(true);
     try {
+      // Upload image first if exists
+      let imageUrl = formData.image_url;
+      if (imageFile) {
+        imageUrl = await uploadProductImage();
+      }
+
       // Insert product
       const { data: productData, error: productError } = await supabase
         .from("products")
-        .insert([formData])
+        .insert([{ ...formData, image_url: imageUrl }])
         .select()
         .single();
 
@@ -294,10 +303,12 @@ const ProductEntry = () => {
         default_pur_price: 0,
         default_sale_price: 0,
         status: "active",
-        image_url: "",
       });
       setVariants([]);
       setShowVariants(false);
+      setImageFile(null);
+      setImagePreview("");
+      await fetchLastBarcode(); // Refresh the barcode counter
     } catch (error: any) {
       toast({
         title: "Error",
@@ -326,23 +337,41 @@ const ProductEntry = () => {
             {/* Product Image Upload */}
             <div className="space-y-2">
               <Label htmlFor="product_image">Product Image</Label>
-              <div className="flex items-center gap-4">
-                <Input
-                  id="product_image"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={uploadingImage}
-                  className="max-w-md"
-                />
-                {uploadingImage && <Loader2 className="h-4 w-4 animate-spin" />}
-                {formData.image_url && (
-                  <img
-                    src={formData.image_url}
-                    alt="Product preview"
-                    className="h-16 w-16 object-cover rounded border"
-                  />
+              <div className="flex items-start gap-4">
+                {imagePreview ? (
+                  <div className="relative">
+                    <img
+                      src={imagePreview}
+                      alt="Product preview"
+                      className="w-32 h-32 object-cover rounded-lg border border-border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                      onClick={handleRemoveImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/50">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  </div>
                 )}
+                <div className="flex-1">
+                  <Input
+                    id="product_image"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="cursor-pointer"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Max file size: 5MB. Supported formats: JPG, PNG, WEBP
+                  </p>
+                </div>
               </div>
             </div>
 
