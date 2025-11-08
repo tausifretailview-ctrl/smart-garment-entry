@@ -261,10 +261,20 @@ const ProductEntry = () => {
 
     setLoading(true);
     try {
-      // Upload image first if exists
+      // Try to upload image if exists, but don't fail if it doesn't work
       let imageUrl = formData.image_url;
       if (imageFile) {
-        imageUrl = await uploadProductImage();
+        try {
+          imageUrl = await uploadProductImage();
+        } catch (imageError: any) {
+          console.error("Image upload failed:", imageError);
+          toast({
+            title: "Warning",
+            description: "Product will be saved without image. Image upload failed.",
+            variant: "default",
+          });
+          imageUrl = null;
+        }
       }
 
       // Insert product
