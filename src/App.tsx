@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Link, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import ProductDashboard from "./pages/ProductDashboard";
 import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import BarcodePrinting from "./pages/BarcodePrinting";
@@ -34,6 +35,12 @@ const Navigation = () => {
             <span className="text-xl font-bold text-primary">Smart Inventory</span>
           </div>
           <div className="flex items-center gap-4">
+            <Link
+              to="/"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Dashboard
+            </Link>
             <Link
               to="/product-entry"
               className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
@@ -82,7 +89,7 @@ const App = () => (
               path="/"
               element={
                 <ProtectedRoute>
-                  <ProductEntry />
+                  <ProductDashboard />
                 </ProtectedRoute>
               }
             />
