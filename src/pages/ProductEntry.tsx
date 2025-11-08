@@ -158,7 +158,11 @@ const ProductEntry = () => {
 
       const { error: uploadError } = await supabase.storage
         .from("product-images")
-        .upload(filePath, imageFile);
+        .upload(filePath, imageFile, {
+          contentType: imageFile.type,
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (uploadError) {
         console.error("Upload error:", uploadError);
