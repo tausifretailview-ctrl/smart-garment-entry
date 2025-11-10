@@ -10,6 +10,7 @@ import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
 import BarcodePrinting from "./pages/BarcodePrinting";
+import StockReport from "./pages/StockReport";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,12 @@ const Navigation = () => {
               className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
             >
               Barcode Printing
+            </Link>
+            <Link
+              to="/stock-report"
+              className="px-4 py-2 rounded-md text-sm font-medium text-foreground hover:bg-accent transition-colors"
+            >
+              Stock Report
             </Link>
             <Button
               variant="ghost"
@@ -129,6 +136,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <BarcodePrinting />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/stock-report"
+              element={
+                <ProtectedRoute>
+                  <StockReport />
                 </ProtectedRoute>
               }
             />
