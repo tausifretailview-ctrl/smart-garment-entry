@@ -137,12 +137,12 @@ export default function BarcodePrinting() {
     return () => clearTimeout(debounce);
   }, [searchQuery]);
 
-  // Auto-fill quantities on page load for lastPurchase mode
+  // Auto-fill quantities when switching to lastPurchase mode or when items change
   useEffect(() => {
     if (quantityMode === "lastPurchase" && labelItems.length > 0) {
       fillLastPurchaseQuantities(labelItems);
     }
-  }, [quantityMode]);
+  }, [quantityMode, labelItems.length]);
 
   const handleSelectProduct = async (result: SearchResult) => {
     // Check if already added
@@ -368,14 +368,6 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // Validate barcodes
-    for (const item of labelItems) {
-      if (item.qty > 0 && item.barcode && item.barcode.length !== 8) {
-        toast.error(`Invalid barcode length for ${item.product_name} - ${item.size}`);
-        return;
-      }
-    }
-
     const printArea = document.getElementById("printArea");
     if (!printArea) return;
 
@@ -412,16 +404,23 @@ export default function BarcodePrinting() {
         const code = (svg as HTMLElement).dataset.code;
         if (code) {
           try {
+            // Use CODE128 format which is more flexible and doesn't require specific checksums
             JsBarcode(svg, code, {
-              format: "EAN8",
+              format: "CODE128",
               fontSize: 9,
               height: 24,
+              width: 1.5,
               textMargin: 0,
               margin: 0,
               displayValue: false,
             });
           } catch (error) {
-            console.error("Barcode generation failed:", error);
+            console.error("Barcode generation failed for code:", code, error);
+            // Fallback: display the code as text if barcode generation fails
+            const textEl = document.createElement("div");
+            textEl.textContent = code;
+            textEl.style.cssText = "font-size: 10px; font-weight: bold;";
+            svg.parentElement?.replaceChild(textEl, svg);
           }
         }
       });
