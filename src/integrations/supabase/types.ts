@@ -20,6 +20,7 @@ export type Database = {
           barcode: string | null
           created_at: string | null
           id: string
+          opening_qty: number | null
           product_id: string
           pur_price: number | null
           sale_price: number | null
@@ -32,6 +33,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string | null
           id?: string
+          opening_qty?: number | null
           product_id: string
           pur_price?: number | null
           sale_price?: number | null
@@ -44,6 +46,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string | null
           id?: string
+          opening_qty?: number | null
           product_id?: string
           pur_price?: number | null
           sale_price?: number | null

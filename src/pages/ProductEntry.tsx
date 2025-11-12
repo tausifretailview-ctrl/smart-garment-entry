@@ -22,6 +22,7 @@ interface ProductVariant {
   sale_price: number;
   barcode: string;
   active: boolean;
+  opening_qty: number;
 }
 
 interface ProductForm {
@@ -205,6 +206,7 @@ const ProductEntry = () => {
       sale_price: formData.default_sale_price,
       barcode: "",
       active: true,
+      opening_qty: 0,
     }));
 
     setVariants(newVariants);
@@ -299,15 +301,41 @@ const ProductEntry = () => {
           sale_price: v.sale_price,
           barcode: v.barcode,
           active: v.active,
+          opening_qty: v.opening_qty,
+          stock_qty: v.opening_qty, // Set initial stock_qty to opening_qty
         }));
 
-        const { error: variantsError } = await supabase
+        const { data: insertedVariants, error: variantsError } = await supabase
           .from("product_variants")
           .upsert(variantsToUpsert, {
             onConflict: "product_id,size",
-          });
+          })
+          .select();
 
         if (variantsError) throw variantsError;
+
+        // Create stock movements for opening quantities
+        if (insertedVariants) {
+          const stockMovements = insertedVariants
+            .filter((v) => v.opening_qty > 0)
+            .map((v) => ({
+              variant_id: v.id,
+              quantity: v.opening_qty,
+              movement_type: "opening_stock",
+              notes: `Opening stock for ${formData.product_name} - ${v.size}`,
+            }));
+
+          if (stockMovements.length > 0) {
+            const { error: movementError } = await supabase
+              .from("stock_movements")
+              .insert(stockMovements);
+
+            if (movementError) {
+              console.error("Stock movement error:", movementError);
+              // Don't throw error, just log it
+            }
+          }
+        }
       }
 
       toast({
@@ -605,6 +633,7 @@ const ProductEntry = () => {
                         <TableHead>Purchase Price</TableHead>
                         <TableHead>Sale Price</TableHead>
                         <TableHead>Barcode</TableHead>
+                        <TableHead>Opening Qty</TableHead>
                         <TableHead className="text-center">Active</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -650,6 +679,23 @@ const ProductEntry = () => {
                               readOnly
                               className="w-40 bg-muted"
                               placeholder="Not generated"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={variant.opening_qty}
+                              onChange={(e) =>
+                                handleVariantChange(
+                                  index,
+                                  "opening_qty",
+                                  parseInt(e.target.value) || 0
+                                )
+                              }
+                              className="w-28"
+                              placeholder="0"
                             />
                           </TableCell>
                           <TableCell className="text-center">
