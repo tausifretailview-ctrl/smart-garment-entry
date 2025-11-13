@@ -93,7 +93,7 @@ export function UserManagement() {
 
   const removeRole = async (userId: string, role: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("user_roles")
         .delete()
         .eq("user_id", userId)
