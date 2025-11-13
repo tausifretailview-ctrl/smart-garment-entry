@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface PurchaseItem {
   id: string;
@@ -123,6 +124,7 @@ const PurchaseBillDashboard = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        <BackToDashboard />
         <div className="mb-6 flex items-center gap-3">
           <Receipt className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>

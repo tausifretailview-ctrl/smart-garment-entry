@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Loader2, Package, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface ProductVariant {
   id: string;
@@ -113,6 +114,7 @@ const ProductDashboard = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        <BackToDashboard />
         <div className="mb-6 flex items-center gap-3">
           <Package className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-foreground">Product Dashboard</h1>

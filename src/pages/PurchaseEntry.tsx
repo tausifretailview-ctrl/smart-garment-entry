@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface ProductVariant {
   id: string;
@@ -420,6 +421,7 @@ const PurchaseEntry = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
+        <BackToDashboard />
         <div className="mb-6 flex items-center gap-3">
           <ShoppingCart className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-foreground">Purchase Entry</h1>

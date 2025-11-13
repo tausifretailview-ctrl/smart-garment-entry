@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Package, TrendingDown, History } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface StockItem {
   id: string;
@@ -139,6 +140,7 @@ export default function StockReport() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
+      <BackToDashboard />
       <div>
         <h1 className="text-3xl font-bold">Stock Report</h1>
         <p className="text-muted-foreground">Monitor inventory levels and stock movements</p>

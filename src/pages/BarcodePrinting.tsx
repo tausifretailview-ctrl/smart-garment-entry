@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface LabelItem {
   sku_id: string;
@@ -441,6 +442,7 @@ export default function BarcodePrinting() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      <BackToDashboard />
       <h1 className="text-3xl font-bold">Barcode Printing</h1>
 
       {/* Search Bar with Dropdown */}

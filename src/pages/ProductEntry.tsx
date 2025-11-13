@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Package, Barcode, Upload, X } from "lucide-react";
+import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface SizeGroup {
   id: string;
@@ -376,6 +377,7 @@ const ProductEntry = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
+        <BackToDashboard />
         <div className="mb-6 flex items-center gap-3">
           <Package className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-foreground">Smart Inventory</h1>
