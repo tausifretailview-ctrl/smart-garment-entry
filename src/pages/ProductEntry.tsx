@@ -676,9 +676,15 @@ const ProductEntry = () => {
                           <TableCell>
                             <Input
                               value={variant.barcode}
-                              readOnly
-                              className="w-40 bg-muted"
-                              placeholder="Not generated"
+                              onChange={(e) =>
+                                handleVariantChange(
+                                  index,
+                                  "barcode",
+                                  e.target.value
+                                )
+                              }
+                              className="w-40"
+                              placeholder="Scan or enter barcode"
                             />
                           </TableCell>
                           <TableCell>
