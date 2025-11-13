@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
@@ -186,10 +186,24 @@ const PurchaseBillDashboard = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <BackToDashboard />
-        <div className="mb-6 flex items-center gap-3">
-          <Receipt className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="gap-2"
+            >
+              <Home className="h-4 w-4" />
+              Dashboard
+            </Button>
+            <Receipt className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
+          </div>
+          <Button onClick={() => navigate("/purchase-entry")} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Purchase
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -220,7 +234,9 @@ const PurchaseBillDashboard = () => {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <CardTitle className="text-2xl">All Purchase Bills</CardTitle>
-                <CardDescription>View and manage purchase history</CardDescription>
+                <CardDescription>
+                  {filteredBills.length} {filteredBills.length === 1 ? "bill" : "bills"} found
+                </CardDescription>
               </div>
               <div className="relative max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -241,133 +257,127 @@ const PurchaseBillDashboard = () => {
                 <p className="text-sm">Create your first purchase bill to get started</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {filteredBills.map((bill) => (
-                  <Card
-                    key={bill.id}
-                    className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => toggleExpanded(bill.id)}
-                  >
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 flex-1">
-                          <div className="mt-1">
+              <div className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-16">Sr. No.</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Invoice No.</TableHead>
+                      <TableHead>Supplier Name</TableHead>
+                      <TableHead className="text-right">Gross Amount</TableHead>
+                      <TableHead className="text-right">GST Amount</TableHead>
+                      <TableHead className="text-right">Net Amount</TableHead>
+                      <TableHead className="text-center">Items</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBills.map((bill, index) => (
+                      <>
+                        <TableRow
+                          key={bill.id}
+                          className="cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => toggleExpanded(bill.id)}
+                        >
+                          <TableCell>
                             {expandedBill === bill.id ? (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
                             ) : (
-                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-4 mb-2">
-                              <div>
-                                <h3 className="text-lg font-semibold text-foreground">
-                                  {bill.supplier_name}
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                  Invoice: {bill.supplier_invoice_no}
-                                </p>
-                              </div>
-                              <Badge variant="outline" className="whitespace-nowrap">
-                                {format(new Date(bill.bill_date), "dd MMM yyyy")}
-                              </Badge>
-                            </div>
-
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                              <div>
-                                <p className="text-muted-foreground">Gross Amount</p>
-                                <p className="font-semibold">₹{bill.gross_amount.toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">GST Amount</p>
-                                <p className="font-semibold">₹{bill.gst_amount.toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Net Amount</p>
-                                <p className="font-semibold text-primary">₹{bill.net_amount.toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground">Items</p>
-                                <p className="font-semibold">
-                                  {billItems[bill.id]?.length || "—"}
-                                </p>
-                              </div>
-                            </div>
-
-                            {bill.notes && (
-                              <div className="mt-3 text-sm">
-                                <p className="text-muted-foreground">Notes:</p>
-                                <p className="text-foreground">{bill.notes}</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Expanded Items Table */}
-                      {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-border">
-                          <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-semibold">Purchase Items</h4>
+                          </TableCell>
+                          <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {format(new Date(bill.bill_date), "dd MMM yyyy")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">{bill.supplier_invoice_no}</TableCell>
+                          <TableCell className="font-medium">{bill.supplier_name}</TableCell>
+                          <TableCell className="text-right">₹{bill.gross_amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">₹{bill.gst_amount.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-semibold text-primary">
+                            ₹{bill.net_amount.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="secondary">
+                              {billItems[bill.id]?.length || 0}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="ghost"
                               onClick={(e) => handlePrintBarcodes(bill.id, e)}
                               disabled={printingBill === bill.id}
-                              className="gap-2"
+                              className="gap-1"
                             >
                               {printingBill === bill.id ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Loading...
-                                </>
+                                <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
-                                <>
-                                  <Printer className="h-4 w-4" />
-                                  Print Barcodes
-                                </>
+                                <Printer className="h-4 w-4" />
                               )}
                             </Button>
-                          </div>
-                          <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Size</TableHead>
-                                  <TableHead>Barcode</TableHead>
-                                  <TableHead>HSN</TableHead>
-                                  <TableHead className="text-right">Qty</TableHead>
-                                  <TableHead className="text-right">Pur Price</TableHead>
-                                  <TableHead className="text-right">Sale Price</TableHead>
-                                  <TableHead className="text-right">GST %</TableHead>
-                                  <TableHead className="text-right">Line Total</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {billItems[bill.id].map((item) => (
-                                  <TableRow key={item.id}>
-                                    <TableCell className="font-medium">{item.size}</TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                      {item.barcode || "—"}
-                                    </TableCell>
-                                    <TableCell className="text-xs">{item.hsn_code || "—"}</TableCell>
-                                    <TableCell className="text-right">{item.qty}</TableCell>
-                                    <TableCell className="text-right">₹{item.pur_price}</TableCell>
-                                    <TableCell className="text-right">₹{item.sale_price}</TableCell>
-                                    <TableCell className="text-right">{item.gst_per}%</TableCell>
-                                    <TableCell className="text-right font-semibold">
-                                      ₹{item.line_total.toFixed(2)}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
+                          </TableCell>
+                        </TableRow>
+
+                        {/* Expanded Items Row */}
+                        {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={10} className="bg-muted/20 p-0">
+                              <div className="p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-semibold text-sm">Purchase Items Details</h4>
+                                  {bill.notes && (
+                                    <p className="text-sm text-muted-foreground">
+                                      <span className="font-medium">Notes:</span> {bill.notes}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="border rounded-lg overflow-hidden">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="bg-muted/30">
+                                        <TableHead>Size</TableHead>
+                                        <TableHead>Barcode</TableHead>
+                                        <TableHead>HSN Code</TableHead>
+                                        <TableHead className="text-right">Quantity</TableHead>
+                                        <TableHead className="text-right">Purchase Price</TableHead>
+                                        <TableHead className="text-right">Sale Price</TableHead>
+                                        <TableHead className="text-right">GST %</TableHead>
+                                        <TableHead className="text-right">Line Total</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {billItems[bill.id].map((item) => (
+                                        <TableRow key={item.id}>
+                                          <TableCell className="font-medium">{item.size}</TableCell>
+                                          <TableCell className="font-mono text-xs">
+                                            {item.barcode || "—"}
+                                          </TableCell>
+                                          <TableCell className="text-xs">{item.hsn_code || "—"}</TableCell>
+                                          <TableCell className="text-right">{item.qty}</TableCell>
+                                          <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
+                                          <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
+                                          <TableCell className="text-right">{item.gst_per}%</TableCell>
+                                          <TableCell className="text-right font-semibold">
+                                            ₹{item.line_total.toFixed(2)}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
