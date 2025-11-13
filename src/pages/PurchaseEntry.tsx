@@ -43,7 +43,8 @@ interface LineItem {
   gst_per: number;
   hsn_code: string;
   barcode: string;
-  line_total: number;
+  discount: number; // discount in rupees
+  line_total: number; // total before GST
 }
 
 interface SizeQuantity {
@@ -242,6 +243,7 @@ const PurchaseEntry = () => {
         gst_per: product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
+        discount: 0,
       });
       return;
     }
@@ -268,6 +270,7 @@ const PurchaseEntry = () => {
       gst_per: variant.gst_per,
       hsn_code: variant.hsn_code,
       barcode: variant.barcode,
+      discount: 0,
       line_total: lineTotal,
     };
     setLineItems([...lineItems, newItem]);
@@ -559,87 +562,118 @@ const PurchaseEntry = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Pur Price</TableHead>
-                      <TableHead>Sale Price</TableHead>
-                      <TableHead>GST %</TableHead>
-                      <TableHead>HSN Code</TableHead>
-                      <TableHead>Barcode</TableHead>
-                      <TableHead>Line Total</TableHead>
-                      <TableHead></TableHead>
+                      <TableHead className="w-16">SR.NO</TableHead>
+                      <TableHead>ITEM NAME</TableHead>
+                      <TableHead className="w-20">QTY</TableHead>
+                      <TableHead className="w-28">PUR.RATE</TableHead>
+                      <TableHead className="w-28">SALE.RATE</TableHead>
+                      <TableHead className="w-28">SUB TOTAL</TableHead>
+                      <TableHead className="w-24">DIS(Rs)</TableHead>
+                      <TableHead className="w-28">TOTAL</TableHead>
+                      <TableHead className="w-24">I-GST</TableHead>
+                      <TableHead className="w-24">O-GST</TableHead>
+                      <TableHead className="w-16"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lineItems.map((item) => (
-                      <TableRow key={item.temp_id}>
-                        <TableCell className="font-medium">{item.product_name}</TableCell>
-                        <TableCell>{item.size}</TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.qty}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "qty",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            className="w-20"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.pur_price}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "pur_price",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="w-28"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.sale_price}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "sale_price",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="w-28"
-                          />
-                        </TableCell>
-                        <TableCell>{item.gst_per}%</TableCell>
-                        <TableCell>{item.hsn_code}</TableCell>
-                        <TableCell className="text-xs">{item.barcode}</TableCell>
-                        <TableCell className="font-semibold">
-                          ₹{item.line_total.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeLineItem(item.temp_id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {lineItems.map((item, index) => {
+                      const subTotal = item.qty * item.pur_price;
+                      const total = item.line_total;
+                      const gstAmount = (total * item.gst_per) / 100;
+                      
+                      return (
+                        <TableRow key={item.temp_id}>
+                          <TableCell className="text-center font-medium">{index + 1}</TableCell>
+                          <TableCell className="font-medium">
+                            {item.product_name} - {item.size}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.qty}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "qty",
+                                  parseInt(e.target.value) || 0
+                                )
+                              }
+                              className="w-20"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.pur_price}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "pur_price",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-28"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.sale_price}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "sale_price",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-28"
+                            />
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            ₹{subTotal.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.discount}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "discount",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              className="w-24"
+                            />
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            ₹{total.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            ₹{gstAmount.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            ₹{gstAmount.toFixed(2)}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeLineItem(item.temp_id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -793,6 +827,7 @@ const PurchaseEntry = () => {
                           gst_per: selectedProduct.gst_per,
                           hsn_code: selectedProduct.hsn_code,
                           barcode: barcode,
+                          discount: 0,
                         });
                       }
                     }
