@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 interface ProductVariantRow {
@@ -113,167 +113,205 @@ const ProductDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <BackToDashboard />
-        <div className="mb-6 flex items-center gap-3">
-          <Package className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Product Dashboard</h1>
+      <div className="max-w-[1600px] mx-auto">
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate("/")}
+              className="h-8 w-8"
+            >
+              <Home className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold text-foreground">Product</h1>
+          </div>
+          <Link
+            to="/product-entry"
+            className="text-sm text-primary hover:underline"
+          >
+            Setup Opening Stock
+          </Link>
         </div>
 
-        <Card className="shadow-lg border-border">
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <CardTitle className="text-2xl">All Products</CardTitle>
-                <CardDescription>
-                  {filteredProducts.length} products in inventory
-                </CardDescription>
+        {/* Toolbar */}
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="default" size="sm" className="gap-2">
+                      <Upload className="h-4 w-4" />
+                      Import/Export
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Import Products
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Products
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button variant="default" size="sm" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Filter className="h-4 w-4" />
+                  Filter
+                </Button>
               </div>
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+
+              <div className="flex items-center gap-2 flex-1 max-w-md">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search List..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => navigate("/product-entry")}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create New
+                </Button>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {filteredProducts.length === 0 ? (
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <Card>
+          <CardContent className="p-0">
+            {filteredRows.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p className="text-lg">No products found</p>
                 <p className="text-sm">Add your first product to get started</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredProducts.map((product) => (
-                  <Card
-                    key={product.id}
-                    className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => toggleExpanded(product.id)}
-                  >
-                    <div className="p-4">
-                      <div className="flex items-start gap-4">
-                        <Avatar className="h-20 w-20 rounded-lg">
-                          <AvatarImage
-                            src={product.image_url}
-                            alt={product.product_name}
-                            className="object-cover"
-                          />
-                          <AvatarFallback className="rounded-lg bg-muted">
-                            <Package className="h-8 w-8 text-muted-foreground" />
-                          </AvatarFallback>
-                        </Avatar>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex-1">
-                              <h3 className="text-lg font-semibold text-foreground">
-                                {product.product_name}
-                              </h3>
-                              <div className="flex flex-wrap gap-2 mt-2">
-                                {product.brand && (
-                                  <Badge variant="secondary">{product.brand}</Badge>
-                                )}
-                                {product.category && (
-                                  <Badge variant="outline">{product.category}</Badge>
-                                )}
-                                {product.color && (
-                                  <Badge variant="outline">{product.color}</Badge>
-                                )}
-                              </div>
-                            </div>
-                            <Badge variant={product.status === "active" ? "default" : "secondary"}>
-                              {product.status}
-                            </Badge>
-                          </div>
-
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">HSN Code</p>
-                              <p className="font-medium">{product.hsn_code || "—"}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">GST %</p>
-                              <p className="font-medium">{product.gst_per}%</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Purchase Price</p>
-                              <p className="font-medium">₹{product.default_pur_price}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Sale Price</p>
-                              <p className="font-medium">₹{product.default_sale_price}</p>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 text-sm">
-                            <p className="text-muted-foreground">
-                              {product.variants?.length || 0} size variants
-                              {expandedProduct === product.id ? " (click to collapse)" : " (click to expand)"}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Expanded Variants Table */}
-                      {expandedProduct === product.id && product.variants && product.variants.length > 0 && (
-                          <div className="mt-4 pt-4 border-t border-border">
-                          <h4 className="font-semibold mb-3">Size Variants & Stock</h4>
-                          <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Size</TableHead>
-                                  <TableHead>Barcode</TableHead>
-                                  <TableHead>Stock Qty</TableHead>
-                                  <TableHead>Purchase Price</TableHead>
-                                  <TableHead>Sale Price</TableHead>
-                                  <TableHead className="text-center">Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {product.variants.map((variant) => (
-                                  <TableRow key={variant.id}>
-                                    <TableCell className="font-medium">{variant.size}</TableCell>
-                                    <TableCell className="font-mono text-sm">
-                                      {variant.barcode || "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge 
-                                        variant={variant.stock_qty <= 0 ? "destructive" : variant.stock_qty <= 10 ? "secondary" : "default"}
-                                        className="font-medium"
-                                      >
-                                        {variant.stock_qty}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>₹{variant.pur_price}</TableCell>
-                                    <TableCell>₹{variant.sale_price}</TableCell>
-                                    <TableCell className="text-center">
-                                      <Badge
-                                        variant={variant.active ? "default" : "secondary"}
-                                        className="text-xs"
-                                      >
-                                        {variant.active ? "Active" : "Inactive"}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </Card>
-                ))}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="w-16 text-center">Sr. No.</TableHead>
+                      <TableHead className="w-20">Image</TableHead>
+                      <TableHead>Item Code</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead className="text-right">MRP</TableHead>
+                      <TableHead className="text-right">Selling Price</TableHead>
+                      <TableHead>HSN</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-16">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRows.map((row, index) => (
+                      <TableRow key={row.variant_id}>
+                        <TableCell className="text-center font-medium">
+                          {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <Avatar className="h-12 w-12 rounded">
+                            <AvatarImage
+                              src={row.image_url}
+                              alt={row.product_name}
+                              className="object-cover"
+                            />
+                            <AvatarFallback className="rounded bg-muted">
+                              <Package className="h-5 w-5 text-muted-foreground" />
+                            </AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {row.barcode || "—"}
+                        </TableCell>
+                        <TableCell>{row.category || "—"}</TableCell>
+                        <TableCell>{row.brand || "—"}</TableCell>
+                        <TableCell className="font-medium">
+                          {row.product_name}
+                          {row.size && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({row.size})
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ₹{row.pur_price.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ₹{row.sale_price.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {row.hsn_code || "—"}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {row.stock_qty}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={row.status === "active" ? "default" : "secondary"}
+                            className={
+                              row.status === "active"
+                                ? "bg-green-500 hover:bg-green-600"
+                                : ""
+                            }
+                          >
+                            {row.status.toUpperCase()}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => navigate(`/product-entry?id=${row.product_id}`)}
+                              >
+                                Edit Product
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>View Details</DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive">
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Footer Summary */}
+        {filteredRows.length > 0 && (
+          <div className="mt-4 text-sm text-muted-foreground text-right">
+            Showing {filteredRows.length} of {variantRows.length} items
+          </div>
+        )}
       </div>
     </div>
   );
