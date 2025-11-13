@@ -36,6 +36,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Product Dashboard", url: "/products", icon: Package },
   { title: "Inventory", url: "/stock-report", icon: Package },
   { title: "Purchase", url: "/purchase-entry", icon: ShoppingCart },
   { title: "Purchase Bills", url: "/purchase-bills", icon: FileText },
