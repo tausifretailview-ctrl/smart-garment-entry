@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { UserManagement } from "@/components/UserManagement";
 
 interface ProductSettings {
   default_margin?: number;
@@ -860,7 +861,7 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">User rights management will be configured here.</p>
+                <UserManagement />
               </CardContent>
             </Card>
           </TabsContent>
