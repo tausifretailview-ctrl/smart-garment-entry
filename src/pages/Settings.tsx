@@ -29,6 +29,15 @@ interface SaleSettings {
   sales_tax_rate?: number;
 }
 
+interface BillBarcodeSettings {
+  logo_url?: string;
+  header_text?: string;
+  footer_text?: string;
+  barcode_width?: number;
+  barcode_height?: number;
+  print_format?: string;
+}
+
 interface Settings {
   business_name?: string;
   address?: string;
@@ -38,7 +47,7 @@ interface Settings {
   product_settings?: ProductSettings;
   purchase_settings?: PurchaseSettings;
   sale_settings?: SaleSettings;
-  bill_barcode_settings?: Record<string, any>;
+  bill_barcode_settings?: BillBarcodeSettings;
   report_settings?: Record<string, any>;
 }
 
@@ -46,6 +55,7 @@ export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
@@ -82,7 +92,7 @@ export default function Settings() {
           product_settings: (settingsData.product_settings as ProductSettings) || {},
           purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
           sale_settings: (settingsData.sale_settings as SaleSettings) || {},
-          bill_barcode_settings: (settingsData.bill_barcode_settings as Record<string, any>) || {},
+          bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
           report_settings: (settingsData.report_settings as Record<string, any>) || {},
         });
       }
@@ -114,6 +124,78 @@ export default function Settings() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Error",
+        description: "Please upload an image file",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        title: "Error",
+        description: "Image size should be less than 2MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      // Delete old logo if exists
+      if (settings.bill_barcode_settings?.logo_url) {
+        const oldPath = settings.bill_barcode_settings.logo_url.split("/").pop();
+        if (oldPath) {
+          await supabase.storage.from("company-logos").remove([oldPath]);
+        }
+      }
+
+      // Upload new logo
+      const fileExt = file.name.split(".").pop();
+      const fileName = `logo-${Date.now()}.${fileExt}`;
+      const { error: uploadError, data } = await supabase.storage
+        .from("company-logos")
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("company-logos")
+        .getPublicUrl(fileName);
+
+      setSettings({
+        ...settings,
+        bill_barcode_settings: {
+          ...settings.bill_barcode_settings,
+          logo_url: urlData.publicUrl,
+        },
+      });
+
+      toast({
+        title: "Success",
+        description: "Logo uploaded successfully",
+      });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      toast({
+        title: "Error",
+        description: "Failed to upload logo",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -485,8 +567,130 @@ export default function Settings() {
                   Configure billing and barcode preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Bill & Barcode settings will be configured here.</p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="logo_upload">Company Logo</Label>
+                  {settings.bill_barcode_settings?.logo_url && (
+                    <div className="mb-2">
+                      <img
+                        src={settings.bill_barcode_settings.logo_url}
+                        alt="Company Logo"
+                        className="h-20 w-auto object-contain border rounded p-2"
+                      />
+                    </div>
+                  )}
+                  <Input
+                    id="logo_upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={uploadingLogo}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Upload your company logo (max 2MB, JPG/PNG)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="header_text">Bill Header Text</Label>
+                  <Textarea
+                    id="header_text"
+                    value={settings.bill_barcode_settings?.header_text || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          header_text: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., Thank you for your business!"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="footer_text">Bill Footer Text</Label>
+                  <Textarea
+                    id="footer_text"
+                    value={settings.bill_barcode_settings?.footer_text || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          footer_text: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., Terms and conditions apply"
+                    rows={2}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="barcode_width">Barcode Label Width (mm)</Label>
+                    <Input
+                      id="barcode_width"
+                      type="number"
+                      min="10"
+                      max="200"
+                      value={settings.bill_barcode_settings?.barcode_width || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            barcode_width: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      placeholder="e.g., 50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="barcode_height">Barcode Label Height (mm)</Label>
+                    <Input
+                      id="barcode_height"
+                      type="number"
+                      min="10"
+                      max="200"
+                      value={settings.bill_barcode_settings?.barcode_height || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            barcode_height: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      placeholder="e.g., 25"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="print_format">Print Format</Label>
+                  <select
+                    id="print_format"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={settings.bill_barcode_settings?.print_format || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          print_format: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">Select print format</option>
+                    <option value="a4">A4 (210 x 297 mm)</option>
+                    <option value="thermal">Thermal (80mm)</option>
+                    <option value="thermal-small">Thermal Small (58mm)</option>
+                    <option value="custom">Custom Size</option>
+                  </select>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
