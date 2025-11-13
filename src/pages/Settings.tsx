@@ -22,6 +22,13 @@ interface PurchaseSettings {
   default_tax_rate?: number;
 }
 
+interface SaleSettings {
+  default_discount?: number;
+  payment_methods?: string[];
+  invoice_format?: string;
+  sales_tax_rate?: number;
+}
+
 interface Settings {
   business_name?: string;
   address?: string;
@@ -30,7 +37,7 @@ interface Settings {
   gst_number?: string;
   product_settings?: ProductSettings;
   purchase_settings?: PurchaseSettings;
-  sale_settings?: Record<string, any>;
+  sale_settings?: SaleSettings;
   bill_barcode_settings?: Record<string, any>;
   report_settings?: Record<string, any>;
 }
@@ -74,7 +81,7 @@ export default function Settings() {
           gst_number: settingsData.gst_number || "",
           product_settings: (settingsData.product_settings as ProductSettings) || {},
           purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
-          sale_settings: (settingsData.sale_settings as Record<string, any>) || {},
+          sale_settings: (settingsData.sale_settings as SaleSettings) || {},
           bill_barcode_settings: (settingsData.bill_barcode_settings as Record<string, any>) || {},
           report_settings: (settingsData.report_settings as Record<string, any>) || {},
         });
@@ -372,8 +379,100 @@ export default function Settings() {
                   Configure sale-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Sale settings will be configured here.</p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="default_discount">Default Discount (%)</Label>
+                  <Input
+                    id="default_discount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={settings.sale_settings?.default_discount || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          default_discount: parseFloat(e.target.value) || 0,
+                        },
+                      })
+                    }
+                    placeholder="e.g., 5"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Payment Methods</Label>
+                  <div className="space-y-2">
+                    {["Cash", "Card", "UPI", "Net Banking"].map((method) => (
+                      <div key={method} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={method}
+                          className="h-4 w-4 rounded border-input"
+                          checked={settings.sale_settings?.payment_methods?.includes(method) || false}
+                          onChange={(e) => {
+                            const currentMethods = settings.sale_settings?.payment_methods || [];
+                            const newMethods = e.target.checked
+                              ? [...currentMethods, method]
+                              : currentMethods.filter((m) => m !== method);
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                payment_methods: newMethods,
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={method} className="font-normal cursor-pointer">
+                          {method}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_format">Invoice Numbering Format</Label>
+                  <Input
+                    id="invoice_format"
+                    value={settings.sale_settings?.invoice_format || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          invoice_format: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., INV-{YYYY}-{####}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sales_tax_rate">Sales Tax Rate (%)</Label>
+                  <Input
+                    id="sales_tax_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={settings.sale_settings?.sales_tax_rate || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          sales_tax_rate: parseFloat(e.target.value) || 0,
+                        },
+                      })
+                    }
+                    placeholder="e.g., 18"
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
