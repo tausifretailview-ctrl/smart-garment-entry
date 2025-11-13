@@ -16,6 +16,12 @@ interface ProductSettings {
   sku_format?: string;
 }
 
+interface PurchaseSettings {
+  payment_terms?: string;
+  auto_approve_threshold?: number;
+  default_tax_rate?: number;
+}
+
 interface Settings {
   business_name?: string;
   address?: string;
@@ -23,7 +29,7 @@ interface Settings {
   email_id?: string;
   gst_number?: string;
   product_settings?: ProductSettings;
-  purchase_settings?: Record<string, any>;
+  purchase_settings?: PurchaseSettings;
   sale_settings?: Record<string, any>;
   bill_barcode_settings?: Record<string, any>;
   report_settings?: Record<string, any>;
@@ -67,7 +73,7 @@ export default function Settings() {
           email_id: settingsData.email_id || "",
           gst_number: settingsData.gst_number || "",
           product_settings: (settingsData.product_settings as ProductSettings) || {},
-          purchase_settings: (settingsData.purchase_settings as Record<string, any>) || {},
+          purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
           sale_settings: (settingsData.sale_settings as Record<string, any>) || {},
           bill_barcode_settings: (settingsData.bill_barcode_settings as Record<string, any>) || {},
           report_settings: (settingsData.report_settings as Record<string, any>) || {},
@@ -284,8 +290,76 @@ export default function Settings() {
                   Configure purchase-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Purchase settings will be configured here.</p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="payment_terms">Default Payment Terms</Label>
+                  <select
+                    id="payment_terms"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={settings.purchase_settings?.payment_terms || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          payment_terms: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">Select payment terms</option>
+                    <option value="immediate">Immediate</option>
+                    <option value="net15">Net 15</option>
+                    <option value="net30">Net 30</option>
+                    <option value="net45">Net 45</option>
+                    <option value="net60">Net 60</option>
+                    <option value="net90">Net 90</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="auto_approve_threshold">Auto-Approve Threshold Amount</Label>
+                  <Input
+                    id="auto_approve_threshold"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={settings.purchase_settings?.auto_approve_threshold || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          auto_approve_threshold: parseFloat(e.target.value) || 0,
+                        },
+                      })
+                    }
+                    placeholder="e.g., 10000"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Purchase orders below this amount will be auto-approved
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default_tax_rate">Default Tax Rate (%)</Label>
+                  <Input
+                    id="default_tax_rate"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={settings.purchase_settings?.default_tax_rate || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          default_tax_rate: parseFloat(e.target.value) || 0,
+                        },
+                      })
+                    }
+                    placeholder="e.g., 18"
+                  />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
