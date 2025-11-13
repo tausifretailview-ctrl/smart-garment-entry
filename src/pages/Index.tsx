@@ -42,6 +42,7 @@ const menuItems = [
   { title: "Purchase Bills", url: "/purchase-bills", icon: FileText },
   { title: "Product Entry", url: "/product-entry", icon: Package },
   { title: "Barcode Printing", url: "/barcode-printing", icon: Barcode },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 const AppSidebar = () => {

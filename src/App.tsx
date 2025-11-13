@@ -13,6 +13,7 @@ import PurchaseEntry from "./pages/PurchaseEntry";
 import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
 import BarcodePrinting from "./pages/BarcodePrinting";
 import StockReport from "./pages/StockReport";
+import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -81,6 +82,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <StockReport />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />
