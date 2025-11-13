@@ -10,11 +10,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+interface ProductSettings {
+  default_margin?: number;
+  low_stock_threshold?: number;
+  sku_format?: string;
+}
+
+interface Settings {
+  business_name?: string;
+  address?: string;
+  mobile_number?: string;
+  email_id?: string;
+  gst_number?: string;
+  product_settings?: ProductSettings;
+  purchase_settings?: Record<string, any>;
+  sale_settings?: Record<string, any>;
+  bill_barcode_settings?: Record<string, any>;
+  report_settings?: Record<string, any>;
+}
+
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
     mobile_number: "",
@@ -34,13 +53,25 @@ export default function Settings() {
   const fetchSettings = async () => {
     try {
       const { data, error } = await supabase
-        .from("settings")
+        .from("settings" as any)
         .select("*")
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       if (data) {
-        setSettings(data);
+        const settingsData = data as any;
+        setSettings({
+          business_name: settingsData.business_name || "",
+          address: settingsData.address || "",
+          mobile_number: settingsData.mobile_number || "",
+          email_id: settingsData.email_id || "",
+          gst_number: settingsData.gst_number || "",
+          product_settings: (settingsData.product_settings as ProductSettings) || {},
+          purchase_settings: (settingsData.purchase_settings as Record<string, any>) || {},
+          sale_settings: (settingsData.sale_settings as Record<string, any>) || {},
+          bill_barcode_settings: (settingsData.bill_barcode_settings as Record<string, any>) || {},
+          report_settings: (settingsData.report_settings as Record<string, any>) || {},
+        });
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -51,7 +82,7 @@ export default function Settings() {
     setLoading(true);
     try {
       const { error } = await supabase
-        .from("settings")
+        .from("settings" as any)
         .update(settings)
         .eq("id", "00000000-0000-0000-0000-000000000001");
 
@@ -178,8 +209,69 @@ export default function Settings() {
                   Configure product-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Product settings will be configured here.</p>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="default_margin">Default Profit Margin (%)</Label>
+                    <Input
+                      id="default_margin"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={settings.product_settings?.default_margin || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          product_settings: {
+                            ...settings.product_settings,
+                            default_margin: parseFloat(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      placeholder="e.g., 20"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="low_stock_threshold">Low Stock Alert Threshold</Label>
+                    <Input
+                      id="low_stock_threshold"
+                      type="number"
+                      min="0"
+                      value={settings.product_settings?.low_stock_threshold || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          product_settings: {
+                            ...settings.product_settings,
+                            low_stock_threshold: parseInt(e.target.value) || 0,
+                          },
+                        })
+                      }
+                      placeholder="e.g., 10"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sku_format">Auto-Generate SKU Format</Label>
+                  <Input
+                    id="sku_format"
+                    value={settings.product_settings?.sku_format || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        product_settings: {
+                          ...settings.product_settings,
+                          sku_format: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., PRD-{YYYY}-{####}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
