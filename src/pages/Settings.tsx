@@ -38,6 +38,13 @@ interface BillBarcodeSettings {
   print_format?: string;
 }
 
+interface ReportSettings {
+  default_date_range?: string;
+  export_formats?: string[];
+  stock_report_columns?: string[];
+  purchase_report_columns?: string[];
+}
+
 interface Settings {
   business_name?: string;
   address?: string;
@@ -48,7 +55,7 @@ interface Settings {
   purchase_settings?: PurchaseSettings;
   sale_settings?: SaleSettings;
   bill_barcode_settings?: BillBarcodeSettings;
-  report_settings?: Record<string, any>;
+  report_settings?: ReportSettings;
 }
 
 export default function Settings() {
@@ -93,7 +100,7 @@ export default function Settings() {
           purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
           sale_settings: (settingsData.sale_settings as SaleSettings) || {},
           bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
-          report_settings: (settingsData.report_settings as Record<string, any>) || {},
+          report_settings: (settingsData.report_settings as ReportSettings) || {},
         });
       }
     } catch (error) {
@@ -703,8 +710,143 @@ export default function Settings() {
                   Configure report preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">Report settings will be configured here.</p>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="default_date_range">Default Date Range</Label>
+                  <select
+                    id="default_date_range"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={settings.report_settings?.default_date_range || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        report_settings: {
+                          ...settings.report_settings,
+                          default_date_range: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">Select default date range</option>
+                    <option value="today">Today</option>
+                    <option value="this_week">This Week</option>
+                    <option value="this_month">This Month</option>
+                    <option value="last_month">Last Month</option>
+                    <option value="last_quarter">Last Quarter</option>
+                    <option value="this_year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Export Formats</Label>
+                  <div className="space-y-2">
+                    {["PDF", "Excel", "CSV"].map((format) => (
+                      <div key={format} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`export_${format}`}
+                          className="h-4 w-4 rounded border-input"
+                          checked={settings.report_settings?.export_formats?.includes(format) || false}
+                          onChange={(e) => {
+                            const currentFormats = settings.report_settings?.export_formats || [];
+                            const newFormats = e.target.checked
+                              ? [...currentFormats, format]
+                              : currentFormats.filter((f) => f !== format);
+                            setSettings({
+                              ...settings,
+                              report_settings: {
+                                ...settings.report_settings,
+                                export_formats: newFormats,
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`export_${format}`} className="font-normal cursor-pointer">
+                          {format}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Stock Report Columns</Label>
+                  <div className="space-y-2">
+                    {[
+                      { value: "product_name", label: "Product Name" },
+                      { value: "size", label: "Size" },
+                      { value: "barcode", label: "Barcode" },
+                      { value: "stock_qty", label: "Stock Quantity" },
+                      { value: "pur_price", label: "Purchase Price" },
+                      { value: "sale_price", label: "Sale Price" },
+                      { value: "category", label: "Category" },
+                      { value: "brand", label: "Brand" },
+                    ].map((column) => (
+                      <div key={column.value} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`stock_col_${column.value}`}
+                          className="h-4 w-4 rounded border-input"
+                          checked={settings.report_settings?.stock_report_columns?.includes(column.value) || false}
+                          onChange={(e) => {
+                            const currentCols = settings.report_settings?.stock_report_columns || [];
+                            const newCols = e.target.checked
+                              ? [...currentCols, column.value]
+                              : currentCols.filter((c) => c !== column.value);
+                            setSettings({
+                              ...settings,
+                              report_settings: {
+                                ...settings.report_settings,
+                                stock_report_columns: newCols,
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`stock_col_${column.value}`} className="font-normal cursor-pointer">
+                          {column.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Purchase Report Columns</Label>
+                  <div className="space-y-2">
+                    {[
+                      { value: "bill_date", label: "Bill Date" },
+                      { value: "invoice_no", label: "Invoice No" },
+                      { value: "supplier_name", label: "Supplier Name" },
+                      { value: "gross_amount", label: "Gross Amount" },
+                      { value: "gst_amount", label: "GST Amount" },
+                      { value: "net_amount", label: "Net Amount" },
+                      { value: "items_count", label: "Items Count" },
+                    ].map((column) => (
+                      <div key={column.value} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={`purchase_col_${column.value}`}
+                          className="h-4 w-4 rounded border-input"
+                          checked={settings.report_settings?.purchase_report_columns?.includes(column.value) || false}
+                          onChange={(e) => {
+                            const currentCols = settings.report_settings?.purchase_report_columns || [];
+                            const newCols = e.target.checked
+                              ? [...currentCols, column.value]
+                              : currentCols.filter((c) => c !== column.value);
+                            setSettings({
+                              ...settings,
+                              report_settings: {
+                                ...settings.report_settings,
+                                purchase_report_columns: newCols,
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`purchase_col_${column.value}`} className="font-normal cursor-pointer">
+                          {column.label}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
