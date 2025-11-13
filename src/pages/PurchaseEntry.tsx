@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -56,6 +57,7 @@ interface SizeQuantity {
 
 const PurchaseEntry = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -70,6 +72,8 @@ const PurchaseEntry = () => {
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
 
   const [billData, setBillData] = useState({
@@ -399,6 +403,28 @@ const PurchaseEntry = () => {
         title: "Success",
         description: `Purchase bill saved successfully`,
       });
+
+      // Fetch full product details for barcode printing
+      const itemsWithDetails = await Promise.all(
+        lineItems.map(async (item) => {
+          const { data: product } = await supabase
+            .from("products")
+            .select("brand, color, style")
+            .eq("id", item.product_id)
+            .single();
+          
+          return {
+            ...item,
+            brand: product?.brand || "",
+            color: product?.color || "",
+            style: product?.style || "",
+          };
+        })
+      );
+
+      // Store items for barcode printing and show dialog
+      setSavedPurchaseItems(itemsWithDetails);
+      setShowPrintDialog(true);
 
       // Reset form
       setBillData({
@@ -842,6 +868,44 @@ const PurchaseEntry = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Print Barcode Dialog */}
+        <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5" />
+                Bill Saved Successfully
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                Your purchase bill has been saved. Would you like to print barcodes for the purchased items?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPrintDialog(false)}
+                >
+                  No, Thanks
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Navigate to barcode printing page with state
+                    navigate("/barcode-printing", {
+                      state: { purchaseItems: savedPurchaseItems },
+                    });
+                    setShowPrintDialog(false);
+                  }}
+                  className="gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print Barcodes
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

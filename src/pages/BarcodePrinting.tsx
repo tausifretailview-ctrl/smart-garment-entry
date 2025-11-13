@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const sheetPresets = {
 };
 
 export default function BarcodePrinting() {
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -60,6 +62,26 @@ export default function BarcodePrinting() {
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
   const [leftOffset, setLeftOffset] = useState(0);
+
+  // Pre-fill items from purchase entry if passed via navigation state
+  useEffect(() => {
+    if (location.state?.purchaseItems) {
+      const purchaseItems = location.state.purchaseItems;
+      const items: LabelItem[] = purchaseItems.map((item: any) => ({
+        sku_id: item.sku_id,
+        product_name: item.product_name,
+        brand: item.brand || "",
+        color: item.color || "",
+        style: item.style || "",
+        size: item.size,
+        sale_price: item.sale_price,
+        barcode: item.barcode,
+        qty: item.qty,
+      }));
+      setLabelItems(items);
+      toast.success(`Loaded ${items.length} items from purchase bill`);
+    }
+  }, [location.state]);
 
   const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
