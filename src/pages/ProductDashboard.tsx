@@ -1,87 +1,90 @@
 import { useState, useEffect } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Package, Search } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BackToDashboard } from "@/components/BackToDashboard";
 
-interface ProductVariant {
-  id: string;
-  size: string;
-  pur_price: number;
-  sale_price: number;
-  barcode: string;
-  active: boolean;
-  stock_qty: number;
-}
-
-interface Product {
-  id: string;
+interface ProductVariantRow {
+  variant_id: string;
+  product_id: string;
   product_name: string;
   category: string;
   brand: string;
-  style: string;
-  color: string;
-  hsn_code: string;
-  gst_per: number;
-  default_pur_price: number;
-  default_sale_price: number;
-  status: string;
   image_url?: string;
-  created_at: string;
-  variants?: ProductVariant[];
+  barcode: string;
+  size: string;
+  pur_price: number;
+  sale_price: number;
+  hsn_code: string;
+  stock_qty: number;
+  status: string;
+  gst_per: number;
 }
 
 const ProductDashboard = () => {
   const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
+  const navigate = useNavigate();
+  const [variantRows, setVariantRows] = useState<ProductVariantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProducts();
+    fetchProductVariants();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProductVariants = async () => {
     setLoading(true);
     try {
-      // Fetch products
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("*")
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(`
+          id,
+          size,
+          barcode,
+          pur_price,
+          sale_price,
+          stock_qty,
+          active,
+          products (
+            id,
+            product_name,
+            category,
+            brand,
+            hsn_code,
+            status,
+            image_url,
+            gst_per
+          )
+        `)
         .order("created_at", { ascending: false });
 
-      if (productsError) throw productsError;
+      if (error) throw error;
 
-      // Fetch variants for all products
-      const { data: variantsData, error: variantsError } = await supabase
-        .from("product_variants")
-        .select("*")
-        .order("size");
-
-      if (variantsError) throw variantsError;
-
-      // Group variants by product_id
-      const variantsByProduct = (variantsData || []).reduce((acc, variant) => {
-        if (!acc[variant.product_id]) {
-          acc[variant.product_id] = [];
-        }
-        acc[variant.product_id].push(variant);
-        return acc;
-      }, {} as Record<string, ProductVariant[]>);
-
-      // Combine products with their variants
-      const productsWithVariants = (productsData || []).map((product) => ({
-        ...product,
-        variants: variantsByProduct[product.id] || [],
+      const rows: ProductVariantRow[] = (data || []).map((variant: any) => ({
+        variant_id: variant.id,
+        product_id: variant.products?.id || "",
+        product_name: variant.products?.product_name || "",
+        category: variant.products?.category || "",
+        brand: variant.products?.brand || "",
+        image_url: variant.products?.image_url,
+        barcode: variant.barcode || "",
+        size: variant.size,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        hsn_code: variant.products?.hsn_code || "",
+        stock_qty: variant.stock_qty,
+        status: variant.products?.status || "active",
+        gst_per: variant.products?.gst_per || 0,
       }));
 
-      setProducts(productsWithVariants);
+      setVariantRows(rows);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -93,15 +96,12 @@ const ProductDashboard = () => {
     }
   };
 
-  const filteredProducts = products.filter((product) =>
-    product.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    product.category?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredRows = variantRows.filter((row) =>
+    row.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    row.barcode?.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const toggleExpanded = (productId: string) => {
-    setExpandedProduct(expandedProduct === productId ? null : productId);
-  };
 
   if (loading) {
     return (
