@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
@@ -37,11 +39,13 @@ interface PurchaseBill {
 
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedBill, setExpandedBill] = useState<string | null>(null);
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
+  const [printingBill, setPrintingBill] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBills();
@@ -102,6 +106,64 @@ const PurchaseBillDashboard = () => {
     } else {
       setExpandedBill(billId);
       await fetchBillItems(billId);
+    }
+  };
+
+  const handlePrintBarcodes = async (billId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent card expansion/collapse
+    setPrintingBill(billId);
+
+    try {
+      // Fetch bill items with product details
+      const { data: items, error } = await supabase
+        .from("purchase_items")
+        .select(`
+          *,
+          products (
+            product_name,
+            brand,
+            color,
+            style
+          )
+        `)
+        .eq("bill_id", billId);
+
+      if (error) throw error;
+
+      if (!items || items.length === 0) {
+        toast({
+          title: "No Items",
+          description: "This bill has no items to print barcodes for",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Format items for barcode printing
+      const barcodeItems = items.map((item: any) => ({
+        sku_id: item.sku_id,
+        product_name: item.products?.product_name || "",
+        brand: item.products?.brand || "",
+        color: item.products?.color || "",
+        style: item.products?.style || "",
+        size: item.size,
+        sale_price: item.sale_price,
+        barcode: item.barcode,
+        qty: item.qty,
+      }));
+
+      // Navigate to barcode printing page with items
+      navigate("/barcode-printing", {
+        state: { purchaseItems: barcodeItems },
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load bill items for printing",
+        variant: "destructive",
+      });
+    } finally {
+      setPrintingBill(null);
     }
   };
 
@@ -245,7 +307,28 @@ const PurchaseBillDashboard = () => {
                       {/* Expanded Items Table */}
                       {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
                         <div className="mt-4 pt-4 border-t border-border">
-                          <h4 className="font-semibold mb-3">Purchase Items</h4>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold">Purchase Items</h4>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => handlePrintBarcodes(bill.id, e)}
+                              disabled={printingBill === bill.id}
+                              className="gap-2"
+                            >
+                              {printingBill === bill.id ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                <>
+                                  <Printer className="h-4 w-4" />
+                                  Print Barcodes
+                                </>
+                              )}
+                            </Button>
+                          </div>
                           <div className="border rounded-lg overflow-hidden">
                             <Table>
                               <TableHeader>
