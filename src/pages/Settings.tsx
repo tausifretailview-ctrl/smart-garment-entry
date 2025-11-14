@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
@@ -37,6 +38,7 @@ interface BillBarcodeSettings {
   barcode_width?: number;
   barcode_height?: number;
   print_format?: string;
+  show_product_details?: boolean;
 }
 
 interface ReportSettings {
@@ -698,6 +700,27 @@ export default function Settings() {
                     <option value="thermal-small">Thermal Small (58mm)</option>
                     <option value="custom">Custom Size</option>
                   </select>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="show_product_details"
+                    checked={settings.bill_barcode_settings?.show_product_details || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          show_product_details: checked === true,
+                        },
+                      })
+                    }
+                  />
+                  <Label 
+                    htmlFor="show_product_details"
+                    className="text-sm font-normal cursor-pointer"
+                  >
+                    Show product details on bills and barcodes
+                  </Label>
                 </div>
               </CardContent>
             </Card>
