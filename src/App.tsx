@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import Index from "./pages/Index";
 import ProductDashboard from "./pages/ProductDashboard";
 import ProductEntry from "./pages/ProductEntry";
@@ -57,7 +58,9 @@ const App = () => {
               path="/purchase-entry"
               element={
                 <ProtectedRoute>
-                  <PurchaseEntry />
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <PurchaseEntry />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
@@ -65,7 +68,9 @@ const App = () => {
               path="/purchase-bills"
               element={
                 <ProtectedRoute>
-                  <PurchaseBillDashboard />
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <PurchaseBillDashboard />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
@@ -89,7 +94,9 @@ const App = () => {
               path="/settings"
               element={
                 <ProtectedRoute>
-                  <Settings />
+                  <RoleProtectedRoute allowedRoles={["admin"]}>
+                    <Settings />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
