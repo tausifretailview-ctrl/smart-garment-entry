@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface ProductVariant {
   variant_id: string;
@@ -39,9 +41,22 @@ const ProductDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter states
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedSizeGroup, setSelectedSizeGroup] = useState<string>("all");
+  const [selectedStockLevel, setSelectedStockLevel] = useState<string>("all");
+  const [minPrice, setMinPrice] = useState<string>("");
+  const [maxPrice, setMaxPrice] = useState<string>("");
+  
+  // Data for filter options
+  const [sizeGroups, setSizeGroups] = useState<Array<{ id: string; group_name: string }>>([]);
+  const [categories, setCategories] = useState<string[]>([]);
 
   useEffect(() => {
     fetchProductVariants();
+    fetchSizeGroups();
   }, []);
 
   const fetchProductVariants = async () => {
@@ -96,6 +111,12 @@ const ProductDashboard = () => {
       });
 
       setProductRows(rows);
+      
+      // Extract unique categories
+      const uniqueCategories = Array.from(
+        new Set(rows.map(r => r.category).filter(c => c && c.trim() !== ""))
+      ).sort();
+      setCategories(uniqueCategories);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -107,15 +128,79 @@ const ProductDashboard = () => {
     }
   };
 
+  const fetchSizeGroups = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("size_groups")
+        .select("id, group_name")
+        .order("group_name");
+
+      if (error) throw error;
+      setSizeGroups(data || []);
+    } catch (error: any) {
+      console.error("Failed to load size groups:", error);
+    }
+  };
+
   const toggleExpanded = (productId: string) => {
     setExpandedProduct(expandedProduct === productId ? null : productId);
   };
 
-  const filteredRows = productRows.filter((row) =>
-    row.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.category?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const clearAllFilters = () => {
+    setSelectedCategory("all");
+    setSelectedSizeGroup("all");
+    setSelectedStockLevel("all");
+    setMinPrice("");
+    setMaxPrice("");
+    setSearchQuery("");
+  };
+
+  const hasActiveFilters = 
+    selectedCategory !== "all" || 
+    selectedSizeGroup !== "all" || 
+    selectedStockLevel !== "all" || 
+    minPrice !== "" || 
+    maxPrice !== "" ||
+    searchQuery !== "";
+
+  const filteredRows = productRows.filter((row) => {
+    // Search filter
+    const matchesSearch = 
+      row.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      row.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      row.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!matchesSearch) return false;
+
+    // Category filter
+    if (selectedCategory !== "all" && row.category !== selectedCategory) {
+      return false;
+    }
+
+    // Stock level filter
+    if (selectedStockLevel !== "all") {
+      if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
+      if (selectedStockLevel === "low_stock" && (row.total_stock === 0 || row.total_stock > 10)) return false;
+      if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
+    }
+
+    // Price range filter (checking sale_price of variants)
+    const min = minPrice ? parseFloat(minPrice) : null;
+    const max = maxPrice ? parseFloat(maxPrice) : null;
+    
+    if (min !== null || max !== null) {
+      const hasVariantInRange = row.variants.some(v => {
+        const price = v.sale_price;
+        if (min !== null && price < min) return false;
+        if (max !== null && price > max) return false;
+        return true;
+      });
+      
+      if (!hasVariantInRange) return false;
+    }
+
+    return true;
+  });
 
   if (loading) {
     return (
@@ -179,9 +264,19 @@ const ProductDashboard = () => {
                   Export
                 </Button>
 
-                <Button variant="outline" size="sm" className="gap-2">
+                <Button 
+                  variant={showFilters ? "default" : "outline"} 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
                   <Filter className="h-4 w-4" />
                   Filter
+                  {hasActiveFilters && (
+                    <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                      {[selectedCategory !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
+                    </Badge>
+                  )}
                 </Button>
               </div>
 
@@ -207,6 +302,170 @@ const ProductDashboard = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Filters Panel */}
+        {showFilters && (
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-foreground">Filter Products</h3>
+                {hasActiveFilters && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={clearAllFilters}
+                    className="h-8 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Category Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="category-filter" className="text-xs font-medium">Category</Label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger id="category-filter" className="h-9">
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Size Group Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="size-group-filter" className="text-xs font-medium">Size Group</Label>
+                  <Select value={selectedSizeGroup} onValueChange={setSelectedSizeGroup}>
+                    <SelectTrigger id="size-group-filter" className="h-9">
+                      <SelectValue placeholder="All Size Groups" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="all">All Size Groups</SelectItem>
+                      {sizeGroups.map((sg) => (
+                        <SelectItem key={sg.id} value={sg.id}>{sg.group_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Stock Level Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="stock-level-filter" className="text-xs font-medium">Stock Level</Label>
+                  <Select value={selectedStockLevel} onValueChange={setSelectedStockLevel}>
+                    <SelectTrigger id="stock-level-filter" className="h-9">
+                      <SelectValue placeholder="All Stock Levels" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="all">All Stock Levels</SelectItem>
+                      <SelectItem value="in_stock">In Stock</SelectItem>
+                      <SelectItem value="low_stock">Low Stock (≤10)</SelectItem>
+                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Min Price Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="min-price-filter" className="text-xs font-medium">Min Price</Label>
+                  <Input
+                    id="min-price-filter"
+                    type="number"
+                    placeholder="0"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    className="h-9"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+
+                {/* Max Price Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="max-price-filter" className="text-xs font-medium">Max Price</Label>
+                  <Input
+                    id="max-price-filter"
+                    type="number"
+                    placeholder="∞"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    className="h-9"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              {/* Active Filters Summary */}
+              {hasActiveFilters && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <div className="flex flex-wrap gap-2">
+                    {searchQuery && (
+                      <Badge variant="secondary" className="gap-1">
+                        Search: {searchQuery}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setSearchQuery("")}
+                        />
+                      </Badge>
+                    )}
+                    {selectedCategory !== "all" && (
+                      <Badge variant="secondary" className="gap-1">
+                        Category: {selectedCategory}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setSelectedCategory("all")}
+                        />
+                      </Badge>
+                    )}
+                    {selectedSizeGroup !== "all" && (
+                      <Badge variant="secondary" className="gap-1">
+                        Size Group: {sizeGroups.find(sg => sg.id === selectedSizeGroup)?.group_name}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setSelectedSizeGroup("all")}
+                        />
+                      </Badge>
+                    )}
+                    {selectedStockLevel !== "all" && (
+                      <Badge variant="secondary" className="gap-1">
+                        Stock: {selectedStockLevel.replace("_", " ")}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setSelectedStockLevel("all")}
+                        />
+                      </Badge>
+                    )}
+                    {minPrice && (
+                      <Badge variant="secondary" className="gap-1">
+                        Min: ₹{minPrice}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setMinPrice("")}
+                        />
+                      </Badge>
+                    )}
+                    {maxPrice && (
+                      <Badge variant="secondary" className="gap-1">
+                        Max: ₹{maxPrice}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setMaxPrice("")}
+                        />
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Table */}
         <Card>
