@@ -4,10 +4,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +57,7 @@ export default function POSSales() {
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
+  const [openProductSearch, setOpenProductSearch] = useState(false);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
@@ -153,6 +167,10 @@ export default function POSSales() {
       };
       setItems([...items, newItem]);
     }
+    
+    // Close search dropdown and clear input
+    setOpenProductSearch(false);
+    setSearchInput("");
   };
 
   const calculateNetAmount = (item: CartItem) => {
@@ -299,6 +317,17 @@ export default function POSSales() {
     });
   };
 
+  // Filter products based on search input
+  const filteredProducts = productsData?.flatMap(product => 
+    product.product_variants?.map((variant: any) => ({
+      product,
+      variant,
+      searchText: `${product.product_name} ${variant.size} ${variant.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase()
+    })).filter((item: any) => 
+      item.searchText.includes(searchInput.toLowerCase())
+    ) || []
+  ) || [];
+
   const actionButtons = [
     {
       label: "New Invoice",
@@ -433,17 +462,58 @@ export default function POSSales() {
           <div className="max-w-[1800px] mx-auto space-y-3">
         {/* Header Section - Larger inputs */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="relative">
-            <Input
-              placeholder="Scan Barcode/Enter Product Name"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleSearch}
-              className="h-12 text-lg pr-12"
-              autoFocus
-            />
-            <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
-          </div>
+          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
+            <PopoverTrigger asChild>
+              <div className="relative">
+                <Input
+                  placeholder="Scan Barcode/Enter Product Name"
+                  value={searchInput}
+                  onChange={(e) => {
+                    setSearchInput(e.target.value);
+                    setOpenProductSearch(true);
+                  }}
+                  onKeyDown={handleSearch}
+                  className="h-12 text-lg pr-12"
+                  autoFocus
+                />
+                <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-[400px] p-0 z-50" align="start">
+              <Command>
+                <CommandInput 
+                  placeholder="Search by name, barcode, brand..." 
+                  value={searchInput}
+                  onValueChange={setSearchInput}
+                />
+                <CommandList>
+                  <CommandEmpty>No products found.</CommandEmpty>
+                  <CommandGroup heading="Products">
+                    {filteredProducts.slice(0, 10).map((item: any, index: number) => (
+                      <CommandItem
+                        key={`${item.product.id}-${item.variant.id}-${index}`}
+                        value={item.searchText}
+                        onSelect={() => {
+                          addItemToCart(item.product, item.variant);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Check className="mr-2 h-4 w-4 opacity-0" />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{item.product.product_name} - {item.variant.size}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {item.variant.barcode && `Barcode: ${item.variant.barcode} | `}
+                            Price: ₹{item.variant.sale_price} | 
+                            Stock: {item.variant.stock_qty}
+                          </span>
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           
           <div className="relative">
             <Input
@@ -559,50 +629,50 @@ export default function POSSales() {
           </div>
         </Card>
 
-        {/* Totals Section - Larger text */}
-        <div className="bg-cyan-500 text-white p-4 rounded-lg">
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-4">
+        {/* Totals Section - Compact */}
+        <div className="bg-cyan-500 text-white p-3 rounded-lg">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold">{totals.quantity}</div>
-              <div className="text-sm md:text-base mt-1">Quantity</div>
+              <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
+              <div className="text-xs md:text-sm mt-1">Quantity</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold">₹{totals.mrp.toFixed(2)}</div>
-              <div className="text-sm md:text-base mt-1">MRP</div>
+              <div className="text-xl md:text-2xl font-bold">₹{totals.mrp.toFixed(2)}</div>
+              <div className="text-xs md:text-sm mt-1">MRP</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold">₹0.00</div>
-              <div className="text-sm md:text-base mt-1">Add. Charges</div>
+              <div className="text-xl md:text-2xl font-bold">₹0.00</div>
+              <div className="text-xs md:text-sm mt-1">Add. Charges</div>
             </div>
             <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold">₹{totals.discount.toFixed(2)}</div>
-              <div className="text-sm md:text-base mt-1">Discount</div>
+              <div className="text-xl md:text-2xl font-bold">₹{totals.discount.toFixed(2)}</div>
+              <div className="text-xs md:text-sm mt-1">Discount</div>
             </div>
             <div className="text-center">
               <div className="flex items-center justify-center gap-2">
-                <span className="bg-black text-white px-3 py-2 text-base rounded">%</span>
+                <span className="bg-black text-white px-2 py-1 text-sm rounded">%</span>
                 <Input 
                   type="number"
-                  className="w-20 h-10 bg-white text-black text-center text-lg font-semibold" 
+                  className="w-16 h-8 bg-white text-black text-center text-base font-semibold" 
                   value={flatDiscountPercent}
                   onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
                 />
               </div>
-              <div className="text-sm md:text-base mt-1">Flat Discount</div>
+              <div className="text-xs md:text-sm mt-1">Flat Discount</div>
             </div>
             <div className="text-center">
               <Input 
                 type="number"
-                className="w-24 h-10 bg-white text-black text-center text-lg font-semibold mx-auto" 
+                className="w-20 h-8 bg-white text-black text-center text-base font-semibold mx-auto" 
                 value={roundOff}
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                 step="0.01"
               />
-              <div className="text-sm md:text-base mt-1">Round OFF</div>
+              <div className="text-xs md:text-sm mt-1">Round OFF</div>
             </div>
             <div className="text-center col-span-2 md:col-span-1">
-              <div className="text-4xl md:text-5xl font-bold">₹{finalAmount.toFixed(2)}</div>
-              <div className="text-sm md:text-base mt-1">Amount</div>
+              <div className="text-2xl md:text-3xl font-bold">₹{finalAmount.toFixed(2)}</div>
+              <div className="text-xs md:text-sm mt-1">Amount</div>
             </div>
           </div>
         </div>
