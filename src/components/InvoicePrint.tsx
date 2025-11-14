@@ -6,7 +6,6 @@ import './InvoicePrint.css';
 interface InvoiceItem {
   sr: number;
   particulars: string;
-  color?: string;
   size: string;
   barcode: string;
   hsn: string;
@@ -99,7 +98,6 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             <h2 className="bill-type">BILL OF SUPPLY</h2>
             <div className="customer-details">
               <p><strong>NAME :</strong> {customerName}</p>
-              <p><strong>ADD :</strong> {customerAddress}</p>
               <p><strong>MOB NO :</strong> {customerMobile}</p>
             </div>
           </div>
@@ -118,14 +116,13 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
           <thead>
             <tr>
               <th style={{ width: '5%' }}>SR</th>
-              <th style={{ width: '25%' }}>PARTICULARS</th>
-              <th style={{ width: '10%' }}>COLOR</th>
-              <th style={{ width: '8%' }}>SIZE</th>
-              <th style={{ width: '10%' }}>HSN</th>
-              <th style={{ width: '8%' }}>SP</th>
-              <th style={{ width: '7%' }}>QTY</th>
+              <th style={{ width: '30%' }}>PARTICULARS</th>
+              <th style={{ width: '10%' }}>SIZE</th>
+              <th style={{ width: '12%' }}>HSN</th>
+              <th style={{ width: '10%' }}>SP</th>
+              <th style={{ width: '8%' }}>QTY</th>
               <th style={{ width: '12%' }}>MRP/RATE</th>
-              <th style={{ width: '15%' }}>TOTAL</th>
+              <th style={{ width: '13%' }}>TOTAL</th>
             </tr>
           </thead>
           <tbody>
@@ -134,9 +131,8 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <td>{item.sr}</td>
                 <td>
                   <div>{item.particulars}</div>
-                  <div className="barcode-text">BC:{item.barcode}</div>
+                  <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>
                 </td>
-                <td>{item.color || '-'}</td>
                 <td>{item.size}</td>
                 <td>{item.hsn}</td>
                 <td>{item.sp}</td>

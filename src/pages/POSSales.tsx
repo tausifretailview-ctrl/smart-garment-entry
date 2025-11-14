@@ -873,21 +873,17 @@ export default function POSSales() {
                 customerName={customerName}
                 customerAddress=""
                 customerMobile=""
-                items={items.map((item, index) => {
-                  const product = productsData?.find((p: any) => p.id === item.productId);
-                  return {
-                    sr: index + 1,
-                    particulars: item.productName,
-                    color: product?.color || '',
-                    size: item.size,
-                    barcode: item.barcode,
-                    hsn: "",
-                    sp: item.size ? parseInt(item.size) || 1 : 1,
-                    qty: item.quantity,
-                    rate: item.mrp,
-                    total: item.netAmount,
-                  };
-                })}
+                items={items.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  barcode: item.barcode,
+                  hsn: "",
+                  sp: item.size ? parseInt(item.size) || 1 : 1,
+                  qty: item.quantity,
+                  rate: item.mrp,
+                  total: item.netAmount,
+                }))}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
                 grandTotal={finalAmount}
