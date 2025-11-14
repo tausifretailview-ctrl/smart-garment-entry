@@ -779,7 +779,7 @@ export default function POSSales() {
         {/* Items Table */}
         <Card className="overflow-hidden">
           <div className="bg-black text-white overflow-x-auto">
-            <div className="min-w-[1000px] grid grid-cols-13 gap-2 p-4 text-base font-medium">
+            <div className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 text-base font-medium">
               <div className="col-span-1">Barcode</div>
               <div className="col-span-3">Product</div>
               <div className="col-span-1">Qty</div>
@@ -787,7 +787,7 @@ export default function POSSales() {
               <div className="col-span-1">Tax%</div>
               <div className="col-span-1">Disc%</div>
               <div className="col-span-1">Disc Rs</div>
-              <div className="col-span-2">Unit Price</div>
+              <div className="col-span-1">Unit Price</div>
               <div className="col-span-2">Net Amount</div>
             </div>
           </div>
@@ -800,7 +800,7 @@ export default function POSSales() {
             ) : (
               <div className="overflow-x-auto">
                 {items.map((item, index) => (
-                  <div key={index} className="min-w-[1000px] grid grid-cols-13 gap-2 p-4 border-b hover:bg-muted/50 text-base">
+                  <div key={index} className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 border-b hover:bg-muted/50 text-base">
                     <div className="col-span-1 flex items-center">{item.barcode}</div>
                     <div className="col-span-3 flex items-center font-medium">{item.productName}</div>
                     <div className="col-span-1">
@@ -835,7 +835,7 @@ export default function POSSales() {
                         step="0.01"
                       />
                     </div>
-                    <div className="col-span-2 flex items-center">₹{item.unitCost.toFixed(2)}</div>
+                    <div className="col-span-1 flex items-center">₹{item.unitCost.toFixed(2)}</div>
                     <div className="col-span-2 flex items-center justify-between">
                       <span className="font-semibold">₹{item.netAmount.toFixed(2)}</span>
                       <Button
