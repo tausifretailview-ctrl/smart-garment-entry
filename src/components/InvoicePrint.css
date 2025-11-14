@@ -1,0 +1,229 @@
+.invoice-print {
+  width: 148mm;
+  min-height: 210mm;
+  padding: 8mm;
+  background: white;
+  font-family: Arial, sans-serif;
+  font-size: 9pt;
+  color: black;
+  box-sizing: border-box;
+}
+
+.invoice-print .header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid black;
+  padding-bottom: 6px;
+}
+
+.invoice-print .logo-section {
+  flex-shrink: 0;
+}
+
+.invoice-print .shop-logo {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+}
+
+.invoice-print .shop-details {
+  flex: 1;
+  text-align: center;
+}
+
+.invoice-print .shop-name {
+  font-size: 16pt;
+  font-weight: bold;
+  margin: 0 0 2px 0;
+}
+
+.invoice-print .shop-address,
+.invoice-print .shop-contact {
+  font-size: 8pt;
+  margin: 2px 0;
+}
+
+.invoice-print .bill-info-container {
+  display: flex;
+  border: 1px solid black;
+  margin-bottom: 8px;
+}
+
+.invoice-print .customer-section {
+  flex: 1;
+  border-right: 1px solid black;
+  padding: 6px;
+}
+
+.invoice-print .bill-type {
+  font-size: 11pt;
+  font-weight: bold;
+  margin: 0 0 6px 0;
+}
+
+.invoice-print .customer-details p {
+  margin: 3px 0;
+  font-size: 8pt;
+}
+
+.invoice-print .bill-details {
+  width: 40%;
+  padding: 6px;
+  font-size: 8pt;
+}
+
+.invoice-print .bill-details p {
+  margin: 3px 0;
+  text-align: right;
+}
+
+.invoice-print .items-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+  font-size: 8pt;
+}
+
+.invoice-print .items-table th,
+.invoice-print .items-table td {
+  border: 1px solid black;
+  padding: 4px 2px;
+  text-align: center;
+}
+
+.invoice-print .items-table th {
+  background: #f0f0f0;
+  font-weight: bold;
+}
+
+.invoice-print .items-table td:nth-child(2) {
+  text-align: left;
+}
+
+.invoice-print .barcode-text {
+  font-size: 7pt;
+  color: #666;
+}
+
+.invoice-print .footer-section {
+  display: flex;
+  border: 1px solid black;
+  border-bottom: none;
+  font-size: 8pt;
+}
+
+.invoice-print .declaration {
+  flex: 1;
+  border-right: 1px solid black;
+  padding: 4px;
+}
+
+.invoice-print .declaration p {
+  margin: 2px 0;
+}
+
+.invoice-print .totals-right {
+  width: 40%;
+  padding: 4px;
+  text-align: right;
+}
+
+.invoice-print .payment-section {
+  display: flex;
+  border: 1px solid black;
+  font-size: 8pt;
+  margin-bottom: 8px;
+}
+
+.invoice-print .payment-left {
+  flex: 1;
+  border-right: 1px solid black;
+  padding: 4px;
+}
+
+.invoice-print .payment-left p {
+  margin: 2px 0;
+}
+
+.invoice-print .payment-right {
+  width: 40%;
+  padding: 4px;
+  text-align: right;
+}
+
+.invoice-print .payment-right p {
+  margin: 2px 0;
+}
+
+.invoice-print .grand-total {
+  font-size: 10pt;
+  margin-top: 4px !important;
+}
+
+.invoice-print .total-amount {
+  font-size: 14pt;
+  font-weight: bold;
+}
+
+.invoice-print .terms-section {
+  display: flex;
+  border: 1px solid black;
+  font-size: 7pt;
+  min-height: 60px;
+}
+
+.invoice-print .terms-left {
+  flex: 1;
+  border-right: 1px solid black;
+  padding: 4px;
+}
+
+.invoice-print .terms-left p {
+  margin: 2px 0;
+}
+
+.invoice-print .terms-right {
+  width: 40%;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.invoice-print .barcode-image {
+  width: 100%;
+  text-align: center;
+}
+
+.invoice-print .barcode-image svg {
+  width: 80%;
+  height: 30px;
+}
+
+.invoice-print .barcode-number {
+  margin: 2px 0;
+  font-size: 8pt;
+}
+
+.invoice-print .signatory {
+  font-size: 8pt;
+  font-weight: bold;
+  margin: 0;
+}
+
+@media print {
+  .invoice-print {
+    width: 148mm;
+    height: 210mm;
+    margin: 0;
+    padding: 8mm;
+  }
+
+  @page {
+    size: A5 portrait;
+    margin: 0;
+  }
+}
