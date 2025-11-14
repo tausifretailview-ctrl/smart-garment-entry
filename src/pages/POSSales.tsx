@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -271,34 +271,85 @@ export default function POSSales() {
     loadInvoice(todaysSales[newIndex]);
   };
 
+  const handleLastInvoice = () => {
+    if (!todaysSales || todaysSales.length === 0) {
+      toast({
+        title: "No Invoices",
+        description: "No invoices found for today",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCurrentInvoiceIndex(0);
+    loadInvoice(todaysSales[0]);
+  };
+
+  const handleNewInvoice = () => {
+    setItems([]);
+    setCustomerName("Walk in Customer");
+    setFlatDiscountPercent(0);
+    setRoundOff(0);
+    setSearchInput("");
+    setCurrentInvoiceIndex(0);
+    
+    toast({
+      title: "New Invoice",
+      description: "Cart cleared. Ready for new sale.",
+    });
+  };
+
+  const actionButtons = [
+    {
+      label: "New Invoice",
+      icon: FileText,
+      onClick: handleNewInvoice,
+      className: "bg-cyan-600 hover:bg-cyan-700",
+      shortcut: "F1",
+      type: "action"
+    },
+    {
+      label: "Last Invoice",
+      icon: RotateCcw,
+      onClick: handleLastInvoice,
+      className: "bg-indigo-600 hover:bg-indigo-700",
+      shortcut: "F2",
+      type: "action"
+    },
+  ];
+
   const paymentButtons = [
     {
       label: "Cash Paid",
       icon: Banknote,
       onClick: () => handlePayment('cash'),
       className: "bg-green-600 hover:bg-green-700",
-      shortcut: "F4"
+      shortcut: "F4",
+      type: "payment"
     },
     {
       label: "Card Paid",
       icon: CreditCard,
       onClick: () => handlePayment('card'),
       className: "bg-blue-600 hover:bg-blue-700",
-      shortcut: "F5"
+      shortcut: "F5",
+      type: "payment"
     },
     {
       label: "UPI Paid",
       icon: Smartphone,
       onClick: () => handlePayment('upi'),
       className: "bg-purple-600 hover:bg-purple-700",
-      shortcut: "F6"
+      shortcut: "F6",
+      type: "payment"
     },
     {
       label: "Multi Pay",
       icon: CreditCard,
       onClick: () => handlePayment('multiple'),
       className: "bg-orange-600 hover:bg-orange-700",
-      shortcut: "F7"
+      shortcut: "F7",
+      type: "payment"
     },
     {
       label: "Print",
@@ -310,16 +361,44 @@ export default function POSSales() {
         });
       },
       className: "bg-gray-600 hover:bg-gray-700",
-      shortcut: "F8"
+      shortcut: "F8",
+      type: "action"
     },
   ];
 
   return (
     <SidebarProvider defaultOpen>
       <div className="min-h-screen flex w-full bg-background">
-        {/* Left Sidebar with Payment Buttons */}
+        {/* Left Sidebar with Action and Payment Buttons */}
         <Sidebar className="border-r">
           <SidebarContent>
+            {/* Action Buttons Section */}
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-lg font-semibold px-4 py-3">
+                Actions
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {actionButtons.map((button) => (
+                    <SidebarMenuItem key={button.label}>
+                      <SidebarMenuButton
+                        onClick={button.onClick}
+                        disabled={button.label === "Last Invoice" && (!todaysSales || todaysSales.length === 0)}
+                        className={`h-16 ${button.className} text-white hover:text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <button.icon className="h-6 w-6" />
+                        <div className="flex flex-col items-start">
+                          <span className="text-base font-medium">{button.label}</span>
+                          <span className="text-xs opacity-75">{button.shortcut}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            {/* Payment Buttons Section */}
             <SidebarGroup>
               <SidebarGroupLabel className="text-lg font-semibold px-4 py-3">
                 Payment Options
@@ -330,7 +409,7 @@ export default function POSSales() {
                     <SidebarMenuItem key={button.label}>
                       <SidebarMenuButton
                         onClick={button.onClick}
-                        disabled={items.length === 0 || isSaving}
+                        disabled={button.type === "payment" && (items.length === 0 || isSaving)}
                         className={`h-16 ${button.className} text-white hover:text-white disabled:opacity-50 disabled:cursor-not-allowed`}
                       >
                         <button.icon className="h-6 w-6" />
