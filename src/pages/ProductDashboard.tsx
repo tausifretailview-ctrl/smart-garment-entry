@@ -8,32 +8,37 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
-interface ProductVariantRow {
+interface ProductVariant {
   variant_id: string;
+  size: string;
+  barcode: string;
+  pur_price: number;
+  sale_price: number;
+  stock_qty: number;
+}
+
+interface ProductRow {
   product_id: string;
   product_name: string;
   category: string;
   brand: string;
   image_url?: string;
-  barcode: string;
-  size: string;
-  pur_price: number;
-  sale_price: number;
   hsn_code: string;
-  stock_qty: number;
-  status: string;
   gst_per: number;
+  variants: ProductVariant[];
+  total_stock: number;
 }
 
 const ProductDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [variantRows, setVariantRows] = useState<ProductVariantRow[]>([]);
+  const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProductVariants();
@@ -43,48 +48,54 @@ const ProductDashboard = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("product_variants")
+        .from("products")
         .select(`
           id,
-          size,
-          barcode,
-          pur_price,
-          sale_price,
-          stock_qty,
-          active,
-          products (
+          product_name,
+          category,
+          brand,
+          hsn_code,
+          image_url,
+          gst_per,
+          product_variants (
             id,
-            product_name,
-            category,
-            brand,
-            hsn_code,
-            status,
-            image_url,
-            gst_per
+            size,
+            barcode,
+            pur_price,
+            sale_price,
+            stock_qty
           )
         `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const rows: ProductVariantRow[] = (data || []).map((variant: any) => ({
-        variant_id: variant.id,
-        product_id: variant.products?.id || "",
-        product_name: variant.products?.product_name || "",
-        category: variant.products?.category || "",
-        brand: variant.products?.brand || "",
-        image_url: variant.products?.image_url,
-        barcode: variant.barcode || "",
-        size: variant.size,
-        pur_price: variant.pur_price,
-        sale_price: variant.sale_price,
-        hsn_code: variant.products?.hsn_code || "",
-        stock_qty: variant.stock_qty,
-        status: variant.products?.status || "active",
-        gst_per: variant.products?.gst_per || 0,
-      }));
+      const rows: ProductRow[] = (data || []).map((product: any) => {
+        const variants: ProductVariant[] = (product.product_variants || []).map((v: any) => ({
+          variant_id: v.id,
+          size: v.size,
+          barcode: v.barcode || "",
+          pur_price: v.pur_price,
+          sale_price: v.sale_price,
+          stock_qty: v.stock_qty,
+        }));
 
-      setVariantRows(rows);
+        const total_stock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
+
+        return {
+          product_id: product.id,
+          product_name: product.product_name,
+          category: product.category || "",
+          brand: product.brand || "",
+          image_url: product.image_url,
+          hsn_code: product.hsn_code || "",
+          gst_per: product.gst_per || 0,
+          variants,
+          total_stock,
+        };
+      });
+
+      setProductRows(rows);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -96,11 +107,14 @@ const ProductDashboard = () => {
     }
   };
 
-  const filteredRows = variantRows.filter((row) =>
+  const toggleExpanded = (productId: string) => {
+    setExpandedProduct(expandedProduct === productId ? null : productId);
+  };
+
+  const filteredRows = productRows.filter((row) =>
     row.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     row.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.barcode?.toLowerCase().includes(searchQuery.toLowerCase())
+    row.category?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -208,96 +222,130 @@ const ProductDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      <TableHead className="w-12"></TableHead>
                       <TableHead className="w-16 text-center">Sr. No.</TableHead>
                       <TableHead className="w-20">Image</TableHead>
-                      <TableHead>Item Code</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Brand</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="text-right">MRP</TableHead>
-                      <TableHead className="text-right">Selling Price</TableHead>
+                      <TableHead>Product Name</TableHead>
                       <TableHead>HSN</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Total Qty</TableHead>
+                      <TableHead className="text-center">Variants</TableHead>
                       <TableHead className="w-16">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredRows.map((row, index) => (
-                      <TableRow key={row.variant_id}>
-                        <TableCell className="text-center font-medium">
-                          {index + 1}
-                        </TableCell>
-                        <TableCell>
-                          <Avatar className="h-12 w-12 rounded">
-                            <AvatarImage
-                              src={row.image_url}
-                              alt={row.product_name}
-                              className="object-cover"
-                            />
-                            <AvatarFallback className="rounded bg-muted">
-                              <Package className="h-5 w-5 text-muted-foreground" />
-                            </AvatarFallback>
-                          </Avatar>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {row.barcode || "—"}
-                        </TableCell>
-                        <TableCell>{row.category || "—"}</TableCell>
-                        <TableCell>{row.brand || "—"}</TableCell>
-                        <TableCell className="font-medium">
-                          {row.product_name}
-                          {row.size && (
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({row.size})
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ₹{row.pur_price.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ₹{row.sale_price.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {row.hsn_code || "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {row.stock_qty}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={row.status === "active" ? "default" : "secondary"}
-                            className={
-                              row.status === "active"
-                                ? "bg-green-500 hover:bg-green-600"
-                                : ""
-                            }
-                          >
-                            {row.status.toUpperCase()}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => navigate(`/product-entry?id=${row.product_id}`)}
-                              >
-                                Edit Product
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>View Details</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
+                      <>
+                        <TableRow
+                          key={row.product_id}
+                          className="cursor-pointer hover:bg-muted/30 transition-colors"
+                          onClick={() => toggleExpanded(row.product_id)}
+                        >
+                          <TableCell>
+                            {expandedProduct === row.product_id ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center font-medium">
+                            {index + 1}
+                          </TableCell>
+                          <TableCell>
+                            <Avatar className="h-12 w-12 rounded">
+                              <AvatarImage
+                                src={row.image_url}
+                                alt={row.product_name}
+                                className="object-cover"
+                              />
+                              <AvatarFallback className="rounded bg-muted">
+                                <Package className="h-5 w-5 text-muted-foreground" />
+                              </AvatarFallback>
+                            </Avatar>
+                          </TableCell>
+                          <TableCell>{row.category || "—"}</TableCell>
+                          <TableCell>{row.brand || "—"}</TableCell>
+                          <TableCell className="font-medium">{row.product_name}</TableCell>
+                          <TableCell className="text-xs">{row.hsn_code || "—"}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {row.total_stock}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="secondary">{row.variants.length}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-8 w-8"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/product-entry?id=${row.product_id}`);
+                                  }}
+                                >
+                                  Edit Product
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive">
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+
+                        {/* Expanded Variants Row */}
+                        {expandedProduct === row.product_id && row.variants.length > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={10} className="bg-muted/20 p-0">
+                              <div className="p-4">
+                                <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
+                                <div className="border rounded-lg overflow-hidden">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="bg-muted/30">
+                                        <TableHead>Size</TableHead>
+                                        <TableHead>Barcode</TableHead>
+                                        <TableHead className="text-right">Purchase Price</TableHead>
+                                        <TableHead className="text-right">Sale Price</TableHead>
+                                        <TableHead className="text-right">Stock Qty</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {row.variants.map((variant) => (
+                                        <TableRow key={variant.variant_id}>
+                                          <TableCell className="font-medium">{variant.size}</TableCell>
+                                          <TableCell className="font-mono text-xs">
+                                            {variant.barcode || "—"}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            ₹{variant.pur_price.toFixed(2)}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                            ₹{variant.sale_price.toFixed(2)}
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium">
+                                            {variant.stock_qty}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     ))}
                   </TableBody>
                 </Table>
@@ -309,7 +357,7 @@ const ProductDashboard = () => {
         {/* Footer Summary */}
         {filteredRows.length > 0 && (
           <div className="mt-4 text-sm text-muted-foreground text-right">
-            Showing {filteredRows.length} of {variantRows.length} items
+            Showing {filteredRows.length} of {productRows.length} products
           </div>
         )}
       </div>

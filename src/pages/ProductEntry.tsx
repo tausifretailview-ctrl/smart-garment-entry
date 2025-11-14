@@ -54,6 +54,7 @@ const ProductEntry = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [nextBarcodeNumber, setNextBarcodeNumber] = useState(10001001);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_name: "",
@@ -72,7 +73,15 @@ const ProductEntry = () => {
   useEffect(() => {
     fetchSizeGroups();
     fetchLastBarcode();
-  }, []);
+    
+    // Check if we're editing an existing product
+    const searchParams = new URLSearchParams(location.search);
+    const productId = searchParams.get('id');
+    if (productId) {
+      setEditingProductId(productId);
+      fetchProductForEdit(productId);
+    }
+  }, [location.search]);
 
   const fetchSizeGroups = async () => {
     const { data, error } = await supabase
@@ -95,6 +104,67 @@ const ProductEntry = () => {
           : [],
       }));
       setSizeGroups(typedData);
+    }
+  };
+
+  const fetchProductForEdit = async (productId: string) => {
+    setLoading(true);
+    try {
+      const { data: product, error } = await supabase
+        .from("products")
+        .select(`
+          *,
+          product_variants (*)
+        `)
+        .eq("id", productId)
+        .single();
+
+      if (error) throw error;
+
+      if (product) {
+        // Set form data
+        setFormData({
+          product_name: product.product_name || "",
+          category: product.category || "",
+          brand: product.brand || "",
+          style: product.style || "",
+          color: product.color || "",
+          size_group_id: product.size_group_id || "",
+          hsn_code: product.hsn_code || "",
+          gst_per: product.gst_per || 18,
+          default_pur_price: product.default_pur_price || 0,
+          default_sale_price: product.default_sale_price || 0,
+          status: product.status || "active",
+          image_url: product.image_url,
+        });
+
+        // Set image preview if exists
+        if (product.image_url) {
+          setImagePreview(product.image_url);
+        }
+
+        // Set variants
+        if (product.product_variants && product.product_variants.length > 0) {
+          const loadedVariants: ProductVariant[] = product.product_variants.map((v: any) => ({
+            size: v.size,
+            pur_price: v.pur_price || 0,
+            sale_price: v.sale_price || 0,
+            barcode: v.barcode || "",
+            active: v.active !== false,
+            opening_qty: v.opening_qty || 0,
+          }));
+          setVariants(loadedVariants);
+          setShowVariants(true);
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load product",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
