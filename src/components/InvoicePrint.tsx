@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 import './InvoicePrint.css';
 
 interface InvoiceItem {
   sr: number;
   particulars: string;
+  color?: string;
+  size: string;
   barcode: string;
   hsn: string;
   sp: number;
@@ -49,6 +52,28 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       gstin
     } = props;
 
+    const [settings, setSettings] = useState<any>(null);
+
+    useEffect(() => {
+      fetchSettings();
+    }, []);
+
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await (supabase as any)
+          .from('settings')
+          .select('*')
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          setSettings(data);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      }
+    };
+
     return (
       <div ref={ref} className="invoice-print">
         {/* Header */}
@@ -57,11 +82,14 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             <img src="/placeholder.svg" alt="Shop Logo" className="shop-logo" />
           </div>
           <div className="shop-details">
-            <h1 className="shop-name">OWN FASHION</h1>
+            <h1 className="shop-name">{settings?.business_name || 'OWN FASHION'}</h1>
             <p className="shop-address">
-              Shop No.2, Sumati Paradise, Plot No.227, Sec No.R4, Vadhghar Node, Pushpak, Panvel - 420206.
+              {settings?.address || 'Shop No.2, Sumati Paradise, Plot No.227, Sec No.R4, Vadhghar Node, Pushpak, Panvel - 420206.'}
             </p>
-            <p className="shop-contact">CONTACT : 9326320664</p>
+            <p className="shop-contact">
+              {settings?.mobile_number ? `CONTACT : ${settings.mobile_number}` : 'CONTACT : 9326320664'}
+              {settings?.gst_number && ` | GSTIN: ${settings.gst_number}`}
+            </p>
           </div>
         </div>
 
@@ -89,13 +117,15 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
         <table className="items-table">
           <thead>
             <tr>
-              <th>SR</th>
-              <th>PARTICULARS</th>
-              <th>HSN</th>
-              <th>SP</th>
-              <th>QTY</th>
-              <th>MRP/RATE</th>
-              <th>TOTAL</th>
+              <th style={{ width: '5%' }}>SR</th>
+              <th style={{ width: '25%' }}>PARTICULARS</th>
+              <th style={{ width: '10%' }}>COLOR</th>
+              <th style={{ width: '8%' }}>SIZE</th>
+              <th style={{ width: '10%' }}>HSN</th>
+              <th style={{ width: '8%' }}>SP</th>
+              <th style={{ width: '7%' }}>QTY</th>
+              <th style={{ width: '12%' }}>MRP/RATE</th>
+              <th style={{ width: '15%' }}>TOTAL</th>
             </tr>
           </thead>
           <tbody>
@@ -106,6 +136,8 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                   <div>{item.particulars}</div>
                   <div className="barcode-text">BC:{item.barcode}</div>
                 </td>
+                <td>{item.color || '-'}</td>
+                <td>{item.size}</td>
                 <td>{item.hsn}</td>
                 <td>{item.sp}</td>
                 <td>{item.qty}</td>
@@ -146,10 +178,16 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
         {/* Terms */}
         <div className="terms-section">
           <div className="terms-left">
-            <p>1. GOODS ONCE SOLD WILL NOT BE TAKEN BACK.</p>
-            <p>2. NO EXCHANGE WITHOUT BARCODE & BILL.</p>
-            <p>3. EXCHANGE TIME : 01:00 TO 04:00 PM.</p>
-            <p>4. THANK YOU !!! VISIT AGAIN . . .</p>
+            {settings?.bill_barcode_settings?.footer_text ? (
+              <p>{settings.bill_barcode_settings.footer_text}</p>
+            ) : (
+              <>
+                <p>1. GOODS ONCE SOLD WILL NOT BE TAKEN BACK.</p>
+                <p>2. NO EXCHANGE WITHOUT BARCODE & BILL.</p>
+                <p>3. EXCHANGE TIME : 01:00 TO 04:00 PM.</p>
+                <p>4. THANK YOU !!! VISIT AGAIN . . .</p>
+              </>
+            )}
           </div>
           <div className="terms-right">
             <div className="barcode-image">
