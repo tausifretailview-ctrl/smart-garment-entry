@@ -150,11 +150,26 @@ export default function POSSales() {
       updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
       setItems(updatedItems);
     } else {
+      // Build product description: name-category-style,brand-color
+      const descriptionParts = [product.product_name];
+      if (product.category) descriptionParts.push(product.category);
+      if (product.style) descriptionParts.push(product.style);
+      
+      let description = descriptionParts.join('-');
+      
+      const extraParts = [];
+      if (product.brand) extraParts.push(product.brand);
+      if (product.color) extraParts.push(product.color);
+      
+      if (extraParts.length > 0) {
+        description += ',' + extraParts.join('-');
+      }
+      
       // Add new item
       const newItem: CartItem = {
         id: variant.id,
         barcode: variant.barcode || '',
-        productName: `${product.product_name} - ${variant.size}`,
+        productName: description,
         size: variant.size,
         quantity: 1,
         mrp: parseFloat(variant.sale_price || 0),
@@ -489,26 +504,44 @@ export default function POSSales() {
                 <CommandList>
                   <CommandEmpty>No products found.</CommandEmpty>
                   <CommandGroup heading="Products">
-                    {filteredProducts.slice(0, 10).map((item: any, index: number) => (
-                      <CommandItem
-                        key={`${item.product.id}-${item.variant.id}-${index}`}
-                        value={item.searchText}
-                        onSelect={() => {
-                          addItemToCart(item.product, item.variant);
-                        }}
-                        className="cursor-pointer"
-                      >
-                        <Check className="mr-2 h-4 w-4 opacity-0" />
-                        <div className="flex flex-col">
-                          <span className="font-medium">{item.product.product_name} - {item.variant.size}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {item.variant.barcode && `Barcode: ${item.variant.barcode} | `}
-                            Price: ₹{item.variant.sale_price} | 
-                            Stock: {item.variant.stock_qty}
-                          </span>
-                        </div>
-                      </CommandItem>
-                    ))}
+                    {filteredProducts.slice(0, 10).map((item: any, index: number) => {
+                      const product = item.product;
+                      const descriptionParts = [product.product_name];
+                      if (product.category) descriptionParts.push(product.category);
+                      if (product.style) descriptionParts.push(product.style);
+                      
+                      let displayName = descriptionParts.join('-');
+                      
+                      const extraParts = [];
+                      if (product.brand) extraParts.push(product.brand);
+                      if (product.color) extraParts.push(product.color);
+                      
+                      if (extraParts.length > 0) {
+                        displayName += ',' + extraParts.join('-');
+                      }
+                      
+                      return (
+                        <CommandItem
+                          key={`${product.id}-${item.variant.id}-${index}`}
+                          value={item.searchText}
+                          onSelect={() => {
+                            addItemToCart(product, item.variant);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Check className="mr-2 h-4 w-4 opacity-0" />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{displayName}</span>
+                            <span className="text-sm text-muted-foreground">
+                              Size: {item.variant.size} | 
+                              {item.variant.barcode && ` Barcode: ${item.variant.barcode} | `}
+                              Price: ₹{item.variant.sale_price} | 
+                              Stock: {item.variant.stock_qty}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      );
+                    })}
                   </CommandGroup>
                 </CommandList>
               </Command>
