@@ -11,7 +11,8 @@ interface CartItem {
   quantity: number;
   mrp: number;
   gstPer: number;
-  discount: number;
+  discountPercent: number;
+  discountAmount: number;
   unitCost: number;
   netAmount: number;
   productId: string;
@@ -99,7 +100,7 @@ export const useSaveSale = () => {
         unit_price: item.unitCost,
         mrp: item.mrp,
         gst_percent: item.gstPer,
-        discount_percent: item.discount,
+        discount_percent: item.discountPercent,
         line_total: item.netAmount,
       }));
 
