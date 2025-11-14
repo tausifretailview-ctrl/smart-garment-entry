@@ -38,7 +38,11 @@ interface BillBarcodeSettings {
   barcode_width?: number;
   barcode_height?: number;
   print_format?: string;
-  show_product_details?: boolean;
+  show_brand?: boolean;
+  show_category?: boolean;
+  show_color?: boolean;
+  show_style?: boolean;
+  show_hsn_code?: boolean;
 }
 
 interface ReportSettings {
@@ -701,26 +705,118 @@ export default function Settings() {
                     <option value="custom">Custom Size</option>
                   </select>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="show_product_details"
-                    checked={settings.bill_barcode_settings?.show_product_details || false}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          show_product_details: checked === true,
-                        },
-                      })
-                    }
-                  />
-                  <Label 
-                    htmlFor="show_product_details"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Show product details on bills and barcodes
-                  </Label>
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Product Details to Display</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Select which product details to show on bills and barcodes
+                  </p>
+                  <div className="space-y-3 pl-1">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_brand"
+                        checked={settings.bill_barcode_settings?.show_brand || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              show_brand: checked === true,
+                            },
+                          })
+                        }
+                      />
+                      <Label 
+                        htmlFor="show_brand"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Show Brand
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_category"
+                        checked={settings.bill_barcode_settings?.show_category || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              show_category: checked === true,
+                            },
+                          })
+                        }
+                      />
+                      <Label 
+                        htmlFor="show_category"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Show Category
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_color"
+                        checked={settings.bill_barcode_settings?.show_color || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              show_color: checked === true,
+                            },
+                          })
+                        }
+                      />
+                      <Label 
+                        htmlFor="show_color"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Show Color
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_style"
+                        checked={settings.bill_barcode_settings?.show_style || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              show_style: checked === true,
+                            },
+                          })
+                        }
+                      />
+                      <Label 
+                        htmlFor="show_style"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Show Style
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_hsn_code"
+                        checked={settings.bill_barcode_settings?.show_hsn_code || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              show_hsn_code: checked === true,
+                            },
+                          })
+                        }
+                      />
+                      <Label 
+                        htmlFor="show_hsn_code"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Show HSN Code
+                      </Label>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
