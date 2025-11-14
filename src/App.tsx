@@ -16,6 +16,8 @@ import BarcodePrinting from "./pages/BarcodePrinting";
 import StockReport from "./pages/StockReport";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
+import POSSales from "./pages/POSSales";
+import SalesInvoice from "./pages/SalesInvoice";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -106,6 +108,22 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pos-sales"
+              element={
+                <ProtectedRoute>
+                  <POSSales />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sales-invoice"
+              element={
+                <ProtectedRoute>
+                  <SalesInvoice />
                 </ProtectedRoute>
               }
             />
