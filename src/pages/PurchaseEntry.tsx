@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ interface SizeQuantity {
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -89,6 +90,39 @@ const PurchaseEntry = () => {
       setShowSearch(false);
     }
   }, [searchQuery]);
+
+  // Check if returning from product creation with new product data
+  useEffect(() => {
+    const state = location.state as { newProduct?: any };
+    if (state?.newProduct) {
+      // Auto-add the newly created product
+      const product = state.newProduct;
+      if (product.variants && product.variants.length > 0) {
+        const firstVariant = product.variants[0];
+        handleProductSelect({
+          id: firstVariant.id,
+          product_id: product.id,
+          size: firstVariant.size,
+          pur_price: firstVariant.pur_price,
+          sale_price: firstVariant.sale_price,
+          barcode: firstVariant.barcode,
+          product_name: product.product_name,
+          brand: product.brand || '',
+          category: product.category || '',
+          gst_per: product.gst_per,
+          hsn_code: product.hsn_code || '',
+        });
+        
+        toast({
+          title: "Product Added",
+          description: `${product.product_name} has been added to purchase`,
+        });
+      }
+      
+      // Clear the state
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
@@ -520,7 +554,7 @@ const PurchaseEntry = () => {
               <CardTitle>Products</CardTitle>
               <div className="flex items-center gap-4">
                 <Button
-                  onClick={() => navigate('/product-entry')}
+                  onClick={() => navigate('/product-entry', { state: { returnToPurchase: true } })}
                   variant="outline"
                   className="gap-2"
                 >
