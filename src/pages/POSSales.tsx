@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -32,6 +32,13 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { InvoicePrint } from "@/components/InvoicePrint";
 
 interface CartItem {
   id: string;
@@ -59,6 +66,9 @@ export default function POSSales() {
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
@@ -234,12 +244,57 @@ export default function POSSales() {
     const result = await saveSale(saleData, paymentMethod);
     
     if (result) {
+      // Store invoice number for printing
+      setCurrentInvoiceNumber(result.sale_number);
+      
       // Clear cart on success
       setItems([]);
       setCustomerName("Walk in Customer");
       setFlatDiscountPercent(0);
       setRoundOff(0);
       setSearchInput("");
+    }
+  };
+
+  const handlePrint = () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before printing",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setShowPrintDialog(true);
+  };
+
+  const handlePrintInvoice = () => {
+    if (printRef.current) {
+      const printContent = printRef.current;
+      const windowPrint = window.open('', '', 'width=800,height=600');
+      
+      if (windowPrint) {
+        windowPrint.document.write('<html><head><title>Print Invoice</title>');
+        windowPrint.document.write('<style>');
+        windowPrint.document.write(`
+          body { margin: 0; padding: 0; }
+          @media print {
+            @page { size: A5 portrait; margin: 0; }
+            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+          }
+        `);
+        windowPrint.document.write('</style></head><body>');
+        windowPrint.document.write(printContent.innerHTML);
+        windowPrint.document.write('</body></html>');
+        windowPrint.document.close();
+        windowPrint.focus();
+        
+        setTimeout(() => {
+          windowPrint.print();
+          windowPrint.close();
+        }, 250);
+      }
     }
   };
 
@@ -495,12 +550,7 @@ export default function POSSales() {
     {
       label: "Print",
       icon: Printer,
-      onClick: () => {
-        toast({
-          title: "Print",
-          description: "Print functionality coming soon",
-        });
-      },
+      onClick: handlePrint,
       className: "bg-gray-600 hover:bg-gray-700",
       shortcut: "F8",
       type: "action"
@@ -808,6 +858,51 @@ export default function POSSales() {
         </div>
           </div>
         </div>
+
+        {/* Print Dialog */}
+        <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+          <DialogContent className="max-w-[600px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Invoice Preview</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <InvoicePrint
+                ref={printRef}
+                billNo={currentInvoiceNumber || "DRAFT"}
+                date={new Date()}
+                customerName={customerName}
+                customerAddress=""
+                customerMobile=""
+                items={items.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  barcode: item.barcode,
+                  hsn: "",
+                  sp: item.size ? parseInt(item.size) || 1 : 1,
+                  qty: item.quantity,
+                  rate: item.mrp,
+                  total: item.netAmount,
+                }))}
+                subTotal={totals.subtotal}
+                discount={totals.discount + flatDiscountAmount}
+                grandTotal={finalAmount}
+                tenderAmount={finalAmount}
+                cashPaid={0}
+                refundCash={0}
+                upiPaid={0}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handlePrintInvoice} className="bg-primary">
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print Invoice
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </SidebarProvider>
   );
