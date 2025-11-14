@@ -4,7 +4,7 @@
   padding: 8mm;
   background: white;
   font-family: Arial, sans-serif;
-  font-size: 9pt;
+  font-size: 10pt;
   color: black;
   box-sizing: border-box;
 }
@@ -83,15 +83,15 @@
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 8px;
-  font-size: 7.5pt;
+  font-size: 9pt;
 }
 
 .invoice-print .items-table th,
 .invoice-print .items-table td {
   border: 1px solid black;
-  padding: 3px 1px;
+  padding: 4px 2px;
   text-align: center;
-  font-size: 7.5pt;
+  font-size: 9pt;
 }
 
 .invoice-print .items-table th {
@@ -99,14 +99,14 @@
   font-weight: bold;
 }
 
-.invoice-print .items-table td:nth-child(2),
-.invoice-print .items-table td:nth-child(3) {
+.invoice-print .items-table td:nth-child(2) {
   text-align: left;
 }
 
 .invoice-print .barcode-text {
-  font-size: 7pt;
-  color: #666;
+  font-size: 8pt;
+  color: #000;
+  font-weight: bold;
 }
 
 .invoice-print .footer-section {
