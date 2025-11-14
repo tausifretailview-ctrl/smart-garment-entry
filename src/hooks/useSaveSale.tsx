@@ -60,13 +60,13 @@ export const useSaveSale = () => {
 
     try {
       // Generate sale number
-      const { data: saleNumber, error: numberError } = await supabase
+      const { data: saleNumber, error: numberError } = await (supabase as any)
         .rpc('generate_sale_number');
 
       if (numberError) throw numberError;
 
       // Insert sale record
-      const { data: sale, error: saleError } = await supabase
+      const { data: sale, error: saleError } = await (supabase as any)
         .from('sales')
         .insert({
           sale_number: saleNumber,
@@ -103,7 +103,7 @@ export const useSaveSale = () => {
         line_total: item.netAmount,
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await (supabase as any)
         .from('sale_items')
         .insert(saleItems);
 
