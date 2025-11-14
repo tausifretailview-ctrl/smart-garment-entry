@@ -17,6 +17,8 @@ import {
   LogOut,
   Menu,
   UserCircle,
+  CreditCard,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -40,6 +42,8 @@ const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
   { title: "Product Dashboard", url: "/products", icon: Package, roles: ["admin", "manager", "user"] },
   { title: "Inventory", url: "/stock-report", icon: Package, roles: ["admin", "manager", "user"] },
+  { title: "POS Sales", url: "/pos-sales", icon: CreditCard, roles: ["admin", "manager", "user"] },
+  { title: "Sales Invoice", url: "/sales-invoice", icon: Receipt, roles: ["admin", "manager", "user"] },
   { title: "Purchase", url: "/purchase-entry", icon: ShoppingCart, roles: ["admin", "manager"] },
   { title: "Purchase Bills", url: "/purchase-bills", icon: FileText, roles: ["admin", "manager"] },
   { title: "Product Entry", url: "/product-entry", icon: Package, roles: ["admin", "manager", "user"] },
