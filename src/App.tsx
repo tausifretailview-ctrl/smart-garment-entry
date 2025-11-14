@@ -15,6 +15,7 @@ import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
 import BarcodePrinting from "./pages/BarcodePrinting";
 import StockReport from "./pages/StockReport";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -97,6 +98,14 @@ const App = () => {
                   <RoleProtectedRoute allowedRoles={["admin"]}>
                     <Settings />
                   </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
                 </ProtectedRoute>
               }
             />

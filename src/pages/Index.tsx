@@ -16,6 +16,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -43,6 +44,7 @@ const menuItems = [
   { title: "Purchase Bills", url: "/purchase-bills", icon: FileText, roles: ["admin", "manager"] },
   { title: "Product Entry", url: "/product-entry", icon: Package, roles: ["admin", "manager", "user"] },
   { title: "Barcode Printing", url: "/barcode-printing", icon: Barcode, roles: ["admin", "manager", "user"] },
+  { title: "Profile", url: "/profile", icon: UserCircle, roles: ["admin", "manager", "user"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
