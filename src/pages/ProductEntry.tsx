@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ interface ProductForm {
 
 const ProductEntry = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
@@ -344,7 +347,35 @@ const ProductEntry = () => {
         description: `Product "${formData.product_name}" saved successfully`,
       });
 
-      // Reset form
+      // Check if we need to navigate back to purchase entry
+      const state = location.state as { returnToPurchase?: boolean };
+      if (state?.returnToPurchase && productData) {
+        // Fetch the full product data with variants for navigation
+        const { data: fullProductData, error: fetchError } = await supabase
+          .from("products")
+          .select("*, product_variants(*)")
+          .eq("id", productData.id)
+          .single();
+
+        if (!fetchError && fullProductData) {
+          navigate("/purchase-entry", {
+            state: {
+              newProduct: {
+                id: fullProductData.id,
+                product_name: fullProductData.product_name,
+                brand: fullProductData.brand,
+                category: fullProductData.category,
+                gst_per: fullProductData.gst_per,
+                hsn_code: fullProductData.hsn_code,
+                variants: fullProductData.product_variants,
+              },
+            },
+          });
+          return; // Exit early, don't reset form
+        }
+      }
+
+      // Reset form (only if not navigating back)
       setFormData({
         product_name: "",
         category: "",
