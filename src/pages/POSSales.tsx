@@ -48,7 +48,8 @@ interface CartItem {
   quantity: number;
   mrp: number;
   gstPer: number;
-  discount: number;
+  discountPercent: number;
+  discountAmount: number;
   unitCost: number;
   netAmount: number;
   productId: string;
@@ -185,7 +186,8 @@ export default function POSSales() {
         quantity: 1,
         mrp: parseFloat(variant.sale_price || 0),
         gstPer: product.gst_per || 0,
-        discount: 0,
+        discountPercent: 0,
+        discountAmount: 0,
         unitCost: parseFloat(variant.sale_price || 0),
         netAmount: parseFloat(variant.sale_price || 0),
         productId: product.id,
@@ -201,8 +203,9 @@ export default function POSSales() {
 
   const calculateNetAmount = (item: CartItem) => {
     const baseAmount = item.mrp * item.quantity;
-    const discountAmount = (baseAmount * item.discount) / 100;
-    return baseAmount - discountAmount;
+    const percentDiscount = (baseAmount * item.discountPercent) / 100;
+    const totalDiscount = percentDiscount + item.discountAmount;
+    return baseAmount - totalDiscount;
   };
 
   const removeItem = (index: number) => {
@@ -217,11 +220,31 @@ export default function POSSales() {
     setItems(updatedItems);
   };
 
+  const updateDiscountPercent = (index: number, discountPercent: number) => {
+    if (discountPercent < 0 || discountPercent > 100) return;
+    const updatedItems = [...items];
+    updatedItems[index].discountPercent = discountPercent;
+    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+    setItems(updatedItems);
+  };
+
+  const updateDiscountAmount = (index: number, discountAmount: number) => {
+    if (discountAmount < 0) return;
+    const updatedItems = [...items];
+    updatedItems[index].discountAmount = discountAmount;
+    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+    setItems(updatedItems);
+  };
+
   // Calculate totals
   const totals = {
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
     mrp: items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0),
-    discount: items.reduce((sum, item) => sum + ((item.mrp * item.quantity * item.discount) / 100), 0),
+    discount: items.reduce((sum, item) => {
+      const baseAmount = item.mrp * item.quantity;
+      const percentDiscount = (baseAmount * item.discountPercent) / 100;
+      return sum + percentDiscount + item.discountAmount;
+    }, 0),
     subtotal: items.reduce((sum, item) => sum + item.netAmount, 0),
   };
 
@@ -313,7 +336,8 @@ export default function POSSales() {
       quantity: item.quantity,
       mrp: Number(item.mrp),
       gstPer: item.gst_percent,
-      discount: Number(item.discount_percent),
+      discountPercent: Number(item.discount_percent),
+      discountAmount: 0,
       unitCost: Number(item.unit_price),
       netAmount: Number(item.line_total),
       productId: item.product_id,
@@ -755,13 +779,14 @@ export default function POSSales() {
         {/* Items Table */}
         <Card className="overflow-hidden">
           <div className="bg-black text-white overflow-x-auto">
-            <div className="min-w-[900px] grid grid-cols-12 gap-2 p-4 text-base font-medium">
+            <div className="min-w-[1000px] grid grid-cols-13 gap-2 p-4 text-base font-medium">
               <div className="col-span-1">Barcode</div>
               <div className="col-span-3">Product</div>
               <div className="col-span-1">Qty</div>
               <div className="col-span-1">MRP</div>
               <div className="col-span-1">Tax%</div>
               <div className="col-span-1">Disc%</div>
+              <div className="col-span-1">Disc Rs</div>
               <div className="col-span-2">Unit Price</div>
               <div className="col-span-2">Net Amount</div>
             </div>
@@ -775,7 +800,7 @@ export default function POSSales() {
             ) : (
               <div className="overflow-x-auto">
                 {items.map((item, index) => (
-                  <div key={index} className="min-w-[900px] grid grid-cols-12 gap-2 p-4 border-b hover:bg-muted/50 text-base">
+                  <div key={index} className="min-w-[1000px] grid grid-cols-13 gap-2 p-4 border-b hover:bg-muted/50 text-base">
                     <div className="col-span-1 flex items-center">{item.barcode}</div>
                     <div className="col-span-3 flex items-center font-medium">{item.productName}</div>
                     <div className="col-span-1">
@@ -789,7 +814,27 @@ export default function POSSales() {
                     </div>
                     <div className="col-span-1 flex items-center">₹{item.mrp.toFixed(2)}</div>
                     <div className="col-span-1 flex items-center">{item.gstPer}%</div>
-                    <div className="col-span-1 flex items-center">{item.discount}%</div>
+                    <div className="col-span-1">
+                      <Input
+                        type="number"
+                        value={item.discountPercent}
+                        onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
+                        className="h-9 text-base"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                      />
+                    </div>
+                    <div className="col-span-1">
+                      <Input
+                        type="number"
+                        value={item.discountAmount}
+                        onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
+                        className="h-9 text-base"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
                     <div className="col-span-2 flex items-center">₹{item.unitCost.toFixed(2)}</div>
                     <div className="col-span-2 flex items-center justify-between">
                       <span className="font-semibold">₹{item.netAmount.toFixed(2)}</span>
