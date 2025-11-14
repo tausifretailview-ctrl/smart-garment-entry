@@ -357,113 +357,159 @@ const ProductEntry = () => {
         }
       }
 
-      // Insert product
-      const { data: productData, error: productError } = await supabase
-        .from("products")
-        .insert([{ ...formData, image_url: imageUrl }])
-        .select()
-        .single();
+      let productData: any;
+      
+      if (editingProductId) {
+        // Update existing product
+        const { data, error: productError } = await supabase
+          .from("products")
+          .update({ ...formData, image_url: imageUrl })
+          .eq("id", editingProductId)
+          .select()
+          .single();
 
-      if (productError) throw productError;
+        if (productError) throw productError;
+        productData = data;
 
-      // Upsert variants (insert or update based on product_id + size)
-      if (variants.length > 0) {
-        const variantsToUpsert = variants.map((v) => ({
-          product_id: productData.id,
-          size: v.size,
-          pur_price: v.pur_price,
-          sale_price: v.sale_price,
-          barcode: v.barcode,
-          active: v.active,
-          opening_qty: v.opening_qty,
-          stock_qty: v.opening_qty, // Set initial stock_qty to opening_qty
-        }));
+        // For updates, handle variants with upsert
+        if (variants.length > 0) {
+          const variantsToUpsert = variants.map((v) => ({
+            product_id: editingProductId,
+            size: v.size,
+            pur_price: v.pur_price,
+            sale_price: v.sale_price,
+            barcode: v.barcode,
+            active: v.active,
+            opening_qty: v.opening_qty,
+          }));
 
-        const { data: insertedVariants, error: variantsError } = await supabase
-          .from("product_variants")
-          .upsert(variantsToUpsert, {
-            onConflict: "product_id,size",
-          })
-          .select();
+          const { error: variantsError } = await supabase
+            .from("product_variants")
+            .upsert(variantsToUpsert, {
+              onConflict: "product_id,size",
+            });
 
-        if (variantsError) throw variantsError;
+          if (variantsError) throw variantsError;
+        }
 
-        // Create stock movements for opening quantities
-        if (insertedVariants) {
-          const stockMovements = insertedVariants
-            .filter((v) => v.opening_qty > 0)
-            .map((v) => ({
-              variant_id: v.id,
-              quantity: v.opening_qty,
-              movement_type: "opening_stock",
-              notes: `Opening stock for ${formData.product_name} - ${v.size}`,
-            }));
+        toast({
+          title: "Success",
+          description: `Product "${formData.product_name}" updated successfully`,
+        });
 
-          if (stockMovements.length > 0) {
-            const { error: movementError } = await supabase
-              .from("stock_movements")
-              .insert(stockMovements);
+        // Navigate back to product dashboard after edit
+        navigate("/product-dashboard");
+        return;
+      } else {
+        // Insert new product
+        const { data, error: productError } = await supabase
+          .from("products")
+          .insert([{ ...formData, image_url: imageUrl }])
+          .select()
+          .single();
 
-            if (movementError) {
-              console.error("Stock movement error:", movementError);
-              // Don't throw error, just log it
+        if (productError) throw productError;
+        productData = data;
+
+        // Upsert variants (insert or update based on product_id + size)
+        if (variants.length > 0) {
+          const variantsToUpsert = variants.map((v) => ({
+            product_id: productData.id,
+            size: v.size,
+            pur_price: v.pur_price,
+            sale_price: v.sale_price,
+            barcode: v.barcode,
+            active: v.active,
+            opening_qty: v.opening_qty,
+            stock_qty: v.opening_qty, // Set initial stock_qty to opening_qty
+          }));
+
+          const { data: insertedVariants, error: variantsError } = await supabase
+            .from("product_variants")
+            .upsert(variantsToUpsert, {
+              onConflict: "product_id,size",
+            })
+            .select();
+
+          if (variantsError) throw variantsError;
+
+          // Create stock movements for opening quantities (only for new products)
+          if (insertedVariants) {
+            const stockMovements = insertedVariants
+              .filter((v) => v.opening_qty > 0)
+              .map((v) => ({
+                variant_id: v.id,
+                quantity: v.opening_qty,
+                movement_type: "opening_stock",
+                notes: `Opening stock for ${formData.product_name} - ${v.size}`,
+              }));
+
+            if (stockMovements.length > 0) {
+              const { error: movementError } = await supabase
+                .from("stock_movements")
+                .insert(stockMovements);
+
+              if (movementError) {
+                console.error("Stock movement error:", movementError);
+                // Don't throw error, just log it
+              }
             }
           }
         }
-      }
 
-      toast({
-        title: "Success",
-        description: `Product "${formData.product_name}" saved successfully`,
-      });
+        toast({
+          title: "Success",
+          description: `Product "${formData.product_name}" saved successfully`,
+        });
 
-      // Check if we need to navigate back to purchase entry
-      const state = location.state as { returnToPurchase?: boolean };
-      if (state?.returnToPurchase && productData) {
-        // Fetch the full product data with variants for navigation
-        const { data: fullProductData, error: fetchError } = await supabase
-          .from("products")
-          .select("*, product_variants(*)")
-          .eq("id", productData.id)
-          .single();
+        // Check if we need to navigate back to purchase entry
+        const state = location.state as { returnToPurchase?: boolean };
+        if (state?.returnToPurchase && productData) {
+          // Fetch the full product data with variants for navigation
+          const { data: fullProductData, error: fetchError } = await supabase
+            .from("products")
+            .select("*, product_variants(*)")
+            .eq("id", productData.id)
+            .single();
 
-        if (!fetchError && fullProductData) {
-          navigate("/purchase-entry", {
-            state: {
-              newProduct: {
-                id: fullProductData.id,
-                product_name: fullProductData.product_name,
-                brand: fullProductData.brand,
-                category: fullProductData.category,
-                gst_per: fullProductData.gst_per,
-                hsn_code: fullProductData.hsn_code,
-                variants: fullProductData.product_variants,
+          if (!fetchError && fullProductData) {
+            navigate("/purchase-entry", {
+              state: {
+                newProduct: {
+                  id: fullProductData.id,
+                  product_name: fullProductData.product_name,
+                  brand: fullProductData.brand,
+                  category: fullProductData.category,
+                  gst_per: fullProductData.gst_per,
+                  hsn_code: fullProductData.hsn_code,
+                  variants: fullProductData.product_variants,
+                },
               },
-            },
-          });
-          return; // Exit early, don't reset form
+            });
+            return; // Exit early, don't reset form
+          }
         }
-      }
 
-      // Reset form (only if not navigating back)
-      setFormData({
-        product_name: "",
-        category: "",
-        brand: "",
-        style: "",
-        color: "",
-        size_group_id: "",
-        hsn_code: "",
-        gst_per: 18,
-        default_pur_price: 0,
-        default_sale_price: 0,
-        status: "active",
-      });
-      setVariants([]);
-      setShowVariants(false);
-      setImageFile(null);
-      setImagePreview("");
-      await fetchLastBarcode(); // Refresh the barcode counter
+        // Reset form (only if not navigating back)
+        setFormData({
+          product_name: "",
+          category: "",
+          brand: "",
+          style: "",
+          color: "",
+          size_group_id: "",
+          hsn_code: "",
+          gst_per: 18,
+          default_pur_price: 0,
+          default_sale_price: 0,
+          status: "active",
+        });
+        setVariants([]);
+        setShowVariants(false);
+        setImageFile(null);
+        setImagePreview("");
+        await fetchLastBarcode(); // Refresh the barcode counter
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -486,8 +532,12 @@ const ProductEntry = () => {
 
         <Card className="shadow-lg border-border">
           <CardHeader>
-            <CardTitle className="text-2xl">Product Entry</CardTitle>
-            <CardDescription>Add new product to your inventory</CardDescription>
+            <CardTitle className="text-2xl">
+              {editingProductId ? "Edit Product" : "Product Entry"}
+            </CardTitle>
+            <CardDescription>
+              {editingProductId ? "Update product information" : "Add new product to your inventory"}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Product Image Upload */}
@@ -834,10 +884,10 @@ const ProductEntry = () => {
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Saving...
+                    {editingProductId ? "Updating..." : "Saving..."}
                   </>
                 ) : (
-                  "Save Product"
+                  editingProductId ? "Update Product" : "Save Product"
                 )}
               </Button>
             </div>
