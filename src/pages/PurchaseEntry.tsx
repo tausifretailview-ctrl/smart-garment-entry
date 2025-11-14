@@ -79,7 +79,6 @@ const PurchaseEntry = () => {
   const [billData, setBillData] = useState({
     supplier_name: "",
     supplier_invoice_no: "",
-    notes: "",
   });
 
   useEffect(() => {
@@ -430,7 +429,6 @@ const PurchaseEntry = () => {
       setBillData({
         supplier_name: "",
         supplier_invoice_no: "",
-        notes: "",
       });
       setBillDate(new Date());
       setLineItems([]);
@@ -513,17 +511,6 @@ const PurchaseEntry = () => {
                 </Popover>
               </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                value={billData.notes}
-                onChange={(e) => setBillData({ ...billData, notes: e.target.value })}
-                placeholder="Optional notes"
-                rows={2}
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -532,6 +519,14 @@ const PurchaseEntry = () => {
             <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle>Products</CardTitle>
               <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => navigate('/product-entry')}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add New Product
+                </Button>
                 <div className="flex items-center gap-2">
                   <Label htmlFor="entry-mode" className="text-sm">Entry Mode:</Label>
                   <div className="flex items-center gap-2">
