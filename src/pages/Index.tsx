@@ -33,22 +33,24 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUserRoles } from "@/hooks/useUserRoles";
 
 const menuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Product Dashboard", url: "/products", icon: Package },
-  { title: "Inventory", url: "/stock-report", icon: Package },
-  { title: "Purchase", url: "/purchase-entry", icon: ShoppingCart },
-  { title: "Purchase Bills", url: "/purchase-bills", icon: FileText },
-  { title: "Product Entry", url: "/product-entry", icon: Package },
-  { title: "Barcode Printing", url: "/barcode-printing", icon: Barcode },
-  { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
+  { title: "Product Dashboard", url: "/products", icon: Package, roles: ["admin", "manager", "user"] },
+  { title: "Inventory", url: "/stock-report", icon: Package, roles: ["admin", "manager", "user"] },
+  { title: "Purchase", url: "/purchase-entry", icon: ShoppingCart, roles: ["admin", "manager"] },
+  { title: "Purchase Bills", url: "/purchase-bills", icon: FileText, roles: ["admin", "manager"] },
+  { title: "Product Entry", url: "/product-entry", icon: Package, roles: ["admin", "manager", "user"] },
+  { title: "Barcode Printing", url: "/barcode-printing", icon: Barcode, roles: ["admin", "manager", "user"] },
+  { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
 const AppSidebar = () => {
   const { state } = useSidebar();
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const { roles } = useUserRoles();
 
   const handleSignOut = async () => {
     await signOut();
@@ -56,6 +58,10 @@ const AppSidebar = () => {
   };
 
   const isCollapsed = state === "collapsed";
+  
+  const filteredMenuItems = menuItems.filter(item => 
+    item.roles.some(role => roles.includes(role as any))
+  );
 
   return (
     <Sidebar className={isCollapsed ? "w-14" : "w-60"} collapsible="icon">
@@ -72,7 +78,7 @@ const AppSidebar = () => {
           <SidebarGroupLabel>Main Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
