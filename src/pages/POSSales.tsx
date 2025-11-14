@@ -4,10 +4,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Scan, X, Plus, Trash2 } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+} from "@/components/ui/sidebar";
 
 interface CartItem {
   id: string;
@@ -176,11 +187,87 @@ export default function POSSales() {
     }
   };
 
+  const paymentButtons = [
+    {
+      label: "Cash Paid",
+      icon: Banknote,
+      onClick: () => handlePayment('cash'),
+      className: "bg-green-600 hover:bg-green-700",
+      shortcut: "F4"
+    },
+    {
+      label: "Card Paid",
+      icon: CreditCard,
+      onClick: () => handlePayment('card'),
+      className: "bg-blue-600 hover:bg-blue-700",
+      shortcut: "F5"
+    },
+    {
+      label: "UPI Paid",
+      icon: Smartphone,
+      onClick: () => handlePayment('upi'),
+      className: "bg-purple-600 hover:bg-purple-700",
+      shortcut: "F6"
+    },
+    {
+      label: "Multi Pay",
+      icon: CreditCard,
+      onClick: () => handlePayment('multiple'),
+      className: "bg-orange-600 hover:bg-orange-700",
+      shortcut: "F7"
+    },
+    {
+      label: "Print",
+      icon: Printer,
+      onClick: () => {
+        toast({
+          title: "Print",
+          description: "Print functionality coming soon",
+        });
+      },
+      className: "bg-gray-600 hover:bg-gray-700",
+      shortcut: "F8"
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-background p-2 md:p-4">
-      <BackToDashboard />
-      
-      <div className="max-w-[1800px] mx-auto space-y-3">
+    <SidebarProvider defaultOpen>
+      <div className="min-h-screen flex w-full bg-background">
+        {/* Left Sidebar with Payment Buttons */}
+        <Sidebar className="border-r">
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel className="text-lg font-semibold px-4 py-3">
+                Payment Options
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {paymentButtons.map((button) => (
+                    <SidebarMenuItem key={button.label}>
+                      <SidebarMenuButton
+                        onClick={button.onClick}
+                        disabled={items.length === 0 || isSaving}
+                        className={`h-16 ${button.className} text-white hover:text-white disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <button.icon className="h-6 w-6" />
+                        <div className="flex flex-col items-start">
+                          <span className="text-base font-medium">{button.label}</span>
+                          <span className="text-xs opacity-75">{button.shortcut}</span>
+                        </div>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+        </Sidebar>
+
+        {/* Main Content */}
+        <div className="flex-1 p-2 md:p-4">
+          <BackToDashboard />
+          
+          <div className="max-w-[1800px] mx-auto space-y-3">
         {/* Header Section - Larger inputs */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
@@ -327,88 +414,9 @@ export default function POSSales() {
             </div>
           </div>
         </div>
-
-        {/* Payment Buttons - Larger size */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Button 
-            className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('multiple')}
-          >
-            ⊞ Multiple Pay(F12)
-          </Button>
-          <Button 
-            className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-          >
-            ⊞ Redeem Credit
-          </Button>
-          <Button 
-            className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-          >
-            ⊟ Hold (F6)
-          </Button>
-          <Button 
-            className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('upi')}
-          >
-            ▶ UPI (F5)
-          </Button>
-          <Button 
-            className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('card')}
-          >
-            💳 Card (F3)
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          <Button 
-            className="bg-green-600 hover:bg-green-700 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('cash')}
-          >
-            {isSaving ? "Processing..." : "₹ Cash (F4)"}
-          </Button>
-          <Button 
-            className="bg-orange-600 hover:bg-orange-700 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('pay_later')}
-          >
-            📅 Pay Later (F11)
-          </Button>
-          <Button 
-            className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-          >
-            🖨️ Hold & Print(F7)
-          </Button>
-          <Button 
-            className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('upi')}
-          >
-            🖨️ UPI & Print (F10)
-          </Button>
-          <Button 
-            className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('card')}
-          >
-            💳 Card & Print (F9)
-          </Button>
-          <Button 
-            className="bg-green-600 hover:bg-green-700 text-white h-16 text-base md:text-lg font-medium col-span-2 md:col-span-1"
-            disabled={items.length === 0 || isSaving}
-            onClick={() => handlePayment('cash')}
-          >
-            🖨️ Cash & Print (F8)
-          </Button>
+          </div>
         </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 }
