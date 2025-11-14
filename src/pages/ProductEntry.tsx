@@ -333,11 +333,83 @@ const ProductEntry = () => {
       return false;
     }
 
+    // Check for duplicate barcodes within the current variants
+    const barcodesInForm = variants
+      .map(v => v.barcode)
+      .filter(b => b && b.trim() !== "");
+    
+    const uniqueBarcodes = new Set(barcodesInForm);
+    if (barcodesInForm.length !== uniqueBarcodes.size) {
+      toast({
+        title: "Validation Error",
+        description: "Duplicate barcodes found in variants. Each variant must have a unique barcode.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     return true;
+  };
+
+  const validateBarcodeUniqueness = async (): Promise<boolean> => {
+    // Get all barcodes from variants that have values
+    const barcodesToCheck = variants
+      .map(v => v.barcode)
+      .filter(b => b && b.trim() !== "");
+
+    if (barcodesToCheck.length === 0) {
+      return true; // No barcodes to validate
+    }
+
+    try {
+      // Check if any of these barcodes already exist in the database
+      const { data: existingVariants, error } = await supabase
+        .from("product_variants")
+        .select("barcode, product_id, products(product_name)")
+        .in("barcode", barcodesToCheck);
+
+      if (error) throw error;
+
+      if (existingVariants && existingVariants.length > 0) {
+        // Filter out barcodes that belong to the current product being edited
+        const duplicates = existingVariants.filter(
+          v => v.product_id !== editingProductId
+        );
+
+        if (duplicates.length > 0) {
+          const duplicateBarcodes = duplicates.map(d => d.barcode).join(", ");
+          const productNames = duplicates
+            .map(d => (d.products as any)?.product_name)
+            .filter(name => name)
+            .join(", ");
+
+          toast({
+            title: "Duplicate Barcode Error",
+            description: `Barcode(s) ${duplicateBarcodes} already exist${productNames ? ` in product(s): ${productNames}` : ""}. Please use unique barcodes.`,
+            variant: "destructive",
+          });
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error("Barcode validation error:", error);
+      toast({
+        title: "Validation Error",
+        description: "Failed to validate barcodes. Please try again.",
+        variant: "destructive",
+      });
+      return false;
+    }
   };
 
   const handleSave = async () => {
     if (!validateForm()) return;
+
+    // Validate barcode uniqueness across database
+    const barcodesValid = await validateBarcodeUniqueness();
+    if (!barcodesValid) return;
 
     setLoading(true);
     try {
