@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -23,11 +24,13 @@ interface CartItem {
 
 export default function POSSales() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [customerName, setCustomerName] = useState("Walk in Customer");
   const [searchInput, setSearchInput] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Fetch all products with variants
   const { data: productsData } = useQuery({
@@ -144,6 +147,94 @@ export default function POSSales() {
 
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
   const finalAmount = totals.subtotal - flatDiscountAmount + roundOff;
+
+  // Save sale to database
+  const saveSale = async (paymentMethod: string) => {
+    if (items.length === 0) {
+      toast({
+        title: "No items",
+        description: "Please add items to the cart before checkout.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Generate sale number
+      const { data: saleNumber, error: saleNumError } = await supabase
+        .rpc('generate_sale_number');
+
+      if (saleNumError) throw saleNumError;
+
+      // Create sale record
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .insert({
+          sale_number: saleNumber,
+          sale_type: 'pos',
+          customer_name: customerName,
+          gross_amount: totals.mrp,
+          discount_amount: totals.discount,
+          flat_discount_percent: flatDiscountPercent,
+          flat_discount_amount: flatDiscountAmount,
+          round_off: roundOff,
+          net_amount: finalAmount,
+          payment_method: paymentMethod,
+          payment_status: paymentMethod === 'pay_later' ? 'pending' : 'completed',
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (saleError) throw saleError;
+
+      // Create sale items
+      const saleItems = items.map(item => ({
+        sale_id: sale.id,
+        product_id: item.id,
+        variant_id: item.id,
+        product_name: item.productName,
+        size: item.size,
+        barcode: item.barcode,
+        quantity: item.quantity,
+        unit_price: item.unitCost,
+        mrp: item.mrp,
+        gst_percent: item.gstPer,
+        discount_percent: item.discount,
+        line_total: item.netAmount,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('sale_items')
+        .insert(saleItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: "Sale completed!",
+        description: `Sale ${saleNumber} saved successfully. Amount: ₹${finalAmount.toFixed(2)}`,
+      });
+
+      // Clear cart
+      setItems([]);
+      setCustomerName("Walk in Customer");
+      setFlatDiscountPercent(0);
+      setRoundOff(0);
+      setSearchInput("");
+
+    } catch (error: any) {
+      console.error('Error saving sale:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save sale. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-2 md:p-4">
@@ -301,31 +392,34 @@ export default function POSSales() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Button 
             className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('multiple')}
           >
             ⊞ Multiple Pay(F12)
           </Button>
           <Button 
             className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
           >
             ⊞ Redeem Credit
           </Button>
           <Button 
             className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
           >
             ⊟ Hold (F6)
           </Button>
           <Button 
             className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('upi')}
           >
             ▶ UPI (F5)
           </Button>
           <Button 
             className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('card')}
           >
             💳 Card (F3)
           </Button>
@@ -334,37 +428,42 @@ export default function POSSales() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <Button 
             className="bg-green-600 hover:bg-green-700 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('cash')}
           >
-            ₹ Cash (F4)
+            {isProcessing ? "Processing..." : "₹ Cash (F4)"}
           </Button>
           <Button 
             className="bg-orange-600 hover:bg-orange-700 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('pay_later')}
           >
             📅 Pay Later (F11)
           </Button>
           <Button 
             className="bg-black hover:bg-black/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
           >
             🖨️ Hold & Print(F7)
           </Button>
           <Button 
             className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('upi')}
           >
             🖨️ UPI & Print (F10)
           </Button>
           <Button 
             className="bg-primary hover:bg-primary/90 text-white h-16 text-base md:text-lg font-medium"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('card')}
           >
             💳 Card & Print (F9)
           </Button>
           <Button 
             className="bg-green-600 hover:bg-green-700 text-white h-16 text-base md:text-lg font-medium col-span-2 md:col-span-1"
-            disabled={items.length === 0}
+            disabled={items.length === 0 || isProcessing}
+            onClick={() => saveSale('cash')}
           >
             🖨️ Cash & Print (F8)
           </Button>
