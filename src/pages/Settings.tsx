@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
+import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 
 interface ProductSettings {
   default_margin?: number;
@@ -383,6 +384,8 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+            
+            <SizeGroupManagement />
           </TabsContent>
 
           <TabsContent value="purchase">
