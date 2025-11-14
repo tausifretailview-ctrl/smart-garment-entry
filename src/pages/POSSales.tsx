@@ -58,6 +58,7 @@ export default function POSSales() {
   const [roundOff, setRoundOff] = useState(0);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
+  const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
@@ -267,11 +268,98 @@ export default function POSSales() {
     setItems(loadedItems);
     setFlatDiscountPercent(Number(sale.flat_discount_percent) || 0);
     setRoundOff(Number(sale.round_off) || 0);
+    setCurrentSaleId(sale.id);
 
     toast({
       title: "Invoice Loaded",
       description: `Invoice #${sale.sale_number} loaded successfully`,
     });
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!currentSaleId) {
+      toast({
+        title: "No Invoice Loaded",
+        description: "Please load an invoice first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch sale items to reverse stock
+      const { data: saleItems, error: itemsError } = await (supabase as any)
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', currentSaleId);
+
+      if (itemsError) throw itemsError;
+
+      // Reverse stock for each item
+      for (const item of saleItems) {
+        // Get current stock
+        const { data: variant, error: variantError } = await (supabase as any)
+          .from('product_variants')
+          .select('stock_qty')
+          .eq('id', item.variant_id)
+          .single();
+
+        if (variantError) throw variantError;
+
+        // Add stock back
+        const { error: stockError } = await (supabase as any)
+          .from('product_variants')
+          .update({ 
+            stock_qty: variant.stock_qty + item.quantity
+          })
+          .eq('id', item.variant_id);
+
+        if (stockError) throw stockError;
+
+        // Create stock movement record
+        const { error: movementError } = await (supabase as any)
+          .from('stock_movements')
+          .insert({
+            variant_id: item.variant_id,
+            movement_type: 'adjustment',
+            quantity: item.quantity,
+            reference_id: currentSaleId,
+            notes: 'Stock restored due to sale deletion',
+          });
+
+        if (movementError) throw movementError;
+      }
+
+      // Delete sale items
+      const { error: deleteItemsError } = await (supabase as any)
+        .from('sale_items')
+        .delete()
+        .eq('sale_id', currentSaleId);
+
+      if (deleteItemsError) throw deleteItemsError;
+
+      // Delete sale
+      const { error: deleteSaleError } = await (supabase as any)
+        .from('sales')
+        .delete()
+        .eq('id', currentSaleId);
+
+      if (deleteSaleError) throw deleteSaleError;
+
+      toast({
+        title: "Invoice Deleted",
+        description: "Invoice has been deleted and stock has been restored",
+      });
+
+      handleNewInvoice();
+    } catch (error: any) {
+      console.error('Error deleting invoice:', error);
+      toast({
+        title: "Error Deleting Invoice",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePreviousInvoice = () => {
@@ -325,6 +413,7 @@ export default function POSSales() {
     setRoundOff(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
+    setCurrentSaleId(null);
     
     toast({
       title: "New Invoice",
@@ -360,6 +449,14 @@ export default function POSSales() {
       shortcut: "F2",
       type: "action"
     },
+    ...(currentSaleId ? [{
+      label: "Delete Invoice",
+      icon: Trash2,
+      onClick: handleDeleteInvoice,
+      className: "bg-red-600 hover:bg-red-700",
+      shortcut: "Del",
+      type: "action"
+    }] : []),
   ];
 
   const paymentButtons = [
