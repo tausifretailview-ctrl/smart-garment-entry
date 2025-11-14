@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -43,6 +43,28 @@ export default function POSSales() {
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
+  const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
+
+  // Fetch today's sales
+  const { data: todaysSales } = useQuery({
+    queryKey: ['todays-sales'],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const { data, error } = await (supabase as any)
+        .from('sales')
+        .select(`
+          *,
+          sale_items (*)
+        `)
+        .gte('sale_date', today.toISOString())
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   // Fetch all products with variants
   const { data: productsData } = useQuery({
@@ -187,6 +209,68 @@ export default function POSSales() {
     }
   };
 
+  const loadInvoice = (sale: any) => {
+    if (!sale || !sale.sale_items) return;
+
+    // Load customer info
+    setCustomerName(sale.customer_name || "Walk in Customer");
+    
+    // Load items from sale_items
+    const loadedItems: CartItem[] = sale.sale_items.map((item: any) => ({
+      id: item.variant_id,
+      barcode: item.barcode || '',
+      productName: item.product_name,
+      size: item.size,
+      quantity: item.quantity,
+      mrp: Number(item.mrp),
+      gstPer: item.gst_percent,
+      discount: Number(item.discount_percent),
+      unitCost: Number(item.unit_price),
+      netAmount: Number(item.line_total),
+      productId: item.product_id,
+      variantId: item.variant_id,
+    }));
+
+    setItems(loadedItems);
+    setFlatDiscountPercent(Number(sale.flat_discount_percent) || 0);
+    setRoundOff(Number(sale.round_off) || 0);
+
+    toast({
+      title: "Invoice Loaded",
+      description: `Invoice #${sale.sale_number} loaded successfully`,
+    });
+  };
+
+  const handlePreviousInvoice = () => {
+    if (!todaysSales || todaysSales.length === 0) {
+      toast({
+        title: "No Invoices",
+        description: "No invoices found for today",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newIndex = currentInvoiceIndex > 0 ? currentInvoiceIndex - 1 : todaysSales.length - 1;
+    setCurrentInvoiceIndex(newIndex);
+    loadInvoice(todaysSales[newIndex]);
+  };
+
+  const handleNextInvoice = () => {
+    if (!todaysSales || todaysSales.length === 0) {
+      toast({
+        title: "No Invoices",
+        description: "No invoices found for today",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const newIndex = currentInvoiceIndex < todaysSales.length - 1 ? currentInvoiceIndex + 1 : 0;
+    setCurrentInvoiceIndex(newIndex);
+    loadInvoice(todaysSales[newIndex]);
+  };
+
   const paymentButtons = [
     {
       label: "Cash Paid",
@@ -307,7 +391,36 @@ export default function POSSales() {
             </Button>
           </div>
           
-          <Input placeholder="Scan Sales Invoice" className="h-12 text-lg" />
+          <div className="flex gap-2">
+            <Button
+              onClick={handlePreviousInvoice}
+              variant="outline"
+              size="lg"
+              className="h-12"
+              disabled={!todaysSales || todaysSales.length === 0}
+            >
+              <ChevronLeft className="h-5 w-5 mr-2" />
+              Previous
+            </Button>
+            <Input 
+              placeholder={todaysSales && todaysSales.length > 0 
+                ? `Invoice ${currentInvoiceIndex + 1} of ${todaysSales.length} (Today)` 
+                : "No invoices today"
+              } 
+              className="h-12 text-lg flex-1 text-center font-medium" 
+              readOnly
+            />
+            <Button
+              onClick={handleNextInvoice}
+              variant="outline"
+              size="lg"
+              className="h-12"
+              disabled={!todaysSales || todaysSales.length === 0}
+            >
+              Next
+              <ChevronRight className="h-5 w-5 ml-2" />
+            </Button>
+          </div>
         </div>
 
         {/* Items Table */}
