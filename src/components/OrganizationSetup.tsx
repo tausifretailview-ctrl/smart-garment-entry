@@ -27,6 +27,8 @@ export const OrganizationSetup = () => {
 
     setLoading(true);
     try {
+      console.log("Creating organization with user:", user.id);
+      
       // Create organization
       const { data: org, error: orgError } = await supabase
         .from("organizations")
@@ -39,7 +41,12 @@ export const OrganizationSetup = () => {
         .select()
         .single();
 
-      if (orgError) throw orgError;
+      if (orgError) {
+        console.error("Organization creation error:", orgError);
+        throw orgError;
+      }
+      
+      console.log("Organization created:", org);
 
       // Add user as admin member
       const { error: memberError } = await supabase
