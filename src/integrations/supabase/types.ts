@@ -238,6 +238,182 @@ export type Database = {
           },
         ]
       }
+      sale_items: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          discount_percent: number
+          gst_percent: number
+          id: string
+          line_total: number
+          mrp: number
+          product_id: string
+          product_name: string
+          quantity: number
+          sale_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          gst_percent?: number
+          id?: string
+          line_total: number
+          mrp: number
+          product_id: string
+          product_name: string
+          quantity: number
+          sale_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          gst_percent?: number
+          id?: string
+          line_total?: number
+          mrp?: number
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          sale_id?: string
+          size?: string
+          unit_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount_amount: number
+          flat_discount_amount: number
+          flat_discount_percent: number
+          gross_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          payment_method: string
+          payment_status: string
+          round_off: number
+          sale_date: string
+          sale_number: string
+          sale_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          payment_method: string
+          payment_status?: string
+          round_off?: number
+          sale_date?: string
+          sale_number: string
+          sale_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          payment_method?: string
+          payment_status?: string
+          round_off?: number
+          sale_date?: string
+          sale_number?: string
+          sale_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          address: string | null
+          bill_barcode_settings: Json | null
+          business_name: string | null
+          created_at: string | null
+          email_id: string | null
+          gst_number: string | null
+          id: string
+          mobile_number: string | null
+          product_settings: Json | null
+          purchase_settings: Json | null
+          report_settings: Json | null
+          sale_settings: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          bill_barcode_settings?: Json | null
+          business_name?: string | null
+          created_at?: string | null
+          email_id?: string | null
+          gst_number?: string | null
+          id?: string
+          mobile_number?: string | null
+          product_settings?: Json | null
+          purchase_settings?: Json | null
+          report_settings?: Json | null
+          sale_settings?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          bill_barcode_settings?: Json | null
+          business_name?: string | null
+          created_at?: string | null
+          email_id?: string | null
+          gst_number?: string | null
+          id?: string
+          mobile_number?: string | null
+          product_settings?: Json | null
+          purchase_settings?: Json | null
+          report_settings?: Json | null
+          sale_settings?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       size_groups: {
         Row: {
           created_at: string | null
@@ -326,6 +502,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_sale_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
