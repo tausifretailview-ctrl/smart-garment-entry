@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check } from "lucide-react";
+import { Check, Save, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
@@ -37,6 +38,14 @@ interface SearchResult {
   sale_price: number;
   barcode: string;
   stock_qty: number;
+}
+
+interface CustomPreset {
+  name: string;
+  width: number;
+  height: number;
+  cols: number;
+  gap: number;
 }
 
 type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
@@ -69,6 +78,24 @@ export default function BarcodePrinting() {
   const [customHeight, setCustomHeight] = useState(25);
   const [customCols, setCustomCols] = useState(4);
   const [customGap, setCustomGap] = useState(2);
+  
+  // Preset management state
+  const [savedPresets, setSavedPresets] = useState<CustomPreset[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<string>("");
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [newPresetName, setNewPresetName] = useState("");
+
+  // Load saved presets from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("barcode_custom_presets");
+    if (stored) {
+      try {
+        setSavedPresets(JSON.parse(stored));
+      } catch (error) {
+        console.error("Failed to load presets:", error);
+      }
+    }
+  }, []);
 
   // Pre-fill items from purchase entry if passed via navigation state
   useEffect(() => {
@@ -352,6 +379,67 @@ export default function BarcodePrinting() {
     setLabelItems([]);
     setSearchQuery("");
     toast.success("Cleared all labels");
+  };
+
+  // Preset management functions
+  const handleSavePreset = () => {
+    const trimmedName = newPresetName.trim();
+    
+    if (!trimmedName) {
+      toast.error("Please enter a preset name");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Preset name must be less than 50 characters");
+      return;
+    }
+
+    if (savedPresets.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A preset with this name already exists");
+      return;
+    }
+
+    const newPreset: CustomPreset = {
+      name: trimmedName,
+      width: customWidth,
+      height: customHeight,
+      cols: customCols,
+      gap: customGap,
+    };
+
+    const updatedPresets = [...savedPresets, newPreset];
+    setSavedPresets(updatedPresets);
+    localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
+    
+    setNewPresetName("");
+    setIsSaveDialogOpen(false);
+    toast.success(`Preset "${trimmedName}" saved successfully`);
+  };
+
+  const handleLoadPreset = (presetName: string) => {
+    const preset = savedPresets.find(p => p.name === presetName);
+    if (preset) {
+      setCustomWidth(preset.width);
+      setCustomHeight(preset.height);
+      setCustomCols(preset.cols);
+      setCustomGap(preset.gap);
+      setSelectedPreset(presetName);
+      toast.success(`Loaded preset "${presetName}"`);
+    }
+  };
+
+  const handleDeletePreset = () => {
+    if (!selectedPreset) {
+      toast.error("Please select a preset to delete");
+      return;
+    }
+
+    const updatedPresets = savedPresets.filter(p => p.name !== selectedPreset);
+    setSavedPresets(updatedPresets);
+    localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
+    setSelectedPreset("");
+    toast.success(`Preset "${selectedPreset}" deleted`);
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -708,6 +796,87 @@ export default function BarcodePrinting() {
                     placeholder="e.g., 2"
                   />
                 </div>
+              </div>
+              
+              {/* Preset Management */}
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">Saved Presets</h4>
+                  <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="gap-2">
+                        <Save className="h-4 w-4" />
+                        Save Current
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Save Custom Preset</DialogTitle>
+                        <DialogDescription>
+                          Save your current dimensions as a preset for quick reuse later.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="presetName">Preset Name</Label>
+                          <Input
+                            id="presetName"
+                            value={newPresetName}
+                            onChange={(e) => setNewPresetName(e.target.value.slice(0, 50))}
+                            placeholder="e.g., My Custom 40mm Labels"
+                            maxLength={50}
+                          />
+                        </div>
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          <p>Current dimensions:</p>
+                          <ul className="list-disc list-inside ml-2">
+                            <li>Width: {customWidth}mm</li>
+                            <li>Height: {customHeight}mm</li>
+                            <li>Columns: {customCols}</li>
+                            <li>Gap: {customGap}mm</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleSavePreset}>Save Preset</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+                
+                {savedPresets.length > 0 ? (
+                  <div className="flex gap-2">
+                    <Select value={selectedPreset} onValueChange={handleLoadPreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Load a saved preset..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        {savedPresets.map((preset) => (
+                          <SelectItem key={preset.name} value={preset.name}>
+                            {preset.name} ({preset.width}×{preset.height}mm, {preset.cols} cols)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedPreset && (
+                      <Button 
+                        size="icon" 
+                        variant="destructive" 
+                        onClick={handleDeletePreset}
+                        title="Delete selected preset"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No saved presets yet. Configure your dimensions and save them for quick reuse.
+                  </p>
+                )}
               </div>
             </div>
           )}
