@@ -207,6 +207,7 @@ export type Database = {
           id: string
           net_amount: number
           notes: string | null
+          supplier_id: string | null
           supplier_invoice_no: string | null
           supplier_name: string
           updated_at: string
@@ -219,6 +220,7 @@ export type Database = {
           id?: string
           net_amount?: number
           notes?: string | null
+          supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name: string
           updated_at?: string
@@ -231,11 +233,20 @@ export type Database = {
           id?: string
           net_amount?: number
           notes?: string | null
+          supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "purchase_bills_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       purchase_items: {
         Row: {
@@ -375,6 +386,7 @@ export type Database = {
           created_by: string | null
           customer_address: string | null
           customer_email: string | null
+          customer_id: string | null
           customer_name: string
           customer_phone: string | null
           discount_amount: number
@@ -397,6 +409,7 @@ export type Database = {
           created_by?: string | null
           customer_address?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           discount_amount?: number
@@ -419,6 +432,7 @@ export type Database = {
           created_by?: string | null
           customer_address?: string | null
           customer_email?: string | null
+          customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
           discount_amount?: number
@@ -436,7 +450,15 @@ export type Database = {
           sale_type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sales_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       settings: {
         Row: {

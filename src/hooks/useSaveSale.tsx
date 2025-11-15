@@ -20,6 +20,7 @@ interface CartItem {
 }
 
 interface SaleData {
+  customerId?: string | null;
   customerName: string;
   items: CartItem[];
   grossAmount: number;
@@ -72,6 +73,7 @@ export const useSaveSale = () => {
         .insert({
           sale_number: saleNumber,
           sale_type: 'pos',
+          customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           gross_amount: saleData.grossAmount,
           discount_amount: saleData.discountAmount,
