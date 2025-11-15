@@ -39,7 +39,7 @@ interface SearchResult {
   stock_qty: number;
 }
 
-type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4";
+type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
@@ -48,6 +48,7 @@ const sheetPresets = {
   novajet40: { cols: 8, width: "35mm", height: "25mm", gap: "1mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
+  custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
 };
 
 export default function BarcodePrinting() {
@@ -62,6 +63,12 @@ export default function BarcodePrinting() {
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
   const [leftOffset, setLeftOffset] = useState(0);
+  
+  // Custom dimensions state
+  const [customWidth, setCustomWidth] = useState(50);
+  const [customHeight, setCustomHeight] = useState(25);
+  const [customCols, setCustomCols] = useState(4);
+  const [customGap, setCustomGap] = useState(2);
 
   // Pre-fill items from purchase entry if passed via navigation state
   useEffect(() => {
@@ -391,19 +398,43 @@ export default function BarcodePrinting() {
       return;
     }
 
+    // Validate custom dimensions if custom sheet type is selected
+    if (sheetType === "custom") {
+      if (customWidth <= 0 || customWidth > 300) {
+        toast.error("Width must be between 1mm and 300mm");
+        return;
+      }
+      if (customHeight <= 0 || customHeight > 300) {
+        toast.error("Height must be between 1mm and 300mm");
+        return;
+      }
+      if (customCols <= 0 || customCols > 20) {
+        toast.error("Columns must be between 1 and 20");
+        return;
+      }
+      if (customGap < 0 || customGap > 50) {
+        toast.error("Gap must be between 0mm and 50mm");
+        return;
+      }
+    }
+
     const printArea = document.getElementById("printArea");
     if (!printArea) return;
 
-    const preset = sheetPresets[sheetType];
+    // Use custom dimensions if custom sheet type, otherwise use preset
+    const dimensions = sheetType === "custom"
+      ? { cols: customCols, width: `${customWidth}mm`, height: `${customHeight}mm`, gap: `${customGap}mm` }
+      : sheetPresets[sheetType];
+    
     printArea.innerHTML = "";
 
     const gridDiv = document.createElement("div");
     gridDiv.className = "label-grid";
     gridDiv.style.cssText = `
       display: grid;
-      grid-template-columns: repeat(${preset.cols}, ${preset.width});
-      grid-auto-rows: ${preset.height};
-      gap: ${preset.gap};
+      grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width});
+      grid-auto-rows: ${dimensions.height};
+      gap: ${dimensions.gap};
       padding-top: ${topOffset}mm;
       padding-left: ${leftOffset}mm;
     `;
@@ -620,9 +651,66 @@ export default function BarcodePrinting() {
                 <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
                 <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
                 <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
+                <SelectItem value="custom">Custom Dimensions</SelectItem>
               </SelectContent>
             </Select>
           </div>
+
+          {sheetType === "custom" && (
+            <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
+              <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="customWidth">Width (mm)</Label>
+                  <Input
+                    id="customWidth"
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={customWidth}
+                    onChange={(e) => setCustomWidth(Math.max(1, Math.min(300, parseFloat(e.target.value) || 1)))}
+                    placeholder="e.g., 50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customHeight">Height (mm)</Label>
+                  <Input
+                    id="customHeight"
+                    type="number"
+                    min="1"
+                    max="300"
+                    value={customHeight}
+                    onChange={(e) => setCustomHeight(Math.max(1, Math.min(300, parseFloat(e.target.value) || 1)))}
+                    placeholder="e.g., 25"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customCols">Columns</Label>
+                  <Input
+                    id="customCols"
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={customCols}
+                    onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    placeholder="e.g., 4"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customGap">Gap (mm)</Label>
+                  <Input
+                    id="customGap"
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={customGap}
+                    onChange={(e) => setCustomGap(Math.max(0, Math.min(50, parseFloat(e.target.value) || 0)))}
+                    placeholder="e.g., 2"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Design Format</Label>
