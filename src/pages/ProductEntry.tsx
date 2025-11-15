@@ -257,10 +257,23 @@ const ProductEntry = () => {
     }
   };
 
-  const generateSequentialBarcode = (): string => {
-    const barcode = nextBarcodeNumber.toString();
-    setNextBarcodeNumber(nextBarcodeNumber + 1);
-    return barcode;
+  const generateSequentialBarcode = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase.rpc('generate_next_barcode');
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error generating barcode:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate barcode",
+        variant: "destructive",
+      });
+      // Fallback to local generation
+      const barcode = nextBarcodeNumber.toString();
+      setNextBarcodeNumber(nextBarcodeNumber + 1);
+      return barcode;
+    }
   };
 
   const handleGenerateSizeVariants = () => {
@@ -287,16 +300,26 @@ const ProductEntry = () => {
     setShowVariants(true);
   };
 
-  const handleAutoGenerateBarcodes = () => {
-    const updatedVariants = variants.map((v) => ({
-      ...v,
-      barcode: v.barcode || generateSequentialBarcode(),
-    }));
-    setVariants(updatedVariants);
-    toast({
-      title: "Success",
-      description: "Barcodes generated for all variants",
-    });
+  const handleAutoGenerateBarcodes = async () => {
+    try {
+      const updatedVariants = await Promise.all(
+        variants.map(async (v) => ({
+          ...v,
+          barcode: v.barcode || await generateSequentialBarcode(),
+        }))
+      );
+      setVariants(updatedVariants);
+      toast({
+        title: "Success",
+        description: "Barcodes generated for all variants",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to generate barcodes",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleVariantChange = (index: number, field: keyof ProductVariant, value: any) => {
