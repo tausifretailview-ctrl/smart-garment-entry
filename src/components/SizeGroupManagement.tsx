@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   Table,
   TableBody,
@@ -33,6 +34,7 @@ interface SizeGroup {
 
 export function SizeGroupManagement() {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,13 +45,16 @@ export function SizeGroupManagement() {
 
   useEffect(() => {
     fetchSizeGroups();
-  }, []);
+  }, [currentOrganization?.id]);
 
   const fetchSizeGroups = async () => {
+    if (!currentOrganization?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from("size_groups")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("group_name");
 
       if (error) throw error;
@@ -79,6 +84,15 @@ export function SizeGroupManagement() {
       return;
     }
 
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const sizesArray = newGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
@@ -88,6 +102,7 @@ export function SizeGroupManagement() {
         .insert({
           group_name: newGroup.group_name,
           sizes: sizesArray,
+          organization_id: currentOrganization.id,
         });
 
       if (error) throw error;
