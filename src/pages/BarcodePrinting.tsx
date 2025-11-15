@@ -449,15 +449,23 @@ export default function BarcodePrinting() {
   const fillLastPurchaseQuantities = async (items: LabelItem[]) => {
     try {
       // Get the latest purchase bill
-      const { data: latestBill } = await supabase
+      const { data: latestBill, error: billError } = await supabase
         .from("purchase_bills")
         .select("id, bill_date")
         .order("bill_date", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!latestBill) return;
+      if (billError) {
+        console.error("Error fetching latest bill:", billError);
+        return;
+      }
+
+      if (!latestBill) {
+        toast.info("No purchase bills found");
+        return;
+      }
 
       // Get items from the latest bill
       const { data: purchaseData } = await supabase
@@ -496,22 +504,30 @@ export default function BarcodePrinting() {
     if (!billNumber.trim()) return;
 
     try {
-      const { data: billData } = await supabase
+      const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
         .select("id")
         .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!billData) return;
+      if (billError || !billData) {
+        console.error("Bill not found:", billError);
+        return;
+      }
 
-      const { data: itemData } = await supabase
+      const { data: itemData, error: itemError } = await supabase
         .from("purchase_items")
         .select("qty, sku_id, barcode")
         .eq("bill_id", billData.id)
         .or(`sku_id.eq.${item.sku_id},barcode.eq.${item.barcode}`)
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      if (itemError) {
+        console.error("Failed to load item data:", itemError);
+        return;
+      }
 
       if (itemData) {
         setLabelItems(prev =>
@@ -540,9 +556,15 @@ export default function BarcodePrinting() {
         .select("id, supplier_invoice_no, bill_date")
         .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (billError || !billData) {
+      if (billError) {
+        console.error("Error searching bill:", billError);
+        toast.error("Error searching for bill");
+        return;
+      }
+
+      if (!billData) {
         toast.error("Bill not found");
         return;
       }
