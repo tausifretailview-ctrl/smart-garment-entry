@@ -45,6 +45,7 @@ interface CustomPreset {
   width: number;
   height: number;
   cols: number;
+  rows: number;
   gap: number;
 }
 
@@ -77,6 +78,7 @@ export default function BarcodePrinting() {
   const [customWidth, setCustomWidth] = useState(50);
   const [customHeight, setCustomHeight] = useState(25);
   const [customCols, setCustomCols] = useState(4);
+  const [customRows, setCustomRows] = useState(12);
   const [customGap, setCustomGap] = useState(2);
   
   // Preset management state
@@ -405,6 +407,7 @@ export default function BarcodePrinting() {
       width: customWidth,
       height: customHeight,
       cols: customCols,
+      rows: customRows,
       gap: customGap,
     };
 
@@ -423,6 +426,7 @@ export default function BarcodePrinting() {
       setCustomWidth(preset.width);
       setCustomHeight(preset.height);
       setCustomCols(preset.cols);
+      setCustomRows(preset.rows);
       setCustomGap(preset.gap);
       setSelectedPreset(presetName);
       toast.success(`Loaded preset "${presetName}"`);
@@ -498,6 +502,10 @@ export default function BarcodePrinting() {
       }
       if (customCols <= 0 || customCols > 20) {
         toast.error("Columns must be between 1 and 20");
+        return;
+      }
+      if (customRows <= 0 || customRows > 50) {
+        toast.error("Rows must be between 1 and 50");
         return;
       }
       if (customGap < 0 || customGap > 50) {
@@ -746,7 +754,12 @@ export default function BarcodePrinting() {
 
           {sheetType === "custom" && (
             <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
-              <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
+                <div className="text-xs text-muted-foreground">
+                  Sheet Size: {customCols} × {customRows} = {customCols * customRows} labels
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="customWidth">Width (mm)</Label>
@@ -782,6 +795,18 @@ export default function BarcodePrinting() {
                     value={customCols}
                     onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
                     placeholder="e.g., 4"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="customRows">Rows</Label>
+                  <Input
+                    id="customRows"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={customRows}
+                    onChange={(e) => setCustomRows(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                    placeholder="e.g., 12"
                   />
                 </div>
                 <div className="space-y-2">
@@ -833,7 +858,9 @@ export default function BarcodePrinting() {
                             <li>Width: {customWidth}mm</li>
                             <li>Height: {customHeight}mm</li>
                             <li>Columns: {customCols}</li>
+                            <li>Rows: {customRows}</li>
                             <li>Gap: {customGap}mm</li>
+                            <li>Total labels per sheet: {customCols * customRows}</li>
                           </ul>
                         </div>
                       </div>
@@ -856,7 +883,7 @@ export default function BarcodePrinting() {
                       <SelectContent className="bg-background z-50">
                         {savedPresets.map((preset) => (
                           <SelectItem key={preset.name} value={preset.name}>
-                            {preset.name} ({preset.width}×{preset.height}mm, {preset.cols} cols)
+                            {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
                           </SelectItem>
                         ))}
                       </SelectContent>
