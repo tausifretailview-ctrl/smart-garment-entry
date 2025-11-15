@@ -22,6 +22,7 @@ import {
   Truck,
   Briefcase,
   BarChart3,
+  ScrollText,
 } from "lucide-react";
 import {
   Sidebar,
@@ -56,6 +57,7 @@ const menuItems = [
   { title: "Employee Master", url: "/employees", icon: Briefcase, roles: ["admin", "manager"] },
   { title: "Purchase Report", url: "/purchase-report", icon: BarChart3, roles: ["admin", "manager"] },
   { title: "Sales Report", url: "/sales-report", icon: BarChart3, roles: ["admin", "manager", "user"] },
+  { title: "Audit Log", url: "/audit-log", icon: ScrollText, roles: ["admin", "manager"] },
   { title: "Profile", url: "/profile", icon: UserCircle, roles: ["admin", "manager", "user"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
 ];
