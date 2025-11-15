@@ -21,6 +21,8 @@ import SalesInvoice from "./pages/SalesInvoice";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
+import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
+import SalesReportByCustomer from "./pages/SalesReportByCustomer";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -157,6 +159,24 @@ const App = () => {
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                     <EmployeeMaster />
                   </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/purchase-report"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <PurchaseReportBySupplier />
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sales-report"
+              element={
+                <ProtectedRoute>
+                  <SalesReportByCustomer />
                 </ProtectedRoute>
               }
             />

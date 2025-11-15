@@ -21,6 +21,7 @@ import {
   Receipt,
   Truck,
   Briefcase,
+  BarChart3,
 } from "lucide-react";
 import {
   Sidebar,
@@ -53,6 +54,8 @@ const menuItems = [
   { title: "Customer Master", url: "/customers", icon: Users, roles: ["admin", "manager"] },
   { title: "Supplier Master", url: "/suppliers", icon: Truck, roles: ["admin", "manager"] },
   { title: "Employee Master", url: "/employees", icon: Briefcase, roles: ["admin", "manager"] },
+  { title: "Purchase Report", url: "/purchase-report", icon: BarChart3, roles: ["admin", "manager"] },
+  { title: "Sales Report", url: "/sales-report", icon: BarChart3, roles: ["admin", "manager", "user"] },
   { title: "Profile", url: "/profile", icon: UserCircle, roles: ["admin", "manager", "user"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
 ];
