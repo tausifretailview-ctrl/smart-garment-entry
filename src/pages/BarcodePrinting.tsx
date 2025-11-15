@@ -793,7 +793,19 @@ export default function BarcodePrinting() {
       setTopOffset(preset.topOffset);
       setLeftOffset(preset.leftOffset);
       if (preset.labelConfig) {
-        setLabelConfig(preset.labelConfig);
+        // Ensure the loaded config has all required properties with defaults
+        const mergedConfig: LabelDesignConfig = {
+          brand: preset.labelConfig.brand || { show: true, fontSize: 9, bold: true },
+          productName: preset.labelConfig.productName || { show: true, fontSize: 9, bold: true },
+          color: preset.labelConfig.color || { show: false, fontSize: 8, bold: false },
+          style: preset.labelConfig.style || { show: false, fontSize: 8, bold: false },
+          size: preset.labelConfig.size || { show: true, fontSize: 9, bold: false },
+          price: preset.labelConfig.price || { show: true, fontSize: 9, bold: true },
+          barcode: preset.labelConfig.barcode || { show: true, fontSize: 9, bold: false },
+          barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
+          fieldOrder: preset.labelConfig.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText'],
+        };
+        setLabelConfig(mergedConfig);
       }
       setSelectedDesignPreset(presetName);
       toast.success(`Loaded design preset "${presetName}"`);
@@ -871,7 +883,19 @@ export default function BarcodePrinting() {
 
     const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
     if (template) {
-      setLabelConfig(template.config);
+      // Ensure the loaded config has all required properties with defaults
+      const mergedConfig: LabelDesignConfig = {
+        brand: template.config.brand || { show: true, fontSize: 9, bold: true },
+        productName: template.config.productName || { show: true, fontSize: 9, bold: true },
+        color: template.config.color || { show: false, fontSize: 8, bold: false },
+        style: template.config.style || { show: false, fontSize: 8, bold: false },
+        size: template.config.size || { show: true, fontSize: 9, bold: false },
+        price: template.config.price || { show: true, fontSize: 9, bold: true },
+        barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
+        barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText'],
+      };
+      setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
       setIsEditingLabelTemplate(true);
       setIsLabelTemplateSaveDialogOpen(true);
@@ -881,7 +905,19 @@ export default function BarcodePrinting() {
   const handleLoadLabelTemplate = (templateName: string) => {
     const template = savedLabelTemplates.find(t => t.name === templateName);
     if (template) {
-      setLabelConfig(template.config);
+      // Ensure the loaded config has all required properties with defaults
+      const mergedConfig: LabelDesignConfig = {
+        brand: template.config.brand || { show: true, fontSize: 9, bold: true },
+        productName: template.config.productName || { show: true, fontSize: 9, bold: true },
+        color: template.config.color || { show: false, fontSize: 8, bold: false },
+        style: template.config.style || { show: false, fontSize: 8, bold: false },
+        size: template.config.size || { show: true, fontSize: 9, bold: false },
+        price: template.config.price || { show: true, fontSize: 9, bold: true },
+        barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
+        barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText'],
+      };
+      setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
       toast.success(`Loaded template "${templateName}"`);
     }
