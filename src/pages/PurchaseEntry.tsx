@@ -147,11 +147,20 @@ const PurchaseEntry = () => {
     setNetAmount(gross + gst);
   }, [lineItems]);
 
-  const generateEAN8 = (): string => {
-    const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
-    const sum = seven[0] * 3 + seven[1] + seven[2] * 3 + seven[3] + seven[4] * 3 + seven[5] + seven[6] * 3;
-    const chk = (10 - (sum % 10)) % 10;
-    return seven.join("") + String(chk);
+  const generateCentralizedBarcode = async (): Promise<string> => {
+    try {
+      const { data, error } = await supabase.rpc('generate_next_barcode');
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error generating barcode:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate barcode from database",
+        variant: "destructive",
+      });
+      throw error;
+    }
   };
 
   const searchProducts = async (query: string) => {
@@ -280,8 +289,17 @@ const PurchaseEntry = () => {
       let barcode = v.barcode || "";
       
       if (!barcode) {
-        barcode = generateEAN8();
-        await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
+        try {
+          barcode = await generateCentralizedBarcode();
+          await supabase.from("product_variants").update({ barcode }).eq("id", v.id);
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to generate barcode for product",
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       addItemRow({
@@ -906,11 +924,20 @@ const PurchaseEntry = () => {
                         
                         // Auto-generate barcode if missing
                         if (!barcode && variant) {
-                          barcode = generateEAN8();
-                          await supabase
-                            .from("product_variants")
-                            .update({ barcode })
-                            .eq("id", variant.id);
+                          try {
+                            barcode = await generateCentralizedBarcode();
+                            await supabase
+                              .from("product_variants")
+                              .update({ barcode })
+                              .eq("id", variant.id);
+                          } catch (error) {
+                            toast({
+                              title: "Error",
+                              description: `Failed to generate barcode for size ${size}`,
+                              variant: "destructive",
+                            });
+                            continue; // Skip this variant
+                          }
                         }
 
                         addItemRow({

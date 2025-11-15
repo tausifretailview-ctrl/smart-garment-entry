@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      barcode_sequence: {
+        Row: {
+          id: number
+          next_barcode: number
+          updated_at: string | null
+        }
+        Insert: {
+          id?: number
+          next_barcode?: number
+          updated_at?: string | null
+        }
+        Update: {
+          id?: number
+          next_barcode?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -632,6 +650,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_next_barcode: { Args: never; Returns: string }
       generate_sale_number: { Args: never; Returns: string }
       has_role: {
         Args: {
