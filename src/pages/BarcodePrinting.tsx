@@ -39,14 +39,14 @@ interface SearchResult {
   stock_qty: number;
 }
 
-type SheetType = "novajet48" | "novajet40" | "label65" | "a4_12x4";
+type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
   novajet40: { cols: 8, width: "35mm", height: "25mm", gap: "1mm" },
-  label65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
+  novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
 };
 
@@ -616,9 +616,9 @@ export default function BarcodePrinting() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="novajet48">Novajet48 (33mm × 19mm, 8×6)</SelectItem>
-                <SelectItem value="novajet40">Novajet40 (35mm × 25mm, 8×5)</SelectItem>
-                <SelectItem value="label65">Label65 (38mm × 21mm, 5×13)</SelectItem>
+                <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
+                <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
+                <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
                 <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
               </SelectContent>
             </Select>
