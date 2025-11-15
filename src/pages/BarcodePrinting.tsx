@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -268,6 +268,7 @@ export default function BarcodePrinting() {
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
   const [showCustomizeFields, setShowCustomizeFields] = useState(false);
+  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -1037,7 +1038,11 @@ export default function BarcodePrinting() {
       }
     }
 
-    const printArea = document.getElementById("printArea");
+    setIsPreviewDialogOpen(true);
+  };
+
+  const generatePreview = (targetElementId: string) => {
+    const printArea = document.getElementById(targetElementId);
     if (!printArea) return;
 
     // Use custom dimensions if custom sheet type, otherwise use preset
@@ -1098,18 +1103,16 @@ export default function BarcodePrinting() {
         }
       });
     }, 100);
-
-    toast.success("Preview generated! Scroll down to see labels.");
   };
 
   const handlePrint = () => {
-    const printArea = document.getElementById("printArea");
-    if (!printArea || !printArea.innerHTML.trim()) {
-      toast.error("Please generate a preview first");
-      return;
-    }
-
-    window.print();
+    // Generate labels in the print area
+    generatePreview("printArea");
+    
+    // Wait for barcodes to render then print
+    setTimeout(() => {
+      window.print();
+    }, 200);
   };
 
   return (
@@ -1766,14 +1769,49 @@ export default function BarcodePrinting() {
 
       {/* Action Buttons */}
       <div className="flex gap-2">
-        <Button onClick={handlePreview}>Preview Labels</Button>
+        <Button onClick={handlePreview}>
+          <Eye className="h-4 w-4 mr-2" />
+          Preview Labels
+        </Button>
         <Button onClick={handlePrint} variant="outline">
           Print
         </Button>
       </div>
 
-      {/* Print Area */}
-      <div id="printArea" className="mt-8"></div>
+      {/* Preview Dialog */}
+      <Dialog open={isPreviewDialogOpen} onOpenChange={setIsPreviewDialogOpen}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Label Preview</DialogTitle>
+            <DialogDescription>
+              Review your labels before printing. This is how they will appear on the sheet.
+            </DialogDescription>
+          </DialogHeader>
+          <div 
+            id="previewArea" 
+            className="mt-4 border rounded-md p-4 bg-white"
+            ref={(el) => {
+              if (el && isPreviewDialogOpen) {
+                generatePreview("previewArea");
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPreviewDialogOpen(false)}>
+              Close
+            </Button>
+            <Button onClick={() => {
+              setIsPreviewDialogOpen(false);
+              setTimeout(handlePrint, 300);
+            }}>
+              Print Labels
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Area (hidden, used for printing) */}
+      <div id="printArea" className="hidden"></div>
 
       <style>{`
         #printArea {
@@ -1812,7 +1850,12 @@ export default function BarcodePrinting() {
         @media print {
           body * { visibility: hidden; }
           #printArea, #printArea * { visibility: visible; }
-          #printArea { position: absolute; left: 0; top: 0; }
+          #printArea { 
+            position: absolute; 
+            left: 0; 
+            top: 0;
+            display: block !important;
+          }
         }
       `}</style>
     </div>
