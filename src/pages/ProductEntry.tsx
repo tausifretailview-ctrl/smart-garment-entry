@@ -438,9 +438,14 @@ const ProductEntry = () => {
       
       if (editingProductId) {
         // Update existing product
+        const productPayload = {
+          ...formData,
+          image_url: imageUrl,
+          size_group_id: formData.size_group_id || null,
+        };
         const { data, error: productError } = await supabase
           .from("products")
-          .update({ ...formData, image_url: imageUrl })
+          .update(productPayload)
           .eq("id", editingProductId)
           .select()
           .single();
@@ -480,9 +485,15 @@ const ProductEntry = () => {
       } else {
         // Insert new product
         if (!currentOrganization?.id) throw new Error("No organization selected");
+        const productPayload = {
+          ...formData,
+          image_url: imageUrl,
+          organization_id: currentOrganization.id,
+          size_group_id: formData.size_group_id || null,
+        };
         const { data, error: productError } = await supabase
           .from("products")
-          .insert([{ ...formData, image_url: imageUrl, organization_id: currentOrganization.id }])
+          .insert([productPayload])
           .select()
           .single();
 
