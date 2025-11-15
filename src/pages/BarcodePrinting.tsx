@@ -545,11 +545,6 @@ export default function BarcodePrinting() {
       return;
     }
 
-    if (labelItems.length === 0) {
-      toast.error("Please add products first");
-      return;
-    }
-
     try {
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
@@ -571,31 +566,89 @@ export default function BarcodePrinting() {
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("purchase_items")
-        .select("barcode, sku_id, qty")
+        .select(`
+          qty,
+          sku_id,
+          barcode,
+          sale_price,
+          size
+        `)
         .eq("bill_id", billData.id);
 
       if (itemsError) throw itemsError;
 
-      const quantityMapByBarcode = new Map<string, number>();
-      const quantityMapBySku = new Map<string, number>();
+      if (!itemsData || itemsData.length === 0) {
+        toast.error("No items found in this bill");
+        return;
+      }
+
+      // Get unique SKU IDs to fetch product details
+      const skuIds = itemsData.map(item => item.sku_id).filter(Boolean);
       
-      (itemsData || []).forEach((item) => {
-        if (item.barcode) {
-          quantityMapByBarcode.set(item.barcode, item.qty);
-        }
-        if (item.sku_id) {
-          quantityMapBySku.set(item.sku_id, item.qty);
-        }
+      if (skuIds.length === 0) {
+        toast.error("No valid products found in this bill");
+        return;
+      }
+
+      // Fetch product details including variants
+      const { data: variantsData, error: variantsError } = await supabase
+        .from("product_variants")
+        .select(`
+          id,
+          size,
+          barcode,
+          sale_price,
+          product_id,
+          products (
+            product_name,
+            brand,
+            color,
+            style
+          )
+        `)
+        .in("id", skuIds);
+
+      if (variantsError) throw variantsError;
+
+      // Create a map of variant details
+      const variantMap = new Map();
+      (variantsData || []).forEach((variant: any) => {
+        variantMap.set(variant.id, {
+          product_name: variant.products?.product_name || "",
+          brand: variant.products?.brand || "",
+          color: variant.products?.color || "",
+          style: variant.products?.style || "",
+          size: variant.size,
+          barcode: variant.barcode,
+          sale_price: variant.sale_price
+        });
       });
 
-      setLabelItems((prev) =>
-        prev.map((item) => {
-          const qty = quantityMapBySku.get(item.sku_id) || quantityMapByBarcode.get(item.barcode) || 0;
-          return { ...item, qty };
-        })
-      );
+      // Build label items from purchase items
+      const loadedItems: LabelItem[] = itemsData
+        .filter(item => item.sku_id && variantMap.has(item.sku_id))
+        .map(item => {
+          const variantInfo = variantMap.get(item.sku_id);
+          return {
+            sku_id: item.sku_id,
+            product_name: variantInfo.product_name,
+            brand: variantInfo.brand,
+            color: variantInfo.color,
+            style: variantInfo.style,
+            size: item.size || variantInfo.size,
+            sale_price: item.sale_price || variantInfo.sale_price,
+            barcode: item.barcode || variantInfo.barcode,
+            qty: item.qty
+          };
+        });
 
-      toast.success(`Loaded quantities from bill ${billData.supplier_invoice_no || billData.id}`);
+      if (loadedItems.length === 0) {
+        toast.error("Could not load product details for items in this bill");
+        return;
+      }
+
+      setLabelItems(loadedItems);
+      toast.success(`Loaded ${loadedItems.length} items from bill ${billData.supplier_invoice_no || billData.id}`);
     } catch (error: any) {
       console.error(error);
       toast.error("Failed to load bill data");
