@@ -18,6 +18,9 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import POSSales from "./pages/POSSales";
 import SalesInvoice from "./pages/SalesInvoice";
+import CustomerMaster from "./pages/CustomerMaster";
+import SupplierMaster from "./pages/SupplierMaster";
+import EmployeeMaster from "./pages/EmployeeMaster";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -124,6 +127,36 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <SalesInvoice />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/customers"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <CustomerMaster />
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/suppliers"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <SupplierMaster />
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employees"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <EmployeeMaster />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
