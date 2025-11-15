@@ -12,7 +12,24 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2 } from "lucide-react";
+import { Check, Save, Trash2, GripVertical } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
@@ -64,6 +81,7 @@ interface LabelDesignConfig {
   price: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder'>>;
 }
 
 interface DesignFormatPreset {
@@ -85,6 +103,111 @@ const sheetPresets = {
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
 };
+
+interface SortableFieldItemProps {
+  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder'>;
+  labelConfig: LabelDesignConfig;
+  setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
+}
+
+function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFieldItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: fieldKey });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder'>, string> = {
+    brand: 'Brand Name',
+    productName: 'Product Name',
+    color: 'Color',
+    style: 'Style',
+    size: 'Size',
+    price: 'Price (MRP)',
+    barcode: 'Barcode Image',
+    barcodeText: 'Barcode Number'
+  };
+
+  const field = labelConfig[fieldKey];
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-3 border rounded bg-background"
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      
+      <div className="flex items-center gap-2 flex-1">
+        <input
+          type="checkbox"
+          id={`show-${fieldKey}`}
+          checked={field.show}
+          onChange={(e) => {
+            setLabelConfig(prev => ({
+              ...prev,
+              [fieldKey]: { ...prev[fieldKey], show: e.target.checked }
+            }));
+          }}
+          className="h-4 w-4"
+        />
+        <Label htmlFor={`show-${fieldKey}`} className="cursor-pointer font-medium">
+          {fieldLabels[fieldKey]}
+        </Label>
+      </div>
+      
+      {field.show && fieldKey !== 'barcode' && (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min="6"
+            max="20"
+            value={field.fontSize}
+            onChange={(e) => {
+              setLabelConfig(prev => ({
+                ...prev,
+                [fieldKey]: { ...prev[fieldKey], fontSize: parseInt(e.target.value) || 9 }
+              }));
+            }}
+            className="w-16 h-8 text-xs"
+            title="Font size"
+          />
+          <span className="text-xs text-muted-foreground">px</span>
+          
+          <Button
+            size="sm"
+            variant={field.bold ? "default" : "outline"}
+            onClick={() => {
+              setLabelConfig(prev => ({
+                ...prev,
+                [fieldKey]: { ...prev[fieldKey], bold: !prev[fieldKey].bold }
+              }));
+            }}
+            className="h-8 px-2 text-xs font-bold"
+            title="Toggle bold"
+          >
+            B
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BarcodePrinting() {
   const location = useLocation();
@@ -130,7 +253,16 @@ export default function BarcodePrinting() {
     price: { show: true, fontSize: 9, bold: true },
     barcode: { show: true, fontSize: 9, bold: false },
     barcodeText: { show: true, fontSize: 7, bold: false },
+    fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText'],
   });
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // Load saved presets from localStorage on mount
   useEffect(() => {
@@ -669,40 +801,63 @@ export default function BarcodePrinting() {
       return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};`;
     };
 
-    // Build label HTML based on visible fields
+    // Build label HTML based on field order
     let html = '';
     
-    if (config.brand.show) {
-      html += `<div class="brand" style="${getStyle(config.brand)}">SMART INVENTORY</div>`;
-    }
-    
-    if (config.productName.show) {
-      const prodText = item.product_name + 
-        (config.size.show ? ` (${item.size})` : '');
-      html += `<div class="prod" style="${getStyle(config.productName)}">${prodText}</div>`;
-    }
-    
-    if (config.color.show) {
-      html += `<div class="color" style="${getStyle(config.color)}">Color: ${item.color}</div>`;
-    }
-    
-    if (config.style.show) {
-      html += `<div class="style" style="${getStyle(config.style)}">Style: ${item.style}</div>`;
-    }
-    
-    if (config.price.show) {
-      html += `<div class="mrp" style="${getStyle(config.price)}">MRP: ₹${item.sale_price}</div>`;
-    }
-    
-    if (config.barcode.show) {
-      html += `<svg class="barcode" data-code="${barcode}"></svg>`;
-    }
-    
-    if (config.barcodeText.show) {
-      html += `<div class="meta" style="${getStyle(config.barcodeText)}">${barcode}</div>`;
-    }
+    // Use fieldOrder to determine the sequence
+    config.fieldOrder.forEach((fieldKey) => {
+      const field = config[fieldKey];
+      
+      if (!field.show) return;
+      
+      switch (fieldKey) {
+        case 'brand':
+          html += `<div class="brand" style="${getStyle(field)}">SMART INVENTORY</div>`;
+          break;
+        case 'productName':
+          const prodText = item.product_name + 
+            (config.size.show ? ` (${item.size})` : '');
+          html += `<div class="prod" style="${getStyle(field)}">${prodText}</div>`;
+          break;
+        case 'color':
+          html += `<div class="color" style="${getStyle(field)}">Color: ${item.color}</div>`;
+          break;
+        case 'style':
+          html += `<div class="style" style="${getStyle(field)}">Style: ${item.style}</div>`;
+          break;
+        case 'size':
+          // Size is already included in productName if shown
+          break;
+        case 'price':
+          html += `<div class="mrp" style="${getStyle(field)}">MRP: ₹${item.sale_price}</div>`;
+          break;
+        case 'barcode':
+          html += `<svg class="barcode" data-code="${barcode}"></svg>`;
+          break;
+        case 'barcodeText':
+          html += `<div class="meta" style="${getStyle(field)}">${barcode}</div>`;
+          break;
+      }
+    });
 
     return html;
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLabelConfig((prev) => {
+        const oldIndex = prev.fieldOrder.indexOf(active.id as keyof Omit<LabelDesignConfig, 'fieldOrder'>);
+        const newIndex = prev.fieldOrder.indexOf(over.id as keyof Omit<LabelDesignConfig, 'fieldOrder'>);
+
+        return {
+          ...prev,
+          fieldOrder: arrayMove(prev.fieldOrder, oldIndex, newIndex),
+        };
+      });
+      toast.success('Field order updated');
+    }
   };
 
   const handlePreview = () => {
@@ -1295,79 +1450,29 @@ export default function BarcodePrinting() {
           {/* Label Design Customization */}
           <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
             <h3 className="font-semibold">Customize Label Fields</h3>
-            <p className="text-sm text-muted-foreground">Control which fields appear on your labels and their styling</p>
+            <p className="text-sm text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(Object.keys(labelConfig) as Array<keyof LabelDesignConfig>).map((fieldKey) => {
-                const fieldLabels: Record<keyof LabelDesignConfig, string> = {
-                  brand: 'Brand Name',
-                  productName: 'Product Name',
-                  color: 'Color',
-                  style: 'Style',
-                  size: 'Size',
-                  price: 'Price (MRP)',
-                  barcode: 'Barcode Image',
-                  barcodeText: 'Barcode Number'
-                };
-                
-                return (
-                  <div key={fieldKey} className="flex items-center gap-4 p-3 border rounded bg-background">
-                    <div className="flex items-center gap-2 flex-1">
-                      <input
-                        type="checkbox"
-                        id={`show-${fieldKey}`}
-                        checked={labelConfig[fieldKey].show}
-                        onChange={(e) => {
-                          setLabelConfig(prev => ({
-                            ...prev,
-                            [fieldKey]: { ...prev[fieldKey], show: e.target.checked }
-                          }));
-                        }}
-                        className="h-4 w-4"
-                      />
-                      <Label htmlFor={`show-${fieldKey}`} className="cursor-pointer font-medium">
-                        {fieldLabels[fieldKey]}
-                      </Label>
-                    </div>
-                    
-                    {labelConfig[fieldKey].show && fieldKey !== 'barcode' && (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          min="6"
-                          max="20"
-                          value={labelConfig[fieldKey].fontSize}
-                          onChange={(e) => {
-                            setLabelConfig(prev => ({
-                              ...prev,
-                              [fieldKey]: { ...prev[fieldKey], fontSize: parseInt(e.target.value) || 9 }
-                            }));
-                          }}
-                          className="w-16 h-8 text-xs"
-                          title="Font size"
-                        />
-                        <span className="text-xs text-muted-foreground">px</span>
-                        
-                        <Button
-                          size="sm"
-                          variant={labelConfig[fieldKey].bold ? "default" : "outline"}
-                          onClick={() => {
-                            setLabelConfig(prev => ({
-                              ...prev,
-                              [fieldKey]: { ...prev[fieldKey], bold: !prev[fieldKey].bold }
-                            }));
-                          }}
-                          className="h-8 px-2 text-xs font-bold"
-                          title="Toggle bold"
-                        >
-                          B
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={labelConfig.fieldOrder}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {labelConfig.fieldOrder.map((fieldKey) => (
+                    <SortableFieldItem
+                      key={fieldKey}
+                      fieldKey={fieldKey}
+                      labelConfig={labelConfig}
+                      setLabelConfig={setLabelConfig}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
 
           <div className="space-y-2">
