@@ -809,7 +809,19 @@ export default function BarcodePrinting() {
           <div className="space-y-2">
             <Label>Sheet Type</Label>
             <div className="flex gap-2">
-              <Select value={sheetType} onValueChange={(v) => setSheetType(v as SheetType)}>
+              <Select 
+                value={sheetType === "custom" && selectedPreset ? `preset_${selectedPreset}` : sheetType} 
+                onValueChange={(v) => {
+                  if (v.startsWith("preset_")) {
+                    const presetName = v.replace("preset_", "");
+                    handleLoadPreset(presetName);
+                    setSheetType("custom");
+                  } else {
+                    setSheetType(v as SheetType);
+                    setSelectedPreset("");
+                  }
+                }}
+              >
                 <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -819,6 +831,18 @@ export default function BarcodePrinting() {
                   <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
                   <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
                   <SelectItem value="custom">Custom Dimensions</SelectItem>
+                  {savedPresets.length > 0 && (
+                    <>
+                      <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50 cursor-default">
+                        — My Saved Presets —
+                      </SelectItem>
+                      {savedPresets.map((preset) => (
+                        <SelectItem key={preset.name} value={`preset_${preset.name}`}>
+                          {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
               {sheetType !== "custom" && (
@@ -908,14 +932,15 @@ export default function BarcodePrinting() {
               {/* Preset Management */}
               <div className="border-t pt-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-sm">Saved Presets</h4>
-                  <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" variant="outline" className="gap-2">
-                        <Save className="h-4 w-4" />
-                        Save Current
-                      </Button>
-                    </DialogTrigger>
+                  <h4 className="font-semibold text-sm">Manage Presets</h4>
+                  <div className="flex gap-2">
+                    <Dialog open={isSaveDialogOpen} onOpenChange={setIsSaveDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" variant="outline" className="gap-2">
+                          <Save className="h-4 w-4" />
+                          Save Current
+                        </Button>
+                      </DialogTrigger>
                      <DialogContent>
                        <DialogHeader>
                          <DialogTitle>{isEditingPreset ? "Edit" : "Save"} Custom Preset</DialogTitle>
@@ -962,51 +987,42 @@ export default function BarcodePrinting() {
                        </DialogFooter>
                      </DialogContent>
                   </Dialog>
+                  {selectedPreset && (
+                    <>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={handleEditPreset}
+                        title="Edit this preset"
+                        className="gap-2"
+                      >
+                        <Save className="h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={handleDeletePreset}
+                        title="Delete this preset"
+                        className="gap-2"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </>
+                  )}
                 </div>
-                
-                {savedPresets.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Select value={selectedPreset} onValueChange={handleLoadPreset}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Load a saved preset..." />
-                        </SelectTrigger>
-                        <SelectContent className="bg-background z-50">
-                          {savedPresets.map((preset) => (
-                            <SelectItem key={preset.name} value={preset.name}>
-                              {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedPreset && (
-                        <>
-                          <Button 
-                            size="icon" 
-                            variant="outline" 
-                            onClick={handleEditPreset}
-                            title="Edit selected preset"
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                          <Button 
-                            size="icon" 
-                            variant="destructive" 
-                            onClick={handleDeletePreset}
-                            title="Delete selected preset"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No saved presets yet. Configure your dimensions and save them for quick reuse.
-                  </p>
-                )}
               </div>
+              
+              {savedPresets.length > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Your saved presets appear in the Sheet Type dropdown above. {selectedPreset && `Currently using: ${selectedPreset}`}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No saved presets yet. Configure dimensions above and click "Save Current" to create one.
+                </p>
+              )}
             </div>
           )}
 
