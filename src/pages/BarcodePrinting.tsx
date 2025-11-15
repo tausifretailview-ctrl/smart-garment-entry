@@ -49,6 +49,13 @@ interface CustomPreset {
   gap: number;
 }
 
+interface DesignFormatPreset {
+  name: string;
+  format: DesignFormat;
+  topOffset: number;
+  leftOffset: number;
+}
+
 type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
@@ -87,6 +94,13 @@ export default function BarcodePrinting() {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
   const [isEditingPreset, setIsEditingPreset] = useState(false);
+  
+  // Design format preset state
+  const [savedDesignPresets, setSavedDesignPresets] = useState<DesignFormatPreset[]>([]);
+  const [selectedDesignPreset, setSelectedDesignPreset] = useState<string>("");
+  const [isDesignSaveDialogOpen, setIsDesignSaveDialogOpen] = useState(false);
+  const [newDesignPresetName, setNewDesignPresetName] = useState("");
+  const [isEditingDesignPreset, setIsEditingDesignPreset] = useState(false);
 
   // Load saved presets from localStorage on mount
   useEffect(() => {
@@ -96,6 +110,15 @@ export default function BarcodePrinting() {
         setSavedPresets(JSON.parse(stored));
       } catch (error) {
         console.error("Failed to load presets:", error);
+      }
+    }
+    
+    const storedDesignPresets = localStorage.getItem("barcode_design_presets");
+    if (storedDesignPresets) {
+      try {
+        setSavedDesignPresets(JSON.parse(storedDesignPresets));
+      } catch (error) {
+        console.error("Failed to load design presets:", error);
       }
     }
   }, []);
@@ -514,6 +537,93 @@ export default function BarcodePrinting() {
     
     setSheetType("custom");
     toast.success("Preset copied to custom. You can now edit and save it.");
+  };
+
+  // Design format preset management functions
+  const handleSaveDesignPreset = () => {
+    const trimmedName = newDesignPresetName.trim();
+    
+    if (!trimmedName) {
+      toast.error("Please enter a preset name");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Preset name must be less than 50 characters");
+      return;
+    }
+
+    const existingIndex = savedDesignPresets.findIndex(p => p.name === trimmedName);
+    
+    if (!isEditingDesignPreset && existingIndex !== -1) {
+      toast.error("A preset with this name already exists");
+      return;
+    }
+
+    const newPreset: DesignFormatPreset = {
+      name: trimmedName,
+      format: designFormat,
+      topOffset,
+      leftOffset,
+    };
+
+    let updatedPresets: DesignFormatPreset[];
+    if (isEditingDesignPreset && existingIndex !== -1) {
+      updatedPresets = [...savedDesignPresets];
+      updatedPresets[existingIndex] = newPreset;
+      toast.success(`Design preset "${trimmedName}" updated`);
+    } else {
+      updatedPresets = [...savedDesignPresets, newPreset];
+      toast.success(`Design preset "${trimmedName}" saved`);
+    }
+
+    setSavedDesignPresets(updatedPresets);
+    localStorage.setItem("barcode_design_presets", JSON.stringify(updatedPresets));
+    setSelectedDesignPreset(trimmedName);
+    setIsDesignSaveDialogOpen(false);
+    setIsEditingDesignPreset(false);
+    setNewDesignPresetName("");
+  };
+
+  const handleEditDesignPreset = () => {
+    if (!selectedDesignPreset) {
+      toast.error("Please select a design preset to edit");
+      return;
+    }
+
+    const preset = savedDesignPresets.find(p => p.name === selectedDesignPreset);
+    if (preset) {
+      setDesignFormat(preset.format);
+      setTopOffset(preset.topOffset);
+      setLeftOffset(preset.leftOffset);
+      setNewDesignPresetName(preset.name);
+      setIsEditingDesignPreset(true);
+      setIsDesignSaveDialogOpen(true);
+    }
+  };
+
+  const handleLoadDesignPreset = (presetName: string) => {
+    const preset = savedDesignPresets.find(p => p.name === presetName);
+    if (preset) {
+      setDesignFormat(preset.format);
+      setTopOffset(preset.topOffset);
+      setLeftOffset(preset.leftOffset);
+      setSelectedDesignPreset(presetName);
+      toast.success(`Loaded design preset "${presetName}"`);
+    }
+  };
+
+  const handleDeleteDesignPreset = () => {
+    if (!selectedDesignPreset) {
+      toast.error("Please select a design preset to delete");
+      return;
+    }
+
+    const updatedPresets = savedDesignPresets.filter(p => p.name !== selectedDesignPreset);
+    setSavedDesignPresets(updatedPresets);
+    localStorage.setItem("barcode_design_presets", JSON.stringify(updatedPresets));
+    setSelectedDesignPreset("");
+    toast.success(`Design preset "${selectedDesignPreset}" deleted`);
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -1029,17 +1139,115 @@ export default function BarcodePrinting() {
 
           <div className="space-y-2">
             <Label>Design Format</Label>
-            <Select value={designFormat} onValueChange={(v) => setDesignFormat(v as DesignFormat)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="BT1">BT1 Branded Tag (Full Details)</SelectItem>
-                <SelectItem value="BT2">BT2 Minimal (No MRP)</SelectItem>
-                <SelectItem value="BT3">BT3 Bold MRP</SelectItem>
-                <SelectItem value="BT4">BT4 Compact</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select 
+                value={selectedDesignPreset ? `preset_${selectedDesignPreset}` : designFormat} 
+                onValueChange={(v) => {
+                  if (v.startsWith("preset_")) {
+                    const presetName = v.replace("preset_", "");
+                    handleLoadDesignPreset(presetName);
+                  } else {
+                    setDesignFormat(v as DesignFormat);
+                    setSelectedDesignPreset("");
+                  }
+                }}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="BT1">BT1 Branded Tag (Full Details)</SelectItem>
+                  <SelectItem value="BT2">BT2 Minimal (No MRP)</SelectItem>
+                  <SelectItem value="BT3">BT3 Bold MRP</SelectItem>
+                  <SelectItem value="BT4">BT4 Compact</SelectItem>
+                  {savedDesignPresets.length > 0 && (
+                    <>
+                      <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50 cursor-default">
+                        — My Saved Formats —
+                      </SelectItem>
+                      {savedDesignPresets.map((preset) => (
+                        <SelectItem key={preset.name} value={`preset_${preset.name}`}>
+                          {preset.name} ({preset.format}, Top: {preset.topOffset}mm, Left: {preset.leftOffset}mm)
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              <Dialog open={isDesignSaveDialogOpen} onOpenChange={setIsDesignSaveDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    title="Save current design format"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{isEditingDesignPreset ? "Edit" : "Save"} Design Format Preset</DialogTitle>
+                    <DialogDescription>
+                      {isEditingDesignPreset 
+                        ? "Update your design preset with the current format and offsets." 
+                        : "Save your current design format and offsets as a preset for quick reuse later."}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="designPresetName">Preset Name</Label>
+                      <Input
+                        id="designPresetName"
+                        value={newDesignPresetName}
+                        onChange={(e) => setNewDesignPresetName(e.target.value.slice(0, 50))}
+                        placeholder="e.g., My Brand Style"
+                        maxLength={50}
+                      />
+                    </div>
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>Current settings:</p>
+                      <ul className="list-disc list-inside ml-2">
+                        <li>Format: {designFormat}</li>
+                        <li>Top Offset: {topOffset}mm</li>
+                        <li>Left Offset: {leftOffset}mm</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => {
+                      setIsDesignSaveDialogOpen(false);
+                      setIsEditingDesignPreset(false);
+                      setNewDesignPresetName("");
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSaveDesignPreset}>
+                      {isEditingDesignPreset ? "Update" : "Save"} Preset
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              {selectedDesignPreset && (
+                <>
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    onClick={handleEditDesignPreset}
+                    title="Edit this design preset"
+                  >
+                    <Save className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    onClick={handleDeleteDesignPreset}
+                    title="Delete this design preset"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
