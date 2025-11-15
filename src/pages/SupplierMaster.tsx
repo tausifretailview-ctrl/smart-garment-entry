@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,22 +50,30 @@ const SupplierMaster = () => {
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { currentOrganization } = useOrganization();
 
   const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: ["suppliers"],
+    queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as Supplier[];
     },
+    enabled: !!currentOrganization?.id,
   });
 
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from("suppliers").insert([data]);
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase.from("suppliers").insert([{
+        ...data,
+        organization_id: currentOrganization.id
+      }]);
       if (error) throw error;
     },
     onSuccess: () => {

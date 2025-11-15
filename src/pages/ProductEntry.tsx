@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ const ProductEntry = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
@@ -477,9 +479,10 @@ const ProductEntry = () => {
         return;
       } else {
         // Insert new product
+        if (!currentOrganization?.id) throw new Error("No organization selected");
         const { data, error: productError } = await supabase
           .from("products")
-          .insert([{ ...formData, image_url: imageUrl }])
+          .insert([{ ...formData, image_url: imageUrl, organization_id: currentOrganization.id }])
           .select()
           .single();
 

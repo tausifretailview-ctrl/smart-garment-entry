@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +61,7 @@ const PurchaseEntry = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -428,6 +430,7 @@ const PurchaseEntry = () => {
     setLoading(true);
     try {
       // Insert purchase bill
+      if (!currentOrganization?.id) throw new Error("No organization selected");
       const { data: billDataResult, error: billError } = await supabase
         .from("purchase_bills")
         .insert([
@@ -439,6 +442,7 @@ const PurchaseEntry = () => {
             gross_amount: grossAmount,
             gst_amount: gstAmount,
             net_amount: netAmount,
+            organization_id: currentOrganization.id,
           },
         ])
         .select()
