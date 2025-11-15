@@ -59,6 +59,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { saveSale, isSaving } = useSaveSale();
+  const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("Walk in Customer");
   const [searchInput, setSearchInput] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
@@ -66,6 +67,7 @@ export default function POSSales() {
   const [roundOff, setRoundOff] = useState(0);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
@@ -102,6 +104,19 @@ export default function POSSales() {
       
       if (productsError) throw productsError;
       return products;
+    },
+  });
+
+  // Fetch customers
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("customer_name");
+      if (error) throw error;
+      return data;
     },
   });
 
@@ -254,6 +269,7 @@ export default function POSSales() {
   // Handle payment
   const handlePayment = async (paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     const saleData = {
+      customerId: customerId || null,
       customerName,
       items,
       grossAmount: totals.mrp,
@@ -272,6 +288,7 @@ export default function POSSales() {
       
       // Clear cart on success
       setItems([]);
+      setCustomerId("");
       setCustomerName("Walk in Customer");
       setFlatDiscountPercent(0);
       setRoundOff(0);
@@ -719,30 +736,84 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
-          <div className="relative">
-            <Input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              className="h-12 text-lg pr-20"
-            />
-            {customerName !== "Walk in Customer" && (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="absolute right-10 top-1/2 -translate-y-1/2 h-9 w-9"
-                onClick={() => setCustomerName("Walk in Customer")}
-              >
-                <X className="h-5 w-5" />
-              </Button>
-            )}
-            <Button
-              size="icon"
-              variant="ghost"
-              className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9"
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
-          </div>
+          <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+            <PopoverTrigger asChild>
+              <div className="relative">
+                <Input
+                  value={customerName}
+                  onChange={(e) => {
+                    setCustomerName(e.target.value);
+                    setOpenCustomerSearch(true);
+                  }}
+                  className="h-12 text-lg pr-20"
+                  placeholder="Select or enter customer"
+                />
+                {customerName !== "Walk in Customer" && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="absolute right-10 top-1/2 -translate-y-1/2 h-9 w-9"
+                    onClick={() => {
+                      setCustomerName("Walk in Customer");
+                      setCustomerId("");
+                    }}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                )}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9"
+                  onClick={() => window.open('/customers', '_blank')}
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-[400px] p-0 z-50" align="start">
+              <Command>
+                <CommandInput 
+                  placeholder="Search customers..." 
+                  value={customerName}
+                  onValueChange={setCustomerName}
+                />
+                <CommandList>
+                  <CommandEmpty>No customers found.</CommandEmpty>
+                  <CommandGroup heading="Customers">
+                    {customers
+                      .filter(c => 
+                        c.customer_name.toLowerCase().includes(customerName.toLowerCase()) ||
+                        c.phone?.toLowerCase().includes(customerName.toLowerCase()) ||
+                        c.email?.toLowerCase().includes(customerName.toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          value={customer.customer_name}
+                          onSelect={() => {
+                            setCustomerId(customer.id);
+                            setCustomerName(customer.customer_name);
+                            setOpenCustomerSearch(false);
+                          }}
+                          className="cursor-pointer"
+                        >
+                          <Check className="mr-2 h-4 w-4 opacity-0" />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{customer.customer_name}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {customer.phone && `Phone: ${customer.phone}`}
+                              {customer.email && ` | Email: ${customer.email}`}
+                            </span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           
           <div className="flex gap-2">
             <Button

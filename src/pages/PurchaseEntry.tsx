@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,22 @@ const PurchaseEntry = () => {
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
 
   const [billData, setBillData] = useState({
+    supplier_id: "",
     supplier_name: "",
     supplier_invoice_no: "",
+  });
+
+  // Fetch suppliers
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("*")
+        .order("supplier_name");
+      if (error) throw error;
+      return data;
+    },
   });
 
   useEffect(() => {
@@ -399,7 +414,9 @@ const PurchaseEntry = () => {
         .from("purchase_bills")
         .insert([
           {
-            ...billData,
+            supplier_id: billData.supplier_id || null,
+            supplier_name: billData.supplier_name,
+            supplier_invoice_no: billData.supplier_invoice_no,
             bill_date: format(billDate, "yyyy-MM-dd"),
             gross_amount: grossAmount,
             gst_amount: gstAmount,
@@ -461,6 +478,7 @@ const PurchaseEntry = () => {
 
       // Reset form
       setBillData({
+        supplier_id: "",
         supplier_name: "",
         supplier_invoice_no: "",
       });
@@ -495,15 +513,39 @@ const PurchaseEntry = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="supplier_name">Supplier Name *</Label>
-                <Input
-                  id="supplier_name"
-                  value={billData.supplier_name}
-                  onChange={(e) =>
-                    setBillData({ ...billData, supplier_name: e.target.value })
-                  }
-                  placeholder="Enter supplier name"
-                />
+                <Label htmlFor="supplier_name">Supplier *</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={billData.supplier_id}
+                    onValueChange={(value) => {
+                      const supplier = suppliers.find(s => s.id === value);
+                      setBillData({ 
+                        ...billData, 
+                        supplier_id: value,
+                        supplier_name: supplier?.supplier_name || ""
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select supplier" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                          {supplier.supplier_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => navigate("/suppliers")}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-2">
