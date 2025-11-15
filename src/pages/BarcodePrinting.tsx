@@ -1023,6 +1023,7 @@ export default function BarcodePrinting() {
                   No saved presets yet. Configure dimensions above and click "Save Current" to create one.
                 </p>
               )}
+              </div>
             </div>
           )}
 
