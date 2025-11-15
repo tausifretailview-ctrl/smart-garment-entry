@@ -12,7 +12,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import {
   DndContext,
   closestCenter,
@@ -1190,6 +1192,95 @@ export default function BarcodePrinting() {
     }, 200);
   };
 
+  const handleExportPDF = async () => {
+    const hasLabels = labelItems.some((item) => item.qty > 0);
+    if (!hasLabels) {
+      toast.error("Please add at least one label with quantity > 0");
+      return;
+    }
+
+    // Validate custom dimensions if custom sheet type is selected
+    if (sheetType === "custom") {
+      if (customWidth <= 0 || customWidth > 300) {
+        toast.error("Width must be between 0 and 300mm");
+        return;
+      }
+      if (customHeight <= 0 || customHeight > 300) {
+        toast.error("Height must be between 0 and 300mm");
+        return;
+      }
+      if (customCols <= 0 || customCols > 20) {
+        toast.error("Columns must be between 1 and 20");
+        return;
+      }
+      if (customRows <= 0 || customRows > 50) {
+        toast.error("Rows must be between 1 and 50");
+        return;
+      }
+      if (customGap < 0 || customGap > 50) {
+        toast.error("Gap must be between 0 and 50mm");
+        return;
+      }
+    }
+
+    toast.info("Generating PDF...");
+
+    // Create a temporary container for rendering
+    const tempContainer = document.createElement("div");
+    tempContainer.id = "pdfExportArea";
+    tempContainer.style.position = "absolute";
+    tempContainer.style.left = "-9999px";
+    tempContainer.style.top = "0";
+    document.body.appendChild(tempContainer);
+
+    // Generate labels in the temporary container
+    generatePreview("pdfExportArea");
+
+    // Wait for barcodes to render
+    setTimeout(async () => {
+      try {
+        const element = document.getElementById("pdfExportArea");
+        if (!element) {
+          toast.error("Failed to generate PDF");
+          return;
+        }
+
+        // Capture the element as canvas
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          logging: false,
+        });
+
+        // Calculate PDF dimensions based on canvas
+        const imgWidth = 210; // A4 width in mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        // Create PDF
+        const pdf = new jsPDF({
+          orientation: imgHeight > imgWidth ? "portrait" : "landscape",
+          unit: "mm",
+          format: "a4",
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().split("T")[0];
+        pdf.save(`barcode-labels-${timestamp}.pdf`);
+
+        toast.success("PDF exported successfully");
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        toast.error("Failed to export PDF");
+      } finally {
+        // Clean up temporary container
+        document.body.removeChild(tempContainer);
+      }
+    }, 300);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <BackToDashboard />
@@ -1851,6 +1942,10 @@ export default function BarcodePrinting() {
         <Button onClick={handlePrint} variant="outline">
           Print
         </Button>
+        <Button onClick={handleExportPDF} variant="outline">
+          <Download className="h-4 w-4 mr-2" />
+          Export PDF
+        </Button>
       </div>
 
       {/* Preview Dialog */}
@@ -1874,6 +1969,13 @@ export default function BarcodePrinting() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsPreviewDialogOpen(false)}>
               Close
+            </Button>
+            <Button variant="outline" onClick={() => {
+              setIsPreviewDialogOpen(false);
+              setTimeout(handleExportPDF, 300);
+            }}>
+              <Download className="h-4 w-4 mr-2" />
+              Export PDF
             </Button>
             <Button onClick={() => {
               setIsPreviewDialogOpen(false);
