@@ -41,6 +41,8 @@ import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { OrganizationSelector } from "@/components/OrganizationSelector";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 const menuItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard, roles: ["admin", "manager", "user"] },
@@ -59,6 +61,7 @@ const menuItems = [
   { title: "Sales Report", url: "/sales-report", icon: BarChart3, roles: ["admin", "manager", "user"] },
   { title: "Audit Log", url: "/audit-log", icon: ScrollText, roles: ["admin", "manager"] },
   { title: "Profile", url: "/profile", icon: UserCircle, roles: ["admin", "manager", "user"] },
+  { title: "Organization", url: "/organization-management", icon: Store, roles: ["admin"] },
   { title: "Settings", url: "/settings", icon: Settings, roles: ["admin"] },
 ];
 
@@ -152,49 +155,66 @@ const MetricCard = ({
 );
 
 const DashboardContent = () => {
+  const { currentOrganization } = useOrganization();
+  
   // Fetch total stock quantity
   const { data: stockData } = useQuery({
-    queryKey: ["total-stock"],
+    queryKey: ["total-stock", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty");
+        .select("stock_qty, products!inner(organization_id)")
+        .eq("products.organization_id", currentOrganization.id);
       if (error) throw error;
       return data?.reduce((sum, item) => sum + (item.stock_qty || 0), 0) || 0;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch total products
   const { data: productsCount } = useQuery({
-    queryKey: ["products-count"],
+    queryKey: ["products-count", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
       const { count, error } = await supabase
         .from("products")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return count || 0;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch total purchase amount
   const { data: purchaseTotal } = useQuery({
-    queryKey: ["purchase-total"],
+    queryKey: ["purchase-total", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("net_amount");
+        .select("net_amount")
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch stock value
   const { data: stockValue } = useQuery({
-    queryKey: ["stock-value"],
+    queryKey: ["stock-value", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty, sale_price");
+        .select("stock_qty, sale_price, products!inner(organization_id)")
+        .eq("products.organization_id", currentOrganization.id);
       if (error) throw error;
       return (
         data?.reduce(
@@ -204,18 +224,23 @@ const DashboardContent = () => {
         ) || 0
       );
     },
+    enabled: !!currentOrganization,
   });
 
   // Fetch total purchase bills count
   const { data: billsCount } = useQuery({
-    queryKey: ["bills-count"],
+    queryKey: ["bills-count", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
       const { count, error } = await supabase
         .from("purchase_bills")
-        .select("*", { count: "exact", head: true });
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return count || 0;
     },
+    enabled: !!currentOrganization,
   });
 
   const formatCurrency = (value: number) => {
@@ -341,6 +366,15 @@ const DashboardContent = () => {
 };
 
 const Index = () => {
+  const { currentOrganization, loading } = useOrganization();
+  const navigate = useNavigate();
+
+  // Redirect to organization setup if user has no organization
+  if (!loading && !currentOrganization) {
+    navigate("/organization-setup");
+    return null;
+  }
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -350,6 +384,9 @@ const Index = () => {
             <SidebarTrigger>
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
+            <div className="ml-auto">
+              <OrganizationSelector />
+            </div>
           </div>
           <DashboardContent />
         </main>
