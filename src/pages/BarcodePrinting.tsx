@@ -858,7 +858,7 @@ export default function BarcodePrinting() {
             </div>
           </div>
 
-          {sheetType === "custom" && (
+          {sheetType === "custom" && !selectedPreset && (
             <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
