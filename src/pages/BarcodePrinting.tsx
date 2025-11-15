@@ -49,11 +49,29 @@ interface CustomPreset {
   gap: number;
 }
 
+interface LabelFieldConfig {
+  show: boolean;
+  fontSize: number;
+  bold: boolean;
+}
+
+interface LabelDesignConfig {
+  brand: LabelFieldConfig;
+  productName: LabelFieldConfig;
+  color: LabelFieldConfig;
+  style: LabelFieldConfig;
+  size: LabelFieldConfig;
+  price: LabelFieldConfig;
+  barcode: LabelFieldConfig;
+  barcodeText: LabelFieldConfig;
+}
+
 interface DesignFormatPreset {
   name: string;
   format: DesignFormat;
   topOffset: number;
   leftOffset: number;
+  labelConfig: LabelDesignConfig;
 }
 
 type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
@@ -101,6 +119,18 @@ export default function BarcodePrinting() {
   const [isDesignSaveDialogOpen, setIsDesignSaveDialogOpen] = useState(false);
   const [newDesignPresetName, setNewDesignPresetName] = useState("");
   const [isEditingDesignPreset, setIsEditingDesignPreset] = useState(false);
+  
+  // Label design customization state
+  const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
+    brand: { show: true, fontSize: 9, bold: true },
+    productName: { show: true, fontSize: 9, bold: true },
+    color: { show: false, fontSize: 8, bold: false },
+    style: { show: false, fontSize: 8, bold: false },
+    size: { show: true, fontSize: 9, bold: false },
+    price: { show: true, fontSize: 9, bold: true },
+    barcode: { show: true, fontSize: 9, bold: false },
+    barcodeText: { show: true, fontSize: 7, bold: false },
+  });
 
   // Load saved presets from localStorage on mount
   useEffect(() => {
@@ -565,6 +595,7 @@ export default function BarcodePrinting() {
       format: designFormat,
       topOffset,
       leftOffset,
+      labelConfig: { ...labelConfig },
     };
 
     let updatedPresets: DesignFormatPreset[];
@@ -608,6 +639,9 @@ export default function BarcodePrinting() {
       setDesignFormat(preset.format);
       setTopOffset(preset.topOffset);
       setLeftOffset(preset.leftOffset);
+      if (preset.labelConfig) {
+        setLabelConfig(preset.labelConfig);
+      }
       setSelectedDesignPreset(presetName);
       toast.success(`Loaded design preset "${presetName}"`);
     }
@@ -628,39 +662,47 @@ export default function BarcodePrinting() {
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
     const barcode = item.barcode || genEAN8();
+    const config = labelConfig;
 
-    switch (format) {
-      case "BT1":
-        return `
-          <div class="brand">SMART INVENTORY</div>
-          <div class="prod">${item.product_name} (${item.size})</div>
-          <div class="mrp">MRP: ₹${item.sale_price}</div>
-          <svg class="barcode" data-code="${barcode}"></svg>
-          <div class="meta">${barcode}</div>
-        `;
-      case "BT2":
-        return `
-          <div class="brand">SMART INVENTORY</div>
-          <div class="prod" style="font-size: 9.5px">${item.product_name} (${item.size})</div>
-          <svg class="barcode" data-code="${barcode}"></svg>
-          <div class="meta">${barcode}</div>
-        `;
-      case "BT3":
-        return `
-          <div class="brand">SMART INVENTORY</div>
-          <div class="mrp" style="font-size: 11px">MRP: ₹${item.sale_price}</div>
-          <svg class="barcode" data-code="${barcode}"></svg>
-          <div class="meta">${barcode}</div>
-        `;
-      case "BT4":
-        return `
-          <div class="brand" style="font-size: 8px">SMART INVENTORY</div>
-          <div class="prod" style="font-size: 7.5px">${item.product_name} (${item.size})</div>
-          <div class="mrp" style="font-size: 8px">MRP: ₹${item.sale_price}</div>
-          <svg class="barcode" data-code="${barcode}" style="height: 20px"></svg>
-          <div class="meta" style="font-size: 7px">${barcode}</div>
-        `;
+    // Helper to build style string
+    const getStyle = (field: LabelFieldConfig) => {
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};`;
+    };
+
+    // Build label HTML based on visible fields
+    let html = '';
+    
+    if (config.brand.show) {
+      html += `<div class="brand" style="${getStyle(config.brand)}">SMART INVENTORY</div>`;
     }
+    
+    if (config.productName.show) {
+      const prodText = item.product_name + 
+        (config.size.show ? ` (${item.size})` : '');
+      html += `<div class="prod" style="${getStyle(config.productName)}">${prodText}</div>`;
+    }
+    
+    if (config.color.show) {
+      html += `<div class="color" style="${getStyle(config.color)}">Color: ${item.color}</div>`;
+    }
+    
+    if (config.style.show) {
+      html += `<div class="style" style="${getStyle(config.style)}">Style: ${item.style}</div>`;
+    }
+    
+    if (config.price.show) {
+      html += `<div class="mrp" style="${getStyle(config.price)}">MRP: ₹${item.sale_price}</div>`;
+    }
+    
+    if (config.barcode.show) {
+      html += `<svg class="barcode" data-code="${barcode}"></svg>`;
+    }
+    
+    if (config.barcodeText.show) {
+      html += `<div class="meta" style="${getStyle(config.barcodeText)}">${barcode}</div>`;
+    }
+
+    return html;
   };
 
   const handlePreview = () => {
@@ -1247,6 +1289,84 @@ export default function BarcodePrinting() {
                   </Button>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Label Design Customization */}
+          <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
+            <h3 className="font-semibold">Customize Label Fields</h3>
+            <p className="text-sm text-muted-foreground">Control which fields appear on your labels and their styling</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(Object.keys(labelConfig) as Array<keyof LabelDesignConfig>).map((fieldKey) => {
+                const fieldLabels: Record<keyof LabelDesignConfig, string> = {
+                  brand: 'Brand Name',
+                  productName: 'Product Name',
+                  color: 'Color',
+                  style: 'Style',
+                  size: 'Size',
+                  price: 'Price (MRP)',
+                  barcode: 'Barcode Image',
+                  barcodeText: 'Barcode Number'
+                };
+                
+                return (
+                  <div key={fieldKey} className="flex items-center gap-4 p-3 border rounded bg-background">
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="checkbox"
+                        id={`show-${fieldKey}`}
+                        checked={labelConfig[fieldKey].show}
+                        onChange={(e) => {
+                          setLabelConfig(prev => ({
+                            ...prev,
+                            [fieldKey]: { ...prev[fieldKey], show: e.target.checked }
+                          }));
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor={`show-${fieldKey}`} className="cursor-pointer font-medium">
+                        {fieldLabels[fieldKey]}
+                      </Label>
+                    </div>
+                    
+                    {labelConfig[fieldKey].show && fieldKey !== 'barcode' && (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="6"
+                          max="20"
+                          value={labelConfig[fieldKey].fontSize}
+                          onChange={(e) => {
+                            setLabelConfig(prev => ({
+                              ...prev,
+                              [fieldKey]: { ...prev[fieldKey], fontSize: parseInt(e.target.value) || 9 }
+                            }));
+                          }}
+                          className="w-16 h-8 text-xs"
+                          title="Font size"
+                        />
+                        <span className="text-xs text-muted-foreground">px</span>
+                        
+                        <Button
+                          size="sm"
+                          variant={labelConfig[fieldKey].bold ? "default" : "outline"}
+                          onClick={() => {
+                            setLabelConfig(prev => ({
+                              ...prev,
+                              [fieldKey]: { ...prev[fieldKey], bold: !prev[fieldKey].bold }
+                            }));
+                          }}
+                          className="h-8 px-2 text-xs font-bold"
+                          title="Toggle bold"
+                        >
+                          B
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
