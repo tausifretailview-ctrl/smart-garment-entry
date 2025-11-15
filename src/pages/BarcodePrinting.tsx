@@ -86,6 +86,7 @@ export default function BarcodePrinting() {
   const [selectedPreset, setSelectedPreset] = useState<string>("");
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState("");
+  const [isEditingPreset, setIsEditingPreset] = useState(false);
 
   // Load saved presets from localStorage on mount
   useEffect(() => {
@@ -397,7 +398,14 @@ export default function BarcodePrinting() {
       return;
     }
 
-    if (savedPresets.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+    // Check for duplicate names only if not editing or name changed
+    if (!isEditingPreset && savedPresets.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A preset with this name already exists");
+      return;
+    }
+
+    if (isEditingPreset && trimmedName !== selectedPreset && 
+        savedPresets.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
       toast.error("A preset with this name already exists");
       return;
     }
@@ -411,13 +419,45 @@ export default function BarcodePrinting() {
       gap: customGap,
     };
 
-    const updatedPresets = [...savedPresets, newPreset];
+    let updatedPresets;
+    if (isEditingPreset) {
+      // Update existing preset
+      updatedPresets = savedPresets.map(p => 
+        p.name === selectedPreset ? newPreset : p
+      );
+      toast.success(`Preset "${trimmedName}" updated successfully`);
+    } else {
+      // Add new preset
+      updatedPresets = [...savedPresets, newPreset];
+      toast.success(`Preset "${trimmedName}" saved successfully`);
+    }
+
     setSavedPresets(updatedPresets);
     localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
     
     setNewPresetName("");
     setIsSaveDialogOpen(false);
-    toast.success(`Preset "${trimmedName}" saved successfully`);
+    setIsEditingPreset(false);
+    setSelectedPreset(trimmedName);
+  };
+
+  const handleEditPreset = () => {
+    if (!selectedPreset) {
+      toast.error("Please select a preset to edit");
+      return;
+    }
+
+    const preset = savedPresets.find(p => p.name === selectedPreset);
+    if (preset) {
+      setCustomWidth(preset.width);
+      setCustomHeight(preset.height);
+      setCustomCols(preset.cols);
+      setCustomRows(preset.rows);
+      setCustomGap(preset.gap);
+      setNewPresetName(preset.name);
+      setIsEditingPreset(true);
+      setIsSaveDialogOpen(true);
+    }
   };
 
   const handleLoadPreset = (presetName: string) => {
@@ -444,6 +484,36 @@ export default function BarcodePrinting() {
     localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
     setSelectedPreset("");
     toast.success(`Preset "${selectedPreset}" deleted`);
+  };
+
+  const handleCopyPresetToCustom = () => {
+    if (sheetType === "custom") {
+      toast.info("Already in custom mode");
+      return;
+    }
+
+    const preset = sheetPresets[sheetType];
+    // Extract numeric values from preset
+    const width = parseFloat(preset.width);
+    const height = parseFloat(preset.height);
+    const gap = parseFloat(preset.gap);
+    
+    setCustomWidth(width);
+    setCustomHeight(height);
+    setCustomCols(preset.cols);
+    setCustomGap(gap);
+    
+    // Calculate rows based on preset type
+    const rowsMap: Record<string, number> = {
+      novajet48: 6,
+      novajet40: 5,
+      novajet65: 13,
+      a4_12x4: 12,
+    };
+    setCustomRows(rowsMap[sheetType] || 12);
+    
+    setSheetType("custom");
+    toast.success("Preset copied to custom. You can now edit and save it.");
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -738,18 +808,30 @@ export default function BarcodePrinting() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Sheet Type</Label>
-            <Select value={sheetType} onValueChange={(v) => setSheetType(v as SheetType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
-                <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
-                <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
-                <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
-                <SelectItem value="custom">Custom Dimensions</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <Select value={sheetType} onValueChange={(v) => setSheetType(v as SheetType)}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
+                  <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
+                  <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
+                  <SelectItem value="custom">Custom Dimensions</SelectItem>
+                </SelectContent>
+              </Select>
+              {sheetType !== "custom" && (
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={handleCopyPresetToCustom}
+                  title="Edit & Save As - Copy this preset to custom for editing"
+                >
+                  <Save className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
           {sheetType === "custom" && (
@@ -834,70 +916,90 @@ export default function BarcodePrinting() {
                         Save Current
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Save Custom Preset</DialogTitle>
-                        <DialogDescription>
-                          Save your current dimensions as a preset for quick reuse later.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="presetName">Preset Name</Label>
-                          <Input
-                            id="presetName"
-                            value={newPresetName}
-                            onChange={(e) => setNewPresetName(e.target.value.slice(0, 50))}
-                            placeholder="e.g., My Custom 40mm Labels"
-                            maxLength={50}
-                          />
-                        </div>
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          <p>Current dimensions:</p>
-                          <ul className="list-disc list-inside ml-2">
-                            <li>Width: {customWidth}mm</li>
-                            <li>Height: {customHeight}mm</li>
-                            <li>Columns: {customCols}</li>
-                            <li>Rows: {customRows}</li>
-                            <li>Gap: {customGap}mm</li>
-                            <li>Total labels per sheet: {customCols * customRows}</li>
-                          </ul>
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsSaveDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleSavePreset}>Save Preset</Button>
-                      </DialogFooter>
-                    </DialogContent>
+                     <DialogContent>
+                       <DialogHeader>
+                         <DialogTitle>{isEditingPreset ? "Edit" : "Save"} Custom Preset</DialogTitle>
+                         <DialogDescription>
+                           {isEditingPreset 
+                             ? "Update your preset with the current dimensions." 
+                             : "Save your current dimensions as a preset for quick reuse later."}
+                         </DialogDescription>
+                       </DialogHeader>
+                       <div className="space-y-4 py-4">
+                         <div className="space-y-2">
+                           <Label htmlFor="presetName">Preset Name</Label>
+                           <Input
+                             id="presetName"
+                             value={newPresetName}
+                             onChange={(e) => setNewPresetName(e.target.value.slice(0, 50))}
+                             placeholder="e.g., My Custom 40mm Labels"
+                             maxLength={50}
+                           />
+                         </div>
+                         <div className="text-sm text-muted-foreground space-y-1">
+                           <p>Current dimensions:</p>
+                           <ul className="list-disc list-inside ml-2">
+                             <li>Width: {customWidth}mm</li>
+                             <li>Height: {customHeight}mm</li>
+                             <li>Columns: {customCols}</li>
+                             <li>Rows: {customRows}</li>
+                             <li>Gap: {customGap}mm</li>
+                             <li>Total labels per sheet: {customCols * customRows}</li>
+                           </ul>
+                         </div>
+                       </div>
+                       <DialogFooter>
+                         <Button variant="outline" onClick={() => {
+                           setIsSaveDialogOpen(false);
+                           setIsEditingPreset(false);
+                           setNewPresetName("");
+                         }}>
+                           Cancel
+                         </Button>
+                         <Button onClick={handleSavePreset}>
+                           {isEditingPreset ? "Update" : "Save"} Preset
+                         </Button>
+                       </DialogFooter>
+                     </DialogContent>
                   </Dialog>
                 </div>
                 
                 {savedPresets.length > 0 ? (
-                  <div className="flex gap-2">
-                    <Select value={selectedPreset} onValueChange={handleLoadPreset}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Load a saved preset..." />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
-                        {savedPresets.map((preset) => (
-                          <SelectItem key={preset.name} value={preset.name}>
-                            {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedPreset && (
-                      <Button 
-                        size="icon" 
-                        variant="destructive" 
-                        onClick={handleDeletePreset}
-                        title="Delete selected preset"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Select value={selectedPreset} onValueChange={handleLoadPreset}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Load a saved preset..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background z-50">
+                          {savedPresets.map((preset) => (
+                            <SelectItem key={preset.name} value={preset.name}>
+                              {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedPreset && (
+                        <>
+                          <Button 
+                            size="icon" 
+                            variant="outline" 
+                            onClick={handleEditPreset}
+                            title="Edit selected preset"
+                          >
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            size="icon" 
+                            variant="destructive" 
+                            onClick={handleDeletePreset}
+                            title="Delete selected preset"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
