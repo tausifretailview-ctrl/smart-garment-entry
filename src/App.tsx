@@ -23,6 +23,7 @@ import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
 import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
 import SalesReportByCustomer from "./pages/SalesReportByCustomer";
+import AuditLog from "./pages/AuditLog";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -177,6 +178,16 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <SalesReportByCustomer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/audit-log"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <AuditLog />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
