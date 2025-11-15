@@ -267,6 +267,7 @@ export default function BarcodePrinting() {
   const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
   const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
+  const [showCustomizeFields, setShowCustomizeFields] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -898,6 +899,7 @@ export default function BarcodePrinting() {
       setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
       setIsEditingLabelTemplate(true);
+      setShowCustomizeFields(true);
       setIsLabelTemplateSaveDialogOpen(true);
     }
   };
@@ -1591,12 +1593,12 @@ export default function BarcodePrinting() {
             </div>
           </div>
 
-          {/* Label Design Customization */}
+          {/* Label Template Selection */}
           <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold">Customize Label Fields</h3>
-                <p className="text-sm text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+                <h3 className="font-semibold">Label Templates</h3>
+                <p className="text-sm text-muted-foreground">Load saved templates or customize field configurations</p>
               </div>
               
               <div className="flex gap-2 items-center">
@@ -1630,6 +1632,14 @@ export default function BarcodePrinting() {
                   </SelectContent>
                 </Select>
 
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => setShowCustomizeFields(!showCustomizeFields)}
+                >
+                  {showCustomizeFields ? "Hide" : "Edit"} Fields
+                </Button>
+
                 <Dialog open={isLabelTemplateSaveDialogOpen} onOpenChange={setIsLabelTemplateSaveDialogOpen}>
                   <DialogTrigger asChild>
                     <Button 
@@ -1638,6 +1648,7 @@ export default function BarcodePrinting() {
                       onClick={() => {
                         setNewLabelTemplateName("");
                         setIsEditingLabelTemplate(false);
+                        setShowCustomizeFields(true);
                       }}
                     >
                       <Save className="h-4 w-4 mr-1" />
@@ -1700,27 +1711,35 @@ export default function BarcodePrinting() {
               </div>
             </div>
             
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={labelConfig.fieldOrder}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {labelConfig.fieldOrder.map((fieldKey) => (
-                    <SortableFieldItem
-                      key={fieldKey}
-                      fieldKey={fieldKey}
-                      labelConfig={labelConfig}
-                      setLabelConfig={setLabelConfig}
-                    />
-                  ))}
+            {showCustomizeFields && (
+              <div className="pt-4 border-t">
+                <div className="mb-3">
+                  <h4 className="font-medium text-sm mb-1">Customize Label Fields</h4>
+                  <p className="text-xs text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
                 </div>
-              </SortableContext>
-            </DndContext>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={labelConfig.fieldOrder}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {labelConfig.fieldOrder.map((fieldKey) => (
+                        <SortableFieldItem
+                          key={fieldKey}
+                          fieldKey={fieldKey}
+                          labelConfig={labelConfig}
+                          setLabelConfig={setLabelConfig}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
