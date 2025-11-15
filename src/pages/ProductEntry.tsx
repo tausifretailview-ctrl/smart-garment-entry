@@ -53,7 +53,6 @@ const ProductEntry = () => {
   const [showVariants, setShowVariants] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
-  const [nextBarcodeNumber, setNextBarcodeNumber] = useState(10001001);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState<ProductForm>({
@@ -72,7 +71,6 @@ const ProductEntry = () => {
 
   useEffect(() => {
     fetchSizeGroups();
-    fetchLastBarcode();
     
     // Check if we're editing an existing product
     const searchParams = new URLSearchParams(location.search);
@@ -168,21 +166,6 @@ const ProductEntry = () => {
     }
   };
 
-  const fetchLastBarcode = async () => {
-    const { data, error } = await supabase
-      .from("product_variants")
-      .select("barcode")
-      .not("barcode", "is", null)
-      .order("barcode", { ascending: false })
-      .limit(1);
-
-    if (data && data.length > 0 && data[0].barcode) {
-      const lastBarcode = parseInt(data[0].barcode);
-      if (!isNaN(lastBarcode) && lastBarcode >= 10001001) {
-        setNextBarcodeNumber(lastBarcode + 1);
-      }
-    }
-  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -266,13 +249,10 @@ const ProductEntry = () => {
       console.error("Error generating barcode:", error);
       toast({
         title: "Error",
-        description: "Failed to generate barcode",
+        description: "Failed to generate barcode from database. Please try again.",
         variant: "destructive",
       });
-      // Fallback to local generation
-      const barcode = nextBarcodeNumber.toString();
-      setNextBarcodeNumber(nextBarcodeNumber + 1);
-      return barcode;
+      throw error; // Don't fallback - ensure centralized generation only
     }
   };
 
@@ -603,7 +583,6 @@ const ProductEntry = () => {
         setShowVariants(false);
         setImageFile(null);
         setImagePreview("");
-        await fetchLastBarcode(); // Refresh the barcode counter
       }
     } catch (error: any) {
       toast({
