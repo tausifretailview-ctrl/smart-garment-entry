@@ -92,6 +92,11 @@ interface DesignFormatPreset {
   labelConfig: LabelDesignConfig;
 }
 
+interface LabelTemplate {
+  name: string;
+  config: LabelDesignConfig;
+}
+
 type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
@@ -256,6 +261,13 @@ export default function BarcodePrinting() {
     fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText'],
   });
 
+  // Label template state
+  const [savedLabelTemplates, setSavedLabelTemplates] = useState<LabelTemplate[]>([]);
+  const [selectedLabelTemplate, setSelectedLabelTemplate] = useState<string>("");
+  const [isLabelTemplateSaveDialogOpen, setIsLabelTemplateSaveDialogOpen] = useState(false);
+  const [newLabelTemplateName, setNewLabelTemplateName] = useState("");
+  const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -281,6 +293,15 @@ export default function BarcodePrinting() {
         setSavedDesignPresets(JSON.parse(storedDesignPresets));
       } catch (error) {
         console.error("Failed to load design presets:", error);
+      }
+    }
+
+    const storedLabelTemplates = localStorage.getItem("barcode_label_templates");
+    if (storedLabelTemplates) {
+      try {
+        setSavedLabelTemplates(JSON.parse(storedLabelTemplates));
+      } catch (error) {
+        console.error("Failed to load label templates:", error);
       }
     }
   }, []);
@@ -790,6 +811,93 @@ export default function BarcodePrinting() {
     localStorage.setItem("barcode_design_presets", JSON.stringify(updatedPresets));
     setSelectedDesignPreset("");
     toast.success(`Design preset "${selectedDesignPreset}" deleted`);
+  };
+
+  // Label template management functions
+  const handleSaveLabelTemplate = () => {
+    const trimmedName = newLabelTemplateName.trim();
+    
+    if (!trimmedName) {
+      toast.error("Please enter a template name");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Template name must be less than 50 characters");
+      return;
+    }
+
+    if (!isEditingLabelTemplate && savedLabelTemplates.some(t => t.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A template with this name already exists");
+      return;
+    }
+
+    if (isEditingLabelTemplate && trimmedName !== selectedLabelTemplate && 
+        savedLabelTemplates.some(t => t.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast.error("A template with this name already exists");
+      return;
+    }
+
+    const newTemplate: LabelTemplate = {
+      name: trimmedName,
+      config: { ...labelConfig }
+    };
+
+    let updatedTemplates;
+    if (isEditingLabelTemplate) {
+      updatedTemplates = savedLabelTemplates.map(t => 
+        t.name === selectedLabelTemplate ? newTemplate : t
+      );
+      toast.success(`Template "${trimmedName}" updated successfully`);
+    } else {
+      updatedTemplates = [...savedLabelTemplates, newTemplate];
+      toast.success(`Template "${trimmedName}" saved successfully`);
+    }
+
+    setSavedLabelTemplates(updatedTemplates);
+    localStorage.setItem("barcode_label_templates", JSON.stringify(updatedTemplates));
+    
+    setNewLabelTemplateName("");
+    setIsLabelTemplateSaveDialogOpen(false);
+    setIsEditingLabelTemplate(false);
+    setSelectedLabelTemplate(trimmedName);
+  };
+
+  const handleEditLabelTemplate = () => {
+    if (!selectedLabelTemplate) {
+      toast.error("Please select a template to edit");
+      return;
+    }
+
+    const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
+    if (template) {
+      setLabelConfig(template.config);
+      setNewLabelTemplateName(template.name);
+      setIsEditingLabelTemplate(true);
+      setIsLabelTemplateSaveDialogOpen(true);
+    }
+  };
+
+  const handleLoadLabelTemplate = (templateName: string) => {
+    const template = savedLabelTemplates.find(t => t.name === templateName);
+    if (template) {
+      setLabelConfig(template.config);
+      setSelectedLabelTemplate(templateName);
+      toast.success(`Loaded template "${templateName}"`);
+    }
+  };
+
+  const handleDeleteLabelTemplate = () => {
+    if (!selectedLabelTemplate) {
+      toast.error("Please select a template to delete");
+      return;
+    }
+
+    const updatedTemplates = savedLabelTemplates.filter(t => t.name !== selectedLabelTemplate);
+    setSavedLabelTemplates(updatedTemplates);
+    localStorage.setItem("barcode_label_templates", JSON.stringify(updatedTemplates));
+    setSelectedLabelTemplate("");
+    toast.success(`Template "${selectedLabelTemplate}" deleted`);
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -1449,8 +1557,112 @@ export default function BarcodePrinting() {
 
           {/* Label Design Customization */}
           <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
-            <h3 className="font-semibold">Customize Label Fields</h3>
-            <p className="text-sm text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-semibold">Customize Label Fields</h3>
+                <p className="text-sm text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <Select 
+                  value={selectedLabelTemplate || "none"} 
+                  onValueChange={(v) => {
+                    if (v === "none") {
+                      setSelectedLabelTemplate("");
+                    } else {
+                      handleLoadLabelTemplate(v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select template..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="none">No Template</SelectItem>
+                    {savedLabelTemplates.length > 0 && (
+                      <>
+                        <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50">
+                          — Saved Templates —
+                        </SelectItem>
+                        {savedLabelTemplates.map((template) => (
+                          <SelectItem key={template.name} value={template.name}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Dialog open={isLabelTemplateSaveDialogOpen} onOpenChange={setIsLabelTemplateSaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setNewLabelTemplateName("");
+                        setIsEditingLabelTemplate(false);
+                      }}
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      Save Template
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{isEditingLabelTemplate ? "Update" : "Save"} Label Template</DialogTitle>
+                      <DialogDescription>
+                        {isEditingLabelTemplate ? "Update the current label template" : "Save your current field configuration as a template"}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Template Name</Label>
+                        <Input
+                          placeholder="e.g., Minimal, Detailed, Price Focus"
+                          value={newLabelTemplateName}
+                          onChange={(e) => setNewLabelTemplateName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSaveLabelTemplate()}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => {
+                        setIsLabelTemplateSaveDialogOpen(false);
+                        setIsEditingLabelTemplate(false);
+                        setNewLabelTemplateName("");
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveLabelTemplate}>
+                        {isEditingLabelTemplate ? "Update" : "Save"} Template
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {selectedLabelTemplate && (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleEditLabelTemplate}
+                      title="Edit this template"
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleDeleteLabelTemplate}
+                      title="Delete this template"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
             
             <DndContext
               sensors={sensors}
