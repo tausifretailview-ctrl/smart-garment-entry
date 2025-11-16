@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -871,6 +872,7 @@ const PurchaseEntry = () => {
                     <TableRow>
                       <TableHead className="w-16">SR.NO</TableHead>
                       <TableHead>ITEM NAME</TableHead>
+                      <TableHead className="w-32">BARCODE</TableHead>
                       <TableHead className="w-20">QTY</TableHead>
                       <TableHead className="w-28">PUR.RATE</TableHead>
                       <TableHead className="w-28">SALE.RATE</TableHead>
@@ -893,6 +895,11 @@ const PurchaseEntry = () => {
                           <TableCell className="text-center font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
                             {item.product_name} - {item.size}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {item.barcode || "—"}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Input
