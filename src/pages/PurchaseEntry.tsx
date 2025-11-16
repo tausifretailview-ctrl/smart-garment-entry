@@ -79,6 +79,8 @@ const PurchaseEntry = () => {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
+  const [editingBillId, setEditingBillId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -102,19 +104,97 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Generate software bill number on mount
+  // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
-    const generateBillNo = async () => {
-      try {
-        const { data, error } = await supabase.rpc("generate_purchase_bill_number");
-        if (error) throw error;
-        setSoftwareBillNo(data);
-      } catch (error) {
-        console.error("Error generating bill number:", error);
+    const loadOrGenerateBill = async () => {
+      const billId = location.state?.editBillId;
+      
+      if (billId) {
+        // Edit mode - load existing bill
+        setIsEditMode(true);
+        setEditingBillId(billId);
+        setLoading(true);
+        
+        try {
+          // Load bill header
+          const { data: existingBill, error: billError } = await supabase
+            .from("purchase_bills")
+            .select("*")
+            .eq("id", billId)
+            .single();
+          
+          if (billError) throw billError;
+          
+          setBillData({
+            supplier_id: existingBill.supplier_id || "",
+            supplier_name: existingBill.supplier_name,
+            supplier_invoice_no: existingBill.supplier_invoice_no || "",
+          });
+          setSoftwareBillNo(existingBill.software_bill_no || "");
+          setBillDate(new Date(existingBill.bill_date));
+          
+          // Load bill items
+          const { data: itemsData, error: itemsError } = await supabase
+            .from("purchase_items")
+            .select(`
+              *,
+              products (
+                product_name,
+                brand,
+                color
+              )
+            `)
+            .eq("bill_id", billId);
+          
+          if (itemsError) throw itemsError;
+          
+          const loadedItems: LineItem[] = itemsData.map((item: any) => ({
+            temp_id: item.id,
+            product_id: item.product_id,
+            sku_id: item.sku_id || "",
+            product_name: item.products?.product_name || "",
+            size: item.size,
+            qty: item.qty,
+            pur_price: Number(item.pur_price),
+            sale_price: Number(item.sale_price),
+            gst_per: item.gst_per,
+            hsn_code: item.hsn_code || "",
+            barcode: item.barcode || "",
+            discount: 0,
+            line_total: Number(item.line_total),
+          }));
+          
+          setLineItems(loadedItems);
+          
+          toast({
+            title: "Bill Loaded",
+            description: "Purchase bill loaded for editing",
+          });
+        } catch (error: any) {
+          console.error("Error loading bill:", error);
+          toast({
+            title: "Error",
+            description: "Failed to load purchase bill",
+            variant: "destructive",
+          });
+          navigate("/purchase-bills");
+        } finally {
+          setLoading(false);
+        }
+      } else {
+        // New bill mode - generate new bill number
+        try {
+          const { data, error } = await supabase.rpc("generate_purchase_bill_number");
+          if (error) throw error;
+          setSoftwareBillNo(data);
+        } catch (error) {
+          console.error("Error generating bill number:", error);
+        }
       }
     };
-    generateBillNo();
-  }, []);
+    
+    loadOrGenerateBill();
+  }, [location.state?.editBillId, toast, navigate]);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -465,13 +545,11 @@ const PurchaseEntry = () => {
 
     setLoading(true);
     try {
-      // Insert purchase bill
-      if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { data: billDataResult, error: billError } = await supabase
-        .from("purchase_bills")
-        .insert([
-          {
-            software_bill_no: softwareBillNo,
+      if (isEditMode && editingBillId) {
+        // Update existing bill
+        const { error: billError } = await supabase
+          .from("purchase_bills")
+          .update({
             supplier_id: billData.supplier_id || null,
             supplier_name: billData.supplier_name,
             supplier_invoice_no: billData.supplier_invoice_no,
@@ -479,74 +557,130 @@ const PurchaseEntry = () => {
             gross_amount: grossAmount,
             gst_amount: gstAmount,
             net_amount: netAmount,
-            organization_id: currentOrganization.id,
-          },
-        ])
-        .select()
-        .single();
+          })
+          .eq("id", editingBillId);
 
-      if (billError) throw billError;
+        if (billError) throw billError;
 
-      // Insert purchase items with sku_id for stock tracking
-      const itemsToInsert = lineItems.map((item) => ({
-        bill_id: billDataResult.id,
-        product_id: item.product_id,
-        sku_id: item.sku_id,
-        size: item.size,
-        qty: item.qty,
-        pur_price: item.pur_price,
-        sale_price: item.sale_price,
-        gst_per: item.gst_per,
-        hsn_code: item.hsn_code,
-        barcode: item.barcode,
-        line_total: item.line_total,
-      }));
+        // Delete old items
+        const { error: deleteError } = await supabase
+          .from("purchase_items")
+          .delete()
+          .eq("bill_id", editingBillId);
 
-      const { error: itemsError } = await supabase
-        .from("purchase_items")
-        .insert(itemsToInsert);
+        if (deleteError) throw deleteError;
 
-      if (itemsError) throw itemsError;
+        // Insert updated items
+        const itemsToInsert = lineItems.map((item) => ({
+          bill_id: editingBillId,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          size: item.size,
+          qty: item.qty,
+          pur_price: item.pur_price,
+          sale_price: item.sale_price,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code || null,
+          barcode: item.barcode || null,
+          line_total: item.line_total,
+        }));
 
-      toast({
-        title: "Success",
-        description: `Purchase bill saved successfully`,
-      });
+        const { error: itemsError } = await supabase
+          .from("purchase_items")
+          .insert(itemsToInsert);
 
-      // Fetch full product details for barcode printing
-      const itemsWithDetails = await Promise.all(
-        lineItems.map(async (item) => {
-          const { data: product } = await supabase
-            .from("products")
-            .select("brand, color, style")
-            .eq("id", item.product_id)
-            .single();
-          
-          return {
-            ...item,
-            brand: product?.brand || "",
-            color: product?.color || "",
-            style: product?.style || "",
-          };
-        })
-      );
+        if (itemsError) throw itemsError;
 
-      // Store items for barcode printing and show dialog
-      setSavedPurchaseItems(itemsWithDetails);
-      setShowPrintDialog(true);
+        toast({
+          title: "Success",
+          description: "Purchase bill updated successfully",
+        });
 
-      // Reset form and generate new bill number
-      setBillData({
-        supplier_id: "",
-        supplier_name: "",
-        supplier_invoice_no: "",
-      });
-      setBillDate(new Date());
-      setLineItems([]);
-      
-      // Generate new bill number for next entry
-      const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number");
-      if (newBillNo) setSoftwareBillNo(newBillNo);
+        navigate("/purchase-bills");
+      } else {
+        // Insert new purchase bill
+        if (!currentOrganization?.id) throw new Error("No organization selected");
+        const { data: billDataResult, error: billError } = await supabase
+          .from("purchase_bills")
+          .insert([
+            {
+              software_bill_no: softwareBillNo,
+              supplier_id: billData.supplier_id || null,
+              supplier_name: billData.supplier_name,
+              supplier_invoice_no: billData.supplier_invoice_no,
+              bill_date: format(billDate, "yyyy-MM-dd"),
+              gross_amount: grossAmount,
+              gst_amount: gstAmount,
+              net_amount: netAmount,
+              organization_id: currentOrganization.id,
+            },
+          ])
+          .select()
+          .single();
+
+        if (billError) throw billError;
+
+        // Insert purchase items with sku_id for stock tracking
+        const itemsToInsert = lineItems.map((item) => ({
+          bill_id: billDataResult.id,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          size: item.size,
+          qty: item.qty,
+          pur_price: item.pur_price,
+          sale_price: item.sale_price,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code,
+          barcode: item.barcode,
+          line_total: item.line_total,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("purchase_items")
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        toast({
+          title: "Success",
+          description: `Purchase bill saved successfully`,
+        });
+
+        // Fetch full product details for barcode printing
+        const itemsWithDetails = await Promise.all(
+          lineItems.map(async (item) => {
+            const { data: product } = await supabase
+              .from("products")
+              .select("brand, color, style")
+              .eq("id", item.product_id)
+              .single();
+            
+            return {
+              ...item,
+              brand: product?.brand || "",
+              color: product?.color || "",
+              style: product?.style || "",
+            };
+          })
+        );
+
+        // Store items for barcode printing and show dialog
+        setSavedPurchaseItems(itemsWithDetails);
+        setShowPrintDialog(true);
+
+        // Reset form and generate new bill number
+        setBillData({
+          supplier_id: "",
+          supplier_name: "",
+          supplier_invoice_no: "",
+        });
+        setBillDate(new Date());
+        setLineItems([]);
+        
+        // Generate new bill number for next entry
+        const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number");
+        if (newBillNo) setSoftwareBillNo(newBillNo);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -566,7 +700,9 @@ const PurchaseEntry = () => {
         <BackToDashboard />
         <div className="mb-6 flex items-center gap-3">
           <ShoppingCart className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Purchase Entry</h1>
+          <h1 className="text-3xl font-bold text-foreground">
+            {isEditMode ? "Edit Purchase Bill" : "Purchase Entry"}
+          </h1>
         </div>
 
         <Card className="shadow-lg border-border mb-6">
