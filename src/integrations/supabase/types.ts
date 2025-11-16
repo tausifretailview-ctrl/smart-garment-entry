@@ -77,6 +77,78 @@ export type Database = {
         }
         Relationships: []
       }
+      batch_stock: {
+        Row: {
+          bill_number: string
+          created_at: string | null
+          id: string
+          purchase_bill_id: string | null
+          purchase_date: string
+          quantity: number
+          updated_at: string | null
+          variant_id: string
+        }
+        Insert: {
+          bill_number: string
+          created_at?: string | null
+          id?: string
+          purchase_bill_id?: string | null
+          purchase_date: string
+          quantity?: number
+          updated_at?: string | null
+          variant_id: string
+        }
+        Update: {
+          bill_number?: string
+          created_at?: string | null
+          id?: string
+          purchase_bill_id?: string | null
+          purchase_date?: string
+          quantity?: number
+          updated_at?: string | null
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_stock_purchase_bill_id_fkey"
+            columns: ["purchase_bill_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "batch_stock_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_number_sequence: {
+        Row: {
+          id: number
+          month: number
+          next_sequence: number
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          id?: number
+          month: number
+          next_sequence?: number
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          id?: number
+          month?: number
+          next_sequence?: number
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: string | null
@@ -422,6 +494,7 @@ export type Database = {
         Row: {
           barcode: string | null
           bill_id: string
+          bill_number: string | null
           created_at: string
           gst_per: number
           hsn_code: string | null
@@ -438,6 +511,7 @@ export type Database = {
         Insert: {
           barcode?: string | null
           bill_id: string
+          bill_number?: string | null
           created_at?: string
           gst_per?: number
           hsn_code?: string | null
@@ -454,6 +528,7 @@ export type Database = {
         Update: {
           barcode?: string | null
           bill_id?: string
+          bill_number?: string | null
           created_at?: string
           gst_per?: number
           hsn_code?: string | null
@@ -736,6 +811,7 @@ export type Database = {
       }
       stock_movements: {
         Row: {
+          bill_number: string | null
           created_at: string
           id: string
           movement_type: string
@@ -745,6 +821,7 @@ export type Database = {
           variant_id: string
         }
         Insert: {
+          bill_number?: string | null
           created_at?: string
           id?: string
           movement_type: string
@@ -754,6 +831,7 @@ export type Database = {
           variant_id: string
         }
         Update: {
+          bill_number?: string | null
           created_at?: string
           id?: string
           movement_type?: string
@@ -846,7 +924,10 @@ export type Database = {
     }
     Functions: {
       generate_next_barcode: { Args: never; Returns: string }
-      generate_purchase_bill_number: { Args: never; Returns: string }
+      generate_purchase_bill_number: {
+        Args: { p_date?: string }
+        Returns: string
+      }
       generate_sale_number: { Args: never; Returns: string }
       get_user_organization_ids: {
         Args: { user_id: string }
