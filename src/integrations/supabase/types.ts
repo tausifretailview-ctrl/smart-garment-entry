@@ -365,6 +365,7 @@ export type Database = {
           net_amount: number
           notes: string | null
           organization_id: string | null
+          software_bill_no: string | null
           supplier_id: string | null
           supplier_invoice_no: string | null
           supplier_name: string
@@ -379,6 +380,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          software_bill_no?: string | null
           supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name: string
@@ -393,6 +395,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          software_bill_no?: string | null
           supplier_id?: string | null
           supplier_invoice_no?: string | null
           supplier_name?: string
@@ -843,6 +846,7 @@ export type Database = {
     }
     Functions: {
       generate_next_barcode: { Args: never; Returns: string }
+      generate_purchase_bill_number: { Args: never; Returns: string }
       generate_sale_number: { Args: never; Returns: string }
       get_user_organization_ids: {
         Args: { user_id: string }

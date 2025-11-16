@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -51,6 +52,9 @@ const SupplierMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as any)?.returnTo;
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -70,17 +74,25 @@ const SupplierMaster = () => {
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { error } = await supabase.from("suppliers").insert([{
+      const { data: newSupplier, error } = await supabase.from("suppliers").insert([{
         ...data,
         organization_id: currentOrganization.id
-      }]);
+      }]).select().single();
       if (error) throw error;
+      return newSupplier;
     },
-    onSuccess: () => {
+    onSuccess: (newSupplier) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast({ title: "Supplier created successfully" });
       resetForm();
       setIsDialogOpen(false);
+      
+      // If coming from purchase entry, navigate back with the created supplier
+      if (returnTo === "/purchase-entry") {
+        navigate("/purchase-entry", { 
+          state: { createdSupplier: newSupplier } 
+        });
+      }
     },
     onError: (error) => {
       toast({ title: "Error creating supplier", description: error.message, variant: "destructive" });

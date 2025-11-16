@@ -85,19 +85,36 @@ const PurchaseEntry = () => {
     supplier_name: "",
     supplier_invoice_no: "",
   });
+  const [softwareBillNo, setSoftwareBillNo] = useState<string>("");
 
   // Fetch suppliers
-  const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers"],
+  const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
+    queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
+        .eq("organization_id", currentOrganization?.id)
         .order("supplier_name");
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization?.id,
   });
+
+  // Generate software bill number on mount
+  useEffect(() => {
+    const generateBillNo = async () => {
+      try {
+        const { data, error } = await supabase.rpc("generate_purchase_bill_number");
+        if (error) throw error;
+        setSoftwareBillNo(data);
+      } catch (error) {
+        console.error("Error generating bill number:", error);
+      }
+    };
+    generateBillNo();
+  }, []);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -110,7 +127,8 @@ const PurchaseEntry = () => {
 
   // Check if returning from product creation with new product data
   useEffect(() => {
-    const state = location.state as { newProduct?: any };
+    const state = location.state as { newProduct?: any; createdSupplier?: any };
+    
     if (state?.newProduct) {
       // Auto-add the newly created product
       const product = state.newProduct;
@@ -135,11 +153,29 @@ const PurchaseEntry = () => {
           description: `${product.product_name} has been added to purchase`,
         });
       }
+    }
+
+    // Handle supplier creation callback
+    if (state?.createdSupplier) {
+      const supplier = state.createdSupplier;
+      refetchSuppliers();
+      setBillData((prev) => ({
+        ...prev,
+        supplier_id: supplier.id,
+        supplier_name: supplier.supplier_name,
+      }));
+      toast({
+        title: "Supplier Selected",
+        description: `${supplier.supplier_name} has been selected`,
+      });
+    }
       
-      // Clear the state
+    // Clear the state if any state was present
+    if (state?.newProduct || state?.createdSupplier) {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state]);
+
 
   useEffect(() => {
     const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
@@ -435,6 +471,7 @@ const PurchaseEntry = () => {
         .from("purchase_bills")
         .insert([
           {
+            software_bill_no: softwareBillNo,
             supplier_id: billData.supplier_id || null,
             supplier_name: billData.supplier_name,
             supplier_invoice_no: billData.supplier_invoice_no,
@@ -498,7 +535,7 @@ const PurchaseEntry = () => {
       setSavedPurchaseItems(itemsWithDetails);
       setShowPrintDialog(true);
 
-      // Reset form
+      // Reset form and generate new bill number
       setBillData({
         supplier_id: "",
         supplier_name: "",
@@ -506,6 +543,10 @@ const PurchaseEntry = () => {
       });
       setBillDate(new Date());
       setLineItems([]);
+      
+      // Generate new bill number for next entry
+      const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number");
+      if (newBillNo) setSoftwareBillNo(newBillNo);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -535,6 +576,17 @@ const PurchaseEntry = () => {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="software_bill_no">Software Bill No</Label>
+                <Input
+                  id="software_bill_no"
+                  value={softwareBillNo}
+                  readOnly
+                  className="bg-muted"
+                  placeholder="Auto-generated"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="supplier_name">Supplier *</Label>
                 <div className="flex gap-2">
                   <Select
@@ -563,7 +615,7 @@ const PurchaseEntry = () => {
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => navigate("/suppliers")}
+                    onClick={() => navigate("/suppliers", { state: { returnTo: "/purchase-entry" } })}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
