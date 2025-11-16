@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ interface CartItem {
 
 export default function POSSales() {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const { saveSale, isSaving } = useSaveSale();
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("Walk in Customer");
@@ -75,8 +77,9 @@ export default function POSSales() {
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
-    queryKey: ['todays-sales'],
+    queryKey: ['todays-sales', currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization?.id) return [];
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -86,38 +89,46 @@ export default function POSSales() {
           *,
           sale_items (*)
         `)
+        .eq('organization_id', currentOrganization.id)
         .gte('sale_date', today.toISOString())
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data || [];
     },
+    enabled: !!currentOrganization?.id,
   });
 
   // Fetch all products with variants
   const { data: productsData } = useQuery({
-    queryKey: ['pos-products'],
+    queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization?.id) return [];
       const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('*, product_variants(*)');
+        .select('*, product_variants(*)')
+        .eq('organization_id', currentOrganization.id);
       
       if (productsError) throw productsError;
       return products;
     },
+    enabled: !!currentOrganization?.id,
   });
 
   // Fetch customers
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers"],
+    queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from("customers")
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .order("customer_name");
       if (error) throw error;
       return data;
     },
+    enabled: !!currentOrganization?.id,
   });
 
   // Handle barcode/product search on Enter
