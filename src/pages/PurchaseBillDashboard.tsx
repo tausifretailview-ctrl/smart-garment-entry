@@ -466,11 +466,17 @@ const PurchaseBillDashboard = () => {
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {billItems[bill.id].map((item) => (
+                                       {billItems[bill.id].map((item) => (
                                         <TableRow key={item.id}>
                                           <TableCell className="font-medium">{item.size}</TableCell>
-                                          <TableCell className="font-mono text-xs">
-                                            {item.barcode || "—"}
+                                          <TableCell>
+                                            {item.barcode ? (
+                                              <Badge variant="outline" className="font-mono text-xs">
+                                                {item.barcode}
+                                              </Badge>
+                                            ) : (
+                                              <span className="text-muted-foreground">—</span>
+                                            )}
                                           </TableCell>
                                           <TableCell className="text-xs">{item.hsn_code || "—"}</TableCell>
                                           <TableCell className="text-right">{item.qty}</TableCell>
