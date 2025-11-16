@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 
 interface CartItem {
@@ -33,6 +34,7 @@ interface SaleData {
 
 export const useSaveSale = () => {
   const { user } = useAuth();
+  const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -44,6 +46,15 @@ export const useSaveSale = () => {
       toast({
         title: "Error",
         description: "You must be logged in to save sales",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
         variant: "destructive",
       });
       return null;
@@ -84,6 +95,7 @@ export const useSaveSale = () => {
           payment_method: paymentMethod,
           payment_status: paymentMethod === 'pay_later' ? 'pending' : 'completed',
           created_by: user.id,
+          organization_id: currentOrganization.id,
         })
         .select()
         .single();
