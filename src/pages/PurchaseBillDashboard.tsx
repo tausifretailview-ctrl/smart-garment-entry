@@ -7,7 +7,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
@@ -49,6 +59,8 @@ const PurchaseBillDashboard = () => {
   const [expandedBill, setExpandedBill] = useState<string | null>(null);
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
+  const [deletingBill, setDeletingBill] = useState<string | null>(null);
+  const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
 
   useEffect(() => {
     fetchBills();
@@ -109,6 +121,52 @@ const PurchaseBillDashboard = () => {
     } else {
       setExpandedBill(billId);
       await fetchBillItems(billId);
+    }
+  };
+
+  const handleDeleteClick = (bill: PurchaseBill, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setBillToDelete(bill);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!billToDelete) return;
+
+    setDeletingBill(billToDelete.id);
+    try {
+      // First delete all purchase items
+      const { error: itemsError } = await supabase
+        .from("purchase_items")
+        .delete()
+        .eq("bill_id", billToDelete.id);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete the purchase bill
+      const { error: billError } = await supabase
+        .from("purchase_bills")
+        .delete()
+        .eq("id", billToDelete.id);
+
+      if (billError) throw billError;
+
+      toast({
+        title: "Success",
+        description: `Purchase bill ${billToDelete.software_bill_no || billToDelete.supplier_invoice_no} deleted successfully`,
+      });
+
+      // Refresh the bills list
+      await fetchBills();
+    } catch (error: any) {
+      console.error("Error deleting bill:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete purchase bill",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingBill(null);
+      setBillToDelete(null);
     }
   };
 
@@ -363,6 +421,19 @@ const PurchaseBillDashboard = () => {
                                   <Printer className="h-4 w-4" />
                                 )}
                               </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => handleDeleteClick(bill, e)}
+                                disabled={deletingBill === bill.id}
+                                className="gap-1 text-destructive hover:text-destructive"
+                              >
+                                {deletingBill === bill.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -427,6 +498,31 @@ const PurchaseBillDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!billToDelete} onOpenChange={() => setBillToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Purchase Bill</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete purchase bill{" "}
+              <span className="font-semibold">
+                {billToDelete?.software_bill_no || billToDelete?.supplier_invoice_no}
+              </span>
+              ? This will also delete all associated items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
