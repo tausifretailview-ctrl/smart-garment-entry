@@ -9,6 +9,7 @@ import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
+import { Layout } from "@/components/Layout";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import Index from "./pages/Index";
 import ProductDashboard from "./pages/ProductDashboard";
@@ -56,7 +57,9 @@ const App = () => {
                 element={
                   <ProtectedRoute>
                     <RoleProtectedRoute allowedRoles={["admin"]}>
-                      <OrganizationManagement />
+                      <Layout>
+                        <OrganizationManagement />
+                      </Layout>
                     </RoleProtectedRoute>
                   </ProtectedRoute>
                 }
@@ -65,7 +68,9 @@ const App = () => {
               path="/"
               element={
                 <ProtectedRoute>
-                  <Index />
+                  <Layout>
+                    <Index />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -73,7 +78,9 @@ const App = () => {
               path="/products"
               element={
                 <ProtectedRoute>
-                  <ProductDashboard />
+                  <Layout>
+                    <ProductDashboard />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -81,7 +88,9 @@ const App = () => {
               path="/product-entry"
               element={
                 <ProtectedRoute>
-                  <ProductEntry />
+                  <Layout>
+                    <ProductEntry />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -90,7 +99,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <PurchaseEntry />
+                    <Layout>
+                      <PurchaseEntry />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -100,7 +111,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <PurchaseBillDashboard />
+                    <Layout>
+                      <PurchaseBillDashboard />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -109,7 +122,9 @@ const App = () => {
               path="/barcode-printing"
               element={
                 <ProtectedRoute>
-                  <BarcodePrinting />
+                  <Layout>
+                    <BarcodePrinting />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -117,7 +132,9 @@ const App = () => {
               path="/stock-report"
               element={
                 <ProtectedRoute>
-                  <StockReport />
+                  <Layout>
+                    <StockReport />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -126,7 +143,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin"]}>
-                    <Settings />
+                    <Layout>
+                      <Settings />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -135,7 +154,9 @@ const App = () => {
               path="/profile"
               element={
                 <ProtectedRoute>
-                  <Profile />
+                  <Layout>
+                    <Profile />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -143,7 +164,9 @@ const App = () => {
               path="/pos-sales"
               element={
                 <ProtectedRoute>
-                  <POSSales />
+                  <Layout>
+                    <POSSales />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -151,7 +174,9 @@ const App = () => {
               path="/sales-invoice"
               element={
                 <ProtectedRoute>
-                  <SalesInvoice />
+                  <Layout>
+                    <SalesInvoice />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -160,7 +185,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <CustomerMaster />
+                    <Layout>
+                      <CustomerMaster />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -170,7 +197,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <SupplierMaster />
+                    <Layout>
+                      <SupplierMaster />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -180,7 +209,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <EmployeeMaster />
+                    <Layout>
+                      <EmployeeMaster />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -190,7 +221,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <PurchaseReportBySupplier />
+                    <Layout>
+                      <PurchaseReportBySupplier />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -199,7 +232,9 @@ const App = () => {
               path="/sales-report"
               element={
                 <ProtectedRoute>
-                  <SalesReportByCustomer />
+                  <Layout>
+                    <SalesReportByCustomer />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -208,7 +243,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <AuditLog />
+                    <Layout>
+                      <AuditLog />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
