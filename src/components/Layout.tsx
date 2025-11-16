@@ -1,6 +1,8 @@
 import { ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { AppSidebar } from "@/components/AppSidebar";
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface LayoutProps {
   children: ReactNode;
@@ -8,10 +10,18 @@ interface LayoutProps {
 
 export const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="flex flex-col min-h-screen w-full">
-      <Header />
-      <main className="flex-1 animate-fade-in">{children}</main>
-      <Footer />
-    </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <SidebarInset className="flex flex-col flex-1">
+          <Header />
+          <div className="flex items-center gap-2 px-4 py-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <SidebarTrigger />
+          </div>
+          <main className="flex-1 animate-fade-in p-4">{children}</main>
+          <Footer />
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
   );
 };
