@@ -100,15 +100,26 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch all products with variants
+  // Fetch all products with variants and batch stock
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('*, product_variants(*)')
-        .eq('organization_id', currentOrganization.id);
+        .select(`
+          *,
+          product_variants (
+            *,
+            batch_stock (
+              bill_number,
+              quantity,
+              purchase_date
+            )
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .eq('status', 'active');
       
       if (productsError) throw productsError;
       return products;
@@ -736,8 +747,8 @@ export default function POSSales() {
                           }}
                           className="cursor-pointer"
                         >
-                          <Check className="mr-2 h-4 w-4 opacity-0" />
-                          <div className="flex flex-col">
+                           <Check className="mr-2 h-4 w-4 opacity-0" />
+                          <div className="flex flex-col flex-1">
                             <span className="font-medium">{displayName}</span>
                             <span className="text-sm text-muted-foreground">
                               Size: {item.variant.size} | 
@@ -745,6 +756,22 @@ export default function POSSales() {
                               Price: ₹{item.variant.sale_price} | 
                               Stock: {item.variant.stock_qty}
                             </span>
+                            {item.variant.batch_stock && item.variant.batch_stock.length > 0 && (
+                              <span className="text-xs text-muted-foreground mt-1">
+                                <span className="font-semibold">Bills: </span>
+                                {item.variant.batch_stock
+                                  .slice(0, 3)
+                                  .map((batch: any, idx: number) => (
+                                    <span key={batch.bill_number} className="font-mono">
+                                      {batch.bill_number}({batch.quantity})
+                                      {idx < Math.min(item.variant.batch_stock.length - 1, 2) ? ', ' : ''}
+                                    </span>
+                                  ))}
+                                {item.variant.batch_stock.length > 3 && (
+                                  <span> +{item.variant.batch_stock.length - 3} more</span>
+                                )}
+                              </span>
+                            )}
                           </div>
                         </CommandItem>
                       );
