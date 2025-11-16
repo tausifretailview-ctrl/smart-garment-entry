@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
@@ -61,6 +61,7 @@ export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { saveSale, isSaving } = useSaveSale();
+  const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("Walk in Customer");
   const [searchInput, setSearchInput] = useState("");
@@ -296,6 +297,13 @@ export default function POSSales() {
     if (result) {
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
+      
+      // Refetch today's sales to include the new invoice
+      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      
+      // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
+      setCurrentInvoiceIndex(0);
+      setCurrentSaleId(result.id);
       
       // Clear cart on success
       setItems([]);
