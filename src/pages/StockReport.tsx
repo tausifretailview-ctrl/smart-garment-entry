@@ -31,15 +31,29 @@ interface StockMovement {
   size: string;
 }
 
+interface BatchStock {
+  id: string;
+  bill_number: string;
+  quantity: number;
+  purchase_date: string;
+  variant_id: string;
+  product_name: string;
+  brand: string;
+  size: string;
+  barcode: string;
+}
+
 export default function StockReport() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [batchStock, setBatchStock] = useState<BatchStock[]>([]);
   const [loading, setLoading] = useState(true);
   const LOW_STOCK_THRESHOLD = 10;
 
   useEffect(() => {
     fetchStockData();
     fetchMovements();
+    fetchBatchStock();
   }, []);
 
   const fetchStockData = async () => {
@@ -122,6 +136,44 @@ export default function StockReport() {
     }
   };
 
+  const fetchBatchStock = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('batch_stock')
+        .select(`
+          *,
+          product_variants (
+            size,
+            barcode,
+            products (
+              product_name,
+              brand
+            )
+          )
+        `)
+        .gt('quantity', 0)
+        .order('purchase_date', { ascending: true });
+      
+      if (error) throw error;
+
+      const formattedData: BatchStock[] = (data || []).map((item: any) => ({
+        id: item.id,
+        bill_number: item.bill_number,
+        quantity: item.quantity,
+        purchase_date: item.purchase_date,
+        variant_id: item.variant_id,
+        product_name: item.product_variants?.products?.product_name || '',
+        brand: item.product_variants?.products?.brand || '',
+        size: item.product_variants?.size || '',
+        barcode: item.product_variants?.barcode || '',
+      }));
+
+      setBatchStock(formattedData);
+    } catch (error) {
+      console.error('Error fetching batch stock:', error);
+    }
+  };
+
   const lowStockItems = stockItems.filter(item => item.stock_qty <= LOW_STOCK_THRESHOLD);
   const totalStock = stockItems.reduce((sum, item) => sum + item.stock_qty, 0);
 
@@ -146,7 +198,7 @@ export default function StockReport() {
         <p className="text-muted-foreground">Monitor inventory levels and stock movements</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4 mb-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Stock</CardTitle>
@@ -166,6 +218,17 @@ export default function StockReport() {
           <CardContent>
             <div className="text-2xl font-bold">{lowStockItems.length}</div>
             <p className="text-xs text-muted-foreground">Below {LOW_STOCK_THRESHOLD} units</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Batches</CardTitle>
+            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{batchStock.length}</div>
+            <p className="text-xs text-muted-foreground">Purchase bills in stock</p>
           </CardContent>
         </Card>
 
@@ -195,6 +258,7 @@ export default function StockReport() {
         <TabsList>
           <TabsTrigger value="all">All Stock</TabsTrigger>
           <TabsTrigger value="low">Low Stock</TabsTrigger>
+          <TabsTrigger value="batch">Batch Stock</TabsTrigger>
           <TabsTrigger value="movements">Movement History</TabsTrigger>
         </TabsList>
 
@@ -282,6 +346,84 @@ export default function StockReport() {
                         <TableCell className="text-right">₹{item.sale_price}</TableCell>
                       </TableRow>
                     ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="batch" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Batch-wise Stock Details (By Purchase Bill)
+              </CardTitle>
+              <CardDescription>
+                Stock grouped by purchase bills - FIFO order (oldest first)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {batchStock.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  No batch stock data available
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Barcode</TableHead>
+                      <TableHead>Bill Number</TableHead>
+                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead>Purchase Date</TableHead>
+                      <TableHead>Age (Days)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {batchStock.map((batch) => {
+                      const ageInDays = Math.floor(
+                        (Date.now() - new Date(batch.purchase_date).getTime()) / (1000 * 60 * 60 * 24)
+                      );
+                      
+                      return (
+                        <TableRow key={batch.id}>
+                          <TableCell className="font-medium">
+                            {batch.product_name}
+                          </TableCell>
+                          <TableCell>{batch.brand || '—'}</TableCell>
+                          <TableCell>{batch.size}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {batch.barcode || '—'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="font-mono">
+                              {batch.bill_number}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">{batch.quantity}</TableCell>
+                          <TableCell>
+                            {new Date(batch.purchase_date).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={ageInDays > 90 ? "destructive" : ageInDays > 60 ? "secondary" : "default"}
+                            >
+                              {ageInDays} days
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}

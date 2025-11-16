@@ -183,9 +183,11 @@ const PurchaseEntry = () => {
           setLoading(false);
         }
       } else {
-        // New bill mode - generate new bill number
+        // New bill mode - generate new bill number using bill date
         try {
-          const { data, error } = await supabase.rpc("generate_purchase_bill_number");
+          const { data, error } = await supabase.rpc("generate_purchase_bill_number", {
+            p_date: billDate.toISOString().split('T')[0]
+          });
           if (error) throw error;
           setSoftwareBillNo(data);
         } catch (error) {
@@ -634,6 +636,7 @@ const PurchaseEntry = () => {
           hsn_code: item.hsn_code,
           barcode: item.barcode,
           line_total: item.line_total,
+          bill_number: softwareBillNo,
         }));
 
         const { error: itemsError } = await supabase
