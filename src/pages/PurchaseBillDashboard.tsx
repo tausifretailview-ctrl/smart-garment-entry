@@ -28,6 +28,7 @@ interface PurchaseBill {
   id: string;
   supplier_name: string;
   supplier_invoice_no: string;
+  software_bill_no: string;
   bill_date: string;
   gross_amount: number;
   gst_amount: number;
@@ -43,6 +44,8 @@ const PurchaseBillDashboard = () => {
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [expandedBill, setExpandedBill] = useState<string | null>(null);
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
@@ -167,11 +170,19 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const filteredBills = bills.filter(
-    (bill) =>
+  const filteredBills = bills.filter((bill) => {
+    const matchesSearch =
+      searchQuery === "" ||
       bill.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bill.supplier_invoice_no.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      bill.supplier_invoice_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bill.software_bill_no?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const billDate = new Date(bill.bill_date);
+    const matchesStartDate = !startDate || billDate >= new Date(startDate);
+    const matchesEndDate = !endDate || billDate <= new Date(endDate);
+
+    return matchesSearch && matchesStartDate && matchesEndDate;
+  });
 
   const totalPurchaseAmount = filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0);
 
@@ -231,20 +242,34 @@ const PurchaseBillDashboard = () => {
 
         <Card className="shadow-lg border-border">
           <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-col gap-4">
               <div>
                 <CardTitle className="text-2xl">All Purchase Bills</CardTitle>
                 <CardDescription>
                   {filteredBills.length} {filteredBills.length === 1 ? "bill" : "bills"} found
                 </CardDescription>
               </div>
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by bill no, supplier, invoice..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
                 <Input
-                  placeholder="Search by supplier or invoice..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  type="date"
+                  placeholder="Start Date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  placeholder="End Date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
             </div>
@@ -263,6 +288,7 @@ const PurchaseBillDashboard = () => {
                     <TableRow className="bg-muted/50">
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="w-16">Sr. No.</TableHead>
+                      <TableHead>Bill No.</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Invoice No.</TableHead>
                       <TableHead>Supplier Name</TableHead>
@@ -289,6 +315,11 @@ const PurchaseBillDashboard = () => {
                             )}
                           </TableCell>
                           <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="font-mono text-xs">
+                              {bill.software_bill_no || "N/A"}
+                            </Badge>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {format(new Date(bill.bill_date), "dd MMM yyyy")}
