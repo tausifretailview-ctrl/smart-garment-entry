@@ -942,6 +942,19 @@ export default function POSSales() {
             />
           </div>
           
+          {/* Running Total Display */}
+          <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg p-4 shadow-lg border-2 border-green-400">
+            <div className="text-center">
+              <div className="text-sm font-medium text-white/90 mb-1">Running Total</div>
+              <div className="text-4xl font-bold text-white animate-pulse">
+                ₹{finalAmount.toFixed(2)}
+              </div>
+              <div className="text-xs text-white/80 mt-1">
+                {items.length} {items.length === 1 ? 'item' : 'items'}
+              </div>
+            </div>
+          </div>
+          
           <div className="flex gap-2">
             <Button
               onClick={handlePreviousInvoice}
