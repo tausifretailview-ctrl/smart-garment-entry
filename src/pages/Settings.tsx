@@ -512,13 +512,13 @@ export default function Settings() {
                 <div className="space-y-2">
                   <Label htmlFor="default_size_group">Default Size Group</Label>
                   <Select
-                    value={settings.product_settings?.default_size_group || ""}
+                    value={settings.product_settings?.default_size_group || "none"}
                     onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         product_settings: {
                           ...settings.product_settings,
-                          default_size_group: value,
+                          default_size_group: value === "none" ? undefined : value,
                         },
                       })
                     }
@@ -527,7 +527,7 @@ export default function Settings() {
                       <SelectValue placeholder="Select default size group" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {sizeGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.group_name}
