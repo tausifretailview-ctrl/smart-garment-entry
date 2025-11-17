@@ -180,14 +180,55 @@ export default function Settings() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      // Check if settings already exist for this organization
+      const { data: existingSettings, error: fetchError } = await supabase
         .from("settings" as any)
-        .upsert({
-          ...settings,
-          organization_id: currentOrganization.id,
-        }, {
-          onConflict: 'organization_id'
-        });
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      const settingsId = existingSettings ? (existingSettings as any).id : null;
+      let error;
+      
+      if (settingsId) {
+        // Update existing settings
+        const { error: updateError } = await supabase
+          .from("settings" as any)
+          .update({
+            business_name: settings.business_name,
+            address: settings.address,
+            mobile_number: settings.mobile_number,
+            email_id: settings.email_id,
+            gst_number: settings.gst_number,
+            product_settings: settings.product_settings,
+            purchase_settings: settings.purchase_settings,
+            sale_settings: settings.sale_settings,
+            bill_barcode_settings: settings.bill_barcode_settings,
+            report_settings: settings.report_settings,
+          })
+          .eq("id", settingsId);
+        error = updateError;
+      } else {
+        // Insert new settings
+        const { error: insertError } = await supabase
+          .from("settings" as any)
+          .insert({
+            organization_id: currentOrganization.id,
+            business_name: settings.business_name,
+            address: settings.address,
+            mobile_number: settings.mobile_number,
+            email_id: settings.email_id,
+            gst_number: settings.gst_number,
+            product_settings: settings.product_settings,
+            purchase_settings: settings.purchase_settings,
+            sale_settings: settings.sale_settings,
+            bill_barcode_settings: settings.bill_barcode_settings,
+            report_settings: settings.report_settings,
+          });
+        error = insertError;
+      }
 
       if (error) throw error;
 
@@ -195,11 +236,11 @@ export default function Settings() {
         title: "Success",
         description: "Settings saved successfully",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving settings:", error);
       toast({
         title: "Error",
-        description: "Failed to save settings",
+        description: error?.message || "Failed to save settings",
         variant: "destructive",
       });
     } finally {
