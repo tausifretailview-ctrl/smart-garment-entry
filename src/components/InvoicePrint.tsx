@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import QRCode from 'qrcode';
 import './InvoicePrint.css';
 
 interface InvoiceItem {
@@ -56,31 +57,61 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       colorScheme: propColorScheme
     } = props;
 
-    const { currentOrganization } = useOrganization();
-    const [settings, setSettings] = useState<any>(null);
+  const { currentOrganization } = useOrganization();
+  const [settings, setSettings] = useState<any>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
-    useEffect(() => {
-      fetchSettings();
-    }, [currentOrganization?.id]);
+  useEffect(() => {
+    fetchSettings();
+  }, [currentOrganization?.id]);
 
-    const fetchSettings = async () => {
-      if (!currentOrganization?.id) return;
-      
-      try {
-        const { data, error } = await (supabase as any)
-          .from('settings')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
+  useEffect(() => {
+    if (settings?.bill_barcode_settings?.upi_id) {
+      generateUpiQrCode();
+    }
+  }, [settings, grandTotal]);
 
-        if (error) throw error;
-        if (data) {
-          setSettings(data);
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
+  const fetchSettings = async () => {
+    if (!currentOrganization?.id) return;
+    
+    try {
+      const { data, error } = await (supabase as any)
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setSettings(data);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+    }
+  };
+
+  const generateUpiQrCode = async () => {
+    try {
+      const upiId = settings?.bill_barcode_settings?.upi_id;
+      const businessName = settings?.business_name || 'Store';
+      
+      // UPI payment string format
+      const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${grandTotal.toFixed(2)}&cu=INR`;
+      
+      const qrUrl = await QRCode.toDataURL(upiString, {
+        width: 120,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
+      
+      setQrCodeUrl(qrUrl);
+    } catch (error) {
+      console.error('Error generating UPI QR code:', error);
+    }
+  };
 
     const template = propTemplate || settings?.sale_settings?.invoice_template || 'classic';
     const colorScheme = propColorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
@@ -217,36 +248,44 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             )}
           </div>
           <div className="terms-right">
-            <div className="barcode-image">
-              <svg viewBox="0 0 100 40">
-                <rect x="2" y="0" width="2" height="40" fill="black"/>
-                <rect x="6" y="0" width="1" height="40" fill="black"/>
-                <rect x="9" y="0" width="3" height="40" fill="black"/>
-                <rect x="14" y="0" width="1" height="40" fill="black"/>
-                <rect x="17" y="0" width="2" height="40" fill="black"/>
-                <rect x="21" y="0" width="1" height="40" fill="black"/>
-                <rect x="24" y="0" width="3" height="40" fill="black"/>
-                <rect x="29" y="0" width="2" height="40" fill="black"/>
-                <rect x="33" y="0" width="1" height="40" fill="black"/>
-                <rect x="36" y="0" width="2" height="40" fill="black"/>
-                <rect x="40" y="0" width="3" height="40" fill="black"/>
-                <rect x="45" y="0" width="1" height="40" fill="black"/>
-                <rect x="48" y="0" width="2" height="40" fill="black"/>
-                <rect x="52" y="0" width="1" height="40" fill="black"/>
-                <rect x="55" y="0" width="3" height="40" fill="black"/>
-                <rect x="60" y="0" width="2" height="40" fill="black"/>
-                <rect x="64" y="0" width="1" height="40" fill="black"/>
-                <rect x="67" y="0" width="2" height="40" fill="black"/>
-                <rect x="71" y="0" width="3" height="40" fill="black"/>
-                <rect x="76" y="0" width="1" height="40" fill="black"/>
-                <rect x="79" y="0" width="2" height="40" fill="black"/>
-                <rect x="83" y="0" width="1" height="40" fill="black"/>
-                <rect x="86" y="0" width="3" height="40" fill="black"/>
-                <rect x="91" y="0" width="2" height="40" fill="black"/>
-                <rect x="95" y="0" width="3" height="40" fill="black"/>
-              </svg>
-              <p className="barcode-number">1</p>
-            </div>
+            {qrCodeUrl && settings?.bill_barcode_settings?.upi_id ? (
+              <div className="upi-qr-section">
+                <img src={qrCodeUrl} alt="UPI QR Code" className="upi-qr-code" />
+                <p className="upi-text">Scan to Pay</p>
+                <p className="upi-id">{settings.bill_barcode_settings.upi_id}</p>
+              </div>
+            ) : (
+              <div className="barcode-image">
+                <svg viewBox="0 0 100 40">
+                  <rect x="2" y="0" width="2" height="40" fill="black"/>
+                  <rect x="6" y="0" width="1" height="40" fill="black"/>
+                  <rect x="9" y="0" width="3" height="40" fill="black"/>
+                  <rect x="14" y="0" width="1" height="40" fill="black"/>
+                  <rect x="17" y="0" width="2" height="40" fill="black"/>
+                  <rect x="21" y="0" width="1" height="40" fill="black"/>
+                  <rect x="24" y="0" width="3" height="40" fill="black"/>
+                  <rect x="29" y="0" width="2" height="40" fill="black"/>
+                  <rect x="33" y="0" width="1" height="40" fill="black"/>
+                  <rect x="36" y="0" width="2" height="40" fill="black"/>
+                  <rect x="40" y="0" width="3" height="40" fill="black"/>
+                  <rect x="45" y="0" width="1" height="40" fill="black"/>
+                  <rect x="48" y="0" width="2" height="40" fill="black"/>
+                  <rect x="52" y="0" width="1" height="40" fill="black"/>
+                  <rect x="55" y="0" width="3" height="40" fill="black"/>
+                  <rect x="60" y="0" width="2" height="40" fill="black"/>
+                  <rect x="64" y="0" width="1" height="40" fill="black"/>
+                  <rect x="67" y="0" width="2" height="40" fill="black"/>
+                  <rect x="71" y="0" width="3" height="40" fill="black"/>
+                  <rect x="76" y="0" width="1" height="40" fill="black"/>
+                  <rect x="79" y="0" width="2" height="40" fill="black"/>
+                  <rect x="83" y="0" width="1" height="40" fill="black"/>
+                  <rect x="86" y="0" width="3" height="40" fill="black"/>
+                  <rect x="91" y="0" width="2" height="40" fill="black"/>
+                  <rect x="95" y="0" width="3" height="40" fill="black"/>
+                </svg>
+                <p className="barcode-number">1</p>
+              </div>
+            )}
             <p className="signatory">Authorised Signatory</p>
           </div>
         </div>
