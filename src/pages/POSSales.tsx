@@ -967,10 +967,11 @@ export default function POSSales() {
         </div>
 
         {/* Items Table */}
-        <div className="flex-1 overflow-hidden flex flex-col p-4">
-          <Card className="flex-1 overflow-hidden flex flex-col">
+        <div className="flex-1 overflow-hidden flex flex-col p-4 pb-0">
+          <Card className="flex-1 overflow-hidden flex flex-col mb-32">
             <div className="bg-black text-white overflow-x-auto">
-              <div className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 text-base font-medium">
+              <div className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 text-base font-medium">
+                <div className="col-span-1">Sr No</div>
                 <div className="col-span-1">Barcode</div>
                 <div className="col-span-3">Product</div>
                 <div className="col-span-1">Qty</div>
@@ -984,70 +985,83 @@ export default function POSSales() {
             </div>
             
             <div className="flex-1 overflow-y-auto">
-            {items.length === 0 ? (
-              <div className="text-center text-muted-foreground py-24 text-lg">
-                Scan or enter product to add items
-              </div>
-            ) : (
               <div className="overflow-x-auto">
-                {items.map((item, index) => (
-                  <div key={index} className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 border-b hover:bg-muted/50 text-base">
-                    <div className="col-span-1 flex items-center">{item.barcode}</div>
-                    <div className="col-span-3 flex items-center font-medium">{item.productName}</div>
-                    <div className="col-span-1">
-                      <Input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
-                        className="h-9 text-base"
-                        min="1"
-                      />
+                {items.length === 0 ? (
+                  // Show 6 blank rows with serial numbers
+                  Array.from({ length: 6 }).map((_, index) => (
+                    <div key={index} className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 border-b text-base">
+                      <div className="col-span-1 flex items-center text-muted-foreground">{index + 1}</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-3 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-2 flex items-center text-muted-foreground">-</div>
                     </div>
-                    <div className="col-span-1 flex items-center">₹{item.mrp.toFixed(2)}</div>
-                    <div className="col-span-1 flex items-center">{item.gstPer}%</div>
-                    <div className="col-span-1">
-                      <Input
-                        type="number"
-                        value={item.discountPercent}
-                        onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
-                        className="h-9 text-base"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                      />
+                  ))
+                ) : (
+                  items.map((item, index) => (
+                    <div key={index} className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 border-b hover:bg-muted/50 text-base">
+                      <div className="col-span-1 flex items-center font-semibold">{index + 1}</div>
+                      <div className="col-span-1 flex items-center">{item.barcode}</div>
+                      <div className="col-span-3 flex items-center font-medium">{item.productName}</div>
+                      <div className="col-span-1">
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                          className="h-9 text-base"
+                          min="1"
+                        />
+                      </div>
+                      <div className="col-span-1 flex items-center">₹{item.mrp.toFixed(2)}</div>
+                      <div className="col-span-1 flex items-center">{item.gstPer}%</div>
+                      <div className="col-span-1">
+                        <Input
+                          type="number"
+                          value={item.discountPercent}
+                          onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
+                          className="h-9 text-base"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <Input
+                          type="number"
+                          value={item.discountAmount}
+                          onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
+                          className="h-9 text-base"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
+                      <div className="col-span-1 flex items-center">₹{item.unitCost.toFixed(2)}</div>
+                      <div className="col-span-2 flex items-center justify-between">
+                        <span className="font-semibold">₹{item.netAmount.toFixed(2)}</span>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => removeItem(index)}
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="col-span-1">
-                      <Input
-                        type="number"
-                        value={item.discountAmount}
-                        onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
-                        className="h-9 text-base"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                    <div className="col-span-1 flex items-center">₹{item.unitCost.toFixed(2)}</div>
-                    <div className="col-span-2 flex items-center justify-between">
-                      <span className="font-semibold">₹{item.netAmount.toFixed(2)}</span>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeItem(index)}
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-              ))}
+                ))
+              )}
             </div>
-          )}
           </div>
         </Card>
         </div>
 
-        {/* Totals Section - Compact */}
-        <div className="bg-cyan-500 text-white p-3 rounded-lg">
+        {/* Totals Section - Fixed at Bottom */}
+        <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-10">
           <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
