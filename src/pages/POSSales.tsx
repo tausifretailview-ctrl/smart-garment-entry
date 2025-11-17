@@ -94,6 +94,35 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Keyboard shortcuts for POS actions
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // F1 - Cash Payment
+      if (e.key === 'F1') {
+        e.preventDefault();
+        handlePayment('cash');
+      }
+      // F2 - Card Payment
+      else if (e.key === 'F2') {
+        e.preventDefault();
+        handlePayment('card');
+      }
+      // F3 - UPI Payment
+      else if (e.key === 'F3') {
+        e.preventDefault();
+        handlePayment('upi');
+      }
+      // Esc - Clear items
+      else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClearAll();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [items, customerName, flatDiscountPercent, roundOff, paymentMethod]);
+
   // Apply defaults when settings are loaded
   useEffect(() => {
     if (settingsData && (settingsData as any).sale_settings) {
@@ -569,6 +598,28 @@ export default function POSSales() {
 
     setCurrentInvoiceIndex(0);
     loadInvoice(todaysSales[0]);
+  };
+
+  const handleClearAll = () => {
+    if (items.length === 0) {
+      toast({
+        title: "Cart is already empty",
+        variant: "default",
+      });
+      return;
+    }
+    
+    setItems([]);
+    setCustomerName("Walk in Customer");
+    setCustomerId("");
+    setFlatDiscountPercent(0);
+    setRoundOff(0);
+    setSearchInput("");
+    
+    toast({
+      title: "Cart Cleared",
+      description: "All items removed from cart",
+    });
   };
 
   const handleNewInvoice = () => {
@@ -1102,6 +1153,7 @@ export default function POSSales() {
                 cashPaid={0}
                 refundCash={0}
                 upiPaid={0}
+                paymentMethod={paymentMethod}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
