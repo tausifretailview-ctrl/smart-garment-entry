@@ -56,6 +56,7 @@ const ProductEntry = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [fieldSettings, setFieldSettings] = useState<any>(null);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_name: "",
@@ -73,6 +74,7 @@ const ProductEntry = () => {
 
   useEffect(() => {
     fetchSizeGroups();
+    fetchFieldSettings();
     
     // Check if we're editing an existing product
     const searchParams = new URLSearchParams(location.search);
@@ -82,6 +84,23 @@ const ProductEntry = () => {
       fetchProductForEdit(productId);
     }
   }, [location.search]);
+
+  const fetchFieldSettings = async () => {
+    if (!currentOrganization) return;
+    
+    const { data, error } = await supabase
+      .from("settings")
+      .select("product_settings")
+      .eq("organization_id", currentOrganization.id)
+      .single();
+
+    if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
+      const settings = data.product_settings as any;
+      if (settings.fields) {
+        setFieldSettings(settings.fields);
+      }
+    }
+  };
 
   const fetchSizeGroups = async () => {
     const { data, error } = await supabase

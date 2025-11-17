@@ -17,11 +17,23 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { useEffect as useEffectForSizeGroups } from "react";
 
+interface FieldConfig {
+  label: string;
+  enabled: boolean;
+}
+
 interface ProductSettings {
   default_margin?: number;
   low_stock_threshold?: number;
   sku_format?: string;
   default_size_group?: string;
+  fields?: {
+    category?: FieldConfig;
+    brand?: FieldConfig;
+    style?: FieldConfig;
+    color?: FieldConfig;
+    hsn_code?: FieldConfig;
+  };
 }
 
 interface PurchaseSettings {
@@ -538,6 +550,70 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Default size group for new products
                   </p>
+                </div>
+
+                <div className="space-y-4 mt-6 pt-6 border-t">
+                  <h3 className="text-lg font-semibold">Product Entry Form Fields</h3>
+                  <p className="text-sm text-muted-foreground">Customize field labels and enable/disable fields</p>
+                  
+                  {[
+                    { key: 'category', defaultLabel: 'Category' },
+                    { key: 'brand', defaultLabel: 'Brand' },
+                    { key: 'style', defaultLabel: 'Style' },
+                    { key: 'color', defaultLabel: 'Color' },
+                    { key: 'hsn_code', defaultLabel: 'HSN Code' },
+                  ].map((field) => (
+                    <div key={field.key} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`enable_${field.key}`}
+                          checked={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true}
+                          onCheckedChange={(checked) => {
+                            setSettings({
+                              ...settings,
+                              product_settings: {
+                                ...settings.product_settings,
+                                fields: {
+                                  ...settings.product_settings?.fields,
+                                  [field.key]: {
+                                    label: settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.label || field.defaultLabel,
+                                    enabled: checked as boolean,
+                                  },
+                                },
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`enable_${field.key}`} className="cursor-pointer">
+                          Enable
+                        </Label>
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <Label htmlFor={`label_${field.key}`}>Field Label</Label>
+                        <Input
+                          id={`label_${field.key}`}
+                          value={settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.label || field.defaultLabel}
+                          onChange={(e) => {
+                            setSettings({
+                              ...settings,
+                              product_settings: {
+                                ...settings.product_settings,
+                                fields: {
+                                  ...settings.product_settings?.fields,
+                                  [field.key]: {
+                                    label: e.target.value,
+                                    enabled: settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true,
+                                  },
+                                },
+                              },
+                            });
+                          }}
+                          placeholder={field.defaultLabel}
+                          disabled={!(settings.product_settings?.fields?.[field.key as keyof NonNullable<typeof settings.product_settings.fields>]?.enabled ?? true)}
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
