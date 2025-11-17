@@ -49,6 +49,7 @@ interface BillBarcodeSettings {
   show_color?: boolean;
   show_style?: boolean;
   show_hsn_code?: boolean;
+  upi_id?: string;
 }
 
 interface ReportSettings {
@@ -780,6 +781,26 @@ export default function Settings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Upload your company logo (max 2MB, JPG/PNG)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upi_id">UPI ID</Label>
+                  <Input
+                    id="upi_id"
+                    value={settings.bill_barcode_settings?.upi_id || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          upi_id: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="e.g., yourname@paytm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    UPI ID for payment QR code on invoice
                   </p>
                 </div>
                 <div className="space-y-2">
