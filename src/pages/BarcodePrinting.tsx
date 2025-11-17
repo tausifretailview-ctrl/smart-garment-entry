@@ -1806,10 +1806,9 @@ export default function BarcodePrinting() {
               )}
             </div>
           </div>
-        </div>
 
-        {/* Label Template Selection */}
-        <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
+          {/* Label Template Selection */}
+          <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Label Templates</h3>
