@@ -348,7 +348,7 @@ export default function POSSales() {
   const finalAmount = totals.subtotal - flatDiscountAmount + roundOff;
 
   // Handle save sale
-  const handleSaveSale = async () => {
+  const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
     if (items.length === 0) {
       toast({
         title: "No Items",
@@ -370,7 +370,7 @@ export default function POSSales() {
       netAmount: finalAmount,
     };
 
-    const result = await saveSale(saleData, paymentMethod);
+    const result = await saveSale(saleData, forcePaymentMethod || paymentMethod);
     
     if (result) {
       // Store invoice number for printing
@@ -674,13 +674,13 @@ export default function POSSales() {
         </Button>
         
         <Button
-          onClick={handleSaveSale}
+          onClick={() => handleSaveSale('pay_later')}
           disabled={items.length === 0 || isSaving}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50"
-          title="Save Sale"
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-amber-600 hover:bg-amber-700 text-white text-xs disabled:opacity-50"
+          title="Credit Sale"
         >
           <Check className="h-5 w-5" />
-          <span>Save</span>
+          <span>Credit</span>
         </Button>
 
         <Button
