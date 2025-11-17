@@ -164,9 +164,7 @@ const App = () => {
               path="/pos-sales"
               element={
                 <ProtectedRoute>
-                  <Layout>
-                    <POSSales />
-                  </Layout>
+                  <POSSales />
                 </ProtectedRoute>
               }
             />
