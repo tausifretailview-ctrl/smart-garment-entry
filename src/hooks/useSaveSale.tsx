@@ -133,7 +133,7 @@ export const useSaveSale = () => {
 
       let saleNumber: string;
       
-      // Use custom format if available, otherwise use default database function
+      // Always use custom format if available, otherwise use default
       if (settings?.sale_settings?.invoice_format) {
         saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_format);
       } else {
