@@ -45,7 +45,7 @@ export function AppSidebar() {
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-entry", "/product-entry", "/products"];
-  const salesPaths = ["/pos-sales", "/sales-invoice"];
+  const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice"];
   const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
@@ -200,6 +200,14 @@ export function AppSidebar() {
                           <NavLink to="/pos-sales" className="flex items-center gap-3">
                             <ShoppingCart className="h-4 w-4" />
                             <span>POS</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/pos-dashboard")}>
+                          <NavLink to="/pos-dashboard" className="flex items-center gap-3">
+                            <ShoppingBag className="h-4 w-4" />
+                            <span>POS Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
