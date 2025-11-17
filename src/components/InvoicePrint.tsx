@@ -190,12 +190,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
           <thead>
             <tr>
               <th style={{ width: '5%' }}>SR</th>
-              <th style={{ width: '30%' }}>PARTICULARS</th>
+              <th style={{ width: '35%' }}>PARTICULARS</th>
               {showProductDetails && (
                 <>
-                  <th style={{ width: '10%' }}>SIZE</th>
-                  <th style={{ width: '12%' }}>HSN</th>
-                  <th style={{ width: '10%' }}>SP</th>
+                  <th style={{ width: '12%' }}>SIZE</th>
+                  <th style={{ width: '15%' }}>HSN</th>
                 </>
               )}
               <th style={{ width: '8%' }}>QTY</th>
@@ -215,7 +214,6 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                   <>
                     <td>{item.size}</td>
                     <td>{item.hsn}</td>
-                    <td>{item.sp}</td>
                   </>
                 )}
                 <td>{item.qty}</td>
