@@ -4,6 +4,7 @@ import { Home, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +32,8 @@ interface SaleSettings {
   payment_methods?: string[];
   invoice_format?: string;
   sales_tax_rate?: number;
+  invoice_template?: string;
+  invoice_color_scheme?: string;
 }
 
 interface BillBarcodeSettings {
@@ -591,6 +594,58 @@ export default function Settings() {
                     }
                     placeholder="e.g., 18"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_template">Invoice Template</Label>
+                  <Select
+                    value={settings.sale_settings?.invoice_template || "classic"}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          invoice_template: value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="invoice_template">
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="classic">Classic - Traditional receipt style</SelectItem>
+                      <SelectItem value="modern">Modern - Clean minimal design</SelectItem>
+                      <SelectItem value="professional">Professional - Corporate invoice</SelectItem>
+                      <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_color_scheme">Invoice Color Scheme</Label>
+                  <Select
+                    value={settings.sale_settings?.invoice_color_scheme || "blue"}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          invoice_color_scheme: value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="invoice_color_scheme">
+                      <SelectValue placeholder="Select color" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="blue">Blue - Professional</SelectItem>
+                      <SelectItem value="green">Green - Fresh</SelectItem>
+                      <SelectItem value="purple">Purple - Creative</SelectItem>
+                      <SelectItem value="red">Red - Bold</SelectItem>
+                      <SelectItem value="orange">Orange - Energetic</SelectItem>
+                      <SelectItem value="gray">Gray - Neutral</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>

@@ -7,14 +7,162 @@
   font-size: 10pt;
   color: black;
   box-sizing: border-box;
+  --invoice-primary: #1e40af;
+  --invoice-secondary: #3b82f6;
+  --invoice-accent: #dbeafe;
 }
 
+/* Classic Template - Traditional receipt style */
+.invoice-print.invoice-classic .header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid var(--invoice-primary);
+  padding-bottom: 6px;
+}
+
+.invoice-print.invoice-classic .shop-name {
+  font-size: 16pt;
+  font-weight: bold;
+  margin: 0 0 2px 0;
+  color: var(--invoice-primary);
+}
+
+.invoice-print.invoice-classic .items-table th {
+  background: var(--invoice-accent);
+  font-weight: bold;
+  color: var(--invoice-primary);
+}
+
+/* Modern Template - Clean minimal design */
+.invoice-print.invoice-modern .header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--invoice-primary);
+  background: linear-gradient(to right, var(--invoice-accent), transparent);
+  padding: 10px;
+}
+
+.invoice-print.invoice-modern .shop-name {
+  font-size: 18pt;
+  font-weight: 300;
+  letter-spacing: 1px;
+  margin: 0 0 2px 0;
+  color: var(--invoice-primary);
+}
+
+.invoice-print.invoice-modern .items-table {
+  border: none;
+}
+
+.invoice-print.invoice-modern .items-table th {
+  background: var(--invoice-primary);
+  color: white;
+  font-weight: 500;
+  border: none;
+  padding: 8px 4px;
+}
+
+.invoice-print.invoice-modern .items-table td {
+  border: none;
+  border-bottom: 1px solid var(--invoice-accent);
+}
+
+/* Professional Template - Corporate invoice */
+.invoice-print.invoice-professional {
+  font-family: 'Times New Roman', serif;
+}
+
+.invoice-print.invoice-professional .header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 4px double var(--invoice-primary);
+}
+
+.invoice-print.invoice-professional .shop-name {
+  font-size: 20pt;
+  font-weight: bold;
+  margin: 0 0 4px 0;
+  color: var(--invoice-primary);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.invoice-print.invoice-professional .items-table th {
+  background: var(--invoice-primary);
+  color: white;
+  font-weight: bold;
+  text-transform: uppercase;
+  font-size: 8pt;
+  letter-spacing: 0.5px;
+}
+
+.invoice-print.invoice-professional .items-table {
+  border: 2px solid var(--invoice-primary);
+}
+
+/* Compact Template - Space-saving layout */
+.invoice-print.invoice-compact {
+  padding: 5mm;
+  font-size: 8pt;
+}
+
+.invoice-print.invoice-compact .header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid var(--invoice-primary);
+  padding-bottom: 3px;
+}
+
+.invoice-print.invoice-compact .shop-logo {
+  width: 35px;
+  height: 35px;
+}
+
+.invoice-print.invoice-compact .shop-name {
+  font-size: 12pt;
+  font-weight: bold;
+  margin: 0;
+  color: var(--invoice-primary);
+}
+
+.invoice-print.invoice-compact .shop-address,
+.invoice-print.invoice-compact .shop-contact {
+  font-size: 7pt;
+  margin: 1px 0;
+}
+
+.invoice-print.invoice-compact .items-table {
+  font-size: 7pt;
+  margin-bottom: 5px;
+}
+
+.invoice-print.invoice-compact .items-table th,
+.invoice-print.invoice-compact .items-table td {
+  padding: 2px 1px;
+  font-size: 7pt;
+}
+
+.invoice-print.invoice-compact .items-table th {
+  background: var(--invoice-primary);
+  color: white;
+}
+
+/* Common styles for all templates */
 .invoice-print .header {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  border-bottom: 2px solid black;
   padding-bottom: 6px;
 }
 
@@ -37,6 +185,7 @@
   font-size: 16pt;
   font-weight: bold;
   margin: 0 0 2px 0;
+  color: var(--invoice-primary);
 }
 
 .invoice-print .shop-address,
@@ -47,13 +196,13 @@
 
 .invoice-print .bill-info-container {
   display: flex;
-  border: 1px solid black;
+  border: 1px solid var(--invoice-primary);
   margin-bottom: 8px;
 }
 
 .invoice-print .customer-section {
   flex: 1;
-  border-right: 1px solid black;
+  border-right: 1px solid var(--invoice-primary);
   padding: 6px;
 }
 
@@ -61,6 +210,7 @@
   font-size: 11pt;
   font-weight: bold;
   margin: 0 0 6px 0;
+  color: var(--invoice-primary);
 }
 
 .invoice-print .customer-details p {
@@ -88,15 +238,16 @@
 
 .invoice-print .items-table th,
 .invoice-print .items-table td {
-  border: 1px solid black;
+  border: 1px solid var(--invoice-primary);
   padding: 4px 2px;
   text-align: center;
   font-size: 9pt;
 }
 
 .invoice-print .items-table th {
-  background: #f0f0f0;
+  background: var(--invoice-accent);
   font-weight: bold;
+  color: var(--invoice-primary);
 }
 
 .invoice-print .items-table td:nth-child(2) {
@@ -105,20 +256,20 @@
 
 .invoice-print .barcode-text {
   font-size: 8pt;
-  color: #000;
+  color: var(--invoice-primary);
   font-weight: bold;
 }
 
 .invoice-print .footer-section {
   display: flex;
-  border: 1px solid black;
+  border: 1px solid var(--invoice-primary);
   border-bottom: none;
   font-size: 8pt;
 }
 
 .invoice-print .declaration {
   flex: 1;
-  border-right: 1px solid black;
+  border-right: 1px solid var(--invoice-primary);
   padding: 4px;
 }
 
@@ -134,14 +285,14 @@
 
 .invoice-print .payment-section {
   display: flex;
-  border: 1px solid black;
+  border: 1px solid var(--invoice-primary);
   font-size: 8pt;
   margin-bottom: 8px;
 }
 
 .invoice-print .payment-left {
   flex: 1;
-  border-right: 1px solid black;
+  border-right: 1px solid var(--invoice-primary);
   padding: 4px;
 }
 
@@ -162,23 +313,26 @@
 .invoice-print .grand-total {
   font-size: 10pt;
   margin-top: 4px !important;
+  color: var(--invoice-primary);
+  font-weight: bold;
 }
 
 .invoice-print .total-amount {
   font-size: 14pt;
   font-weight: bold;
+  color: var(--invoice-primary);
 }
 
 .invoice-print .terms-section {
   display: flex;
-  border: 1px solid black;
+  border: 1px solid var(--invoice-primary);
   font-size: 7pt;
   min-height: 60px;
 }
 
 .invoice-print .terms-left {
   flex: 1;
-  border-right: 1px solid black;
+  border-right: 1px solid var(--invoice-primary);
   padding: 4px;
 }
 
@@ -214,6 +368,7 @@
   font-size: 8pt;
   font-weight: bold;
   margin: 0;
+  color: var(--invoice-primary);
 }
 
 @media print {
@@ -222,6 +377,10 @@
     height: 210mm;
     margin: 0;
     padding: 8mm;
+  }
+
+  .invoice-print.invoice-compact {
+    padding: 5mm;
   }
 
   @page {

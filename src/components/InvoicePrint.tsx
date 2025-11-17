@@ -31,6 +31,8 @@ interface InvoicePrintProps {
   refundCash: number;
   upiPaid: number;
   gstin?: string;
+  template?: string;
+  colorScheme?: string;
 }
 
 export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
@@ -49,7 +51,9 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       cashPaid,
       refundCash,
       upiPaid,
-      gstin
+      gstin,
+      template: propTemplate,
+      colorScheme: propColorScheme
     } = props;
 
     const { currentOrganization } = useOrganization();
@@ -78,10 +82,27 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       }
     };
 
+    const template = propTemplate || settings?.sale_settings?.invoice_template || 'classic';
+    const colorScheme = propColorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
+
+    // Color scheme styles
+    const colorStyles: Record<string, { primary: string; secondary: string; accent: string }> = {
+      blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#dbeafe' },
+      green: { primary: '#15803d', secondary: '#22c55e', accent: '#dcfce7' },
+      purple: { primary: '#7e22ce', secondary: '#a855f7', accent: '#f3e8ff' },
+      red: { primary: '#b91c1c', secondary: '#ef4444', accent: '#fee2e2' },
+      orange: { primary: '#c2410c', secondary: '#f97316', accent: '#ffedd5' },
+      gray: { primary: '#374151', secondary: '#6b7280', accent: '#f3f4f6' },
+    };
+
+    const currentColors = colorStyles[colorScheme] || colorStyles.blue;
+
+    const templateClass = `invoice-print invoice-${template} invoice-color-${colorScheme}`;
+
     return (
-      <div ref={ref} className="invoice-print">
+      <div ref={ref} className={templateClass} style={{ '--invoice-primary': currentColors.primary, '--invoice-secondary': currentColors.secondary, '--invoice-accent': currentColors.accent } as React.CSSProperties}>
         {/* Header */}
-        <div className="header">
+        <div className="header" style={{ borderBottomColor: currentColors.primary }}>
           <div className="logo-section">
             {settings?.bill_barcode_settings?.logo_url ? (
               <img src={settings.bill_barcode_settings.logo_url} alt="Company Logo" className="shop-logo" />
@@ -90,7 +111,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             )}
           </div>
           <div className="shop-details">
-            <h1 className="shop-name">{settings?.business_name || 'OWN FASHION'}</h1>
+            <h1 className="shop-name" style={{ color: currentColors.primary }}>{settings?.business_name || 'OWN FASHION'}</h1>
             <p className="shop-address">
               {settings?.address || 'Shop No.2, Sumati Paradise, Plot No.227, Sec No.R4, Vadhghar Node, Pushpak, Panvel - 420206.'}
             </p>
