@@ -1018,6 +1018,7 @@ export default function POSSales() {
           )}
           </div>
         </Card>
+        </div>
 
         {/* Totals Section - Compact */}
         <div className="bg-cyan-500 text-white p-3 rounded-lg">
