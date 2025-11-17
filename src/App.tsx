@@ -21,6 +21,7 @@ import StockReport from "./pages/StockReport";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import POSSales from "./pages/POSSales";
+import POSDashboard from "./pages/POSDashboard";
 import SalesInvoice from "./pages/SalesInvoice";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
@@ -165,6 +166,16 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <POSSales />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pos-dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <POSDashboard />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
