@@ -125,6 +125,9 @@ export default {
         "gradient-shift": "gradient-shift 8s ease infinite",
         shimmer: "shimmer 2s linear infinite",
       },
+      gridTemplateColumns: {
+        '13': 'repeat(13, minmax(0, 1fr))',
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
