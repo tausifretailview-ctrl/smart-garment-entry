@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
@@ -679,9 +680,10 @@ export default function POSSales() {
         </Button>
         <Button
           onClick={handleClearAll}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs"
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs relative"
           title="Clear (Esc)"
         >
+          <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
           <X className="h-5 w-5" />
           <span>Clear</span>
         </Button>
@@ -691,27 +693,30 @@ export default function POSSales() {
           <Button
             onClick={() => handlePayment('cash')}
             disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50"
-            title="Cash (F4)"
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50 relative"
+            title="Cash (F1)"
           >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F1</Badge>
             <Banknote className="h-5 w-5" />
             <span>Cash</span>
           </Button>
           <Button
             onClick={() => handlePayment('card')}
             disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs disabled:opacity-50"
-            title="Card (F5)"
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs disabled:opacity-50 relative"
+            title="Card (F2)"
           >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
             <CreditCard className="h-5 w-5" />
             <span>Card</span>
           </Button>
           <Button
             onClick={() => handlePayment('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs disabled:opacity-50"
-            title="UPI (F6)"
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs disabled:opacity-50 relative"
+            title="UPI (F3)"
           >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F3</Badge>
             <Smartphone className="h-5 w-5" />
             <span>UPI</span>
           </Button>
