@@ -45,6 +45,7 @@ interface PurchaseSettings {
 interface SaleSettings {
   default_discount?: number;
   payment_methods?: string[];
+  default_payment_method?: string;
   invoice_format?: string;
   sales_tax_rate?: number;
   invoice_template?: string;
@@ -734,18 +735,16 @@ export default function Settings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Payment Methods</Label>
+                  <Label>Payment Methods (Check to enable, select one as default)</Label>
                   <div className="space-y-2">
-                    {["Cash", "Card", "UPI", "Net Banking"].map((method) => (
-                      <div key={method} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={method}
-                          className="h-4 w-4 rounded border-input"
+                    {["Cash", "Card", "UPI", "Credit"].map((method) => (
+                      <div key={method} className="flex items-center space-x-3">
+                        <Checkbox
+                          id={`enable-${method}`}
                           checked={settings.sale_settings?.payment_methods?.includes(method) || false}
-                          onChange={(e) => {
+                          onCheckedChange={(checked) => {
                             const currentMethods = settings.sale_settings?.payment_methods || [];
-                            const newMethods = e.target.checked
+                            const newMethods = checked
                               ? [...currentMethods, method]
                               : currentMethods.filter((m) => m !== method);
                             setSettings({
@@ -753,16 +752,40 @@ export default function Settings() {
                               sale_settings: {
                                 ...settings.sale_settings,
                                 payment_methods: newMethods,
+                                // Clear default if disabling the default method
+                                default_payment_method: !checked && settings.sale_settings?.default_payment_method === method 
+                                  ? undefined 
+                                  : settings.sale_settings?.default_payment_method,
                               },
                             });
                           }}
                         />
-                        <Label htmlFor={method} className="font-normal cursor-pointer">
+                        <input
+                          type="radio"
+                          id={`default-${method}`}
+                          name="default_payment"
+                          className="h-4 w-4"
+                          checked={settings.sale_settings?.default_payment_method === method}
+                          disabled={!settings.sale_settings?.payment_methods?.includes(method)}
+                          onChange={() => {
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                default_payment_method: method,
+                              },
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`enable-${method}`} className="font-normal cursor-pointer flex-1">
                           {method}
                         </Label>
                       </div>
                     ))}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Enable payment methods with checkbox, then select one as default using radio button
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="invoice_format">Invoice Numbering Format</Label>
