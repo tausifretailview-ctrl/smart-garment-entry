@@ -117,6 +117,10 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
     const template = propTemplate || settings?.sale_settings?.invoice_template || 'classic';
     const colorScheme = propColorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
+    const invoiceFormat = settings?.bill_barcode_settings?.invoice_format || 'a5-vertical';
+    const showProductDetails = settings?.bill_barcode_settings?.show_product_details ?? true;
+    const headerText = settings?.bill_barcode_settings?.header_text || '';
+    const footerText = settings?.bill_barcode_settings?.footer_text || '';
 
     // Color scheme styles
     const colorStyles: Record<string, { primary: string; secondary: string; accent: string }> = {
@@ -130,10 +134,16 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
     const currentColors = colorStyles[colorScheme] || colorStyles.blue;
 
-    const templateClass = `invoice-print invoice-${template} invoice-color-${colorScheme}`;
+    const templateClass = `invoice-print invoice-${template} invoice-color-${colorScheme} invoice-format-${invoiceFormat}`;
 
     return (
       <div ref={ref} className={templateClass} style={{ '--invoice-primary': currentColors.primary, '--invoice-secondary': currentColors.secondary, '--invoice-accent': currentColors.accent } as React.CSSProperties}>
+        {/* Header Text */}
+        {headerText && (
+          <div className="header-text" style={{ textAlign: 'center', padding: '8px', fontSize: '12px', fontWeight: 'bold', color: currentColors.primary, borderBottom: `1px solid ${currentColors.accent}` }}>
+            {headerText}
+          </div>
+        )}
         {/* Header */}
         <div className="header" style={{ borderBottomColor: currentColors.primary }}>
           <div className="logo-section">
@@ -181,9 +191,13 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             <tr>
               <th style={{ width: '5%' }}>SR</th>
               <th style={{ width: '30%' }}>PARTICULARS</th>
-              <th style={{ width: '10%' }}>SIZE</th>
-              <th style={{ width: '12%' }}>HSN</th>
-              <th style={{ width: '10%' }}>SP</th>
+              {showProductDetails && (
+                <>
+                  <th style={{ width: '10%' }}>SIZE</th>
+                  <th style={{ width: '12%' }}>HSN</th>
+                  <th style={{ width: '10%' }}>SP</th>
+                </>
+              )}
               <th style={{ width: '8%' }}>QTY</th>
               <th style={{ width: '12%' }}>MRP/RATE</th>
               <th style={{ width: '13%' }}>TOTAL</th>
@@ -195,11 +209,15 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <td>{item.sr}</td>
                 <td>
                   <div>{item.particulars}</div>
-                  <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>
+                  {showProductDetails && <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>}
                 </td>
-                <td>{item.size}</td>
-                <td>{item.hsn}</td>
-                <td>{item.sp}</td>
+                {showProductDetails && (
+                  <>
+                    <td>{item.size}</td>
+                    <td>{item.hsn}</td>
+                    <td>{item.sp}</td>
+                  </>
+                )}
                 <td>{item.qty}</td>
                 <td>{item.rate.toFixed(2)}</td>
                 <td>{item.total.toFixed(2)}</td>
@@ -236,11 +254,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
           </div>
         </div>
 
-        {/* Terms */}
+        {/* Terms / Footer */}
         <div className="terms-section">
           <div className="terms-left">
-            {settings?.bill_barcode_settings?.footer_text ? (
-              <p>{settings.bill_barcode_settings.footer_text}</p>
+            {footerText ? (
+              <p style={{ whiteSpace: 'pre-line' }}>{footerText}</p>
             ) : (
               <>
                 <p>1. GOODS ONCE SOLD WILL NOT BE TAKEN BACK.</p>
