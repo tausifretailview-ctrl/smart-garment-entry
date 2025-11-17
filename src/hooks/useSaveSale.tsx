@@ -38,6 +38,42 @@ export const useSaveSale = () => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
 
+  const generateInvoiceNumber = async (format: string) => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    
+    // Get the last invoice number for today
+    const { data: lastSale } = await (supabase as any)
+      .from('sales')
+      .select('sale_number')
+      .eq('organization_id', currentOrganization?.id)
+      .gte('sale_date', new Date(now.setHours(0, 0, 0, 0)).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Extract the last sequence number
+    let sequence = 1;
+    if (lastSale?.sale_number) {
+      const matches = lastSale.sale_number.match(/(\d+)$/);
+      if (matches) {
+        sequence = parseInt(matches[1]) + 1;
+      }
+    }
+
+    // Replace placeholders in format
+    let invoiceNumber = format
+      .replace('{YYYY}', String(year))
+      .replace('{YY}', String(year).slice(-2))
+      .replace('{MM}', month)
+      .replace('{####}', String(sequence).padStart(4, '0'))
+      .replace('{###}', String(sequence).padStart(3, '0'))
+      .replace('{#####}', String(sequence).padStart(5, '0'));
+
+    return invoiceNumber;
+  };
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'
@@ -72,11 +108,24 @@ export const useSaveSale = () => {
     setIsSaving(true);
 
     try {
-      // Generate sale number
-      const { data: saleNumber, error: numberError } = await (supabase as any)
-        .rpc('generate_sale_number');
+      // Fetch settings to get invoice format
+      const { data: settings } = await (supabase as any)
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
 
-      if (numberError) throw numberError;
+      let saleNumber: string;
+      
+      // Use custom format if available, otherwise use default database function
+      if (settings?.sale_settings?.invoice_format) {
+        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_format);
+      } else {
+        const { data: defaultNumber, error: numberError } = await (supabase as any)
+          .rpc('generate_sale_number');
+        if (numberError) throw numberError;
+        saleNumber = defaultNumber;
+      }
 
       // Insert sale record
       const { data: sale, error: saleError } = await (supabase as any)
