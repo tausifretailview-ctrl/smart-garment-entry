@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import './InvoicePrint.css';
 
 interface InvoiceItem {
@@ -51,17 +52,21 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       gstin
     } = props;
 
+    const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
 
     useEffect(() => {
       fetchSettings();
-    }, []);
+    }, [currentOrganization?.id]);
 
     const fetchSettings = async () => {
+      if (!currentOrganization?.id) return;
+      
       try {
         const { data, error } = await (supabase as any)
           .from('settings')
           .select('*')
+          .eq('organization_id', currentOrganization.id)
           .maybeSingle();
 
         if (error) throw error;
@@ -78,7 +83,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
         {/* Header */}
         <div className="header">
           <div className="logo-section">
-            <img src="/placeholder.svg" alt="Shop Logo" className="shop-logo" />
+            {settings?.bill_barcode_settings?.logo_url ? (
+              <img src={settings.bill_barcode_settings.logo_url} alt="Company Logo" className="shop-logo" />
+            ) : (
+              <img src="/placeholder.svg" alt="Shop Logo" className="shop-logo" />
+            )}
           </div>
           <div className="shop-details">
             <h1 className="shop-name">{settings?.business_name || 'OWN FASHION'}</h1>
@@ -87,6 +96,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             </p>
             <p className="shop-contact">
               {settings?.mobile_number ? `CONTACT : ${settings.mobile_number}` : 'CONTACT : 9326320664'}
+              {settings?.email_id && ` | EMAIL: ${settings.email_id}`}
               {settings?.gst_number && ` | GSTIN: ${settings.gst_number}`}
             </p>
           </div>

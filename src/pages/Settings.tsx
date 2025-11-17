@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface ProductSettings {
   default_margin?: number;
@@ -69,6 +70,7 @@ interface Settings {
 export default function Settings() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [settings, setSettings] = useState<Settings>({
@@ -85,14 +87,19 @@ export default function Settings() {
   });
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (currentOrganization?.id) {
+      fetchSettings();
+    }
+  }, [currentOrganization?.id]);
 
   const fetchSettings = async () => {
+    if (!currentOrganization?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from("settings" as any)
         .select("*")
+        .eq("organization_id", currentOrganization.id)
         .maybeSingle();
 
       if (error) throw error;
@@ -117,12 +124,25 @@ export default function Settings() {
   };
 
   const handleSave = async () => {
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase
         .from("settings" as any)
-        .update(settings)
-        .eq("id", "00000000-0000-0000-0000-000000000001");
+        .upsert({
+          ...settings,
+          organization_id: currentOrganization.id,
+        }, {
+          onConflict: 'organization_id'
+        });
 
       if (error) throw error;
 
