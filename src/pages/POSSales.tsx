@@ -942,16 +942,16 @@ export default function POSSales() {
             />
           </div>
           
-          {/* Running Total Display */}
-          <div className="relative bg-gradient-to-r from-green-600 to-emerald-600 rounded-lg p-4 shadow-lg border-2 border-green-400">
-            <div className="text-center">
-              <div className="text-sm font-medium text-white/90 mb-1">Running Total</div>
-              <div className="text-4xl font-bold text-white animate-pulse">
-                ₹{finalAmount.toFixed(2)}
-              </div>
-              <div className="text-xs text-white/80 mt-1">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
-              </div>
+          {/* Running Total Display - Split into 2 boxes */}
+          <div className="relative h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
+            <div className="text-white font-bold text-xl">
+              ₹{finalAmount.toFixed(2)}
+            </div>
+          </div>
+          
+          <div className="relative h-12 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-4 flex items-center justify-center">
+            <div className="text-white font-semibold text-base">
+              {items.length} {items.length === 1 ? 'Item' : 'Items'}
             </div>
           </div>
           
