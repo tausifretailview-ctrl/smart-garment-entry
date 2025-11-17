@@ -34,6 +34,7 @@ interface InvoicePrintProps {
   gstin?: string;
   template?: string;
   colorScheme?: string;
+  paymentMethod?: string;
 }
 
 export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
@@ -54,7 +55,8 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       upiPaid,
       gstin,
       template: propTemplate,
-      colorScheme: propColorScheme
+      colorScheme: propColorScheme,
+      paymentMethod
     } = props;
 
   const { currentOrganization } = useOrganization();
@@ -219,6 +221,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
 
         <div className="payment-section">
           <div className="payment-left">
+            <p><strong>Payment Mode:</strong> {paymentMethod ? paymentMethod.toUpperCase() : 'CASH'}</p>
             <p><strong>Tender Amt:</strong> {tenderAmount.toFixed(2)}</p>
             <p><strong>Cash Paid:</strong> {cashPaid.toFixed(2)}</p>
             <p><strong>Refund Cash:</strong> {refundCash.toFixed(2)}</p>
