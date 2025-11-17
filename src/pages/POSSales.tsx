@@ -90,17 +90,17 @@ export default function POSSales() {
       // F1 - Cash Payment
       if (e.key === 'F1') {
         e.preventDefault();
-        handlePayment('cash');
+        setPaymentMethod('cash');
       }
       // F2 - Card Payment
       else if (e.key === 'F2') {
         e.preventDefault();
-        handlePayment('card');
+        setPaymentMethod('card');
       }
       // F3 - UPI Payment
       else if (e.key === 'F3') {
         e.preventDefault();
-        handlePayment('upi');
+        setPaymentMethod('upi');
       }
       // Esc - Clear items
       else if (e.key === 'Escape') {
@@ -347,8 +347,17 @@ export default function POSSales() {
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
   const finalAmount = totals.subtotal - flatDiscountAmount + roundOff;
 
-  // Handle payment
-  const handlePayment = async (paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
+  // Handle save sale
+  const handleSaveSale = async () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before saving",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const saleData = {
       customerId: customerId || null,
       customerName,
@@ -374,6 +383,11 @@ export default function POSSales() {
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(result.id);
       
+      toast({
+        title: "Sale Saved",
+        description: `Invoice ${result.sale_number} saved successfully`,
+      });
+      
       // Clear cart on success
       setItems([]);
       setCustomerId("");
@@ -382,6 +396,14 @@ export default function POSSales() {
       setRoundOff(0);
       setSearchInput("");
     }
+  };
+
+  const handlePaymentMethodChange = (method: 'cash' | 'card' | 'upi') => {
+    setPaymentMethod(method);
+    toast({
+      title: "Payment Method Selected",
+      description: `${method.toUpperCase()} payment selected`,
+    });
   };
 
   const handlePrint = () => {
@@ -645,30 +667,42 @@ export default function POSSales() {
         <Button
           onClick={handleNewInvoice}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs"
-          title="New Invoice (F1)"
+          title="New Invoice"
         >
           <FileText className="h-5 w-5" />
           <span>New</span>
         </Button>
+        
+        <Button
+          onClick={handleSaveSale}
+          disabled={items.length === 0 || isSaving}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50"
+          title="Save Sale"
+        >
+          <Check className="h-5 w-5" />
+          <span>Save</span>
+        </Button>
+
         <Button
           onClick={handleLastInvoice}
           disabled={!todaysSales || todaysSales.length === 0}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs disabled:opacity-50"
-          title="Last Invoice (F2)"
+          title="Last Invoice"
         >
           <RotateCcw className="h-5 w-5" />
           <span>Last</span>
         </Button>
-        {currentSaleId && (
-          <Button
-            onClick={handleDeleteInvoice}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs"
-            title="Delete Invoice (Del)"
-          >
-            <Trash2 className="h-5 w-5" />
-            <span>Delete</span>
-          </Button>
-        )}
+
+        <Button
+          onClick={handleDeleteInvoice}
+          disabled={!currentSaleId}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-50"
+          title="Delete Invoice"
+        >
+          <Trash2 className="h-5 w-5" />
+          <span>Delete</span>
+        </Button>
+
         <Button
           onClick={handlePrint}
           disabled={!currentSaleId}
@@ -678,6 +712,7 @@ export default function POSSales() {
           <Printer className="h-5 w-5" />
           <span>Print</span>
         </Button>
+        
         <Button
           onClick={handleClearAll}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs relative"
@@ -690,34 +725,35 @@ export default function POSSales() {
         
         {/* Payment Method Buttons */}
         <div className="mt-auto space-y-2">
+          <div className="text-[10px] text-center text-muted-foreground px-1 mb-1">Payment</div>
           <Button
-            onClick={() => handlePayment('cash')}
-            disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50 relative"
+            onClick={() => handlePaymentMethodChange('cash')}
+            variant={paymentMethod === 'cash' ? 'default' : 'outline'}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
             title="Cash (F1)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F1</Badge>
-            <Banknote className="h-5 w-5" />
+            <Banknote className="h-4 w-4" />
             <span>Cash</span>
           </Button>
           <Button
-            onClick={() => handlePayment('card')}
-            disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs disabled:opacity-50 relative"
+            onClick={() => handlePaymentMethodChange('card')}
+            variant={paymentMethod === 'card' ? 'default' : 'outline'}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
             title="Card (F2)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
-            <CreditCard className="h-5 w-5" />
+            <CreditCard className="h-4 w-4" />
             <span>Card</span>
           </Button>
           <Button
-            onClick={() => handlePayment('upi')}
-            disabled={items.length === 0 || isSaving}
-            className="h-16 flex flex-col items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs disabled:opacity-50 relative"
+            onClick={() => handlePaymentMethodChange('upi')}
+            variant={paymentMethod === 'upi' ? 'default' : 'outline'}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
             title="UPI (F3)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F3</Badge>
-            <Smartphone className="h-5 w-5" />
+            <Smartphone className="h-4 w-4" />
             <span>UPI</span>
           </Button>
         </div>

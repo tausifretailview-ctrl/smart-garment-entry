@@ -43,35 +43,51 @@ export const useSaveSale = () => {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
-    // Get the last invoice number for today
-    const { data: lastSale } = await (supabase as any)
-      .from('sales')
-      .select('sale_number')
-      .eq('organization_id', currentOrganization?.id)
-      .gte('sale_date', new Date(now.setHours(0, 0, 0, 0)).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Try up to 10 times to find a unique invoice number
+    for (let attempt = 0; attempt < 10; attempt++) {
+      // Get the last invoice number matching this format pattern
+      const { data: lastSale } = await (supabase as any)
+        .from('sales')
+        .select('sale_number')
+        .eq('organization_id', currentOrganization?.id)
+        .like('sale_number', `%${year}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    // Extract the last sequence number
-    let sequence = 1;
-    if (lastSale?.sale_number) {
-      const matches = lastSale.sale_number.match(/(\d+)$/);
-      if (matches) {
-        sequence = parseInt(matches[1]) + 1;
+      // Extract the last sequence number
+      let sequence = 1;
+      if (lastSale?.sale_number) {
+        const matches = lastSale.sale_number.match(/(\d+)$/);
+        if (matches) {
+          sequence = parseInt(matches[1]) + 1 + attempt; // Add attempt to avoid collision
+        }
+      }
+
+      // Replace placeholders in format
+      let invoiceNumber = format
+        .replace('{YYYY}', String(year))
+        .replace('{YY}', String(year).slice(-2))
+        .replace('{MM}', month)
+        .replace('{####}', String(sequence).padStart(4, '0'))
+        .replace('{###}', String(sequence).padStart(3, '0'))
+        .replace('{#####}', String(sequence).padStart(5, '0'));
+
+      // Check if this number already exists
+      const { data: existing } = await (supabase as any)
+        .from('sales')
+        .select('id')
+        .eq('sale_number', invoiceNumber)
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      if (!existing) {
+        return invoiceNumber;
       }
     }
 
-    // Replace placeholders in format
-    let invoiceNumber = format
-      .replace('{YYYY}', String(year))
-      .replace('{YY}', String(year).slice(-2))
-      .replace('{MM}', month)
-      .replace('{####}', String(sequence).padStart(4, '0'))
-      .replace('{###}', String(sequence).padStart(3, '0'))
-      .replace('{#####}', String(sequence).padStart(5, '0'));
-
-    return invoiceNumber;
+    // Fallback: use timestamp-based unique number
+    return `SALE-${Date.now()}`;
   };
 
   const saveSale = async (
