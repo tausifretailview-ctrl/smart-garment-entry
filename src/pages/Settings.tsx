@@ -67,6 +67,7 @@ interface BillBarcodeSettings {
   upi_id?: string;
   invoice_format?: string;
   show_product_details?: boolean;
+  barcode_format?: string;
 }
 
 interface ReportSettings {
@@ -990,48 +991,6 @@ export default function Settings() {
                     rows={2}
                   />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="barcode_width">Barcode Label Width (mm)</Label>
-                    <Input
-                      id="barcode_width"
-                      type="number"
-                      min="10"
-                      max="200"
-                      value={settings.bill_barcode_settings?.barcode_width || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            barcode_width: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      placeholder="e.g., 50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="barcode_height">Barcode Label Height (mm)</Label>
-                    <Input
-                      id="barcode_height"
-                      type="number"
-                      min="10"
-                      max="200"
-                      value={settings.bill_barcode_settings?.barcode_height || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            barcode_height: parseFloat(e.target.value) || 0,
-                          },
-                        })
-                      }
-                      placeholder="e.g., 25"
-                    />
-                  </div>
-                </div>
                 <div className="space-y-2">
                   <Label htmlFor="invoice_format">Invoice Format</Label>
                   <select
@@ -1056,6 +1015,34 @@ export default function Settings() {
                   </select>
                   <p className="text-xs text-muted-foreground">
                     Select the invoice print format for sales and POS
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="barcode_format">Barcode Printing Format</Label>
+                  <select
+                    id="barcode_format"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={settings.bill_barcode_settings?.barcode_format || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          barcode_format: e.target.value,
+                        },
+                      })
+                    }
+                  >
+                    <option value="">Select barcode format</option>
+                    <option value="a4-48">A4-48 Label Sheet</option>
+                    <option value="a4-40">A4-40 Label Sheet</option>
+                    <option value="a4-65">A4-65 Label Sheet</option>
+                    <option value="thermal-38x25">Thermal-38x25</option>
+                    <option value="thermal-50x25">Thermal-50x25</option>
+                    <option value="custom">Custom Label Set</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    Select the default barcode label format for printing
                   </p>
                 </div>
                 <div className="space-y-2">
