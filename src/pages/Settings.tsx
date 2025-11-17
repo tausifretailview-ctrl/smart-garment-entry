@@ -15,11 +15,13 @@ import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
+import { useEffect as useEffectForSizeGroups } from "react";
 
 interface ProductSettings {
   default_margin?: number;
   low_stock_threshold?: number;
   sku_format?: string;
+  default_size_group?: string;
 }
 
 interface PurchaseSettings {
@@ -78,6 +80,7 @@ export default function Settings() {
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [sizeGroups, setSizeGroups] = useState<any[]>([]);
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
@@ -135,8 +138,25 @@ export default function Settings() {
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
+      fetchSizeGroups();
     }
   }, [currentOrganization?.id]);
+
+  const fetchSizeGroups = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("size_groups")
+        .select("id, group_name")
+        .eq("organization_id", currentOrganization.id)
+        .order("group_name");
+      
+      if (error) throw error;
+      setSizeGroups(data || []);
+    } catch (error) {
+      console.error("Error fetching size groups:", error);
+    }
+  };
 
   const fetchSettings = async () => {
     if (!currentOrganization?.id) return;
@@ -487,6 +507,36 @@ export default function Settings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="default_size_group">Default Size Group</Label>
+                  <Select
+                    value={settings.product_settings?.default_size_group || ""}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        product_settings: {
+                          ...settings.product_settings,
+                          default_size_group: value,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="default_size_group">
+                      <SelectValue placeholder="Select default size group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {sizeGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.group_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Default size group for new products
                   </p>
                 </div>
               </CardContent>
