@@ -638,13 +638,93 @@ export default function POSSales() {
   ) || [];
 
   return (
-    <div className="min-h-screen w-full bg-background">
+    <div className="min-h-screen w-full bg-background flex">
+      {/* Left Action Button Bar */}
+      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2">
+        <Button
+          onClick={handleNewInvoice}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs"
+          title="New Invoice (F1)"
+        >
+          <FileText className="h-5 w-5" />
+          <span>New</span>
+        </Button>
+        <Button
+          onClick={handleLastInvoice}
+          disabled={!todaysSales || todaysSales.length === 0}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs disabled:opacity-50"
+          title="Last Invoice (F2)"
+        >
+          <RotateCcw className="h-5 w-5" />
+          <span>Last</span>
+        </Button>
+        {currentSaleId && (
+          <Button
+            onClick={handleDeleteInvoice}
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs"
+            title="Delete Invoice (Del)"
+          >
+            <Trash2 className="h-5 w-5" />
+            <span>Delete</span>
+          </Button>
+        )}
+        <Button
+          onClick={handlePrint}
+          disabled={!currentSaleId}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50"
+          title="Print"
+        >
+          <Printer className="h-5 w-5" />
+          <span>Print</span>
+        </Button>
+        <Button
+          onClick={handleClearAll}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs"
+          title="Clear (Esc)"
+        >
+          <X className="h-5 w-5" />
+          <span>Clear</span>
+        </Button>
+        
+        {/* Payment Method Buttons */}
+        <div className="mt-auto space-y-2">
+          <Button
+            onClick={() => handlePayment('cash')}
+            disabled={items.length === 0 || isSaving}
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs disabled:opacity-50"
+            title="Cash (F4)"
+          >
+            <Banknote className="h-5 w-5" />
+            <span>Cash</span>
+          </Button>
+          <Button
+            onClick={() => handlePayment('card')}
+            disabled={items.length === 0 || isSaving}
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs disabled:opacity-50"
+            title="Card (F5)"
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Card</span>
+          </Button>
+          <Button
+            onClick={() => handlePayment('upi')}
+            disabled={items.length === 0 || isSaving}
+            className="h-16 flex flex-col items-center justify-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs disabled:opacity-50"
+            title="UPI (F6)"
+          >
+            <Smartphone className="h-5 w-5" />
+            <span>UPI</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
       <div className="flex-1 p-2 md:p-4">
-          <BackToDashboard />
-          
-          <div className="max-w-[1800px] mx-auto space-y-3">
-        {/* Header Section - Larger inputs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <BackToDashboard />
+        
+        <div className="max-w-[1800px] mx-auto space-y-3">
+          {/* Header Section with Invoice Number */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative">
@@ -811,6 +891,16 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
+          {/* Invoice Number Display */}
+          <div className="relative">
+            <Input
+              value={currentInvoiceNumber || "NEW"}
+              readOnly
+              className="h-12 text-lg font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
+              placeholder="Invoice #"
+            />
+          </div>
+          
           <div className="flex gap-2">
             <Button
               onClick={handlePreviousInvoice}
@@ -962,7 +1052,6 @@ export default function POSSales() {
             </div>
           </div>
         </div>
-          </div>
         </div>
 
         {/* Print Dialog */}
@@ -1011,6 +1100,7 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+      </div>
     </div>
   );
 }
