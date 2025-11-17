@@ -284,6 +284,39 @@ export default function BarcodePrinting() {
     })
   );
 
+  // Load default barcode format from settings
+  useEffect(() => {
+    const loadDefaultFormat = async () => {
+      try {
+        const { data: settingsData } = await supabase
+          .from("settings")
+          .select("bill_barcode_settings")
+          .single();
+
+        if (settingsData?.bill_barcode_settings) {
+          const barcodeFormat = (settingsData.bill_barcode_settings as any).barcode_format;
+          if (barcodeFormat) {
+            // Map barcode format to sheet type
+            const formatMap: Record<string, SheetType> = {
+              "a4-48": "novajet48",
+              "a4-40": "novajet40",
+              "a4-65": "novajet65",
+              "thermal-38x25": "a4_12x4", // Using A4 format as base for thermal
+              "thermal-50x25": "a4_12x4", // Using A4 format as base for thermal
+              "custom": "custom"
+            };
+            const mappedType = formatMap[barcodeFormat] || "novajet48";
+            setSheetType(mappedType);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading default barcode format:", error);
+      }
+    };
+    
+    loadDefaultFormat();
+  }, []);
+
   // Load saved presets from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem("barcode_custom_presets");
@@ -1457,11 +1490,11 @@ export default function BarcodePrinting() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
+                  <SelectItem value="novajet48">A4-48 Label Sheet (33mm × 19mm, 8 cols)</SelectItem>
+                  <SelectItem value="novajet40">A4-40 Label Sheet (35mm × 25mm, 8 cols)</SelectItem>
+                  <SelectItem value="novajet65">A4-65 Label Sheet (38mm × 21mm, 5 cols)</SelectItem>
                   <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
-                  <SelectItem value="custom">Custom Dimensions</SelectItem>
+                  <SelectItem value="custom">Custom Label Set</SelectItem>
                   {savedPresets.length > 0 && (
                     <>
                       <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50 cursor-default">
@@ -1488,15 +1521,17 @@ export default function BarcodePrinting() {
               )}
             </div>
           </div>
+        </div>
 
-          {sheetType === "custom" && !selectedPreset && (
-            <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
-                <div className="text-xs text-muted-foreground">
-                  Sheet Size: {customCols} × {customRows} = {customCols * customRows} labels
-                </div>
+        {/* Custom dimensions - shown only when custom is selected */}
+        {sheetType === "custom" && !selectedPreset && (
+          <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
+              <div className="text-xs text-muted-foreground">
+                Sheet Size: {customCols} × {customRows} = {customCols * customRows} labels
               </div>
+            </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="customWidth">Width (mm)</Label>
@@ -1658,6 +1693,7 @@ export default function BarcodePrinting() {
             </div>
           )}
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Design Format</Label>
             <div className="flex gap-2">
@@ -1770,9 +1806,10 @@ export default function BarcodePrinting() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Label Template Selection */}
-          <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
+        {/* Label Template Selection */}
+        <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Label Templates</h3>
