@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -74,7 +74,38 @@ export default function POSSales() {
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch settings to apply defaults
+  const { data: settingsData } = useQuery({
+    queryKey: ['pos-settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from('settings' as any)
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Apply defaults when settings are loaded
+  useEffect(() => {
+    if (settingsData && (settingsData as any).sale_settings) {
+      const saleSettings = (settingsData as any).sale_settings;
+      if (saleSettings.default_discount) {
+        setFlatDiscountPercent(saleSettings.default_discount);
+      }
+      if (saleSettings.default_payment_method) {
+        setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
+      }
+    }
+  }, [settingsData]);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
@@ -587,6 +618,14 @@ export default function POSSales() {
 
   const paymentButtons = [
     {
+      label: "Save",
+      icon: Check,
+      onClick: () => handlePayment(paymentMethod),
+      className: "bg-emerald-600 hover:bg-emerald-700",
+      shortcut: "F3",
+      type: "payment"
+    },
+    {
       label: "Cash Paid",
       icon: Banknote,
       onClick: () => handlePayment('cash'),
@@ -611,11 +650,19 @@ export default function POSSales() {
       type: "payment"
     },
     {
+      label: "Credit",
+      icon: FileText,
+      onClick: () => handlePayment('pay_later'),
+      className: "bg-amber-600 hover:bg-amber-700",
+      shortcut: "F7",
+      type: "payment"
+    },
+    {
       label: "Multi Pay",
       icon: CreditCard,
       onClick: () => handlePayment('multiple'),
       className: "bg-orange-600 hover:bg-orange-700",
-      shortcut: "F7",
+      shortcut: "F8",
       type: "payment"
     },
     {
