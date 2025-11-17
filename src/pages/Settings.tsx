@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { InvoicePrint } from "@/components/InvoicePrint";
 
 interface ProductSettings {
   default_margin?: number;
@@ -88,6 +89,47 @@ export default function Settings() {
     bill_barcode_settings: {},
     report_settings: {},
   });
+
+  // Sample data for invoice preview
+  const sampleInvoiceData = {
+    billNo: '2025-01-0001',
+    date: new Date(),
+    customerName: 'John Doe',
+    customerAddress: '123 Sample Street, City',
+    customerMobile: '9876543210',
+    items: [
+      {
+        sr: 1,
+        particulars: 'Sample Product 1',
+        size: 'M',
+        barcode: '10001001',
+        hsn: '62051000',
+        sp: 999,
+        qty: 2,
+        rate: 899,
+        total: 1798
+      },
+      {
+        sr: 2,
+        particulars: 'Sample Product 2',
+        size: 'L',
+        barcode: '10001002',
+        hsn: '62052000',
+        sp: 1499,
+        qty: 1,
+        rate: 1299,
+        total: 1299
+      }
+    ],
+    subTotal: 3097,
+    discount: 97,
+    grandTotal: 3000,
+    tenderAmount: 3000,
+    cashPaid: 3000,
+    refundCash: 0,
+    upiPaid: 0,
+    gstin: 'SAMPLE123456789'
+  };
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -646,6 +688,23 @@ export default function Settings() {
                       <SelectItem value="gray">Gray - Neutral</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                
+                {/* Invoice Preview Section */}
+                <div className="space-y-4 pt-6 border-t">
+                  <h3 className="text-lg font-semibold">Invoice Preview</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Preview how your invoice will look with the selected template and color scheme
+                  </p>
+                  <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[600px]">
+                    <div className="flex justify-center">
+                      <InvoicePrint
+                        {...sampleInvoiceData}
+                        template={settings.sale_settings?.invoice_template}
+                        colorScheme={settings.sale_settings?.invoice_color_scheme}
+                      />
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
