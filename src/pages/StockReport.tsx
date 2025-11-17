@@ -8,6 +8,7 @@ import { AlertCircle, Package, TrendingDown, History } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface StockItem {
   id: string;
@@ -44,17 +45,39 @@ interface BatchStock {
 }
 
 export default function StockReport() {
+  const { currentOrganization } = useOrganization();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [batchStock, setBatchStock] = useState<BatchStock[]>([]);
   const [loading, setLoading] = useState(true);
-  const LOW_STOCK_THRESHOLD = 10;
+  const [lowStockThreshold, setLowStockThreshold] = useState(10);
 
   useEffect(() => {
-    fetchStockData();
-    fetchMovements();
-    fetchBatchStock();
-  }, []);
+    if (currentOrganization?.id) {
+      fetchSettings();
+      fetchStockData();
+      fetchMovements();
+      fetchBatchStock();
+    }
+  }, [currentOrganization?.id]);
+
+  const fetchSettings = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const { data } = await supabase
+        .from("settings" as any)
+        .select("product_settings")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      
+      const settingsData = data as any;
+      if (settingsData?.product_settings?.low_stock_threshold) {
+        setLowStockThreshold(settingsData.product_settings.low_stock_threshold);
+      }
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+    }
+  };
 
   const fetchStockData = async () => {
     try {
@@ -174,7 +197,7 @@ export default function StockReport() {
     }
   };
 
-  const lowStockItems = stockItems.filter(item => item.stock_qty <= LOW_STOCK_THRESHOLD);
+  const lowStockItems = stockItems.filter(item => item.stock_qty <= lowStockThreshold);
   const totalStock = stockItems.reduce((sum, item) => sum + item.stock_qty, 0);
 
   if (loading) {
@@ -217,7 +240,7 @@ export default function StockReport() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{lowStockItems.length}</div>
-            <p className="text-xs text-muted-foreground">Below {LOW_STOCK_THRESHOLD} units</p>
+            <p className="text-xs text-muted-foreground">Below {lowStockThreshold} units</p>
           </CardContent>
         </Card>
 
@@ -293,13 +316,13 @@ export default function StockReport() {
                       <TableCell className="text-right">{item.stock_qty}</TableCell>
                       <TableCell className="text-right">₹{item.sale_price}</TableCell>
                       <TableCell>
-                        {item.stock_qty === 0 ? (
-                          <Badge variant="destructive">Out of Stock</Badge>
-                        ) : item.stock_qty <= LOW_STOCK_THRESHOLD ? (
-                          <Badge variant="secondary">Low Stock</Badge>
-                        ) : (
-                          <Badge variant="outline">In Stock</Badge>
-                        )}
+                      {item.stock_qty === 0 ? (
+                        <Badge variant="destructive">Out of Stock</Badge>
+                      ) : item.stock_qty <= lowStockThreshold ? (
+                        <Badge variant="secondary">Low Stock</Badge>
+                      ) : (
+                        <Badge variant="outline">In Stock</Badge>
+                      )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -316,7 +339,7 @@ export default function StockReport() {
                 <TrendingDown className="h-5 w-5 text-destructive" />
                 Low Stock Items
               </CardTitle>
-              <CardDescription>Products below {LOW_STOCK_THRESHOLD} units</CardDescription>
+              <CardDescription>Products below {lowStockThreshold} units</CardDescription>
             </CardHeader>
             <CardContent>
               {lowStockItems.length === 0 ? (

@@ -59,11 +59,35 @@ export function SizeGroupManagement() {
 
       if (error) throw error;
       
-      setSizeGroups(data?.map(group => ({
+      const typedData = (data || []).map(group => ({
         id: group.id,
         group_name: group.group_name,
         sizes: Array.isArray(group.sizes) ? group.sizes.map(s => String(s)) : []
-      })) || []);
+      }));
+      
+      // Check if "Free Size" group exists, if not create it
+      const freeSizeExists = typedData.some(g => g.group_name.toLowerCase() === 'free size');
+      if (!freeSizeExists) {
+        const { data: newGroup, error: insertError } = await supabase
+          .from("size_groups")
+          .insert({
+            group_name: "Free Size",
+            sizes: ["Free"],
+            organization_id: currentOrganization.id,
+          })
+          .select()
+          .single();
+          
+        if (!insertError && newGroup) {
+          typedData.push({
+            id: newGroup.id,
+            group_name: newGroup.group_name,
+            sizes: Array.isArray(newGroup.sizes) ? newGroup.sizes.map(s => String(s)) : []
+          });
+        }
+      }
+      
+      setSizeGroups(typedData);
     } catch (error) {
       console.error("Error fetching size groups:", error);
       toast({
