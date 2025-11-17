@@ -43,35 +43,65 @@ export const useSaveSale = () => {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
+    // Check if format has placeholders
+    const hasPlaceholders = format.includes('{');
+    
     // Try up to 10 times to find a unique invoice number
     for (let attempt = 0; attempt < 10; attempt++) {
-      // Get the last invoice number matching this format pattern
-      const { data: lastSale } = await (supabase as any)
-        .from('sales')
-        .select('sale_number')
-        .eq('organization_id', currentOrganization?.id)
-        .like('sale_number', `%${year}%`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let invoiceNumber: string;
+      
+      if (hasPlaceholders) {
+        // Get the last invoice number matching this format pattern
+        const { data: lastSale } = await (supabase as any)
+          .from('sales')
+          .select('sale_number')
+          .eq('organization_id', currentOrganization?.id)
+          .like('sale_number', `%${year}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      // Extract the last sequence number
-      let sequence = 1;
-      if (lastSale?.sale_number) {
-        const matches = lastSale.sale_number.match(/(\d+)$/);
-        if (matches) {
-          sequence = parseInt(matches[1]) + 1 + attempt; // Add attempt to avoid collision
+        // Extract the last sequence number
+        let sequence = 1;
+        if (lastSale?.sale_number) {
+          const matches = lastSale.sale_number.match(/(\d+)$/);
+          if (matches) {
+            sequence = parseInt(matches[1]) + 1 + attempt;
+          }
         }
-      }
 
-      // Replace placeholders in format
-      let invoiceNumber = format
-        .replace('{YYYY}', String(year))
-        .replace('{YY}', String(year).slice(-2))
-        .replace('{MM}', month)
-        .replace('{####}', String(sequence).padStart(4, '0'))
-        .replace('{###}', String(sequence).padStart(3, '0'))
-        .replace('{#####}', String(sequence).padStart(5, '0'));
+        // Replace placeholders in format
+        invoiceNumber = format
+          .replace('{YYYY}', String(year))
+          .replace('{YY}', String(year).slice(-2))
+          .replace('{MM}', month)
+          .replace('{####}', String(sequence).padStart(4, '0'))
+          .replace('{###}', String(sequence).padStart(3, '0'))
+          .replace('{#####}', String(sequence).padStart(5, '0'));
+      } else {
+        // Format is literal string, find last matching invoice and increment
+        const basePattern = format.replace(/\d+$/, ''); // Remove trailing numbers
+        
+        const { data: lastSale } = await (supabase as any)
+          .from('sales')
+          .select('sale_number')
+          .eq('organization_id', currentOrganization?.id)
+          .like('sale_number', `${basePattern}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let sequence = 1;
+        if (lastSale?.sale_number) {
+          const matches = lastSale.sale_number.match(/(\d+)$/);
+          if (matches) {
+            sequence = parseInt(matches[1]) + 1 + attempt;
+          }
+        }
+
+        // Append sequence to base pattern
+        invoiceNumber = `${basePattern}${sequence}`;
+      }
 
       // Check if this number already exists
       const { data: existing } = await (supabase as any)
