@@ -131,7 +131,7 @@ export default function POSSales() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch all products with variants and batch stock
+  // Fetch all products with variants and batch stock (only with available stock)
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
@@ -153,7 +153,15 @@ export default function POSSales() {
         .eq('status', 'active');
       
       if (productsError) throw productsError;
-      return products;
+      
+      // Filter out products with no variants or all variants with stock_qty <= 0
+      return products?.filter((product: any) => {
+        const hasAvailableStock = product.product_variants?.some((v: any) => v.stock_qty > 0);
+        return hasAvailableStock;
+      }).map((product: any) => ({
+        ...product,
+        product_variants: product.product_variants?.filter((v: any) => v.stock_qty > 0)
+      })) || [];
     },
     enabled: !!currentOrganization?.id,
   });
@@ -912,51 +920,44 @@ export default function POSSales() {
             <Button
               onClick={handlePreviousInvoice}
               variant="outline"
-              size="lg"
+              size="sm"
               className="h-12"
               disabled={!todaysSales || todaysSales.length === 0}
             >
-              <ChevronLeft className="h-5 w-5 mr-2" />
+              <ChevronLeft className="h-4 w-4 mr-1" />
               Previous
             </Button>
-            <Input 
-              placeholder={todaysSales && todaysSales.length > 0 
-                ? `Invoice ${currentInvoiceIndex + 1} of ${todaysSales.length} (Today)` 
-                : "No invoices today"
-              } 
-              className="h-12 text-lg flex-1 text-center font-medium" 
-              readOnly
-            />
             <Button
               onClick={handleNextInvoice}
               variant="outline"
-              size="lg"
+              size="sm"
               className="h-12"
               disabled={!todaysSales || todaysSales.length === 0}
             >
               Next
-              <ChevronRight className="h-5 w-5 ml-2" />
+              <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
         </div>
 
         {/* Items Table */}
-        <Card className="overflow-hidden">
-          <div className="bg-black text-white overflow-x-auto">
-            <div className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 text-base font-medium">
-              <div className="col-span-1">Barcode</div>
-              <div className="col-span-3">Product</div>
-              <div className="col-span-1">Qty</div>
-              <div className="col-span-1">MRP</div>
-              <div className="col-span-1">Tax%</div>
-              <div className="col-span-1">Disc%</div>
-              <div className="col-span-1">Disc Rs</div>
-              <div className="col-span-1">Unit Price</div>
-              <div className="col-span-2">Net Amount</div>
+        <div className="flex-1 overflow-hidden flex flex-col p-4">
+          <Card className="flex-1 overflow-hidden flex flex-col">
+            <div className="bg-black text-white overflow-x-auto">
+              <div className="min-w-[1000px] grid grid-cols-12 gap-2 p-4 text-base font-medium">
+                <div className="col-span-1">Barcode</div>
+                <div className="col-span-3">Product</div>
+                <div className="col-span-1">Qty</div>
+                <div className="col-span-1">MRP</div>
+                <div className="col-span-1">Tax%</div>
+                <div className="col-span-1">Disc%</div>
+                <div className="col-span-1">Disc Rs</div>
+                <div className="col-span-1">Unit Price</div>
+                <div className="col-span-2">Net Amount</div>
+              </div>
             </div>
-          </div>
-          
-          <div className="min-h-[350px] max-h-[450px] overflow-y-auto">
+            
+            <div className="flex-1 overflow-y-auto">
             {items.length === 0 ? (
               <div className="text-center text-muted-foreground py-24 text-lg">
                 Scan or enter product to add items
@@ -1012,9 +1013,9 @@ export default function POSSales() {
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
+          )}
           </div>
         </Card>
 
