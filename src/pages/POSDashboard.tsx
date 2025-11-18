@@ -240,10 +240,8 @@ const POSDashboard = () => {
 
       await printInvoicePDF(invoiceData);
       
-      toast({
-        title: "Success",
-        description: "Invoice opened for printing",
-      });
+      // Close dialog after initiating print
+      setPrintingSale(null);
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
