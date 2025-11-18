@@ -253,53 +253,41 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
 export const printInvoicePDF = async (data: InvoiceData) => {
   const pdf = await generateInvoicePDF(data);
   
-  // Create a hidden iframe and print from there
-  const blob = pdf.output('blob');
-  const url = URL.createObjectURL(blob);
+  // Get the PDF as a blob
+  const pdfBlob = pdf.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
   
-  // Create iframe
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  iframe.src = url;
+  // Create a hidden iframe for printing
+  const printFrame = document.createElement('iframe');
+  printFrame.style.position = 'absolute';
+  printFrame.style.width = '0';
+  printFrame.style.height = '0';
+  printFrame.style.border = 'none';
   
-  document.body.appendChild(iframe);
+  document.body.appendChild(printFrame);
   
-  // Wait for iframe to load then print
-  iframe.onload = () => {
-    setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        
-        // Clean up after a delay
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          URL.revokeObjectURL(url);
-        }, 500);
-      } catch (error) {
-        console.error('Print error:', error);
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe);
+  // Load PDF in iframe and trigger print
+  printFrame.onload = function() {
+    try {
+      // Give the PDF time to fully render
+      setTimeout(() => {
+        if (printFrame.contentWindow) {
+          printFrame.contentWindow.focus();
+          printFrame.contentWindow.print();
         }
-        URL.revokeObjectURL(url);
-      }
-    }, 250);
+      }, 500);
+    } catch (e) {
+      console.error('Print failed:', e);
+    }
+    
+    // Cleanup after print dialog closes
+    setTimeout(() => {
+      document.body.removeChild(printFrame);
+      URL.revokeObjectURL(pdfUrl);
+    }, 2000);
   };
   
-  // Fallback cleanup if load fails
-  setTimeout(() => {
-    if (document.body.contains(iframe)) {
-      document.body.removeChild(iframe);
-      URL.revokeObjectURL(url);
-    }
-  }, 5000);
+  printFrame.src = pdfUrl;
 };
 
 export const downloadInvoicePDF = async (data: InvoiceData, filename?: string) => {

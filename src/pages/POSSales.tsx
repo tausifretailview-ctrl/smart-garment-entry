@@ -472,11 +472,7 @@ export default function POSSales() {
 
       await printInvoicePDF(invoiceData);
       
-      toast({
-        title: "Success",
-        description: "Invoice opened for printing",
-      });
-      
+      // Close dialog after initiating print
       setShowPrintDialog(false);
     } catch (error: any) {
       console.error('Error generating PDF:', error);
