@@ -12,10 +12,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
+import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";
+import { MinimalTemplate } from "@/components/invoice-templates/MinimalTemplate";
 import {
   Command,
   CommandEmpty,
@@ -92,6 +95,8 @@ export default function SalesInvoice() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern" | "minimal">("classic");
+  const [showPreview, setShowPreview] = useState(false);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -118,6 +123,24 @@ export default function SalesInvoice() {
       
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch settings
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .single();
+      
+      if (error) throw error;
+      return data;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -688,6 +711,34 @@ export default function SalesInvoice() {
               </p>
             </div>
 
+            {/* Invoice Template */}
+            <div className="space-y-2">
+              <Label className="text-foreground">
+                Invoice Template<span className="text-destructive">*</span>
+              </Label>
+              <Select value={selectedTemplate} onValueChange={(value: "classic" | "modern" | "minimal") => setSelectedTemplate(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="classic">Classic - Traditional business style</SelectItem>
+                  <SelectItem value="modern">Modern - Gradient & contemporary</SelectItem>
+                  <SelectItem value="minimal">Minimal - Clean & simple</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                onClick={() => lineItems.length > 0 && setShowPreview(true)}
+                disabled={lineItems.length === 0}
+                className="w-full mt-2"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview Template
+              </Button>
+            </div>
+
             {/* Create Invoice From */}
             <div className="space-y-2">
               <Label className="text-foreground">Create Invoice From</Label>
@@ -1075,6 +1126,106 @@ export default function SalesInvoice() {
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice Template Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto p-0">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle className="flex items-center justify-between">
+              <span>Invoice Preview - {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} Template</span>
+              <Button variant="outline" size="sm" onClick={() => setShowPreview(false)}>
+                Close Preview
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6">
+            {selectedTemplate === "classic" && (
+              <ClassicTemplate
+                businessName={settingsData?.business_name || "Your Business"}
+                businessAddress={settingsData?.address || "Business Address"}
+                businessContact={settingsData?.mobile_number || "Contact Number"}
+                businessEmail={settingsData?.email_id || "email@business.com"}
+                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
+                billNo="PREVIEW-001"
+                date={invoiceDate}
+                customerName={selectedCustomer?.customer_name || "Customer Name"}
+                customerPhone={selectedCustomer?.phone || ""}
+                items={lineItems.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  qty: item.quantity,
+                  rate: item.salePrice,
+                  discPercent: item.discountPercent,
+                  total: item.lineTotal
+                }))}
+                subTotal={grossAmount}
+                discountAmount={totalDiscount}
+                totalGST={totalGST}
+                netAmount={netAmount}
+                paymentMethod="Cash"
+                termsConditions={termsConditions}
+              />
+            )}
+            {selectedTemplate === "modern" && (
+              <ModernTemplate
+                businessName={settingsData?.business_name || "Your Business"}
+                businessAddress={settingsData?.address || "Business Address"}
+                businessContact={settingsData?.mobile_number || "Contact Number"}
+                businessEmail={settingsData?.email_id || "email@business.com"}
+                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
+                billNo="PREVIEW-001"
+                date={invoiceDate}
+                customerName={selectedCustomer?.customer_name || "Customer Name"}
+                customerPhone={selectedCustomer?.phone || ""}
+                items={lineItems.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  qty: item.quantity,
+                  rate: item.salePrice,
+                  discPercent: item.discountPercent,
+                  total: item.lineTotal
+                }))}
+                subTotal={grossAmount}
+                discountAmount={totalDiscount}
+                totalGST={totalGST}
+                netAmount={netAmount}
+                paymentMethod="Cash"
+                termsConditions={termsConditions}
+              />
+            )}
+            {selectedTemplate === "minimal" && (
+              <MinimalTemplate
+                businessName={settingsData?.business_name || "Your Business"}
+                businessAddress={settingsData?.address || "Business Address"}
+                businessContact={settingsData?.mobile_number || "Contact Number"}
+                businessEmail={settingsData?.email_id || "email@business.com"}
+                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
+                billNo="PREVIEW-001"
+                date={invoiceDate}
+                customerName={selectedCustomer?.customer_name || "Customer Name"}
+                customerPhone={selectedCustomer?.phone || ""}
+                items={lineItems.map((item, index) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  qty: item.quantity,
+                  rate: item.salePrice,
+                  discPercent: item.discountPercent,
+                  total: item.lineTotal
+                }))}
+                subTotal={grossAmount}
+                discountAmount={totalDiscount}
+                totalGST={totalGST}
+                netAmount={netAmount}
+                paymentMethod="Cash"
+                termsConditions={termsConditions}
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
