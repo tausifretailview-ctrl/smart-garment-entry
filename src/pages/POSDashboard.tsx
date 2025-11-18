@@ -245,6 +245,7 @@ const POSDashboard = () => {
         businessContact: settings?.mobile_number || '',
         businessEmail: settings?.email_id || '',
         gstNumber: settings?.gst_number || '',
+        logo: (settings?.bill_barcode_settings as any)?.logo_url,
         time: currentTime,
         mrpTotal: mrpTotal,
         cardPaid: cardPaid,

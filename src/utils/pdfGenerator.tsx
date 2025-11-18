@@ -332,6 +332,7 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
       businessAddress: data.businessAddress || '',
       businessContact: data.businessContact || '',
       businessEmail: data.businessEmail || '',
+      logoUrl: data.logo,
       billNo: data.billNo,
       date: data.date,
       time: data.time || data.date.toLocaleTimeString('en-US'),
