@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
 
 interface LineItem {
   id: string;
@@ -49,6 +62,14 @@ interface LineItem {
   lineTotal: number;
 }
 
+const customerSchema = z.object({
+  customer_name: z.string().trim().min(1, "Customer name is required").max(100),
+  phone: z.string().trim().max(20).optional(),
+  email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
+  address: z.string().trim().max(500).optional(),
+  gst_number: z.string().trim().max(15).optional(),
+});
+
 export default function SalesInvoice() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
@@ -59,6 +80,18 @@ export default function SalesInvoice() {
   const [searchInput, setSearchInput] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
+
+  const customerForm = useForm<z.infer<typeof customerSchema>>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      customer_name: "",
+      phone: "",
+      email: "",
+      address: "",
+      gst_number: "",
+    },
+  });
 
   // Fetch customers
   const { data: customersData } = useQuery({
@@ -178,6 +211,44 @@ export default function SalesInvoice() {
     setLineItems(lineItems.filter(item => item.id !== id));
   };
 
+  const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert([{
+          customer_name: values.customer_name,
+          phone: values.phone || null,
+          email: values.email || null,
+          address: values.address || null,
+          gst_number: values.gst_number || null,
+          organization_id: currentOrganization?.id,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Customer Created",
+        description: `${values.customer_name} has been added successfully`,
+      });
+
+      // Auto-select the new customer
+      setSelectedCustomerId(data.id);
+      setSelectedCustomer(data);
+      
+      // Reset form and close dialog
+      customerForm.reset();
+      setOpenCustomerDialog(false);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to create customer",
+      });
+    }
+  };
+
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
   const totalDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
@@ -228,7 +299,12 @@ export default function SalesInvoice() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="icon" variant="outline">
+                <Button 
+                  size="icon" 
+                  variant="outline"
+                  onClick={() => setOpenCustomerDialog(true)}
+                  type="button"
+                >
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -582,6 +658,104 @@ export default function SalesInvoice() {
           </div>
         </Card>
       </div>
+
+      {/* Create Customer Dialog */}
+      <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add New Customer</DialogTitle>
+          </DialogHeader>
+          <Form {...customerForm}>
+            <form onSubmit={customerForm.handleSubmit(handleCreateCustomer)} className="space-y-4">
+              <FormField
+                control={customerForm.control}
+                name="customer_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Name<span className="text-destructive">*</span></FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter customer name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={customerForm.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter phone number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="email" placeholder="Enter email address" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Address</FormLabel>
+                    <FormControl>
+                      <Textarea {...field} placeholder="Enter address" rows={3} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={customerForm.control}
+                name="gst_number"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GST Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter GST number" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    customerForm.reset();
+                    setOpenCustomerDialog(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  Create Customer
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
