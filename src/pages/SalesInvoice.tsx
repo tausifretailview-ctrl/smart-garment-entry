@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Form,
   FormControl,
@@ -73,6 +74,8 @@ const customerSchema = z.object({
 export default function SalesInvoice() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
@@ -87,6 +90,7 @@ export default function SalesInvoice() {
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -136,6 +140,55 @@ export default function SalesInvoice() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Pre-populate form if editing existing invoice
+  useState(() => {
+    const invoiceData = location.state?.invoiceData;
+    if (invoiceData) {
+      setEditingInvoiceId(invoiceData.id);
+      setInvoiceDate(new Date(invoiceData.sale_date));
+      setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
+      setSelectedCustomerId(invoiceData.customer_id || "");
+      
+      // Set customer if available
+      if (invoiceData.customer_id) {
+        const customer = {
+          id: invoiceData.customer_id,
+          customer_name: invoiceData.customer_name,
+          phone: invoiceData.customer_phone,
+          email: invoiceData.customer_email,
+          address: invoiceData.customer_address,
+        };
+        setSelectedCustomer(customer);
+      }
+      
+      setPaymentTerm(invoiceData.payment_term || "");
+      setTermsConditions(invoiceData.terms_conditions || "");
+      setNotes(invoiceData.notes || "");
+      setShippingAddress(invoiceData.shipping_address || "");
+      setShippingInstructions(invoiceData.shipping_instructions || "");
+      
+      // Transform sale items back to line items
+      if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
+        const transformedItems = invoiceData.sale_items.map((item: any) => ({
+          id: item.id,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          productName: item.product_name,
+          size: item.size,
+          barcode: item.barcode || '',
+          quantity: item.quantity,
+          mrp: item.mrp,
+          salePrice: item.unit_price,
+          discountPercent: item.discount_percent,
+          discountAmount: 0,
+          gstPercent: item.gst_percent,
+          lineTotal: item.line_total,
+        }));
+        setLineItems(transformedItems);
+      }
+    }
   });
 
   const addProductToInvoice = (product: any, variant: any) => {
@@ -277,84 +330,147 @@ export default function SalesInvoice() {
 
     setIsSaving(true);
     try {
-      // Generate invoice number
-      const { data: saleNumber, error: saleNumError } = await supabase
-        .rpc('generate_sale_number');
+      if (editingInvoiceId) {
+        // Update existing invoice
+        const { error: updateError } = await supabase
+          .from('sales')
+          .update({
+            sale_date: invoiceDate.toISOString(),
+            customer_id: selectedCustomerId,
+            customer_name: selectedCustomer.customer_name,
+            customer_phone: selectedCustomer.phone || null,
+            customer_email: selectedCustomer.email || null,
+            customer_address: selectedCustomer.address || null,
+            gross_amount: grossAmount,
+            discount_amount: totalDiscount,
+            net_amount: netAmount,
+            due_date: dueDate.toISOString().split('T')[0],
+            payment_term: paymentTerm || null,
+            terms_conditions: termsConditions || null,
+            notes: notes || null,
+            shipping_address: shippingAddress || null,
+            shipping_instructions: shippingInstructions || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingInvoiceId);
 
-      if (saleNumError) throw saleNumError;
+        if (updateError) throw updateError;
 
-      // Create the sale record
-      const { data: saleData, error: saleError } = await supabase
-        .from('sales')
-        .insert([{
-          sale_number: saleNumber,
-          sale_date: invoiceDate.toISOString(),
-          sale_type: 'invoice',
-          customer_id: selectedCustomerId,
-          customer_name: selectedCustomer.customer_name,
-          customer_phone: selectedCustomer.phone || null,
-          customer_email: selectedCustomer.email || null,
-          customer_address: selectedCustomer.address || null,
-          gross_amount: grossAmount,
-          discount_amount: totalDiscount,
-          net_amount: netAmount,
-          payment_method: 'pending',
-          payment_status: 'pending',
-          round_off: 0,
-          flat_discount_amount: 0,
-          flat_discount_percent: 0,
-          organization_id: currentOrganization?.id,
-          due_date: dueDate.toISOString().split('T')[0],
-          payment_term: paymentTerm || null,
-          terms_conditions: termsConditions || null,
-          notes: notes || null,
-          shipping_address: shippingAddress || null,
-          shipping_instructions: shippingInstructions || null,
-        }])
-        .select()
-        .single();
+        // Delete existing sale items
+        const { error: deleteError } = await supabase
+          .from('sale_items')
+          .delete()
+          .eq('sale_id', editingInvoiceId);
 
-      if (saleError) throw saleError;
+        if (deleteError) throw deleteError;
 
-      // Create sale items
-      const saleItems = lineItems.map(item => ({
-        sale_id: saleData.id,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.productName,
-        size: item.size,
-        barcode: item.barcode || null,
-        quantity: item.quantity,
-        unit_price: item.salePrice,
-        mrp: item.mrp,
-        discount_percent: item.discountPercent,
-        gst_percent: item.gstPercent,
-        line_total: item.lineTotal,
-      }));
+        // Insert updated sale items
+        const saleItems = lineItems.map(item => ({
+          sale_id: editingInvoiceId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode || null,
+          quantity: item.quantity,
+          unit_price: item.salePrice,
+          mrp: item.mrp,
+          discount_percent: item.discountPercent,
+          gst_percent: item.gstPercent,
+          line_total: item.lineTotal,
+        }));
 
-      const { error: itemsError } = await supabase
-        .from('sale_items')
-        .insert(saleItems);
+        const { error: itemsError } = await supabase
+          .from('sale_items')
+          .insert(saleItems);
 
-      if (itemsError) throw itemsError;
+        if (itemsError) throw itemsError;
 
-      toast({
-        title: "Invoice Saved",
-        description: `Invoice ${saleNumber} has been created successfully`,
-      });
+        toast({
+          title: "Invoice Updated",
+          description: "Invoice has been updated successfully",
+        });
 
-      // Reset form
-      setLineItems([]);
-      setSelectedCustomerId("");
-      setSelectedCustomer(null);
-      setInvoiceDate(new Date());
-      setDueDate(new Date());
-      setPaymentTerm("");
-      setTermsConditions("");
-      setNotes("");
-      setShippingAddress("");
-      setShippingInstructions("");
+        // Navigate back to dashboard
+        navigate('/sales-invoice-dashboard');
+      } else {
+        // Create new invoice
+        const { data: saleNumber, error: saleNumError } = await supabase
+          .rpc('generate_sale_number');
 
+        if (saleNumError) throw saleNumError;
+
+        const { data: saleData, error: saleError } = await supabase
+          .from('sales')
+          .insert([{
+            sale_number: saleNumber,
+            sale_date: invoiceDate.toISOString(),
+            sale_type: 'invoice',
+            customer_id: selectedCustomerId,
+            customer_name: selectedCustomer.customer_name,
+            customer_phone: selectedCustomer.phone || null,
+            customer_email: selectedCustomer.email || null,
+            customer_address: selectedCustomer.address || null,
+            gross_amount: grossAmount,
+            discount_amount: totalDiscount,
+            net_amount: netAmount,
+            payment_method: 'pending',
+            payment_status: 'pending',
+            round_off: 0,
+            flat_discount_amount: 0,
+            flat_discount_percent: 0,
+            organization_id: currentOrganization?.id,
+            due_date: dueDate.toISOString().split('T')[0],
+            payment_term: paymentTerm || null,
+            terms_conditions: termsConditions || null,
+            notes: notes || null,
+            shipping_address: shippingAddress || null,
+            shipping_instructions: shippingInstructions || null,
+          }])
+          .select()
+          .single();
+
+        if (saleError) throw saleError;
+
+        const saleItems = lineItems.map(item => ({
+          sale_id: saleData.id,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode || null,
+          quantity: item.quantity,
+          unit_price: item.salePrice,
+          mrp: item.mrp,
+          discount_percent: item.discountPercent,
+          gst_percent: item.gstPercent,
+          line_total: item.lineTotal,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('sale_items')
+          .insert(saleItems);
+
+        if (itemsError) throw itemsError;
+
+        toast({
+          title: "Invoice Saved",
+          description: `Invoice ${saleNumber} has been created successfully`,
+        });
+
+        // Reset form
+        setLineItems([]);
+        setSelectedCustomerId("");
+        setSelectedCustomer(null);
+        setInvoiceDate(new Date());
+        setDueDate(new Date());
+        setPaymentTerm("");
+        setTermsConditions("");
+        setNotes("");
+        setShippingAddress("");
+        setShippingInstructions("");
+        setEditingInvoiceId(null);
+      }
     } catch (error: any) {
       console.error('Error saving invoice:', error);
       toast({
@@ -386,7 +502,9 @@ export default function SalesInvoice() {
         <div className="flex items-center gap-4 mb-6">
           <Home className="h-5 w-5 text-muted-foreground" />
           <span className="text-muted-foreground">- Invoice</span>
-          <h1 className="text-2xl font-semibold">New Invoice</h1>
+          <h1 className="text-2xl font-semibold">
+            {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
+          </h1>
         </div>
 
         {/* Main Form */}
@@ -791,7 +909,13 @@ export default function SalesInvoice() {
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 mt-6">
-            <Button variant="outline" type="button">Cancel</Button>
+            <Button 
+              variant="outline" 
+              type="button"
+              onClick={() => navigate('/sales-invoice-dashboard')}
+            >
+              Cancel
+            </Button>
             <Button variant="outline" type="button">Save as Draft</Button>
             <Button 
               className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
@@ -799,7 +923,7 @@ export default function SalesInvoice() {
               disabled={isSaving}
               type="button"
             >
-              {isSaving ? "Saving..." : "Save Invoice"}
+              {isSaving ? "Saving..." : editingInvoiceId ? "Update Invoice" : "Save Invoice"}
             </Button>
           </div>
         </Card>

@@ -128,8 +128,8 @@ export default function SalesInvoiceDashboard() {
   };
 
   const handleEdit = (invoice: any) => {
-    // Navigate to invoice page with pre-filled data
-    navigate('/sales-invoice', { state: { invoice } });
+    // Navigate to invoice page with invoice data
+    navigate('/sales-invoice', { state: { invoiceData: invoice } });
   };
 
   const handlePrint = async (invoice: any) => {
