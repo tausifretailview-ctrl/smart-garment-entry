@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -91,6 +91,7 @@ export default function SalesInvoice() {
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -191,6 +192,13 @@ export default function SalesInvoice() {
     }
   });
 
+  // Recalculate all line items when tax type changes
+  useEffect(() => {
+    if (lineItems.length > 0) {
+      setLineItems(prevItems => prevItems.map(item => calculateLineTotal(item)));
+    }
+  }, [taxType]);
+
   const addProductToInvoice = (product: any, variant: any) => {
     // Check if product already exists
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id);
@@ -235,7 +243,16 @@ export default function SalesInvoice() {
       ? (baseAmount * item.discountPercent) / 100 
       : item.discountAmount;
     const amountAfterDiscount = baseAmount - discountAmount;
-    const lineTotal = amountAfterDiscount;
+    
+    let lineTotal: number;
+    if (taxType === "inclusive") {
+      // For inclusive GST, the price already includes tax
+      lineTotal = amountAfterDiscount;
+    } else {
+      // For exclusive GST, add tax on top
+      const gstAmount = (amountAfterDiscount * item.gstPercent) / 100;
+      lineTotal = amountAfterDiscount + gstAmount;
+    }
     
     return {
       ...item,
@@ -487,11 +504,19 @@ export default function SalesInvoice() {
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
   const totalDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
   const amountAfterDiscount = grossAmount - totalDiscount;
+  
   const totalGST = lineItems.reduce((sum, item) => {
     const baseAmount = item.salePrice * item.quantity - item.discountAmount;
-    return sum + (baseAmount * item.gstPercent) / 100;
+    if (taxType === "inclusive") {
+      // Extract GST from inclusive price
+      return sum + (baseAmount - (baseAmount / (1 + item.gstPercent / 100)));
+    } else {
+      // Calculate GST on exclusive price
+      return sum + (baseAmount * item.gstPercent) / 100;
+    }
   }, 0);
-  const netAmount = amountAfterDiscount + totalGST;
+  
+  const netAmount = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -637,16 +662,23 @@ export default function SalesInvoice() {
 
             {/* Tax Type */}
             <div className="space-y-2">
-              <Label className="text-foreground">Tax Type</Label>
-              <Select defaultValue="default">
+              <Label className="text-foreground">
+                Tax Type<span className="text-destructive">*</span>
+              </Label>
+              <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="default">Default</SelectItem>
-                  <SelectItem value="gst">GST</SelectItem>
+                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {taxType === "exclusive" 
+                  ? "GST will be added on top of the price (e.g., ₹1500 + GST)" 
+                  : "Price already includes GST (e.g., ₹1500 with GST)"}
+              </p>
             </div>
 
             {/* Create Invoice From */}
