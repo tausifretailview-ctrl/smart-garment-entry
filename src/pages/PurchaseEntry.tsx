@@ -105,6 +105,23 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Restore saved purchase state from sessionStorage if available
+  useEffect(() => {
+    const savedState = sessionStorage.getItem('purchaseEntryState');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        setBillData(parsed.billData);
+        setSoftwareBillNo(parsed.softwareBillNo);
+        setBillDate(new Date(parsed.billDate));
+        setLineItems(parsed.lineItems);
+        sessionStorage.removeItem('purchaseEntryState');
+      } catch (error) {
+        console.error('Error restoring purchase state:', error);
+      }
+    }
+  }, []);
+
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
     const loadOrGenerateBill = async () => {
@@ -810,7 +827,17 @@ const PurchaseEntry = () => {
               <CardTitle>Products</CardTitle>
               <div className="flex items-center gap-4">
                 <Button
-                  onClick={() => navigate('/product-entry', { state: { returnToPurchase: true } })}
+                  onClick={() => {
+                    // Save current state before navigating
+                    const stateToSave = {
+                      billData,
+                      softwareBillNo,
+                      billDate: billDate.toISOString(),
+                      lineItems,
+                    };
+                    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
+                    navigate('/product-entry', { state: { returnToPurchase: true } });
+                  }}
                   variant="outline"
                   className="gap-2"
                 >
