@@ -252,9 +252,35 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
 
 export const printInvoicePDF = async (data: InvoiceData) => {
   const pdf = await generateInvoicePDF(data);
-  // Open in new window for printing
-  pdf.autoPrint();
-  window.open(pdf.output('bloburl'), '_blank');
+  
+  // Create a hidden iframe and print from there to avoid popup blockers
+  const blob = pdf.output('blob');
+  const url = URL.createObjectURL(blob);
+  
+  // Create iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = url;
+  
+  document.body.appendChild(iframe);
+  
+  // Wait for iframe to load then print
+  iframe.onload = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      // Clean up after print
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (error) {
+      console.error('Print error:', error);
+      document.body.removeChild(iframe);
+      URL.revokeObjectURL(url);
+    }
+  };
 };
 
 export const downloadInvoicePDF = async (data: InvoiceData, filename?: string) => {
