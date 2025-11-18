@@ -68,6 +68,7 @@ export default function POSSales() {
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
+  const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
@@ -147,6 +148,46 @@ export default function POSSales() {
     return () => clearInterval(timer);
   }, []);
 
+  // Preview next invoice number when not editing existing sale
+  useEffect(() => {
+    const previewNextInvoice = async () => {
+      if (currentSaleId || !settingsData) return;
+      
+      const saleSettings = (settingsData as any)?.sale_settings;
+      const format = saleSettings?.invoice_format || 'SALE/{YYYY}/{####}';
+      
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const basePattern = format.replace(/\d+$/, '');
+        
+        const { data: lastSale } = await (supabase as any)
+          .from('sales')
+          .select('sale_number')
+          .eq('organization_id', currentOrganization?.id)
+          .like('sale_number', `${basePattern}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        let sequence = 1;
+        if (lastSale?.sale_number) {
+          const matches = lastSale.sale_number.match(/(\d+)$/);
+          if (matches) {
+            sequence = parseInt(matches[1]) + 1;
+          }
+        }
+        
+        const nextNumber = `${basePattern}${sequence}`;
+        setNextInvoicePreview(nextNumber);
+      } catch (error) {
+        console.error('Error previewing next invoice:', error);
+      }
+    };
+    
+    previewNextInvoice();
+  }, [currentSaleId, settingsData, currentOrganization?.id]);
+
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
     queryKey: ['todays-sales', currentOrganization?.id],
@@ -169,6 +210,8 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 10000, // Cache for 10 seconds
+    refetchInterval: 30000, // Auto-refetch every 30 seconds
   });
 
   // Fetch all products with variants and batch stock (only with available stock)
@@ -204,6 +247,8 @@ export default function POSSales() {
       })) || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 30000, // Cache for 30 seconds
+    refetchInterval: 60000, // Auto-refetch every 60 seconds
   });
 
   // Fetch customers
@@ -220,6 +265,7 @@ export default function POSSales() {
       return data;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000, // Cache for 60 seconds
   });
 
   // Handle barcode/product search on Enter
@@ -696,6 +742,8 @@ export default function POSSales() {
 
     // Load customer info
     setCustomerName(sale.customer_name || "");
+    setCustomerPhone(sale.customer_phone || "");
+    setCustomerId(sale.customer_id || "");
     
     // Load items from sale_items
     const loadedItems: CartItem[] = sale.sale_items.map((item: any) => ({
@@ -718,6 +766,7 @@ export default function POSSales() {
     setFlatDiscountPercent(Number(sale.flat_discount_percent) || 0);
     setRoundOff(Number(sale.round_off) || 0);
     setCurrentSaleId(sale.id);
+    setCurrentInvoiceNumber(sale.sale_number);
 
     toast({
       title: "Invoice Loaded",
@@ -880,7 +929,9 @@ export default function POSSales() {
 
   const handleNewInvoice = () => {
     setItems([]);
-    setCustomerName("Walk in Customer");
+    setCustomerName("");
+    setCustomerId("");
+    setCustomerPhone("");
     setFlatDiscountPercent(0);
     setRoundOff(0);
     setSearchInput("");
@@ -1217,7 +1268,7 @@ export default function POSSales() {
           <div className="relative">
             <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
             <Input
-              value={currentInvoiceNumber || "NEW"}
+              value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
               className="h-12 text-lg font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
               placeholder="Invoice #"
@@ -1245,20 +1296,34 @@ export default function POSSales() {
               onClick={handlePreviousInvoice}
               variant="outline"
               size="sm"
-              className="h-12"
+              className="h-12 flex-1"
               disabled={!todaysSales || todaysSales.length === 0}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Previous
+              <div className="flex flex-col items-start">
+                <span className="text-xs">Previous</span>
+                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {todaysSales[currentInvoiceIndex - 1]?.sale_number}
+                  </span>
+                )}
+              </div>
             </Button>
             <Button
               onClick={handleNextInvoice}
               variant="outline"
               size="sm"
-              className="h-12"
+              className="h-12 flex-1"
               disabled={!todaysSales || todaysSales.length === 0}
             >
-              Next
+              <div className="flex flex-col items-end">
+                <span className="text-xs">Next</span>
+                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {todaysSales[currentInvoiceIndex + 1]?.sale_number}
+                  </span>
+                )}
+              </div>
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
           </div>
