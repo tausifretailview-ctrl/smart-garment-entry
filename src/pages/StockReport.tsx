@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Package, TrendingDown, History } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, History, Search } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { Input } from "@/components/ui/input";
 
 interface StockItem {
   id: string;
@@ -51,6 +52,7 @@ export default function StockReport() {
   const [batchStock, setBatchStock] = useState<BatchStock[]>([]);
   const [loading, setLoading] = useState(true);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -197,8 +199,44 @@ export default function StockReport() {
     }
   };
 
-  const lowStockItems = stockItems.filter(item => item.stock_qty <= lowStockThreshold);
-  const totalStock = stockItems.reduce((sum, item) => sum + item.stock_qty, 0);
+  // Filter data based on search term
+  const filteredStockItems = stockItems.filter(item => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      item.product_name.toLowerCase().includes(search) ||
+      item.brand.toLowerCase().includes(search) ||
+      item.color.toLowerCase().includes(search) ||
+      item.size.toLowerCase().includes(search) ||
+      item.barcode.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredBatchStock = batchStock.filter(item => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      item.product_name.toLowerCase().includes(search) ||
+      item.brand.toLowerCase().includes(search) ||
+      item.size.toLowerCase().includes(search) ||
+      item.barcode.toLowerCase().includes(search) ||
+      item.bill_number.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredMovements = movements.filter(item => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      item.product_name.toLowerCase().includes(search) ||
+      item.size.toLowerCase().includes(search) ||
+      item.movement_type.toLowerCase().includes(search) ||
+      item.notes?.toLowerCase().includes(search)
+    );
+  });
+
+  const lowStockItems = filteredStockItems.filter(item => item.stock_qty <= lowStockThreshold);
+  const totalStock = filteredStockItems.reduce((sum, item) => sum + item.stock_qty, 0);
 
   if (loading) {
     return (
@@ -304,9 +342,16 @@ export default function StockReport() {
                     <TableHead className="text-right">Sale Price</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {stockItems.map((item) => (
+                  </TableHeader>
+                  <TableBody>
+                    {filteredStockItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No products found matching your search
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredStockItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>{item.brand}</TableCell>
@@ -323,10 +368,11 @@ export default function StockReport() {
                       ) : (
                         <Badge variant="outline">In Stock</Badge>
                       )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
+                        </TableCell>
+                      </TableRow>
+                      ))
+                    )}
+                  </TableBody>
               </Table>
             </CardContent>
           </Card>
@@ -357,7 +403,14 @@ export default function StockReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lowStockItems.map((item) => (
+                    {lowStockItems.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          {searchTerm ? "No low stock products found matching your search" : "No low stock items"}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      lowStockItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.product_name}</TableCell>
                         <TableCell>{item.brand}</TableCell>
@@ -366,9 +419,10 @@ export default function StockReport() {
                         <TableCell className="text-right font-bold text-destructive">
                           {item.stock_qty}
                         </TableCell>
-                        <TableCell className="text-right">₹{item.sale_price}</TableCell>
+                         <TableCell className="text-right">₹{item.sale_price}</TableCell>
                       </TableRow>
-                    ))}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               )}
@@ -407,7 +461,14 @@ export default function StockReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {batchStock.map((batch) => {
+                    {filteredBatchStock.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          No batch stock found matching your search
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredBatchStock.map((batch) => {
                       const ageInDays = Math.floor(
                         (Date.now() - new Date(batch.purchase_date).getTime()) / (1000 * 60 * 60 * 24)
                       );
@@ -443,10 +504,11 @@ export default function StockReport() {
                             >
                               {ageInDays} days
                             </Badge>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                            </TableCell>
+                         </TableRow>
+                       );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               )}
@@ -471,9 +533,16 @@ export default function StockReport() {
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {movements.map((movement) => (
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMovements.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No stock movements found matching your search
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredMovements.map((movement) => (
                     <TableRow key={movement.id}>
                       <TableCell>
                         {new Date(movement.created_at).toLocaleDateString()} {new Date(movement.created_at).toLocaleTimeString()}
@@ -488,10 +557,11 @@ export default function StockReport() {
                       <TableCell className="text-right">
                         {movement.movement_type === 'purchase' ? '+' : '-'}{movement.quantity}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
+                       <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
+                      ))
+                    )}
+                 </TableBody>
               </Table>
             </CardContent>
           </Card>
