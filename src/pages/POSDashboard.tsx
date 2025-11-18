@@ -27,7 +27,6 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edi
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { InvoicePrint } from "@/components/InvoicePrint";
 import { printInvoicePDF } from "@/utils/pdfGenerator";
 
 interface SaleItem {
@@ -75,8 +74,6 @@ const POSDashboard = () => {
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [deletingSale, setDeletingSale] = useState<string | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
-  const [printingSale, setPrintingSale] = useState<Sale | null>(null);
-  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchSales();
@@ -202,40 +199,40 @@ const POSDashboard = () => {
       await fetchSaleItems(sale.id);
     }
     
-    setPrintingSale(sale);
-  };
-
-  const handlePrintInvoice = async () => {
-    if (!printingSale || !saleItems[printingSale.id]) return;
-    
+    // Directly generate and download PDF
     try {
-      console.log('Fetching settings for dashboard print...');
-      // Fetch business settings for invoice
       const { data: settings } = await supabase
         .from('settings')
         .select('*')
         .eq('organization_id', currentOrganization?.id)
         .maybeSingle();
 
+      const items = saleItems[sale.id] || [];
       const invoiceData = {
-        billNo: printingSale.sale_number,
-        date: new Date(printingSale.sale_date),
-        customerName: printingSale.customer_name,
-        customerAddress: printingSale.customer_address || '',
-        customerMobile: printingSale.customer_phone || '',
-        items: transformItemsForPrint(saleItems[printingSale.id]).map(item => ({
-          ...item,
-          sp: item.sp, // MRP
-          rate: item.rate, // Actual selling price (may include discount)
+        billNo: sale.sale_number,
+        date: new Date(sale.sale_date),
+        customerName: sale.customer_name,
+        customerAddress: sale.customer_address || '',
+        customerMobile: sale.customer_phone || '',
+        items: items.map((item, index) => ({
+          sr: index + 1,
+          particulars: item.product_name,
+          size: item.size,
+          barcode: item.barcode || '',
+          hsn: '',
+          sp: item.mrp,
+          qty: item.quantity,
+          rate: item.unit_price,
+          total: item.line_total,
         })),
-        subTotal: printingSale.gross_amount,
-        discount: printingSale.discount_amount + printingSale.flat_discount_amount,
-        grandTotal: printingSale.net_amount,
-        tenderAmount: printingSale.net_amount,
-        cashPaid: printingSale.payment_method === 'cash' ? printingSale.net_amount : 0,
+        subTotal: sale.gross_amount,
+        discount: sale.discount_amount + sale.flat_discount_amount,
+        grandTotal: sale.net_amount,
+        tenderAmount: sale.net_amount,
+        cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
         refundCash: 0,
-        upiPaid: printingSale.payment_method === 'upi' ? printingSale.net_amount : 0,
-        paymentMethod: printingSale.payment_method,
+        upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
+        paymentMethod: sale.payment_method,
         businessName: settings?.business_name || 'BUSINESS NAME',
         businessAddress: settings?.address || '',
         businessContact: settings?.mobile_number || '',
@@ -243,16 +240,12 @@ const POSDashboard = () => {
         gstNumber: settings?.gst_number || '',
       };
 
-      console.log('Calling printInvoicePDF from dashboard...');
       await printInvoicePDF(invoiceData);
       
       toast({
         title: "Success",
         description: "Invoice PDF downloaded successfully",
       });
-      
-      // Close dialog after initiating download
-      setPrintingSale(null);
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
@@ -261,20 +254,6 @@ const POSDashboard = () => {
         variant: "destructive",
       });
     }
-  };
-
-  const transformItemsForPrint = (items: SaleItem[]) => {
-    return items.map((item, index) => ({
-      sr: index + 1,
-      particulars: item.product_name,
-      size: item.size,
-      barcode: item.barcode || '',
-      hsn: '', // HSN code can be added if needed from products table
-      sp: item.mrp,
-      qty: item.quantity,
-      rate: item.unit_price,
-      total: item.line_total,
-    }));
   };
 
   const filteredSales = sales.filter((sale) => {
@@ -606,41 +585,6 @@ const POSDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Print Invoice Dialog */}
-      <Dialog open={!!printingSale} onOpenChange={() => setPrintingSale(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invoice Preview - {printingSale?.sale_number}</DialogTitle>
-          </DialogHeader>
-          <div className="flex justify-end mb-4 print:hidden">
-            <Button onClick={handlePrintInvoice} className="gap-2">
-              <Printer className="h-4 w-4" />
-              Download Invoice PDF
-            </Button>
-          </div>
-          {printingSale && saleItems[printingSale.id] && (
-            <div ref={printRef} className="print:p-0">
-              <InvoicePrint
-                billNo={printingSale.sale_number}
-                date={new Date(printingSale.sale_date)}
-                customerName={printingSale.customer_name}
-                customerAddress={printingSale.customer_address || ''}
-                customerMobile={printingSale.customer_phone || ''}
-                items={transformItemsForPrint(saleItems[printingSale.id])}
-                subTotal={printingSale.gross_amount}
-                discount={printingSale.discount_amount + printingSale.flat_discount_amount}
-                grandTotal={printingSale.net_amount}
-                tenderAmount={printingSale.net_amount}
-                cashPaid={printingSale.payment_method === 'cash' ? printingSale.net_amount : 0}
-                refundCash={0}
-                upiPaid={printingSale.payment_method === 'upi' ? printingSale.net_amount : 0}
-                paymentMethod={printingSale.payment_method}
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
