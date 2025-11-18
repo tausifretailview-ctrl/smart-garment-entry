@@ -5,6 +5,7 @@ interface InvoiceTemplateHTMLProps {
   businessAddress: string;
   businessContact: string;
   businessEmail: string;
+  logoUrl?: string;
   billNo: string;
   date: Date;
   time: string;
@@ -36,6 +37,7 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
   businessAddress,
   businessContact,
   businessEmail,
+  logoUrl,
   billNo,
   date,
   time,
@@ -68,15 +70,22 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
       boxSizing: 'border-box',
       backgroundColor: 'white'
     }}>
-      <div style={{ textAlign: 'center', marginBottom: '10mm' }}>
-        <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold', color: '#E91E63' }}>
-          {businessName}
-        </h1>
-        <address style={{ fontStyle: 'normal', marginTop: '3px', lineHeight: 1.4, fontSize: '11px' }}>
-          {businessAddress}<br />
-          CONTACT: {businessContact} | EMAIL: {businessEmail}
-        </address>
-        <h2 style={{ fontSize: '14px', margin: '6px 0', fontWeight: 'bold' }}>BILL OF SUPPLY</h2>
+      <div style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '10mm', gap: '10px' }}>
+        {logoUrl && (
+          <div style={{ flex: '0 0 auto', width: '40px', height: '40px' }}>
+            <img src={logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        )}
+        <div style={{ flex: '1', textAlign: 'center' }}>
+          <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold', color: '#E91E63' }}>
+            {businessName}
+          </h1>
+          <address style={{ fontStyle: 'normal', marginTop: '3px', lineHeight: 1.4, fontSize: '11px' }}>
+            {businessAddress}<br />
+            CONTACT: {businessContact} | EMAIL: {businessEmail}
+          </address>
+          <h2 style={{ fontSize: '14px', margin: '6px 0', fontWeight: 'bold' }}>BILL OF SUPPLY</h2>
+        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5mm', borderBottom: '1px dashed #ccc', paddingBottom: '3px' }}>
@@ -143,27 +152,20 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
         </tbody>
       </table>
 
-      <div style={{ width: '100%', marginTop: '5mm', display: 'flex', justifyContent: 'flex-end' }}>
-        <div style={{ width: '50%', maxWidth: '60mm', borderTop: '1px solid #333' }}>
+      <div style={{ width: '100%', marginTop: '5mm', display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+        {/* Payment Details - Left Side */}
+        <div style={{ width: '45%', borderTop: '1px solid #333', paddingTop: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
-            <span>Sub Total:</span>
-            <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
-            <span>Discount (Rs):</span>
-            <span style={{ fontWeight: 'bold' }}>{discountAmount.toFixed(2)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>NET AMOUNT:</span>
-            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{netAmount.toFixed(2)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', marginTop: '5px', fontSize: '11px' }}>
-            <span>Payment Mode:</span>
+            <span style={{ fontWeight: 'bold' }}>Payment Mode:</span>
             <span>{paymentMethod}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>Cash Paid:</span>
             <span>{cashPaid.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
+            <span>Tender Amt:</span>
+            <span>{upiPaid.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>UPI Paid:</span>
@@ -175,9 +177,33 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
               <span>{cardPaid.toFixed(2)}</span>
             </div>
           )}
+        </div>
+
+        {/* Bill Totals - Right Side */}
+        <div style={{ width: '45%', borderTop: '1px solid #333', paddingTop: '3px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
-            <span>MRP Total:</span>
-            <span>{mrpTotal.toFixed(2)}</span>
+            <span>BILL TOTAL:</span>
+            <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
+            <span>TOTAL:</span>
+            <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
+            <span>Dis (Rs):</span>
+            <span style={{ fontWeight: 'bold' }}>{discountAmount.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
+            <span>MRP TOTAL:</span>
+            <span style={{ fontWeight: 'bold' }}>{mrpTotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
+            <span>TOTAL GST:</span>
+            <span style={{ fontWeight: 'bold' }}>0.00</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '2px solid #000', marginTop: '2px' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>G.TOTAL:</span>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{netAmount.toFixed(2)}</span>
           </div>
         </div>
       </div>
