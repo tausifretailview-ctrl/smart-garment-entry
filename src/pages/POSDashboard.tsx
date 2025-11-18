@@ -209,6 +209,7 @@ const POSDashboard = () => {
     if (!printingSale || !saleItems[printingSale.id]) return;
     
     try {
+      console.log('Fetching settings for dashboard print...');
       // Fetch business settings for invoice
       const { data: settings } = await supabase
         .from('settings')
@@ -238,15 +239,21 @@ const POSDashboard = () => {
         gstNumber: settings?.gst_number || '',
       };
 
+      console.log('Calling printInvoicePDF from dashboard...');
       await printInvoicePDF(invoiceData);
       
-      // Close dialog after initiating print
+      toast({
+        title: "Success",
+        description: "Invoice PDF downloaded successfully",
+      });
+      
+      // Close dialog after initiating download
       setPrintingSale(null);
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
         title: "Error",
-        description: "Failed to generate PDF invoice",
+        description: error.message || "Failed to generate PDF invoice",
         variant: "destructive",
       });
     }
