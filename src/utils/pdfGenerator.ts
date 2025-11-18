@@ -253,34 +253,53 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
 export const printInvoicePDF = async (data: InvoiceData) => {
   const pdf = await generateInvoicePDF(data);
   
-  // Create a hidden iframe and print from there to avoid popup blockers
+  // Create a hidden iframe and print from there
   const blob = pdf.output('blob');
   const url = URL.createObjectURL(blob);
   
   // Create iframe
   const iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = 'none';
   iframe.src = url;
   
   document.body.appendChild(iframe);
   
   // Wait for iframe to load then print
   iframe.onload = () => {
-    try {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      
-      // Clean up after print
-      setTimeout(() => {
-        document.body.removeChild(iframe);
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        
+        // Clean up after a delay
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          URL.revokeObjectURL(url);
+        }, 500);
+      } catch (error) {
+        console.error('Print error:', error);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
         URL.revokeObjectURL(url);
-      }, 1000);
-    } catch (error) {
-      console.error('Print error:', error);
+      }
+    }, 250);
+  };
+  
+  // Fallback cleanup if load fails
+  setTimeout(() => {
+    if (document.body.contains(iframe)) {
       document.body.removeChild(iframe);
       URL.revokeObjectURL(url);
     }
-  };
+  }, 5000);
 };
 
 export const downloadInvoicePDF = async (data: InvoiceData, filename?: string) => {
