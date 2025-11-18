@@ -48,6 +48,7 @@ interface Sale {
   sale_number: string;
   customer_name: string;
   customer_phone: string | null;
+  customer_address: string | null;
   sale_date: string;
   gross_amount: number;
   discount_amount: number;
@@ -215,7 +216,7 @@ const POSDashboard = () => {
       particulars: item.product_name,
       size: item.size,
       barcode: item.barcode || '',
-      hsn: '',
+      hsn: '', // HSN code can be added if needed from products table
       sp: item.mrp,
       qty: item.quantity,
       rate: item.unit_price,
@@ -571,7 +572,7 @@ const POSDashboard = () => {
                 billNo={printingSale.sale_number}
                 date={new Date(printingSale.sale_date)}
                 customerName={printingSale.customer_name}
-                customerAddress={''}
+                customerAddress={printingSale.customer_address || ''}
                 customerMobile={printingSale.customer_phone || ''}
                 items={transformItemsForPrint(saleItems[printingSale.id])}
                 subTotal={printingSale.gross_amount}
