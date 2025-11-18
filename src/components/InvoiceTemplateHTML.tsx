@@ -64,38 +64,38 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
       margin: '0 auto',
       padding: '10mm',
       fontFamily: 'Arial, sans-serif',
-      fontSize: '10px',
+      fontSize: '11px',
       boxSizing: 'border-box',
       backgroundColor: 'white'
     }}>
       <div style={{ textAlign: 'center', marginBottom: '10mm' }}>
-        <h1 style={{ fontSize: '14px', margin: 0, fontWeight: 'bold', color: '#E91E63' }}>
+        <h1 style={{ fontSize: '18px', margin: 0, fontWeight: 'bold', color: '#E91E63' }}>
           {businessName}
         </h1>
-        <address style={{ fontStyle: 'normal', marginTop: '2px', lineHeight: 1.3 }}>
+        <address style={{ fontStyle: 'normal', marginTop: '3px', lineHeight: 1.4, fontSize: '11px' }}>
           {businessAddress}<br />
           CONTACT: {businessContact} | EMAIL: {businessEmail}
         </address>
-        <h2 style={{ fontSize: '12px', margin: '5px 0', fontWeight: 'bold' }}>BILL OF SUPPLY</h2>
+        <h2 style={{ fontSize: '14px', margin: '6px 0', fontWeight: 'bold' }}>BILL OF SUPPLY</h2>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5mm', borderBottom: '1px dashed #ccc', paddingBottom: '3px' }}>
         <div style={{ width: '48%' }}>
-          <div style={{ marginBottom: '1px' }}>
-            <span style={{ fontWeight: 'bold', display: 'inline-block', width: '50px' }}>Name:</span> {customerName}
+          <div style={{ marginBottom: '2px', fontSize: '11px' }}>
+            <span style={{ fontWeight: 'bold', display: 'inline-block', width: '60px' }}>Name:</span> {customerName}
           </div>
-          <div style={{ marginBottom: '1px' }}>
-            <span style={{ fontWeight: 'bold', display: 'inline-block', width: '50px' }}>Mob No:</span> {customerMobile || '-'}
+          <div style={{ marginBottom: '2px', fontSize: '11px' }}>
+            <span style={{ fontWeight: 'bold', display: 'inline-block', width: '60px' }}>Mob No:</span> {customerMobile || '-'}
           </div>
         </div>
         <div style={{ width: '48%', textAlign: 'right' }}>
-          <div style={{ marginBottom: '1px' }}>
+          <div style={{ marginBottom: '2px', fontSize: '12px' }}>
             <span style={{ fontWeight: 'bold' }}>Bill No:</span> {billNo}
           </div>
-          <div style={{ marginBottom: '1px' }}>
+          <div style={{ marginBottom: '2px', fontSize: '11px' }}>
             <span style={{ fontWeight: 'bold' }}>Date:</span> {date.toLocaleDateString('en-GB')}
           </div>
-          <div style={{ marginBottom: '1px' }}>
+          <div style={{ marginBottom: '2px', fontSize: '11px' }}>
             <span style={{ fontWeight: 'bold' }}>Time:</span> {time}
           </div>
         </div>
@@ -104,78 +104,78 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '5mm', marginBottom: '5mm' }}>
         <thead>
           <tr>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'left', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '5%' }}>SR</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'left', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '45%' }}>Particulars</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'center', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '10%' }}>Size</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'center', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '10%' }}>Qty</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '10%' }}>Rate</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '10%' }}>Disc%</th>
-            <th style={{ border: '1px solid #eee', padding: '4px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '9px', textTransform: 'uppercase', width: '10%' }}>Total</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'left', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '5%' }}>SR</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'left', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '45%' }}>Particulars</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'center', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '10%' }}>Size</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'center', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '10%' }}>Qty</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '10%' }}>Rate</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '10%' }}>Disc%</th>
+            <th style={{ border: '1px solid #eee', padding: '5px', textAlign: 'right', backgroundColor: '#f7f7f7', fontSize: '10px', textTransform: 'uppercase', width: '10%' }}>Total</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
             <tr key={item.sr}>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>{item.sr}</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>{item.particulars}</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'center' }}>{item.size}</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'center' }}>{item.qty}</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'right' }}>{item.rate.toFixed(2)}</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'right' }}>{item.discPercent.toFixed(1)}%</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'right' }}>{item.total.toFixed(2)}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>{item.sr}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>{item.particulars}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'center' }}>{item.size}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'center' }}>{item.qty}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.rate.toFixed(2)}</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.discPercent.toFixed(1)}%</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right' }}>{item.total.toFixed(2)}</td>
             </tr>
           ))}
           {Array.from({ length: 5 }).map((_, idx) => (
             <tr key={`blank-${idx}`}>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
-              <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
+              <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px' }}>&nbsp;</td>
             </tr>
           ))}
           <tr>
-            <td colSpan={6} style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'right', borderTop: '2px solid #ccc', backgroundColor: '#f7f7f7', fontWeight: 'bold' }}>TOTAL:</td>
-            <td style={{ border: '1px solid #eee', padding: '4px', fontSize: '9px', textAlign: 'right', borderTop: '2px solid #ccc', backgroundColor: '#f7f7f7', fontWeight: 'bold' }}>{subTotal.toFixed(2)}</td>
+            <td colSpan={6} style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right', borderTop: '2px solid #ccc', backgroundColor: '#f7f7f7', fontWeight: 'bold' }}>TOTAL:</td>
+            <td style={{ border: '1px solid #eee', padding: '5px', fontSize: '11px', textAlign: 'right', borderTop: '2px solid #ccc', backgroundColor: '#f7f7f7', fontWeight: 'bold' }}>{subTotal.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
 
       <div style={{ width: '100%', marginTop: '5mm', display: 'flex', justifyContent: 'flex-end' }}>
         <div style={{ width: '50%', maxWidth: '60mm', borderTop: '1px solid #333' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>Sub Total:</span>
             <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>Discount (Rs):</span>
             <span style={{ fontWeight: 'bold' }}>{discountAmount.toFixed(2)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
-            <span style={{ fontWeight: 'bold', fontSize: '11px' }}>NET AMOUNT:</span>
-            <span style={{ fontWeight: 'bold', fontSize: '11px' }}>{netAmount.toFixed(2)}</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>NET AMOUNT:</span>
+            <span style={{ fontWeight: 'bold', fontSize: '12px' }}>{netAmount.toFixed(2)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', marginTop: '5px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', marginTop: '5px', fontSize: '11px' }}>
             <span>Payment Mode:</span>
             <span>{paymentMethod}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>Cash Paid:</span>
             <span>{cashPaid.toFixed(2)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>UPI Paid:</span>
             <span>{upiPaid.toFixed(2)}</span>
           </div>
           {cardPaid > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
               <span>Card Paid:</span>
               <span>{cardPaid.toFixed(2)}</span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: '11px' }}>
             <span>MRP Total:</span>
             <span>{mrpTotal.toFixed(2)}</span>
           </div>
@@ -183,17 +183,17 @@ export const InvoiceTemplateHTML: React.FC<InvoiceTemplateHTMLProps> = ({
       </div>
 
       <div style={{ marginTop: '10mm', borderTop: '1px solid #eee', paddingTop: '5mm' }}>
-        <div style={{ marginTop: '5mm', padding: '3px', backgroundColor: '#ffffe0', border: '1px dashed #ccc', textAlign: 'center', fontSize: '8px' }}>
+        <div style={{ marginTop: '5mm', padding: '4px', backgroundColor: '#ffffe0', border: '1px dashed #ccc', textAlign: 'center', fontSize: '10px' }}>
           {declarationText}
         </div>
 
         <ol style={{ listStyle: 'decimal', paddingLeft: '15px', margin: '5px 0' }}>
           {termsList.map((term, idx) => (
-            <li key={idx} style={{ marginBottom: '2px', fontSize: '9px' }}>{term}</li>
+            <li key={idx} style={{ marginBottom: '2px', fontSize: '10px' }}>{term}</li>
           ))}
         </ol>
 
-        <div style={{ textAlign: 'center', marginTop: '5mm', fontWeight: 'bold' }}>
+        <div style={{ textAlign: 'center', marginTop: '5mm', fontWeight: 'bold', fontSize: '11px' }}>
           THANK YOU !!! VISIT AGAIN...
         </div>
       </div>
