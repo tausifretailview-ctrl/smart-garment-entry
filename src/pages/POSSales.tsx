@@ -98,20 +98,20 @@ export default function POSSales() {
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // F1 - Cash Payment
+      // F1 - Cash Payment (Save & Print)
       if (e.key === 'F1') {
         e.preventDefault();
-        setPaymentMethod('cash');
+        handlePaymentAndPrint('cash');
       }
-      // F2 - Card Payment
+      // F2 - Card Payment (Save & Print)
       else if (e.key === 'F2') {
         e.preventDefault();
-        setPaymentMethod('card');
+        handlePaymentAndPrint('card');
       }
-      // F3 - UPI Payment
+      // F3 - UPI Payment (Save & Print)
       else if (e.key === 'F3') {
         e.preventDefault();
-        setPaymentMethod('upi');
+        handlePaymentAndPrint('upi');
       }
       // Esc - Clear items
       else if (e.key === 'Escape') {
@@ -415,6 +415,127 @@ export default function POSSales() {
       title: "Payment Method Selected",
       description: `${method.toUpperCase()} payment selected`,
     });
+  };
+
+  const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi') => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before processing payment",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Save the sale with the selected payment method
+    const saleData = {
+      customerId: customerId || null,
+      customerName,
+      items,
+      grossAmount: totals.mrp,
+      discountAmount: totals.discount,
+      flatDiscountPercent,
+      flatDiscountAmount,
+      roundOff,
+      netAmount: finalAmount,
+    };
+
+    const result = await saveSale(saleData, method);
+    
+    if (result) {
+      // Store invoice number and sale ID for printing
+      setCurrentInvoiceNumber(result.sale_number);
+      setCurrentSaleId(result.id);
+      
+      // Refetch today's sales
+      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      
+      toast({
+        title: "Sale Saved",
+        description: `Invoice ${result.sale_number} saved with ${method.toUpperCase()} payment`,
+      });
+      
+      // Auto-print invoice
+      try {
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('*')
+          .eq('organization_id', currentOrganization?.id)
+          .maybeSingle();
+
+        const saleSettings = settings?.sale_settings as any;
+        const invoiceTemplate = saleSettings?.invoice_template || 'classic';
+        const currentTime = new Date().toLocaleTimeString('en-US');
+        const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
+        const cardPaid = method === 'card' ? finalAmount : 0;
+        const cashPaid = method === 'cash' ? finalAmount : 0;
+        const upiPaid = method === 'upi' ? finalAmount : 0;
+
+        const invoiceData = {
+          billNo: result.sale_number,
+          date: new Date(),
+          customerName: customerName,
+          customerAddress: "",
+          customerMobile: "",
+          items: items.map((item, index) => ({
+            sr: index + 1,
+            particulars: item.productName,
+            size: item.size,
+            barcode: item.barcode,
+            hsn: "",
+            sp: item.mrp,
+            qty: item.quantity,
+            rate: item.unitCost,
+            total: item.netAmount,
+          })),
+          subTotal: totals.subtotal,
+          discount: totals.discount + flatDiscountAmount,
+          grandTotal: finalAmount,
+          tenderAmount: finalAmount,
+          cashPaid: cashPaid,
+          refundCash: 0,
+          upiPaid: upiPaid,
+          paymentMethod: method,
+          businessName: settings?.business_name || 'BUSINESS NAME',
+          businessAddress: settings?.address || '',
+          businessContact: settings?.mobile_number || '',
+          businessEmail: settings?.email_id || '',
+          gstNumber: settings?.gst_number || '',
+          time: currentTime,
+          mrpTotal: mrpTotal,
+          cardPaid: cardPaid,
+          declarationText: saleSettings?.declaration_text,
+          termsList: saleSettings?.terms_list,
+        };
+
+        if (invoiceTemplate === 'html-classic') {
+          await generateInvoiceFromHTML(invoiceData);
+        } else {
+          await printInvoicePDF(invoiceData);
+        }
+        
+        toast({
+          title: "Invoice Downloaded",
+          description: "Invoice PDF downloaded successfully",
+        });
+      } catch (error: any) {
+        console.error('Error generating PDF:', error);
+        toast({
+          title: "Print Error",
+          description: "Sale saved but failed to print invoice",
+          variant: "destructive",
+        });
+      }
+      
+      // Clear cart on success
+      setItems([]);
+      setCustomerId("");
+      setCustomerName("Walk in Customer");
+      setFlatDiscountPercent(0);
+      setRoundOff(0);
+      setSearchInput("");
+      setCurrentInvoiceIndex(0);
+    }
   };
 
   const handlePrint = () => {
@@ -828,30 +949,30 @@ export default function POSSales() {
         <div className="mt-auto space-y-2">
           <div className="text-[10px] text-center text-muted-foreground px-1 mb-1">Payment</div>
           <Button
-            onClick={() => handlePaymentMethodChange('cash')}
-            variant={paymentMethod === 'cash' ? 'default' : 'outline'}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
-            title="Cash (F1)"
+            onClick={() => handlePaymentAndPrint('cash')}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+            title="Cash Payment - Save & Print (F1)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F1</Badge>
             <Banknote className="h-4 w-4" />
             <span>Cash</span>
           </Button>
           <Button
-            onClick={() => handlePaymentMethodChange('card')}
-            variant={paymentMethod === 'card' ? 'default' : 'outline'}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
-            title="Card (F2)"
+            onClick={() => handlePaymentAndPrint('card')}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            title="Card Payment - Save & Print (F2)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
             <CreditCard className="h-4 w-4" />
             <span>Card</span>
           </Button>
           <Button
-            onClick={() => handlePaymentMethodChange('upi')}
-            variant={paymentMethod === 'upi' ? 'default' : 'outline'}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full"
-            title="UPI (F3)"
+            onClick={() => handlePaymentAndPrint('upi')}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+            title="UPI Payment - Save & Print (F3)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F3</Badge>
             <Smartphone className="h-4 w-4" />
