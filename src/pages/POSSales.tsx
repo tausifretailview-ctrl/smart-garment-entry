@@ -264,12 +264,33 @@ export default function POSSales() {
     const existingItemIndex = items.findIndex(item => item.barcode === variant.barcode);
     
     if (existingItemIndex >= 0) {
+      // Check if there's enough stock before incrementing
+      const currentQtyInCart = items[existingItemIndex].quantity;
+      if (currentQtyInCart >= variant.stock_qty) {
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${variant.stock_qty} units available in stock`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Increment quantity if already in cart
       const updatedItems = [...items];
       updatedItems[existingItemIndex].quantity += 1;
       updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
       setItems(updatedItems);
     } else {
+      // Check if there's any stock available
+      if (variant.stock_qty < 1) {
+        toast({
+          title: "Out of Stock",
+          description: "This product is currently out of stock",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Build product description: name-category-style,brand-color
       const descriptionParts = [product.product_name];
       if (product.category) descriptionParts.push(product.category);
@@ -322,6 +343,22 @@ export default function POSSales() {
 
   const updateQuantity = (index: number, newQty: number) => {
     if (newQty < 1) return;
+    
+    // Find the variant to check stock
+    const item = items[index];
+    const variant = productsData?.flatMap((p: any) => 
+      p.product_variants?.filter((v: any) => v.id === item.variantId)
+    ).find((v: any) => v);
+    
+    if (variant && newQty > variant.stock_qty) {
+      toast({
+        title: "Insufficient Stock",
+        description: `Only ${variant.stock_qty} units available in stock`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const updatedItems = [...items];
     updatedItems[index].quantity = newQty;
     updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
