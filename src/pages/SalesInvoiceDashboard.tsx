@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Home, Search, Printer, Edit, ChevronDown, ChevronUp, DollarSign } from "lucide-react";
+import { Home, Search, Printer, Edit, ChevronDown, ChevronUp, DollarSign, FileText, TrendingUp, AlertCircle, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -122,6 +122,20 @@ export default function SalesInvoiceDashboard() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  const invoices = invoicesData || [];
+  
+  // Calculate statistics for filtered invoices
+  const totalInvoices = invoices.length;
+  const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.net_amount || 0), 0);
+  const pendingPayments = invoices
+    .filter((inv) => inv.payment_status === "pending" || inv.payment_status === "partial")
+    .reduce((sum, inv) => sum + (inv.net_amount || 0), 0);
+  const overdueInvoices = invoices.filter((inv) => {
+    if (inv.payment_status === "completed") return false;
+    if (!inv.due_date) return false;
+    return new Date(inv.due_date) < new Date();
+  }).length;
 
   const toggleRow = (invoiceId: string) => {
     const newExpanded = new Set(expandedRows);
@@ -308,6 +322,53 @@ export default function SalesInvoiceDashboard() {
           <Home className="h-5 w-5 text-muted-foreground" />
           <span className="text-muted-foreground">- Sales</span>
           <h1 className="text-2xl font-semibold">Invoice Dashboard</h1>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card className="border-primary/20">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <h3 className="text-sm font-medium">Total Invoices</h3>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="p-6 pt-0">
+              <div className="text-2xl font-bold">{totalInvoices}</div>
+              <p className="text-xs text-muted-foreground">For selected period</p>
+            </div>
+          </Card>
+
+          <Card className="border-primary/20">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <h3 className="text-sm font-medium">Total Revenue</h3>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="p-6 pt-0">
+              <div className="text-2xl font-bold">₹{totalRevenue.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Net amount collected</p>
+            </div>
+          </Card>
+
+          <Card className="border-primary/20">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <h3 className="text-sm font-medium">Pending Payments</h3>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="p-6 pt-0">
+              <div className="text-2xl font-bold text-yellow-600">₹{pendingPayments.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground">Awaiting payment</p>
+            </div>
+          </Card>
+
+          <Card className="border-primary/20">
+            <div className="flex flex-row items-center justify-between space-y-0 p-6 pb-2">
+              <h3 className="text-sm font-medium">Overdue Invoices</h3>
+              <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="p-6 pt-0">
+              <div className="text-2xl font-bold text-red-600">{overdueInvoices}</div>
+              <p className="text-xs text-muted-foreground">Past due date</p>
+            </div>
+          </Card>
         </div>
 
         {/* Filters Card */}
