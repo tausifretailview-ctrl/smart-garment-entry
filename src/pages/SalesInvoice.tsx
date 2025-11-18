@@ -81,6 +81,12 @@ export default function SalesInvoice() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
+  const [paymentTerm, setPaymentTerm] = useState<string>("");
+  const [termsConditions, setTermsConditions] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+  const [shippingAddress, setShippingAddress] = useState<string>("");
+  const [shippingInstructions, setShippingInstructions] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -249,6 +255,118 @@ export default function SalesInvoice() {
     }
   };
 
+  const handleSaveInvoice = async () => {
+    // Validation
+    if (!selectedCustomerId || !selectedCustomer) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please select a customer",
+      });
+      return;
+    }
+
+    if (lineItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please add at least one product",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Generate invoice number
+      const { data: saleNumber, error: saleNumError } = await supabase
+        .rpc('generate_sale_number');
+
+      if (saleNumError) throw saleNumError;
+
+      // Create the sale record
+      const { data: saleData, error: saleError } = await supabase
+        .from('sales')
+        .insert([{
+          sale_number: saleNumber,
+          sale_date: invoiceDate.toISOString(),
+          sale_type: 'invoice',
+          customer_id: selectedCustomerId,
+          customer_name: selectedCustomer.customer_name,
+          customer_phone: selectedCustomer.phone || null,
+          customer_email: selectedCustomer.email || null,
+          customer_address: selectedCustomer.address || null,
+          gross_amount: grossAmount,
+          discount_amount: totalDiscount,
+          net_amount: netAmount,
+          payment_method: 'pending',
+          payment_status: 'pending',
+          round_off: 0,
+          flat_discount_amount: 0,
+          flat_discount_percent: 0,
+          organization_id: currentOrganization?.id,
+          due_date: dueDate.toISOString().split('T')[0],
+          payment_term: paymentTerm || null,
+          terms_conditions: termsConditions || null,
+          notes: notes || null,
+          shipping_address: shippingAddress || null,
+          shipping_instructions: shippingInstructions || null,
+        }])
+        .select()
+        .single();
+
+      if (saleError) throw saleError;
+
+      // Create sale items
+      const saleItems = lineItems.map(item => ({
+        sale_id: saleData.id,
+        product_id: item.productId,
+        variant_id: item.variantId,
+        product_name: item.productName,
+        size: item.size,
+        barcode: item.barcode || null,
+        quantity: item.quantity,
+        unit_price: item.salePrice,
+        mrp: item.mrp,
+        discount_percent: item.discountPercent,
+        gst_percent: item.gstPercent,
+        line_total: item.lineTotal,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('sale_items')
+        .insert(saleItems);
+
+      if (itemsError) throw itemsError;
+
+      toast({
+        title: "Invoice Saved",
+        description: `Invoice ${saleNumber} has been created successfully`,
+      });
+
+      // Reset form
+      setLineItems([]);
+      setSelectedCustomerId("");
+      setSelectedCustomer(null);
+      setInvoiceDate(new Date());
+      setDueDate(new Date());
+      setPaymentTerm("");
+      setTermsConditions("");
+      setNotes("");
+      setShippingAddress("");
+      setShippingInstructions("");
+
+    } catch (error: any) {
+      console.error('Error saving invoice:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save invoice",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
   const totalDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
@@ -360,16 +478,19 @@ export default function SalesInvoice() {
             <div className="space-y-2">
               <Label className="text-foreground">Payment Term</Label>
               <div className="flex gap-2">
-                <Select>
+                <Select value={paymentTerm} onValueChange={setPaymentTerm}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Payment Term" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="immediate">Immediate</SelectItem>
+                    <SelectItem value="net15">Net 15</SelectItem>
                     <SelectItem value="net30">Net 30</SelectItem>
                     <SelectItem value="net60">Net 60</SelectItem>
+                    <SelectItem value="net90">Net 90</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button size="icon" variant="outline">
+                <Button size="icon" variant="outline" type="button">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
@@ -622,11 +743,21 @@ export default function SalesInvoice() {
                 <div className="space-y-4">
                   <div>
                     <Label>Terms & Conditions</Label>
-                    <textarea className="w-full min-h-[100px] p-2 border rounded-md mt-2" placeholder="Enter terms and conditions..." />
+                    <Textarea 
+                      className="w-full min-h-[100px] mt-2" 
+                      placeholder="Enter terms and conditions..."
+                      value={termsConditions}
+                      onChange={(e) => setTermsConditions(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Notes</Label>
-                    <textarea className="w-full min-h-[100px] p-2 border rounded-md mt-2" placeholder="Enter additional notes..." />
+                    <Textarea 
+                      className="w-full min-h-[100px] mt-2" 
+                      placeholder="Enter additional notes..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
                   </div>
                 </div>
               </Card>
@@ -637,11 +768,21 @@ export default function SalesInvoice() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Shipping Address</Label>
-                    <textarea className="w-full min-h-[100px] p-2 border rounded-md mt-2" placeholder="Enter shipping address..." />
+                    <Textarea 
+                      className="w-full min-h-[100px] mt-2" 
+                      placeholder="Enter shipping address..."
+                      value={shippingAddress}
+                      onChange={(e) => setShippingAddress(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Delivery Instructions</Label>
-                    <textarea className="w-full min-h-[100px] p-2 border rounded-md mt-2" placeholder="Enter delivery instructions..." />
+                    <Textarea 
+                      className="w-full min-h-[100px] mt-2" 
+                      placeholder="Enter delivery instructions..."
+                      value={shippingInstructions}
+                      onChange={(e) => setShippingInstructions(e.target.value)}
+                    />
                   </div>
                 </div>
               </Card>
@@ -650,10 +791,15 @@ export default function SalesInvoice() {
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 mt-6">
-            <Button variant="outline">Cancel</Button>
-            <Button variant="outline">Save as Draft</Button>
-            <Button className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white">
-              Save Invoice
+            <Button variant="outline" type="button">Cancel</Button>
+            <Button variant="outline" type="button">Save as Draft</Button>
+            <Button 
+              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
+              onClick={handleSaveInvoice}
+              disabled={isSaving}
+              type="button"
+            >
+              {isSaving ? "Saving..." : "Save Invoice"}
             </Button>
           </div>
         </Card>

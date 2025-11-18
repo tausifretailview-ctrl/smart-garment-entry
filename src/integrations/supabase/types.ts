@@ -635,19 +635,25 @@ export type Database = {
           customer_name: string
           customer_phone: string | null
           discount_amount: number
+          due_date: string | null
           flat_discount_amount: number
           flat_discount_percent: number
           gross_amount: number
           id: string
+          invoice_type: string | null
           net_amount: number
           notes: string | null
           organization_id: string | null
           payment_method: string
           payment_status: string
+          payment_term: string | null
           round_off: number
           sale_date: string
           sale_number: string
           sale_type: string
+          shipping_address: string | null
+          shipping_instructions: string | null
+          terms_conditions: string | null
           updated_at: string
         }
         Insert: {
@@ -659,19 +665,25 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           discount_amount?: number
+          due_date?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
           id?: string
+          invoice_type?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
           payment_method: string
           payment_status?: string
+          payment_term?: string | null
           round_off?: number
           sale_date?: string
           sale_number: string
           sale_type: string
+          shipping_address?: string | null
+          shipping_instructions?: string | null
+          terms_conditions?: string | null
           updated_at?: string
         }
         Update: {
@@ -683,19 +695,25 @@ export type Database = {
           customer_name?: string
           customer_phone?: string | null
           discount_amount?: number
+          due_date?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
           id?: string
+          invoice_type?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
           payment_method?: string
           payment_status?: string
+          payment_term?: string | null
           round_off?: number
           sale_date?: string
           sale_number?: string
           sale_type?: string
+          shipping_address?: string | null
+          shipping_instructions?: string | null
+          terms_conditions?: string | null
           updated_at?: string
         }
         Relationships: [
