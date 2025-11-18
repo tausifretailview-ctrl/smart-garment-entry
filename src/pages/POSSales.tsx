@@ -57,6 +57,7 @@ export default function POSSales() {
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("Walk in Customer");
+  const [customerPhone, setCustomerPhone] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
@@ -403,6 +404,7 @@ export default function POSSales() {
       setItems([]);
       setCustomerId("");
       setCustomerName("Walk in Customer");
+      setCustomerPhone("");
       setFlatDiscountPercent(0);
       setRoundOff(0);
       setSearchInput("");
@@ -532,6 +534,7 @@ export default function POSSales() {
       setItems([]);
       setCustomerId("");
       setCustomerName("Walk in Customer");
+      setCustomerPhone("");
       setFlatDiscountPercent(0);
       setRoundOff(0);
       setSearchInput("");
@@ -584,7 +587,7 @@ export default function POSSales() {
         date: new Date(),
         customerName: customerName,
         customerAddress: "",
-        customerMobile: "",
+        customerMobile: customerPhone,
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.productName,
@@ -818,6 +821,7 @@ export default function POSSales() {
     setItems([]);
     setCustomerName("Walk in Customer");
     setCustomerId("");
+    setCustomerPhone("");
     setFlatDiscountPercent(0);
     setRoundOff(0);
     setSearchInput("");
@@ -859,6 +863,7 @@ export default function POSSales() {
       toast({ title: "Customer added successfully" });
       setCustomerId(newCustomer.id);
       setCustomerName(newCustomer.customer_name);
+      setCustomerPhone(newCustomer.phone || "");
       setNewCustomerForm({
         customer_name: "",
         phone: "",
@@ -1097,6 +1102,7 @@ export default function POSSales() {
                     onClick={() => {
                       setCustomerName("Walk in Customer");
                       setCustomerId("");
+                      setCustomerPhone("");
                     }}
                   >
                     <X className="h-5 w-5" />
@@ -1138,6 +1144,7 @@ export default function POSSales() {
                           onSelect={() => {
                             setCustomerId(customer.id);
                             setCustomerName(customer.customer_name);
+                            setCustomerPhone(customer.phone || "");
                             setOpenCustomerSearch(false);
                           }}
                           className="cursor-pointer"
