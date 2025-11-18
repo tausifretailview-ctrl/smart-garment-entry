@@ -73,6 +73,7 @@ export default function POSSales() {
   const printRef = useRef<HTMLDivElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -777,83 +778,90 @@ export default function POSSales() {
   const handleDeleteInvoice = async () => {
     if (!currentSaleId) {
       toast({
-        title: "No Invoice Loaded",
-        description: "Please load an invoice first",
+        title: "No Invoice Selected",
+        description: "Please load an invoice to delete.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm("Are you sure you want to delete this invoice? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      // First, delete all sale items
+      const { error: itemsError } = await supabase
+        .from("sale_items")
+        .delete()
+        .eq("sale_id", currentSaleId);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete the sale
+      const { error: saleError } = await supabase
+        .from("sales")
+        .delete()
+        .eq("id", currentSaleId);
+
+      if (saleError) throw saleError;
+
+      toast({
+        title: "Success",
+        description: "Invoice deleted successfully",
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["today-sales"] });
+      handleNewInvoice();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleInvoiceSearch = async () => {
+    if (!invoiceSearchInput.trim()) {
+      toast({
+        title: "Enter Invoice Number",
+        description: "Please enter an invoice number to search.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      // Fetch sale items to reverse stock
-      const { data: saleItems, error: itemsError } = await (supabase as any)
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', currentSaleId);
+      const { data: sale, error } = await supabase
+        .from("sales")
+        .select("*, sale_items(*)")
+        .eq("organization_id", currentOrganization?.id)
+        .eq("sale_number", invoiceSearchInput.trim())
+        .maybeSingle();
 
-      if (itemsError) throw itemsError;
+      if (error) throw error;
 
-      // Reverse stock for each item
-      for (const item of saleItems) {
-        // Get current stock
-        const { data: variant, error: variantError } = await (supabase as any)
-          .from('product_variants')
-          .select('stock_qty')
-          .eq('id', item.variant_id)
-          .single();
-
-        if (variantError) throw variantError;
-
-        // Add stock back
-        const { error: stockError } = await (supabase as any)
-          .from('product_variants')
-          .update({ 
-            stock_qty: variant.stock_qty + item.quantity
-          })
-          .eq('id', item.variant_id);
-
-        if (stockError) throw stockError;
-
-        // Create stock movement record
-        const { error: movementError } = await (supabase as any)
-          .from('stock_movements')
-          .insert({
-            variant_id: item.variant_id,
-            movement_type: 'adjustment',
-            quantity: item.quantity,
-            reference_id: currentSaleId,
-            notes: 'Stock restored due to sale deletion',
-          });
-
-        if (movementError) throw movementError;
+      if (!sale) {
+        toast({
+          title: "Invoice Not Found",
+          description: `No invoice found with number: ${invoiceSearchInput}`,
+          variant: "destructive",
+        });
+        return;
       }
 
-      // Delete sale items
-      const { error: deleteItemsError } = await (supabase as any)
-        .from('sale_items')
-        .delete()
-        .eq('sale_id', currentSaleId);
-
-      if (deleteItemsError) throw deleteItemsError;
-
-      // Delete sale
-      const { error: deleteSaleError } = await (supabase as any)
-        .from('sales')
-        .delete()
-        .eq('id', currentSaleId);
-
-      if (deleteSaleError) throw deleteSaleError;
-
+      // Load the found invoice
+      loadInvoice(sale);
+      setInvoiceSearchInput("");
+      
       toast({
-        title: "Invoice Deleted",
-        description: "Invoice has been deleted and stock has been restored",
+        title: "Invoice Loaded",
+        description: `Invoice ${sale.sale_number} loaded successfully`,
       });
-
-      handleNewInvoice();
     } catch (error: any) {
-      console.error('Error deleting invoice:', error);
       toast({
-        title: "Error Deleting Invoice",
+        title: "Search Error",
         description: error.message,
         variant: "destructive",
       });
@@ -1273,6 +1281,32 @@ export default function POSSales() {
               className="h-12 text-lg font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
               placeholder="Invoice #"
             />
+          </div>
+          
+          {/* Invoice Search */}
+          <div className="relative">
+            <Label className="text-sm font-medium mb-1 block">Search Invoice</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter bill number..."
+                value={invoiceSearchInput}
+                onChange={(e) => setInvoiceSearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleInvoiceSearch();
+                  }
+                }}
+                className="h-12"
+              />
+              <Button 
+                onClick={handleInvoiceSearch}
+                className="h-12 px-4"
+                size="sm"
+              >
+                Go
+              </Button>
+            </div>
           </div>
           
           {/* Running Total Display */}
