@@ -414,7 +414,7 @@ export default function SalesInvoice() {
             gross_amount: grossAmount,
             discount_amount: totalDiscount,
             net_amount: netAmount,
-            payment_method: 'pending',
+            payment_method: 'pay_later',
             payment_status: 'pending',
             round_off: 0,
             flat_discount_amount: 0,
