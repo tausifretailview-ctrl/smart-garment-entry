@@ -1310,12 +1310,9 @@ export default function POSSales() {
           </div>
           
           {/* Running Total Display */}
-          <div className="relative">
-            <Label className="text-sm font-medium mb-1 block text-green-700">Total Amount</Label>
-            <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
-              <div className="text-white font-bold text-xl">
-                ₹{finalAmount.toFixed(2)}
-              </div>
+          <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
+            <div className="text-white font-bold text-xl">
+              ₹{finalAmount.toFixed(2)}
             </div>
           </div>
           
