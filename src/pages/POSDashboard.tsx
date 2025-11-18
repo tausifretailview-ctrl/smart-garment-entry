@@ -223,7 +223,11 @@ const POSDashboard = () => {
         customerName: printingSale.customer_name,
         customerAddress: printingSale.customer_address || '',
         customerMobile: printingSale.customer_phone || '',
-        items: transformItemsForPrint(saleItems[printingSale.id]),
+        items: transformItemsForPrint(saleItems[printingSale.id]).map(item => ({
+          ...item,
+          sp: item.sp, // MRP
+          rate: item.rate, // Actual selling price (may include discount)
+        })),
         subTotal: printingSale.gross_amount,
         discount: printingSale.discount_amount + printingSale.flat_discount_amount,
         grandTotal: printingSale.net_amount,
@@ -473,7 +477,7 @@ const POSDashboard = () => {
                             variant="ghost"
                             size="icon"
                             onClick={(e) => handlePrintClick(sale, e)}
-                            title="Print Invoice"
+                            title="Download Invoice PDF"
                           >
                             <Printer className="h-4 w-4" />
                           </Button>
@@ -612,7 +616,7 @@ const POSDashboard = () => {
           <div className="flex justify-end mb-4 print:hidden">
             <Button onClick={handlePrintInvoice} className="gap-2">
               <Printer className="h-4 w-4" />
-              Print Invoice
+              Download Invoice PDF
             </Button>
           </div>
           {printingSale && saleItems[printingSale.id] && (
