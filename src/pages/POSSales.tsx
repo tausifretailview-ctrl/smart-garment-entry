@@ -998,6 +998,7 @@ export default function POSSales() {
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative">
+                <Label className="text-sm font-medium mb-1 block">Barcode</Label>
                 <Input
                   placeholder="Scan Barcode/Enter Product Name"
                   value={searchInput}
@@ -1085,6 +1086,7 @@ export default function POSSales() {
           <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
             <PopoverTrigger asChild>
               <div className="relative">
+                <Label className="text-sm font-medium mb-1 block">Customer Name</Label>
                 <Input
                   value={customerName}
                   onChange={(e) => {
@@ -1167,6 +1169,7 @@ export default function POSSales() {
           
           {/* Invoice Number Display */}
           <div className="relative">
+            <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || "NEW"}
               readOnly
