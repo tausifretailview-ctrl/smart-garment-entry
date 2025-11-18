@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -67,6 +69,14 @@ export default function POSSales() {
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
+  const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    customer_name: "",
+    phone: "",
+    email: "",
+    address: "",
+    gst_number: "",
+  });
 
   // Fetch settings to apply defaults
   const { data: settingsData } = useQuery({
@@ -703,12 +713,42 @@ export default function POSSales() {
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
+    setCurrentInvoiceNumber("");
     
     toast({
       title: "New Invoice",
       description: "Cart cleared. Ready for new sale.",
     });
   };
+
+  const createCustomer = useMutation({
+    mutationFn: async (data: typeof newCustomerForm) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { data: newCustomer, error } = await supabase.from("customers").insert([{
+        ...data,
+        organization_id: currentOrganization.id
+      }]).select().single();
+      if (error) throw error;
+      return newCustomer;
+    },
+    onSuccess: (newCustomer) => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast({ title: "Customer added successfully" });
+      setCustomerId(newCustomer.id);
+      setCustomerName(newCustomer.customer_name);
+      setNewCustomerForm({
+        customer_name: "",
+        phone: "",
+        email: "",
+        address: "",
+        gst_number: "",
+      });
+      setShowAddCustomerDialog(false);
+    },
+    onError: (error: any) => {
+      toast({ title: "Error adding customer", description: error.message, variant: "destructive" });
+    },
+  });
 
   // Filter products based on search input
   const filteredProducts = productsData?.flatMap(product => 
@@ -923,14 +963,14 @@ export default function POSSales() {
                     setCustomerName(e.target.value);
                     setOpenCustomerSearch(true);
                   }}
-                  className="h-12 text-lg pr-20"
+                  className="h-12 text-lg pr-32"
                   placeholder="Select or enter customer"
                 />
                 {customerName !== "Walk in Customer" && (
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute right-10 top-1/2 -translate-y-1/2 h-9 w-9"
+                    className="absolute right-20 top-1/2 -translate-y-1/2 h-9 w-9"
                     onClick={() => {
                       setCustomerName("Walk in Customer");
                       setCustomerId("");
@@ -942,11 +982,13 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-9 w-9"
-                  onClick={() => window.open('/customers', '_blank')}
+                  className="absolute right-10 top-1/2 -translate-y-1/2 h-9 w-9"
+                  onClick={() => setShowAddCustomerDialog(true)}
+                  title="Add New Customer"
                 >
-                  <Plus className="h-5 w-5" />
+                  <UserPlus className="h-5 w-5" />
                 </Button>
+                <Plus className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0 z-50" align="start">
@@ -1226,6 +1268,75 @@ export default function POSSales() {
                   Download Invoice PDF
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Customer Dialog */}
+        <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add New Customer</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="customer_name">Customer Name *</Label>
+                <Input
+                  id="customer_name"
+                  value={newCustomerForm.customer_name}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, customer_name: e.target.value })}
+                  placeholder="Enter customer name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newCustomerForm.email}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Textarea
+                  id="address"
+                  value={newCustomerForm.address}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
+                  placeholder="Enter address"
+                  rows={2}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gst_number">GST Number</Label>
+                <Input
+                  id="gst_number"
+                  value={newCustomerForm.gst_number}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, gst_number: e.target.value })}
+                  placeholder="Enter GST number"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowAddCustomerDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => createCustomer.mutate(newCustomerForm)}
+                disabled={!newCustomerForm.customer_name || createCustomer.isPending}
+              >
+                {createCustomer.isPending ? "Adding..." : "Add Customer"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
