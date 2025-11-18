@@ -25,6 +25,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { generateInvoiceFromHTML } from "@/utils/pdfGenerator";
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
@@ -35,6 +36,24 @@ export default function SalesInvoiceDashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Fetch settings for invoice printing
+  const { data: settingsData } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   // Fetch customers for filter
   const { data: customersData } = useQuery({
@@ -113,11 +132,109 @@ export default function SalesInvoiceDashboard() {
     navigate('/sales-invoice', { state: { invoice } });
   };
 
-  const handlePrint = (invoice: any) => {
-    toast({
-      title: "Print Feature",
-      description: "Print functionality will be implemented in the next step",
-    });
+  const handlePrint = async (invoice: any) => {
+    try {
+      // Get bill barcode settings for declaration and terms
+      const billSettings = settingsData?.bill_barcode_settings as any || {};
+      const declarationText = billSettings.bill_header || 'Declaration: Composition taxable person, not eligible to collect tax on supplies.';
+      const termsText = billSettings.bill_footer || '';
+      const termsList = termsText ? termsText.split('\n').filter((t: string) => t.trim()) : [
+        'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
+        'NO EXCHANGE WITHOUT BARCODE & BILL.',
+        'EXCHANGE TIME: 01:00 TO 04:00 PM.'
+      ];
+
+      // Fetch shop logo if available
+      let logoUrl: string | undefined;
+      const saleSettings = settingsData?.sale_settings as any || {};
+      if (saleSettings.shop_logo_path) {
+        const { data: logoData } = await supabase
+          .storage
+          .from('company-logos')
+          .createSignedUrl(saleSettings.shop_logo_path, 3600);
+        
+        if (logoData?.signedUrl) {
+          logoUrl = logoData.signedUrl;
+        }
+      }
+
+      // Transform invoice items for PDF generation
+      const transformedItems = invoice.sale_items?.map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        hsn: '',
+        sp: item.mrp,
+        qty: item.quantity,
+        rate: item.unit_price,
+        total: item.line_total,
+      })) || [];
+
+      // Calculate payment details based on invoice payment status
+      const paymentMethod = invoice.payment_method || 'pending';
+      let cashPaid = 0;
+      let upiPaid = 0;
+      let cardPaid = 0;
+
+      if (invoice.payment_status === 'completed') {
+        if (paymentMethod === 'cash') {
+          cashPaid = invoice.net_amount;
+        } else if (paymentMethod === 'upi') {
+          upiPaid = invoice.net_amount;
+        } else if (paymentMethod === 'card') {
+          cardPaid = invoice.net_amount;
+        }
+      }
+
+      // Prepare invoice data for PDF
+      const invoiceData = {
+        billNo: invoice.sale_number,
+        date: new Date(invoice.sale_date),
+        time: new Date(invoice.sale_date).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        customerName: invoice.customer_name,
+        customerAddress: invoice.customer_address || '',
+        customerMobile: invoice.customer_phone || '',
+        items: transformedItems,
+        subTotal: invoice.gross_amount,
+        discount: invoice.discount_amount,
+        grandTotal: invoice.net_amount,
+        tenderAmount: invoice.net_amount,
+        cashPaid,
+        upiPaid,
+        cardPaid,
+        refundCash: 0,
+        paymentMethod,
+        businessName: settingsData?.business_name || 'BUSINESS NAME',
+        businessAddress: settingsData?.address || '',
+        businessContact: settingsData?.mobile_number || '',
+        businessEmail: settingsData?.email_id || '',
+        gstNumber: settingsData?.gst_number || '',
+        logo: logoUrl,
+        mrpTotal: invoice.gross_amount,
+        declarationText,
+        termsList,
+      };
+
+      // Generate and download PDF
+      await generateInvoiceFromHTML(invoiceData);
+      
+      toast({
+        title: "Invoice Generated",
+        description: `Invoice PDF for ${invoice.sale_number} has been downloaded`,
+      });
+    } catch (error: any) {
+      console.error('Error generating invoice PDF:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to generate invoice PDF",
+      });
+    }
   };
 
   const clearFilters = () => {
