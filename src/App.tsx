@@ -23,6 +23,7 @@ import Profile from "./pages/Profile";
 import POSSales from "./pages/POSSales";
 import POSDashboard from "./pages/POSDashboard";
 import SalesInvoice from "./pages/SalesInvoice";
+import SalesInvoiceDashboard from "./pages/SalesInvoiceDashboard";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
@@ -185,6 +186,16 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <SalesInvoice />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sales-invoice-dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SalesInvoiceDashboard />
                   </Layout>
                 </ProtectedRoute>
               }
