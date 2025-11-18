@@ -283,6 +283,13 @@ export default function SalesInvoice() {
     setLineItems(updatedItems);
   };
 
+  const updateGSTPercent = (id: string, gstPercent: number) => {
+    const updatedItems = lineItems.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
+    );
+    setLineItems(updatedItems);
+  };
+
   const removeItem = (id: string) => {
     setLineItems(lineItems.filter(item => item.id !== id));
   };
@@ -833,7 +840,17 @@ export default function SalesInvoice() {
                               className="w-full"
                             />
                           </TableCell>
-                          <TableCell>{item.gstPercent}%</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.01"
+                              value={item.gstPercent}
+                              onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
+                              className="w-full"
+                            />
+                          </TableCell>
                           <TableCell className="text-right font-medium">
                             ₹{item.lineTotal.toFixed(2)}
                           </TableCell>
