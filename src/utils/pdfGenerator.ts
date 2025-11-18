@@ -251,43 +251,14 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
 };
 
 export const printInvoicePDF = async (data: InvoiceData) => {
+  console.log('Starting PDF generation...');
   const pdf = await generateInvoicePDF(data);
+  console.log('PDF generated successfully');
   
-  // Get the PDF as a blob
-  const pdfBlob = pdf.output('blob');
-  const pdfUrl = URL.createObjectURL(pdfBlob);
-  
-  // Create a hidden iframe for printing
-  const printFrame = document.createElement('iframe');
-  printFrame.style.position = 'absolute';
-  printFrame.style.width = '0';
-  printFrame.style.height = '0';
-  printFrame.style.border = 'none';
-  
-  document.body.appendChild(printFrame);
-  
-  // Load PDF in iframe and trigger print
-  printFrame.onload = function() {
-    try {
-      // Give the PDF time to fully render
-      setTimeout(() => {
-        if (printFrame.contentWindow) {
-          printFrame.contentWindow.focus();
-          printFrame.contentWindow.print();
-        }
-      }, 500);
-    } catch (e) {
-      console.error('Print failed:', e);
-    }
-    
-    // Cleanup after print dialog closes
-    setTimeout(() => {
-      document.body.removeChild(printFrame);
-      URL.revokeObjectURL(pdfUrl);
-    }, 2000);
-  };
-  
-  printFrame.src = pdfUrl;
+  // Download the PDF directly - this is more reliable than printing
+  const fileName = `invoice-${data.billNo}-${Date.now()}.pdf`;
+  pdf.save(fileName);
+  console.log('PDF download initiated:', fileName);
 };
 
 export const downloadInvoicePDF = async (data: InvoiceData, filename?: string) => {

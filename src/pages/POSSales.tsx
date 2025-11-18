@@ -431,12 +431,15 @@ export default function POSSales() {
     }
 
     try {
+      console.log('Fetching settings...');
       // Fetch business settings
       const { data: settings } = await supabase
         .from('settings')
         .select('*')
         .eq('organization_id', currentOrganization?.id)
         .maybeSingle();
+
+      console.log('Settings fetched:', settings);
 
       const invoiceData = {
         billNo: currentInvoiceNumber || "DRAFT",
@@ -470,15 +473,21 @@ export default function POSSales() {
         gstNumber: settings?.gst_number || '',
       };
 
+      console.log('Calling printInvoicePDF...');
       await printInvoicePDF(invoiceData);
       
-      // Close dialog after initiating print
+      toast({
+        title: "Success",
+        description: "Invoice PDF downloaded successfully",
+      });
+      
+      // Close dialog after initiating download
       setShowPrintDialog(false);
     } catch (error: any) {
       console.error('Error generating PDF:', error);
       toast({
         title: "Error",
-        description: "Failed to generate PDF invoice",
+        description: error.message || "Failed to generate PDF invoice",
         variant: "destructive",
       });
     }
