@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,10 +17,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { InvoicePrint } from "@/components/InvoicePrint";
 
 interface SaleItem {
   id: string;
@@ -66,6 +73,8 @@ const POSDashboard = () => {
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [deletingSale, setDeletingSale] = useState<string | null>(null);
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [printingSale, setPrintingSale] = useState<Sale | null>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchSales();
@@ -181,6 +190,37 @@ const POSDashboard = () => {
   const handleEditSale = (saleId: string, event: React.MouseEvent) => {
     event.stopPropagation();
     navigate(`/pos-sales?saleId=${saleId}`);
+  };
+
+  const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    // Fetch items if not already loaded
+    if (!saleItems[sale.id]) {
+      await fetchSaleItems(sale.id);
+    }
+    
+    setPrintingSale(sale);
+    // Trigger print after a short delay to ensure content is rendered
+    setTimeout(() => {
+      if (printRef.current) {
+        window.print();
+      }
+    }, 100);
+  };
+
+  const transformItemsForPrint = (items: SaleItem[]) => {
+    return items.map((item, index) => ({
+      sr: index + 1,
+      particulars: item.product_name,
+      size: item.size,
+      barcode: item.barcode || '',
+      hsn: '',
+      sp: item.mrp,
+      qty: item.quantity,
+      rate: item.unit_price,
+      total: item.line_total,
+    }));
   };
 
   const filteredSales = sales.filter((sale) => {
@@ -378,7 +418,15 @@ const POSDashboard = () => {
                             </Badge>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
+                          <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => handlePrintClick(sale, e)}
+                            title="Print Invoice"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -504,6 +552,41 @@ const POSDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print Invoice Dialog */}
+      <Dialog open={!!printingSale} onOpenChange={() => setPrintingSale(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Invoice Preview - {printingSale?.sale_number}</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-end mb-4">
+            <Button onClick={() => window.print()} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print Invoice
+            </Button>
+          </div>
+          {printingSale && saleItems[printingSale.id] && (
+            <div ref={printRef}>
+              <InvoicePrint
+                billNo={printingSale.sale_number}
+                date={new Date(printingSale.sale_date)}
+                customerName={printingSale.customer_name}
+                customerAddress={''}
+                customerMobile={printingSale.customer_phone || ''}
+                items={transformItemsForPrint(saleItems[printingSale.id])}
+                subTotal={printingSale.gross_amount}
+                discount={printingSale.discount_amount + printingSale.flat_discount_amount}
+                grandTotal={printingSale.net_amount}
+                tenderAmount={printingSale.net_amount}
+                cashPaid={printingSale.payment_method === 'cash' ? printingSale.net_amount : 0}
+                refundCash={0}
+                upiPaid={printingSale.payment_method === 'upi' ? printingSale.net_amount : 0}
+                paymentMethod={printingSale.payment_method}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
