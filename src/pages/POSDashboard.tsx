@@ -104,9 +104,9 @@ const POSDashboard = () => {
     }
   };
 
-  const fetchSaleItems = async (saleId: string) => {
+  const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
     if (saleItems[saleId]) {
-      return; // Already fetched
+      return saleItems[saleId]; // Already fetched
     }
 
     try {
@@ -118,16 +118,20 @@ const POSDashboard = () => {
 
       if (error) throw error;
 
+      const items = data || [];
       setSaleItems((prev) => ({
         ...prev,
-        [saleId]: data || [],
+        [saleId]: items,
       }));
+      
+      return items;
     } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to load sale items",
         variant: "destructive",
       });
+      return [];
     }
   };
 
@@ -194,10 +198,8 @@ const POSDashboard = () => {
   const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     
-    // Fetch items if not already loaded
-    if (!saleItems[sale.id]) {
-      await fetchSaleItems(sale.id);
-    }
+    // Fetch items and get them directly
+    const items = await fetchSaleItems(sale.id);
     
     // Directly generate and download PDF
     try {
@@ -211,7 +213,6 @@ const POSDashboard = () => {
       const invoiceTemplate = saleSettings?.invoice_template || 'classic';
       const saleDate = new Date(sale.sale_date);
       const currentTime = saleDate.toLocaleTimeString('en-US');
-      const items = saleItems[sale.id] || [];
       const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
       const cardPaid = sale.payment_method === 'card' ? sale.net_amount : 0;
 
