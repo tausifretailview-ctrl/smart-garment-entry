@@ -1123,7 +1123,7 @@ export default function POSSales() {
             <PopoverContent className="w-[400px] p-0 z-50" align="start">
               <Command>
                 <CommandInput 
-                  placeholder="Search customers..." 
+                  placeholder="Search by name, phone, or email..." 
                   value={customerName}
                   onValueChange={setCustomerName}
                 />
