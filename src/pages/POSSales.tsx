@@ -453,9 +453,9 @@ export default function POSSales() {
           size: item.size,
           barcode: item.barcode,
           hsn: "",
-          sp: item.mrp,
+          sp: item.mrp, // MRP (original price before discount)
           qty: item.quantity,
-          rate: item.mrp,
+          rate: item.unitCost, // Actual selling price after discount
           total: item.netAmount,
         })),
         subTotal: totals.subtotal,
@@ -1207,7 +1207,7 @@ export default function POSSales() {
                 </Button>
                 <Button onClick={handlePrintInvoice} className="bg-primary">
                   <Printer className="mr-2 h-4 w-4" />
-                  Print Invoice
+                  Download Invoice PDF
                 </Button>
               </div>
             </div>

@@ -117,19 +117,22 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
 
   // Items Table
   const tableStartY = yPos;
-  const colWidths = [10, 52, 15, 10, 15, 18, 18];
+  const colWidths = [10, 58, 15, 15, 15, 18, 18];
   const colPositions = colWidths.reduce((acc, width, i) => {
     acc.push(i === 0 ? margin : acc[i - 1] + colWidths[i - 1]);
     return acc;
   }, [] as number[]);
 
+  // Draw table border
+  const tableWidth = pageWidth - 2 * margin;
+  
   // Table Header
   pdf.setFillColor(230, 230, 230);
-  pdf.rect(margin, yPos, pageWidth - 2 * margin, 5, 'F');
+  pdf.rect(margin, yPos, tableWidth, 5, 'FD');
   
   pdf.setFontSize(7);
   pdf.setFont('helvetica', 'bold');
-  const headers = ['SR', 'PARTICULARS', 'SIZE', 'HSN', 'QTY', 'MRP/RATE', 'TOTAL'];
+  const headers = ['SR', 'PARTICULARS', 'SIZE', 'QTY', 'DISC%', 'MRP/RATE', 'TOTAL'];
   headers.forEach((header, i) => {
     addText(header, colPositions[i] + 1, yPos + 3.5);
   });
@@ -137,9 +140,10 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
   yPos += 5;
   addLine(margin, yPos, pageWidth - margin, yPos);
 
-  // Table Rows
+  // Table Rows with borders
   pdf.setFont('helvetica', 'normal');
-  data.items.forEach((item) => {
+  const itemsStartY = yPos;
+  data.items.forEach((item, index) => {
     yPos += 4;
     
     // Check if we need a new page
@@ -154,13 +158,34 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
     addText(particularText[0], colPositions[1] + 1, yPos);
     
     addText(item.size, colPositions[2] + 1, yPos);
-    addText(item.hsn || '', colPositions[3] + 1, yPos);
-    addText(item.qty.toString(), colPositions[4] + 1, yPos);
-    addText(item.rate.toFixed(2), colPositions[5] + 1, yPos);
+    addText(item.qty.toString(), colPositions[3] + 1, yPos);
+    
+    // Show discount if available
+    const discountPercent = ((item.sp - item.rate) / item.sp * 100).toFixed(1);
+    if (parseFloat(discountPercent) > 0) {
+      addText(discountPercent + '%', colPositions[4] + 1, yPos);
+    } else {
+      addText('-', colPositions[4] + 1, yPos);
+    }
+    
+    addText(item.sp.toFixed(2), colPositions[5] + 1, yPos);
     addText(item.total.toFixed(2), colPositions[6] + 1, yPos);
   });
 
   yPos += 4;
+  
+  // Draw table borders
+  const tableHeight = yPos - itemsStartY;
+  pdf.setDrawColor(0);
+  pdf.rect(margin, itemsStartY - 5, tableWidth, tableHeight + 5);
+  
+  // Draw vertical lines for columns
+  colPositions.forEach((pos, i) => {
+    if (i > 0) {
+      addLine(pos, itemsStartY - 5, pos, yPos);
+    }
+  });
+  
   addLine(margin, yPos, pageWidth - margin, yPos);
   yPos += 5;
 
@@ -176,16 +201,8 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
   addText(data.paymentMethod?.toUpperCase() || 'CASH', totalsX + 30, yPos, { align: 'right' });
   yPos += 4;
 
-  addText(`Tender Amt:`, totalsX, yPos);
-  addText(data.tenderAmount.toFixed(2), totalsX + 30, yPos, { align: 'right' });
-  yPos += 4;
-
   addText(`Cash Paid:`, totalsX, yPos);
   addText(data.cashPaid.toFixed(2), totalsX + 30, yPos, { align: 'right' });
-  yPos += 4;
-
-  addText(`Refund Cash:`, totalsX, yPos);
-  addText(data.refundCash.toFixed(2), totalsX + 30, yPos, { align: 'right' });
   yPos += 4;
 
   addText(`UPI Paid:`, totalsX, yPos);
@@ -239,13 +256,9 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
   addLine(margin, yPos, pageWidth - margin, yPos);
   yPos += 4;
 
-  // Footer - Declaration and Signature
+  // Footer - Declaration only (removed signature)
   pdf.setFontSize(6.5);
   addText('Declaration : Composition taxable person, not eligible to collect tax on supplies.', leftSideX, yPos);
-  yPos += 8;
-
-  pdf.setFont('helvetica', 'bold');
-  addText('Authorised Signatory', pageWidth - margin - 30, yPos);
 
   return pdf;
 };
