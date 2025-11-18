@@ -71,6 +71,7 @@ export default function POSSales() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -137,6 +138,14 @@ export default function POSSales() {
       }
     }
   }, [settingsData]);
+
+  // Update date and time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
@@ -1215,10 +1224,13 @@ export default function POSSales() {
             />
           </div>
           
-          {/* Running Total Display - Split into 2 boxes */}
-          <div className="relative h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
-            <div className="text-white font-bold text-xl">
-              ₹{finalAmount.toFixed(2)}
+          {/* Running Total Display */}
+          <div className="relative">
+            <Label className="text-sm font-medium mb-1 block text-green-700">Total Amount</Label>
+            <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
+              <div className="text-white font-bold text-xl">
+                ₹{finalAmount.toFixed(2)}
+              </div>
             </div>
           </div>
           
@@ -1249,6 +1261,16 @@ export default function POSSales() {
               Next
               <ChevronRight className="h-4 w-4 ml-1" />
             </Button>
+          </div>
+          
+          {/* Date & Time Display */}
+          <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
+            <div className="text-white font-semibold text-sm">
+              {currentDateTime.toLocaleDateString('en-GB')}
+            </div>
+            <div className="text-white text-xs">
+              {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </div>
           </div>
         </div>
 
