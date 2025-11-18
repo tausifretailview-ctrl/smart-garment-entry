@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InvoicePrint } from "@/components/InvoicePrint";
-import { printInvoicePDF } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML } from "@/utils/pdfGenerator";
 
 interface CartItem {
   id: string;
@@ -441,6 +441,12 @@ export default function POSSales() {
 
       console.log('Settings fetched:', settings);
 
+      const saleSettings = settings?.sale_settings as any;
+      const invoiceTemplate = saleSettings?.invoice_template || 'classic';
+      const currentTime = new Date().toLocaleTimeString('en-US');
+      const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
+      const cardPaid = paymentMethod === 'card' ? finalAmount : 0;
+
       const invoiceData = {
         billNo: currentInvoiceNumber || "DRAFT",
         date: new Date(),
@@ -471,10 +477,20 @@ export default function POSSales() {
         businessContact: settings?.mobile_number || '',
         businessEmail: settings?.email_id || '',
         gstNumber: settings?.gst_number || '',
+        time: currentTime,
+        mrpTotal: mrpTotal,
+        cardPaid: cardPaid,
+        declarationText: saleSettings?.declaration_text,
+        termsList: saleSettings?.terms_list,
       };
 
-      console.log('Calling printInvoicePDF...');
-      await printInvoicePDF(invoiceData);
+      console.log('Generating invoice PDF with template:', invoiceTemplate);
+      
+      if (invoiceTemplate === 'html-classic') {
+        await generateInvoiceFromHTML(invoiceData);
+      } else {
+        await printInvoicePDF(invoiceData);
+      }
       
       toast({
         title: "Success",

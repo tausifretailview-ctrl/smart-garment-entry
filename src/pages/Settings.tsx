@@ -50,6 +50,8 @@ interface SaleSettings {
   sales_tax_rate?: number;
   invoice_template?: string;
   invoice_color_scheme?: string;
+  declaration_text?: string;
+  terms_list?: string[];
 }
 
 interface BillBarcodeSettings {
@@ -853,6 +855,7 @@ export default function Settings() {
                       <SelectItem value="modern">Modern - Clean minimal design</SelectItem>
                       <SelectItem value="professional">Professional - Corporate invoice</SelectItem>
                       <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
+                      <SelectItem value="html-classic">HTML Classic - Bill of Supply Design</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -882,6 +885,53 @@ export default function Settings() {
                       <SelectItem value="gray">Gray - Neutral</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="declaration_text">Invoice Declaration Text</Label>
+                  <Textarea
+                    id="declaration_text"
+                    value={settings.sale_settings?.declaration_text || 'Declaration: Composition taxable person, not eligible to collect tax on supplies.'}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          declaration_text: e.target.value,
+                        },
+                      })
+                    }
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Invoice Terms & Conditions</Label>
+                  <div className="space-y-2">
+                    {(settings.sale_settings?.terms_list || [
+                      'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
+                      'NO EXCHANGE WITHOUT BARCODE & BILL.',
+                      'EXCHANGE TIME: 01:00 TO 04:00 PM.'
+                    ]).map((term, index) => (
+                      <div key={index} className="flex gap-2">
+                        <Input
+                          value={term}
+                          onChange={(e) => {
+                            const newTerms = [...(settings.sale_settings?.terms_list || [])];
+                            newTerms[index] = e.target.value;
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                terms_list: newTerms,
+                              },
+                            });
+                          }}
+                          placeholder={`Term ${index + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 
                 {/* Invoice Preview Section */}

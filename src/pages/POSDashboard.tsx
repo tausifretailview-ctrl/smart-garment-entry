@@ -27,7 +27,7 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edi
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { printInvoicePDF } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML } from "@/utils/pdfGenerator";
 
 interface SaleItem {
   id: string;
@@ -207,10 +207,17 @@ const POSDashboard = () => {
         .eq('organization_id', currentOrganization?.id)
         .maybeSingle();
 
+      const saleSettings = settings?.sale_settings as any;
+      const invoiceTemplate = saleSettings?.invoice_template || 'classic';
+      const saleDate = new Date(sale.sale_date);
+      const currentTime = saleDate.toLocaleTimeString('en-US');
       const items = saleItems[sale.id] || [];
+      const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
+      const cardPaid = sale.payment_method === 'card' ? sale.net_amount : 0;
+
       const invoiceData = {
         billNo: sale.sale_number,
-        date: new Date(sale.sale_date),
+        date: saleDate,
         customerName: sale.customer_name,
         customerAddress: sale.customer_address || '',
         customerMobile: sale.customer_phone || '',
@@ -238,9 +245,18 @@ const POSDashboard = () => {
         businessContact: settings?.mobile_number || '',
         businessEmail: settings?.email_id || '',
         gstNumber: settings?.gst_number || '',
+        time: currentTime,
+        mrpTotal: mrpTotal,
+        cardPaid: cardPaid,
+        declarationText: saleSettings?.declaration_text,
+        termsList: saleSettings?.terms_list,
       };
 
-      await printInvoicePDF(invoiceData);
+      if (invoiceTemplate === 'html-classic') {
+        await generateInvoiceFromHTML(invoiceData);
+      } else {
+        await printInvoicePDF(invoiceData);
+      }
       
       toast({
         title: "Success",

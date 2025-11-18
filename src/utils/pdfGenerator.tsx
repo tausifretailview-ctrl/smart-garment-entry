@@ -1,4 +1,7 @@
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { createRoot } from 'react-dom/client';
+import { InvoiceTemplateHTML } from '@/components/InvoiceTemplateHTML';
 
 interface InvoiceItem {
   sr: number;
@@ -33,6 +36,11 @@ interface InvoiceData {
   businessEmail?: string;
   gstNumber?: string;
   logo?: string;
+  time?: string;
+  mrpTotal?: number;
+  cardPaid?: number;
+  declarationText?: string;
+  termsList?: string[];
 }
 
 export const generateInvoicePDF = async (data: InvoiceData) => {
@@ -285,7 +293,108 @@ export const printInvoicePDF = async (data: InvoiceData) => {
   console.log('PDF download initiated:', fileName);
 };
 
-export const downloadInvoicePDF = async (data: InvoiceData, filename?: string) => {
+export const downloadInvoicePDF = async (data: InvoiceData, filename?: string): Promise<void> => {
   const pdf = await generateInvoicePDF(data);
-  pdf.save(filename || `invoice-${data.billNo}.pdf`);
+  const name = filename || `invoice-${data.billNo}-${Date.now()}.pdf`;
+  pdf.save(name);
+  console.log('PDF saved as:', name);
+};
+
+export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> => {
+  console.log('Starting HTML-to-PDF generation...');
+  
+  // Create temporary container div
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  document.body.appendChild(container);
+  
+  try {
+    // Transform data for HTML template
+    const transformedItems = data.items.map((item) => {
+      const actualUnitPrice = item.total / item.qty;
+      const discPercent = item.sp > 0 ? ((item.sp - actualUnitPrice) / item.sp * 100) : 0;
+      
+      return {
+        sr: item.sr,
+        particulars: item.particulars,
+        size: item.size,
+        qty: item.qty,
+        rate: item.sp, // MRP
+        discPercent: discPercent,
+        total: item.total
+      };
+    });
+
+    const htmlProps = {
+      businessName: data.businessName || 'BUSINESS NAME',
+      businessAddress: data.businessAddress || '',
+      businessContact: data.businessContact || '',
+      businessEmail: data.businessEmail || '',
+      billNo: data.billNo,
+      date: data.date,
+      time: data.time || data.date.toLocaleTimeString('en-US'),
+      customerName: data.customerName,
+      customerMobile: data.customerMobile || '',
+      items: transformedItems,
+      subTotal: data.subTotal,
+      discountAmount: data.discount,
+      netAmount: data.grandTotal,
+      paymentMethod: data.paymentMethod?.toUpperCase() || 'CASH',
+      cashPaid: data.cashPaid,
+      upiPaid: data.upiPaid,
+      cardPaid: data.cardPaid || 0,
+      mrpTotal: data.mrpTotal || data.subTotal,
+      declarationText: data.declarationText,
+      termsList: data.termsList
+    };
+    
+    // Render InvoiceTemplateHTML component into container
+    const root = createRoot(container);
+    root.render(<InvoiceTemplateHTML {...htmlProps} />);
+    
+    // Wait for rendering to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Use html2canvas to capture the HTML as canvas
+    const canvas = await html2canvas(container.firstChild as HTMLElement, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+    
+    // Convert canvas to image
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Create A5 PDF
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a5'
+    });
+    
+    // Calculate dimensions to fit A5 (148mm x 210mm)
+    const pageWidth = 148;
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * pageWidth) / canvas.width;
+    
+    // Add image to PDF
+    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    
+    // Download PDF
+    const fileName = `invoice-${data.billNo}-${Date.now()}.pdf`;
+    pdf.save(fileName);
+    
+    console.log('PDF download initiated:', fileName);
+    
+    // Cleanup
+    root.unmount();
+    document.body.removeChild(container);
+  } catch (error) {
+    console.error('Error generating HTML invoice PDF:', error);
+    document.body.removeChild(container);
+    throw error;
+  }
 };
