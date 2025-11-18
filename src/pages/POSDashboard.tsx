@@ -202,12 +202,13 @@ const POSDashboard = () => {
     }
     
     setPrintingSale(sale);
-    // Trigger print after a short delay to ensure content is rendered
+  };
+
+  const handlePrintInvoice = () => {
+    // Trigger print
     setTimeout(() => {
-      if (printRef.current) {
-        window.print();
-      }
-    }, 100);
+      window.print();
+    }, 300);
   };
 
   const transformItemsForPrint = (items: SaleItem[]) => {
@@ -560,14 +561,14 @@ const POSDashboard = () => {
           <DialogHeader>
             <DialogTitle>Invoice Preview - {printingSale?.sale_number}</DialogTitle>
           </DialogHeader>
-          <div className="flex justify-end mb-4">
-            <Button onClick={() => window.print()} className="gap-2">
+          <div className="flex justify-end mb-4 print:hidden">
+            <Button onClick={handlePrintInvoice} className="gap-2">
               <Printer className="h-4 w-4" />
               Print Invoice
             </Button>
           </div>
           {printingSale && saleItems[printingSale.id] && (
-            <div ref={printRef}>
+            <div ref={printRef} className="print:p-0">
               <InvoicePrint
                 billNo={printingSale.sale_number}
                 date={new Date(printingSale.sale_date)}
