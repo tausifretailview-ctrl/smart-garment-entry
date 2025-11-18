@@ -702,53 +702,69 @@ const ProductEntry = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Input
-                  id="category"
-                  value={formData.category}
-                  onChange={(e) =>
-                    setFormData({ ...formData, category: e.target.value })
-                  }
-                  placeholder="e.g., T-Shirt, Jeans"
-                />
-              </div>
+              {(fieldSettings?.category?.enabled ?? true) && (
+                <div className="space-y-2">
+                  <Label htmlFor="category">
+                    {fieldSettings?.category?.label || 'Category'}
+                  </Label>
+                  <Input
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) =>
+                      setFormData({ ...formData, category: e.target.value })
+                    }
+                    placeholder={`e.g., T-Shirt, Jeans`}
+                  />
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="brand">Brand</Label>
-                <Input
-                  id="brand"
-                  value={formData.brand}
-                  onChange={(e) =>
-                    setFormData({ ...formData, brand: e.target.value })
-                  }
-                  placeholder="Brand name"
-                />
-              </div>
+              {(fieldSettings?.brand?.enabled ?? true) && (
+                <div className="space-y-2">
+                  <Label htmlFor="brand">
+                    {fieldSettings?.brand?.label || 'Brand'}
+                  </Label>
+                  <Input
+                    id="brand"
+                    value={formData.brand}
+                    onChange={(e) =>
+                      setFormData({ ...formData, brand: e.target.value })
+                    }
+                    placeholder="Brand name"
+                  />
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="style">Style</Label>
-                <Input
-                  id="style"
-                  value={formData.style}
-                  onChange={(e) =>
-                    setFormData({ ...formData, style: e.target.value })
-                  }
-                  placeholder="Style description"
-                />
-              </div>
+              {(fieldSettings?.style?.enabled ?? true) && (
+                <div className="space-y-2">
+                  <Label htmlFor="style">
+                    {fieldSettings?.style?.label || 'Style'}
+                  </Label>
+                  <Input
+                    id="style"
+                    value={formData.style}
+                    onChange={(e) =>
+                      setFormData({ ...formData, style: e.target.value })
+                    }
+                    placeholder="Style description"
+                  />
+                </div>
+              )}
 
-              <div className="space-y-2">
-                <Label htmlFor="color">Color</Label>
-                <Input
-                  id="color"
-                  value={formData.color}
-                  onChange={(e) =>
-                    setFormData({ ...formData, color: e.target.value })
-                  }
-                  placeholder="Color"
-                />
-              </div>
+              {(fieldSettings?.color?.enabled ?? true) && (
+                <div className="space-y-2">
+                  <Label htmlFor="color">
+                    {fieldSettings?.color?.label || 'Color'}
+                  </Label>
+                  <Input
+                    id="color"
+                    value={formData.color}
+                    onChange={(e) =>
+                      setFormData({ ...formData, color: e.target.value })
+                    }
+                    placeholder="Color"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="size_group">Size Group</Label>
@@ -771,17 +787,21 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="hsn_code">HSN Code</Label>
-                <Input
-                  id="hsn_code"
-                  value={formData.hsn_code}
-                  onChange={(e) =>
-                    setFormData({ ...formData, hsn_code: e.target.value })
-                  }
-                  placeholder="HSN Code"
-                />
-              </div>
+              {(fieldSettings?.hsn_code?.enabled ?? true) && (
+                <div className="space-y-2">
+                  <Label htmlFor="hsn_code">
+                    {fieldSettings?.hsn_code?.label || 'HSN Code'}
+                  </Label>
+                  <Input
+                    id="hsn_code"
+                    value={formData.hsn_code}
+                    onChange={(e) =>
+                      setFormData({ ...formData, hsn_code: e.target.value })
+                    }
+                    placeholder="HSN Code"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="gst_per">GST % *</Label>
