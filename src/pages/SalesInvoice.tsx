@@ -715,29 +715,31 @@ export default function SalesInvoice() {
                         <CommandEmpty>No products found.</CommandEmpty>
                         <CommandGroup>
                           {productsData?.map((product) =>
-                            product.product_variants?.map((variant: any) => (
-                              <CommandItem
-                                key={variant.id}
-                                value={`${product.product_name} ${product.brand || ''} ${variant.size} ${variant.barcode || ''}`}
-                                onSelect={() => addProductToInvoice(product, variant)}
-                              >
-                                <div className="flex justify-between w-full">
-                                  <div>
-                                    <div className="font-medium">{product.product_name}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {product.brand} | Size: {variant.size} | 
-                                      Barcode: {variant.barcode || 'N/A'}
+                            product.product_variants
+                              ?.filter((variant: any) => variant.stock_qty > 0)
+                              ?.map((variant: any) => (
+                                <CommandItem
+                                  key={variant.id}
+                                  value={`${product.product_name} ${product.brand || ''} ${variant.size} ${variant.barcode || ''}`}
+                                  onSelect={() => addProductToInvoice(product, variant)}
+                                >
+                                  <div className="flex justify-between w-full">
+                                    <div>
+                                      <div className="font-medium">{product.product_name}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {product.brand} | Size: {variant.size} | 
+                                        Barcode: {variant.barcode || 'N/A'}
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="font-medium">₹{variant.sale_price}</div>
+                                      <div className="text-sm text-muted-foreground">
+                                        Stock: {variant.stock_qty}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                    <div className="font-medium">₹{variant.sale_price}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                      Stock: {variant.stock_qty}
-                                    </div>
-                                  </div>
-                                </div>
-                              </CommandItem>
-                            ))
+                                </CommandItem>
+                              ))
                           )}
                         </CommandGroup>
                       </CommandList>
