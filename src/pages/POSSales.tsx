@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InvoicePrint } from "@/components/InvoicePrint";
+import { printInvoicePDF } from "@/utils/pdfGenerator";
 
 interface CartItem {
   id: string;
@@ -419,32 +420,71 @@ export default function POSSales() {
     setShowPrintDialog(true);
   };
 
-  const handlePrintInvoice = () => {
-    if (printRef.current) {
-      const printContent = printRef.current;
-      const windowPrint = window.open('', '', 'width=800,height=600');
+  const handlePrintInvoice = async () => {
+    if (!currentSaleId) {
+      toast({
+        title: "Error",
+        description: "Please save the sale first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch business settings
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      const invoiceData = {
+        billNo: currentInvoiceNumber || "DRAFT",
+        date: new Date(),
+        customerName: customerName,
+        customerAddress: "",
+        customerMobile: "",
+        items: items.map((item, index) => ({
+          sr: index + 1,
+          particulars: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          hsn: "",
+          sp: item.mrp,
+          qty: item.quantity,
+          rate: item.mrp,
+          total: item.netAmount,
+        })),
+        subTotal: totals.subtotal,
+        discount: totals.discount + flatDiscountAmount,
+        grandTotal: finalAmount,
+        tenderAmount: finalAmount,
+        cashPaid: paymentMethod === 'cash' ? finalAmount : 0,
+        refundCash: 0,
+        upiPaid: paymentMethod === 'upi' ? finalAmount : 0,
+        paymentMethod: paymentMethod,
+        businessName: settings?.business_name || 'BUSINESS NAME',
+        businessAddress: settings?.address || '',
+        businessContact: settings?.mobile_number || '',
+        businessEmail: settings?.email_id || '',
+        gstNumber: settings?.gst_number || '',
+      };
+
+      await printInvoicePDF(invoiceData);
       
-      if (windowPrint) {
-        windowPrint.document.write('<html><head><title>Print Invoice</title>');
-        windowPrint.document.write('<style>');
-        windowPrint.document.write(`
-          body { margin: 0; padding: 0; }
-          @media print {
-            @page { size: A5 portrait; margin: 0; }
-            body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-          }
-        `);
-        windowPrint.document.write('</style></head><body>');
-        windowPrint.document.write(printContent.innerHTML);
-        windowPrint.document.write('</body></html>');
-        windowPrint.document.close();
-        windowPrint.focus();
-        
-        setTimeout(() => {
-          windowPrint.print();
-          windowPrint.close();
-        }, 250);
-      }
+      toast({
+        title: "Success",
+        description: "Invoice opened for printing",
+      });
+      
+      setShowPrintDialog(false);
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF invoice",
+        variant: "destructive",
+      });
     }
   };
 

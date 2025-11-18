@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
+import { printInvoicePDF } from "@/utils/pdfGenerator";
 
 interface SaleItem {
   id: string;
@@ -204,11 +205,53 @@ const POSDashboard = () => {
     setPrintingSale(sale);
   };
 
-  const handlePrintInvoice = () => {
-    // Trigger print
-    setTimeout(() => {
-      window.print();
-    }, 300);
+  const handlePrintInvoice = async () => {
+    if (!printingSale || !saleItems[printingSale.id]) return;
+    
+    try {
+      // Fetch business settings for invoice
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      const invoiceData = {
+        billNo: printingSale.sale_number,
+        date: new Date(printingSale.sale_date),
+        customerName: printingSale.customer_name,
+        customerAddress: printingSale.customer_address || '',
+        customerMobile: printingSale.customer_phone || '',
+        items: transformItemsForPrint(saleItems[printingSale.id]),
+        subTotal: printingSale.gross_amount,
+        discount: printingSale.discount_amount + printingSale.flat_discount_amount,
+        grandTotal: printingSale.net_amount,
+        tenderAmount: printingSale.net_amount,
+        cashPaid: printingSale.payment_method === 'cash' ? printingSale.net_amount : 0,
+        refundCash: 0,
+        upiPaid: printingSale.payment_method === 'upi' ? printingSale.net_amount : 0,
+        paymentMethod: printingSale.payment_method,
+        businessName: settings?.business_name || 'BUSINESS NAME',
+        businessAddress: settings?.address || '',
+        businessContact: settings?.mobile_number || '',
+        businessEmail: settings?.email_id || '',
+        gstNumber: settings?.gst_number || '',
+      };
+
+      await printInvoicePDF(invoiceData);
+      
+      toast({
+        title: "Success",
+        description: "Invoice opened for printing",
+      });
+    } catch (error: any) {
+      console.error('Error generating PDF:', error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF invoice",
+        variant: "destructive",
+      });
+    }
   };
 
   const transformItemsForPrint = (items: SaleItem[]) => {
