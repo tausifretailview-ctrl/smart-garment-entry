@@ -644,6 +644,7 @@ export type Database = {
           net_amount: number
           notes: string | null
           organization_id: string | null
+          payment_date: string | null
           payment_method: string
           payment_status: string
           payment_term: string | null
@@ -674,6 +675,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          payment_date?: string | null
           payment_method: string
           payment_status?: string
           payment_term?: string | null
@@ -704,6 +706,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          payment_date?: string | null
           payment_method?: string
           payment_status?: string
           payment_term?: string | null

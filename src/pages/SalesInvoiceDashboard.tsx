@@ -16,8 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Home, Search, Printer, Edit, ChevronDown, ChevronUp } from "lucide-react";
+import { Home, Search, Printer, Edit, ChevronDown, ChevronUp, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -36,6 +37,11 @@ export default function SalesInvoiceDashboard() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState<string>("");
+  const [paymentDate, setPaymentDate] = useState<Date | undefined>(new Date());
 
   // Fetch settings for invoice printing
   const { data: settingsData } = useQuery({
@@ -244,6 +250,54 @@ export default function SalesInvoiceDashboard() {
     setEndDate(undefined);
   };
 
+  const openPaymentDialog = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setPaymentMethod(invoice.payment_method || 'cash');
+    setPaymentStatus(invoice.payment_status || 'pending');
+    setPaymentDate(invoice.payment_date ? new Date(invoice.payment_date) : new Date());
+    setShowPaymentDialog(true);
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!selectedInvoice || !paymentMethod || !paymentStatus) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all payment details",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('sales')
+        .update({
+          payment_method: paymentMethod,
+          payment_status: paymentStatus,
+          payment_date: paymentDate ? paymentDate.toISOString().split('T')[0] : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', selectedInvoice.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Payment Updated",
+        description: `Payment details for ${selectedInvoice.sale_number} have been updated`,
+      });
+
+      setShowPaymentDialog(false);
+      refetch();
+    } catch (error: any) {
+      console.error('Error updating payment:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to update payment",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4">
       <BackToDashboard />
@@ -362,7 +416,8 @@ export default function SalesInvoiceDashboard() {
                     <TableHead className="text-right">Gross Amount</TableHead>
                     <TableHead className="text-right">Discount</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Payment Status</TableHead>
+                    <TableHead>Payment Date</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -410,8 +465,19 @@ export default function SalesInvoiceDashboard() {
                             {invoice.payment_status}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          {invoice.payment_date ? format(new Date(invoice.payment_date), "dd/MM/yyyy") : "-"}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openPaymentDialog(invoice)}
+                              title="Update Payment"
+                            >
+                              <DollarSign className="h-4 w-4" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -433,7 +499,7 @@ export default function SalesInvoiceDashboard() {
                       {/* Expanded Row - Line Items */}
                       {expandedRows.has(invoice.id) && (
                         <TableRow>
-                          <TableCell colSpan={10} className="bg-muted/30">
+                          <TableCell colSpan={11} className="bg-muted/30">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3">Invoice Items</h4>
                               <Table>
@@ -511,6 +577,98 @@ export default function SalesInvoiceDashboard() {
           )}
         </Card>
       </div>
+
+      {/* Payment Tracking Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Update Payment Details</DialogTitle>
+          </DialogHeader>
+          
+          {selectedInvoice && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Invoice No:</span>
+                  <span className="font-medium">{selectedInvoice.sale_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Customer:</span>
+                  <span className="font-medium">{selectedInvoice.customer_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Amount:</span>
+                  <span className="font-medium text-lg">₹{selectedInvoice.net_amount.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Method<span className="text-destructive">*</span></Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment method" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="multiple">Multiple</SelectItem>
+                    <SelectItem value="pay_later">Pay Later</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Status<span className="text-destructive">*</span></Label>
+                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select payment status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="partial">Partially Paid</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="overdue">Overdue</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn("w-full justify-start text-left font-normal")}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {paymentDate ? format(paymentDate, "dd/MM/yyyy") : "Select date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar mode="single" selected={paymentDate} onSelect={setPaymentDate} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPaymentDialog(false);
+                    setSelectedInvoice(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdatePayment}>
+                  Update Payment
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
