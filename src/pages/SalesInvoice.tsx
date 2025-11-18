@@ -78,20 +78,6 @@ export default function SalesInvoice() {
               </Popover>
             </div>
 
-            {/* Reverse Charge */}
-            <div className="space-y-2">
-              <Label className="text-foreground">Reverse Charge</Label>
-              <Select defaultValue="no">
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no">No</SelectItem>
-                  <SelectItem value="yes">Yes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             {/* Invoice No */}
             <div className="space-y-2">
               <Label className="text-foreground">
@@ -189,29 +175,9 @@ export default function SalesInvoice() {
           {/* Checkboxes */}
           <div className="flex gap-6 mb-6">
             <div className="flex items-center space-x-2">
-              <Checkbox id="export" />
-              <Label htmlFor="export" className="text-sm cursor-pointer">Export/SEZ</Label>
-            </div>
-            <div className="flex items-center space-x-2">
               <Checkbox id="reminder" />
               <Label htmlFor="reminder" className="text-sm cursor-pointer">Payment Reminder</Label>
             </div>
-          </div>
-
-          {/* Select Account Ledger */}
-          <div className="space-y-2 mb-6">
-            <Label className="text-foreground">
-              Select Account Ledger<span className="text-destructive">*</span>
-            </Label>
-            <Select defaultValue="sales">
-              <SelectTrigger className="max-w-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sales">Sales</SelectItem>
-                <SelectItem value="revenue">Revenue</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Tabs Section */}
