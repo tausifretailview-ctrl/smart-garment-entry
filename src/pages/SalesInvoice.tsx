@@ -57,6 +57,26 @@ export default function SalesInvoice() {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+
+  // Fetch customers
+  const { data: customersData } = useQuery({
+    queryKey: ['customers', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .order('customer_name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   // Fetch products with variants
   const { data: productsData } = useQuery({
@@ -189,23 +209,43 @@ export default function SalesInvoice() {
                 Select Customer<span className="text-destructive">*</span>
               </Label>
               <div className="flex gap-2">
-                <Select>
+                <Select
+                  value={selectedCustomerId}
+                  onValueChange={(value) => {
+                    setSelectedCustomerId(value);
+                    const customer = customersData?.find(c => c.id === value);
+                    setSelectedCustomer(customer || null);
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Search Customer" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="customer1">Customer 1</SelectItem>
-                    <SelectItem value="customer2">Customer 2</SelectItem>
+                    {customersData?.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.customer_name} {customer.phone ? `- ${customer.phone}` : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button size="icon" variant="outline">
                   <Plus className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="text-xs text-muted-foreground space-y-1 mt-2">
-                <div>Billing Address is Not Provided</div>
-                <div>Shipping Address is Not Provided</div>
-              </div>
+              {selectedCustomer && (
+                <div className="text-xs text-muted-foreground space-y-1 mt-2">
+                  {selectedCustomer.phone && <div>Phone: {selectedCustomer.phone}</div>}
+                  {selectedCustomer.email && <div>Email: {selectedCustomer.email}</div>}
+                  {selectedCustomer.address && <div>Address: {selectedCustomer.address}</div>}
+                  {selectedCustomer.gst_number && <div>GST: {selectedCustomer.gst_number}</div>}
+                  {!selectedCustomer.address && <div>Address is Not Provided</div>}
+                </div>
+              )}
+              {!selectedCustomer && (
+                <div className="text-xs text-muted-foreground space-y-1 mt-2">
+                  <div>Please select a customer to view details</div>
+                </div>
+              )}
             </div>
 
             {/* Invoice Date */}
