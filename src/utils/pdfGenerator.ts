@@ -143,6 +143,8 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
   // Table Rows with borders
   pdf.setFont('helvetica', 'normal');
   const itemsStartY = yPos;
+  
+  // Add actual items
   data.items.forEach((item, index) => {
     yPos += 4;
     
@@ -160,10 +162,12 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
     addText(item.size, colPositions[2] + 1, yPos);
     addText(item.qty.toString(), colPositions[3] + 1, yPos);
     
-    // Show discount if available
-    const discountPercent = ((item.sp - item.rate) / item.sp * 100).toFixed(1);
-    if (parseFloat(discountPercent) > 0) {
-      addText(discountPercent + '%', colPositions[4] + 1, yPos);
+    // Calculate actual unit price from total
+    const actualUnitPrice = item.total / item.qty;
+    // Calculate and show discount percentage based on MRP vs actual price
+    const discountPercent = item.sp > 0 ? ((item.sp - actualUnitPrice) / item.sp * 100) : 0;
+    if (discountPercent > 0.1) {
+      addText(discountPercent.toFixed(1) + '%', colPositions[4] + 1, yPos);
     } else {
       addText('-', colPositions[4] + 1, yPos);
     }
@@ -171,6 +175,13 @@ export const generateInvoicePDF = async (data: InvoiceData) => {
     addText(item.sp.toFixed(2), colPositions[5] + 1, yPos);
     addText(item.total.toFixed(2), colPositions[6] + 1, yPos);
   });
+  
+  // Add 5 blank rows
+  const blankRowsToAdd = 5;
+  for (let i = 0; i < blankRowsToAdd; i++) {
+    yPos += 4;
+    // Just add empty space, no text
+  }
 
   yPos += 4;
   
