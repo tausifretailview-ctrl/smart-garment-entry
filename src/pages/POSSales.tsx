@@ -56,7 +56,7 @@ export default function POSSales() {
   const { saveSale, isSaving } = useSaveSale();
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
-  const [customerName, setCustomerName] = useState("Walk in Customer");
+  const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
@@ -403,7 +403,7 @@ export default function POSSales() {
       // Clear cart on success
       setItems([]);
       setCustomerId("");
-      setCustomerName("Walk in Customer");
+      setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountPercent(0);
       setRoundOff(0);
@@ -533,7 +533,7 @@ export default function POSSales() {
       // Clear cart on success
       setItems([]);
       setCustomerId("");
-      setCustomerName("Walk in Customer");
+      setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountPercent(0);
       setRoundOff(0);
@@ -649,7 +649,7 @@ export default function POSSales() {
     if (!sale || !sale.sale_items) return;
 
     // Load customer info
-    setCustomerName(sale.customer_name || "Walk in Customer");
+    setCustomerName(sale.customer_name || "");
     
     // Load items from sale_items
     const loadedItems: CartItem[] = sale.sale_items.map((item: any) => ({
@@ -819,7 +819,7 @@ export default function POSSales() {
     }
     
     setItems([]);
-    setCustomerName("Walk in Customer");
+    setCustomerName("");
     setCustomerId("");
     setCustomerPhone("");
     setFlatDiscountPercent(0);
@@ -1092,15 +1092,15 @@ export default function POSSales() {
                     setOpenCustomerSearch(true);
                   }}
                   className="h-12 text-lg pr-32"
-                  placeholder="Select or enter customer"
+                  placeholder="Enter customer name or phone"
                 />
-                {customerName !== "Walk in Customer" && (
+                {customerName && (
                   <Button
                     size="icon"
                     variant="ghost"
                     className="absolute right-20 top-1/2 -translate-y-1/2 h-9 w-9"
                     onClick={() => {
-                      setCustomerName("Walk in Customer");
+                      setCustomerName("");
                       setCustomerId("");
                       setCustomerPhone("");
                     }}
