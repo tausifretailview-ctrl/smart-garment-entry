@@ -33,6 +33,53 @@ export default function Accounts() {
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
 
+  // Fetch customer outstanding balance
+  const { data: customerBalance } = useQuery({
+    queryKey: ["customer-balance", referenceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("net_amount")
+        .eq("customer_id", referenceId)
+        .in("payment_status", ["pending", "partial"]);
+      
+      if (error) throw error;
+      
+      const totalOutstanding = data?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
+      return totalOutstanding;
+    },
+    enabled: !!referenceId && referenceType === "customer",
+  });
+
+  // Fetch supplier outstanding balance
+  const { data: supplierBalance } = useQuery({
+    queryKey: ["supplier-balance", referenceId],
+    queryFn: async () => {
+      const { data: bills, error: billsError } = await supabase
+        .from("purchase_bills")
+        .select("id, net_amount")
+        .eq("supplier_id", referenceId);
+      
+      if (billsError) throw billsError;
+
+      // Get all payments made for these bills
+      const billIds = bills?.map(b => b.id) || [];
+      const { data: payments, error: paymentsError } = await supabase
+        .from("voucher_entries")
+        .select("total_amount, reference_id")
+        .eq("reference_type", "supplier")
+        .in("reference_id", billIds);
+      
+      if (paymentsError) throw paymentsError;
+
+      const totalBills = bills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
+      const totalPaid = payments?.reduce((sum, payment) => sum + (payment.total_amount || 0), 0) || 0;
+      
+      return totalBills - totalPaid;
+    },
+    enabled: !!referenceId && referenceType === "supplier",
+  });
+
   // Fetch customers
   const { data: customers } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
@@ -408,6 +455,13 @@ export default function Accounts() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {referenceId && referenceType === "customer" && customerBalance !== undefined && (
+                        <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800 rounded-md">
+                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                            Outstanding Balance: <span className="text-lg font-bold">₹{customerBalance.toFixed(2)}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -530,6 +584,13 @@ export default function Accounts() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {referenceId && referenceType === "supplier" && supplierBalance !== undefined && (
+                        <div className="mt-2 p-3 bg-gradient-to-r from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border border-rose-200 dark:border-rose-800 rounded-md">
+                          <p className="text-sm font-medium text-rose-900 dark:text-rose-100">
+                            Outstanding Balance: <span className="text-lg font-bold">₹{supplierBalance.toFixed(2)}</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
