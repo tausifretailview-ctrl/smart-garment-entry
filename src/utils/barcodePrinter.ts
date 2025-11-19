@@ -13,10 +13,30 @@ interface BarcodeItem {
   bill_number?: string;
 }
 
+interface LabelFieldConfig {
+  show: boolean;
+  fontSize: number;
+  bold: boolean;
+}
+
+interface LabelConfig {
+  brand: LabelFieldConfig;
+  productName: LabelFieldConfig;
+  color: LabelFieldConfig;
+  style: LabelFieldConfig;
+  size: LabelFieldConfig;
+  price: LabelFieldConfig;
+  barcode: LabelFieldConfig;
+  barcodeText: LabelFieldConfig;
+  billNumber: LabelFieldConfig;
+  fieldOrder: string[];
+}
+
 interface PrintOptions {
   sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4';
   topOffset?: number;
   leftOffset?: number;
+  labelConfig?: LabelConfig;
 }
 
 const sheetPresets = {
@@ -26,16 +46,46 @@ const sheetPresets = {
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
 };
 
-const getLabelHTML = (item: BarcodeItem): string => {
+const getLabelHTML = (
+  item: BarcodeItem,
+  labelConfig?: LabelConfig
+): string => {
   const barcode = item.barcode;
   
-  let html = `
-    <div class="brand" style="font-size: 8px; font-weight: bold;">SMART INVENTORY</div>
-    <div class="prod" style="font-size: 9px;">${item.product_name} (${item.size})</div>
-    <div class="mrp" style="font-size: 9px; font-weight: bold;">MRP: ₹${item.sale_price}</div>
-    <svg class="barcode" data-code="${barcode}"></svg>
-    <div class="meta" style="font-size: 7px;">${barcode}</div>
-  `;
+  // Use default config if not provided
+  const config = labelConfig || {
+    brand: { show: true, fontSize: 8, bold: true },
+    productName: { show: true, fontSize: 9, bold: false },
+    color: { show: false, fontSize: 8, bold: false },
+    style: { show: false, fontSize: 8, bold: false },
+    size: { show: true, fontSize: 9, bold: false },
+    price: { show: true, fontSize: 9, bold: true },
+    barcode: { show: true, fontSize: 8, bold: false },
+    barcodeText: { show: true, fontSize: 7, bold: false },
+    billNumber: { show: false, fontSize: 7, bold: false },
+    fieldOrder: []
+  };
+  
+  let html = '';
+  
+  if (config.brand.show) {
+    html += `<div class="brand" style="font-size: ${config.brand.fontSize}px; font-weight: ${config.brand.bold ? 'bold' : 'normal'};">SMART INVENTORY</div>`;
+  }
+  if (config.productName.show) {
+    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'};">${item.product_name} (${item.size})</div>`;
+  }
+  if (config.price.show) {
+    html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'};">MRP: ₹${item.sale_price}</div>`;
+  }
+  if (config.barcode.show) {
+    html += `<svg class="barcode" data-code="${barcode}"></svg>`;
+  }
+  if (config.barcodeText.show) {
+    html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'};">${barcode}</div>`;
+  }
+  if (config.billNumber.show && item.bill_number) {
+    html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'};">Bill: ${item.bill_number}</div>`;
+  }
   
   return html;
 };
@@ -48,6 +98,7 @@ export const printBarcodesDirectly = async (
     sheetType = 'a4_12x4',
     topOffset = 0,
     leftOffset = 0,
+    labelConfig,
   } = options;
 
   // Create hidden print container
@@ -116,7 +167,7 @@ export const printBarcodesDirectly = async (
       for (let i = 0; i < qty; i++) {
         const cell = document.createElement('div');
         cell.className = 'label-cell';
-        cell.innerHTML = getLabelHTML(item);
+        cell.innerHTML = getLabelHTML(item, labelConfig);
         gridDiv.appendChild(cell);
       }
     });

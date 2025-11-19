@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -17,10 +18,35 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
   label: string;
   enabled: boolean;
+}
+
+interface LabelFieldConfig {
+  show: boolean;
+  fontSize: number;
+  bold: boolean;
+}
+
+interface BarcodeTemplate {
+  id: string;
+  name: string;
+  sheetType: string;
+  labelConfig: {
+    brand: LabelFieldConfig;
+    productName: LabelFieldConfig;
+    color: LabelFieldConfig;
+    style: LabelFieldConfig;
+    size: LabelFieldConfig;
+    price: LabelFieldConfig;
+    barcode: LabelFieldConfig;
+    barcodeText: LabelFieldConfig;
+    billNumber: LabelFieldConfig;
+    fieldOrder: string[];
+  };
 }
 
 interface ProductSettings {
@@ -112,6 +138,12 @@ export default function Settings() {
     bill_barcode_settings: {},
     report_settings: {},
   });
+
+  const [barcodeTemplates, setBarcodeTemplates] = useState<BarcodeTemplate[]>([]);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<BarcodeTemplate | null>(null);
+  const [templateName, setTemplateName] = useState("");
+  const [templateSheetType, setTemplateSheetType] = useState("a4_12x4");
 
   // Sample data for invoice preview
   const sampleInvoiceData = {
@@ -348,6 +380,136 @@ export default function Settings() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a template name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const defaultLabelConfig = {
+      brand: { show: true, fontSize: 10, bold: true },
+      productName: { show: true, fontSize: 9, bold: false },
+      color: { show: true, fontSize: 8, bold: false },
+      style: { show: true, fontSize: 8, bold: false },
+      size: { show: true, fontSize: 10, bold: true },
+      price: { show: true, fontSize: 10, bold: true },
+      barcode: { show: true, fontSize: 8, bold: false },
+      barcodeText: { show: true, fontSize: 7, bold: false },
+      billNumber: { show: true, fontSize: 7, bold: false },
+      fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText', 'billNumber']
+    };
+
+    try {
+      let updatedTemplates: BarcodeTemplate[];
+      
+      if (editingTemplate) {
+        // Update existing template
+        updatedTemplates = barcodeTemplates.map(t => 
+          t.id === editingTemplate.id 
+            ? { ...t, name: templateName, sheetType: templateSheetType, labelConfig: defaultLabelConfig }
+            : t
+        );
+      } else {
+        // Create new template
+        const newTemplate: BarcodeTemplate = {
+          id: Date.now().toString(),
+          name: templateName,
+          sheetType: templateSheetType,
+          labelConfig: defaultLabelConfig
+        };
+        updatedTemplates = [...barcodeTemplates, newTemplate];
+      }
+
+      // Save to database
+      const { error } = await supabase
+        .from('settings')
+        .update({
+          bill_barcode_settings: {
+            ...settings.bill_barcode_settings,
+            barcode_templates: updatedTemplates
+          } as any
+        })
+        .eq('organization_id', currentOrganization?.id);
+
+      if (error) throw error;
+
+      setBarcodeTemplates(updatedTemplates);
+      setSettings(prev => ({
+        ...prev,
+        bill_barcode_settings: {
+          ...prev.bill_barcode_settings,
+          barcode_templates: updatedTemplates
+        }
+      }));
+
+      toast({
+        title: "Success",
+        description: editingTemplate ? "Template updated successfully" : "Template created successfully",
+      });
+
+      // Reset form
+      setShowTemplateDialog(false);
+      setEditingTemplate(null);
+      setTemplateName("");
+      setTemplateSheetType("a4_12x4");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      const updatedTemplates = barcodeTemplates.filter(t => t.id !== templateId);
+
+      const { error } = await supabase
+        .from('settings')
+        .update({
+          bill_barcode_settings: {
+            ...settings.bill_barcode_settings,
+            barcode_templates: updatedTemplates
+          } as any
+        })
+        .eq('organization_id', currentOrganization?.id);
+
+      if (error) throw error;
+
+      setBarcodeTemplates(updatedTemplates);
+      setSettings(prev => ({
+        ...prev,
+        bill_barcode_settings: {
+          ...prev.bill_barcode_settings,
+          barcode_templates: updatedTemplates
+        }
+      }));
+
+      toast({
+        title: "Success",
+        description: "Template deleted successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEditTemplate = (template: BarcodeTemplate) => {
+    setEditingTemplate(template);
+    setTemplateName(template.name);
+    setTemplateSheetType(template.sheetType);
+    setShowTemplateDialog(true);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1162,6 +1324,110 @@ export default function Settings() {
                     <Eye className="h-4 w-4 mr-2" />
                     Test Print Preview
                   </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Custom Barcode Templates</Label>
+                    <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+                      <DialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingTemplate(null);
+                            setTemplateName("");
+                            setTemplateSheetType("a4_12x4");
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          New Template
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{editingTemplate ? "Edit Template" : "Create Template"}</DialogTitle>
+                          <DialogDescription>
+                            Save a custom barcode label template with specific format for reuse across print jobs
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Template Name</Label>
+                            <Input
+                              value={templateName}
+                              onChange={(e) => setTemplateName(e.target.value)}
+                              placeholder="e.g., Clothing Labels, Product Tags"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Label Format</Label>
+                            <select
+                              value={templateSheetType}
+                              onChange={(e) => setTemplateSheetType(e.target.value)}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
+                              <option value="novajet40">Novajet 40 (8 cols, 35x25mm)</option>
+                              <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
+                              <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
+                            </select>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setShowTemplateDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveTemplate}>
+                            <Save className="h-4 w-4 mr-2" />
+                            Save Template
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  
+                  {barcodeTemplates.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No custom templates saved yet</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {barcodeTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="flex items-center justify-between p-3 border rounded-lg bg-card"
+                        >
+                          <div>
+                            <p className="font-medium">{template.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {template.sheetType === 'novajet48' && 'Novajet 48 (8 cols, 33x19mm)'}
+                              {template.sheetType === 'novajet40' && 'Novajet 40 (8 cols, 35x25mm)'}
+                              {template.sheetType === 'novajet65' && 'Novajet 65 (5 cols, 38x21mm)'}
+                              {template.sheetType === 'a4_12x4' && 'A4 12x4 (4 cols, 50x24mm)'}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditTemplate(template)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteTemplate(template.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
