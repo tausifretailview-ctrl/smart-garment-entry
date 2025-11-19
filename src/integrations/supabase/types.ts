@@ -1137,6 +1137,22 @@ export type Database = {
         }
         Returns: string
       }
+      platform_assign_user_to_org: {
+        Args: {
+          p_org_id: string
+          p_role?: Database["public"]["Enums"]["app_role"]
+          p_user_email: string
+        }
+        Returns: Json
+      }
+      platform_create_organization: {
+        Args: {
+          p_admin_email?: string
+          p_enabled_features?: string[]
+          p_name: string
+        }
+        Returns: Json
+      }
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
         Returns: boolean

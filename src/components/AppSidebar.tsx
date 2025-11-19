@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ShoppingBag,
   Wallet,
+  Shield,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -38,7 +39,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
-  const { canAccessSettings, canAccessPurchases } = useUserRoles();
+  const { canAccessSettings, canAccessPurchases, isPlatformAdmin } = useUserRoles();
 
   const isActive = (path: string) => location.pathname === path;
   const isGroupActive = (paths: string[]) => paths.some(path => location.pathname === path);
@@ -53,6 +54,27 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r bg-card/50">
       <SidebarContent>
+        {/* Platform Admin - Only visible to platform admins */}
+        {isPlatformAdmin && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/platform-admin")}>
+                  <NavLink to="/platform-admin" className="flex items-center gap-3">
+                    <Shield className="h-5 w-5 text-primary" />
+                    {open && (
+                      <div className="flex items-center gap-2">
+                        <span>Platform Admin</span>
+                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Super</span>
+                      </div>
+                    )}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
+
         {/* Dashboard */}
         <SidebarGroup>
           <SidebarMenu>
