@@ -403,6 +403,51 @@ export default function SalesInvoice() {
     }
   };
 
+  const sendToWhatsApp = (invoiceNumber: string, customerPhone: string, items: LineItem[], totalAmount: number) => {
+    if (!customerPhone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send via WhatsApp",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Format phone number for WhatsApp (remove special characters, ensure it starts with country code)
+    let formattedPhone = customerPhone.replace(/[^\d]/g, '');
+    
+    // If phone doesn't start with country code, add India code (91) as default
+    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
+    }
+
+    // Create WhatsApp message
+    const message = `Hello ${selectedCustomer?.customer_name || 'Customer'},
+
+Thank you for your business!
+
+*Invoice Details:*
+Invoice No: ${invoiceNumber}
+Date: ${format(invoiceDate, 'dd/MM/yyyy')}
+Amount: ₹${totalAmount.toFixed(2)}
+
+Items: ${items.length} product(s)
+
+${items.map((item, i) => 
+  `${i + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.lineTotal.toFixed(2)}`
+).join('\n')}
+
+Total Amount: *₹${totalAmount.toFixed(2)}*
+
+${paymentTerm ? `Payment Terms: ${paymentTerm}` : ''}
+
+Thank you for choosing us!`;
+
+    // Open WhatsApp with pre-filled message
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   const handleSaveInvoice = async () => {
     // Validation
     if (!selectedCustomerId || !selectedCustomer) {
@@ -487,6 +532,21 @@ export default function SalesInvoice() {
           description: "Invoice has been updated successfully",
         });
 
+        // Fetch the updated invoice number
+        const { data: invoiceData } = await supabase
+          .from('sales')
+          .select('sale_number')
+          .eq('id', editingInvoiceId)
+          .single();
+
+        // Ask if user wants to send via WhatsApp
+        if (selectedCustomer?.phone && invoiceData) {
+          const sendWhatsApp = window.confirm("Invoice updated! Do you want to send it via WhatsApp?");
+          if (sendWhatsApp) {
+            sendToWhatsApp(invoiceData.sale_number, selectedCustomer.phone, filledItems, netAmount);
+          }
+        }
+
         // Navigate back to dashboard
         navigate('/sales-invoice-dashboard');
       } else {
@@ -554,8 +614,32 @@ export default function SalesInvoice() {
           description: `Invoice ${saleNumber} has been created successfully`,
         });
 
+        // Ask if user wants to send via WhatsApp
+        if (selectedCustomer?.phone) {
+          const sendWhatsApp = window.confirm(`Invoice ${saleNumber} created! Do you want to send it to customer via WhatsApp?`);
+          if (sendWhatsApp) {
+            sendToWhatsApp(saleNumber, selectedCustomer.phone, filledItems, netAmount);
+          }
+        }
+
         // Reset form
-        setLineItems([]);
+        setLineItems(
+          Array(5).fill(null).map((_, i) => ({
+            id: `row-${i}`,
+            productId: '',
+            variantId: '',
+            productName: '',
+            size: '',
+            barcode: '',
+            quantity: 0,
+            mrp: 0,
+            salePrice: 0,
+            discountPercent: 0,
+            discountAmount: 0,
+            gstPercent: 0,
+            lineTotal: 0,
+          }))
+        );
         setSelectedCustomerId("");
         setSelectedCustomer(null);
         setInvoiceDate(new Date());
