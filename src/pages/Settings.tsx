@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Home, Save, Loader2 } from "lucide-react";
+import { Home, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,6 @@ import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { useEffect as useEffectForSizeGroups } from "react";
-import QRCode from "qrcode";
-import { toast as sonnerToast } from "sonner";
 
 interface FieldConfig {
   label: string;
@@ -101,12 +99,6 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [qrCodeImage, setQrCodeImage] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<{connected: boolean, sessionActive: boolean}>({
-    connected: false,
-    sessionActive: false
-  });
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
@@ -161,55 +153,11 @@ export default function Settings() {
     gstin: 'SAMPLE123456789'
   };
 
-  const handleGenerateQR = async () => {
-    try {
-      setIsConnecting(true);
-      const { data, error } = await supabase.functions.invoke('whatsapp-manager', {
-        body: { action: 'connect' }
-      });
-      
-      if (error) throw error;
-      
-      if (data.success && data.qrData) {
-        // Generate QR code image from the data
-        const qrImageUrl = await QRCode.toDataURL(data.qrData, {
-          width: 256,
-          margin: 2,
-          color: {
-            dark: '#000000',
-            light: '#FFFFFF'
-          }
-        });
-        setQrCodeImage(qrImageUrl);
-        sonnerToast.success("QR Code generated! Scan with WhatsApp on your phone.");
-      }
-    } catch (error) {
-      console.error('Error generating QR code:', error);
-      sonnerToast.error("Failed to generate QR code");
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const checkWhatsAppStatus = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('whatsapp-manager', {
-        body: { action: 'status' }
-      });
-      if (error) throw error;
-      if (data) {
-        setConnectionStatus(data);
-      }
-    } catch (error) {
-      console.error('Error checking WhatsApp status:', error);
-    }
-  };
 
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
       fetchSizeGroups();
-      checkWhatsAppStatus();
     }
   }, [currentOrganization?.id]);
 
@@ -433,12 +381,11 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
             <TabsTrigger value="purchase">Purchase</TabsTrigger>
             <TabsTrigger value="sale">Sale</TabsTrigger>
-            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
@@ -1003,87 +950,6 @@ export default function Settings() {
                       />
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="whatsapp">
-            <Card>
-              <CardHeader>
-                <CardTitle>WhatsApp Integration</CardTitle>
-                <CardDescription>
-                  Connect your WhatsApp account to send invoices directly to customers
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex flex-col items-center gap-4 p-6 border rounded-lg bg-muted/50">
-                  <div className="text-center space-y-2">
-                    <h3 className="font-semibold">Connect WhatsApp Account</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Scan the QR code with your WhatsApp mobile app to connect
-                    </p>
-                  </div>
-                  
-                  <div className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg min-h-[320px]">
-                    {isConnecting ? (
-                      <div className="text-center">
-                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">Generating QR Code...</p>
-                        <p className="text-xs text-muted-foreground mt-1">Please wait while we generate your connection QR code...</p>
-                      </div>
-                    ) : qrCodeImage ? (
-                      <div className="text-center">
-                        <img src={qrCodeImage} alt="WhatsApp QR Code" className="w-64 h-64 mx-auto mb-4" />
-                        <p className="text-sm font-medium mb-2">Scan this QR code with WhatsApp</p>
-                        <p className="text-xs text-muted-foreground">1. Open WhatsApp on your phone</p>
-                        <p className="text-xs text-muted-foreground">2. Go to Settings → Linked Devices</p>
-                        <p className="text-xs text-muted-foreground">3. Tap "Link a Device" and scan this code</p>
-                        <Button onClick={handleGenerateQR} variant="outline" size="sm" className="mt-4">
-                          Regenerate QR Code
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="text-center">
-                        <p className="text-sm text-muted-foreground mb-4">QR Code will appear here</p>
-                        <Button onClick={handleGenerateQR}>
-                          Generate QR Code
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${connectionStatus.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                    <span className="text-sm text-muted-foreground">{connectionStatus.connected ? 'Connected' : 'Not Connected'}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium">Connection Status</h4>
-                  <div className="p-4 border rounded-lg space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Status:</span>
-                      <span className={`font-medium ${connectionStatus.connected ? 'text-green-600' : 'text-destructive'}`}>
-                        {connectionStatus.connected ? 'Connected' : 'Disconnected'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Session:</span>
-                      <span className="font-medium">{connectionStatus.sessionActive ? 'Active' : 'Inactive'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-medium">How it works</h4>
-                  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
-                    <li>Click "Generate QR Code" button above</li>
-                    <li>Open WhatsApp on your phone</li>
-                    <li>Go to Settings → Linked Devices</li>
-                    <li>Tap "Link a Device" and scan the QR code</li>
-                    <li>Once connected, you can send invoices directly</li>
-                  </ol>
                 </div>
               </CardContent>
             </Card>

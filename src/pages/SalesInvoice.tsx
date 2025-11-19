@@ -435,35 +435,20 @@ ${paymentTerm ? `Payment Terms: ${paymentTerm}` : ''}
 
 Thank you for choosing us!`;
 
-    try {
-      // Send via backend WhatsApp integration
-      const { data, error } = await supabase.functions.invoke('whatsapp-manager', {
-        body: {
-          action: 'send',
-          phoneNumber: customerPhone,
-          message: message
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.url) {
-        // Fallback: open WhatsApp web if direct send not available
-        window.open(data.url, '_blank');
-      }
-
-      toast({
-        title: "Message Sent",
-        description: "Invoice has been sent to customer's WhatsApp",
-      });
-    } catch (error) {
-      console.error('Error sending WhatsApp message:', error);
-      toast({
-        title: "Error",
-        description: "Failed to send message. Please try again.",
-        variant: "destructive"
-      });
+    // Format phone number (remove non-digits and ensure country code)
+    let formattedPhone = customerPhone.replace(/[^\d]/g, '');
+    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
     }
+
+    // Open WhatsApp with pre-filled message
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    toast({
+      title: "Opening WhatsApp",
+      description: "Invoice details will be sent to customer",
+    });
   };
 
   const handleSaveInvoice = async () => {
