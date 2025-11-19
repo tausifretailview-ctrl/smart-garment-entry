@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -136,6 +136,25 @@ export default function SalesInvoiceDashboard() {
     if (!inv.due_date) return false;
     return new Date(inv.due_date) < new Date();
   }).length;
+
+  // Keyboard shortcut for printing
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "p") {
+        e.preventDefault();
+        const expandedInvoices = Array.from(expandedRows);
+        if (expandedInvoices.length === 1 && invoices) {
+          const invoice = invoices.find(inv => inv.id === expandedInvoices[0]);
+          if (invoice) {
+            handlePrint(invoice);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [expandedRows, invoices]);
 
   const toggleRow = (invoiceId: string) => {
     const newExpanded = new Set(expandedRows);
