@@ -101,56 +101,60 @@ export const printBarcodesDirectly = async (
     labelConfig,
   } = options;
 
-  // Create hidden print container
-  const printContainer = document.createElement('div');
+  // Open a dedicated print window so the preview is never blank
+  const printWindow = window.open('', '_blank', 'width=1024,height=768');
+  if (!printWindow) {
+    throw new Error('Unable to open print window for barcode printing');
+  }
+
+  const doc = printWindow.document;
+  doc.open();
+  doc.write('<html><head><title>Barcode Labels</title></head><body></body></html>');
+  doc.close();
+
+  const printContainer = doc.createElement('div');
   printContainer.id = 'barcode-print-container';
   printContainer.style.cssText = `
-    position: fixed;
-    left: -9999px;
-    top: -9999px;
     width: 210mm;
+    margin: 0;
+    padding: 0;
   `;
 
-  // Add print-specific styles
-  const style = document.createElement('style');
+  const style = doc.createElement('style');
   style.textContent = `
-    @media print {
-      body * {
-        visibility: hidden;
-      }
-      #barcode-print-container,
-      #barcode-print-container * {
-        visibility: visible;
-      }
-      #barcode-print-container {
-        position: fixed;
-        left: 0;
-        top: 0;
-      }
-      .label-cell {
-        border: 1px solid #ddd;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 2mm;
-        box-sizing: border-box;
-        page-break-inside: avoid;
-      }
-      .label-grid {
-        page-break-after: auto;
-      }
+    body {
+      margin: 0;
+      padding: 10mm;
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    .label-cell {
+      border: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 2mm;
+      box-sizing: border-box;
+      page-break-inside: avoid;
+    }
+    .label-grid {
+      page-break-after: auto;
+    }
+    @page {
+      size: A4;
+      margin: 0;
     }
   `;
 
-  document.head.appendChild(style);
-  document.body.appendChild(printContainer);
+  doc.head.appendChild(style);
+  doc.body.appendChild(printContainer);
 
   try {
     const dimensions = sheetPresets[sheetType];
 
-    const gridDiv = document.createElement('div');
+    const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';
     gridDiv.style.cssText = `
       display: grid;
@@ -165,7 +169,7 @@ export const printBarcodesDirectly = async (
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
       for (let i = 0; i < qty; i++) {
-        const cell = document.createElement('div');
+        const cell = doc.createElement('div');
         cell.className = 'label-cell';
         cell.innerHTML = getLabelHTML(item, labelConfig);
         gridDiv.appendChild(cell);
@@ -193,7 +197,7 @@ export const printBarcodesDirectly = async (
               });
             } catch (error) {
               console.error('Barcode generation failed for code:', code, error);
-              const textEl = document.createElement('div');
+              const textEl = doc.createElement('div');
               textEl.textContent = code;
               textEl.style.cssText = 'font-size: 10px; font-weight: bold;';
               svg.parentElement?.replaceChild(textEl, svg);
@@ -205,21 +209,19 @@ export const printBarcodesDirectly = async (
     });
 
     // Trigger print dialog
-    window.print();
-
-    // Cleanup after a delay to allow print dialog to open
     setTimeout(() => {
-      document.body.removeChild(printContainer);
-      document.head.removeChild(style);
-    }, 1000);
+      printWindow.focus();
+      printWindow.print();
+      // Close the helper window shortly after print to keep UX clean
+      setTimeout(() => {
+        printWindow.close();
+      }, 500);
+    }, 200);
   } catch (error) {
-    // Cleanup on error
-    if (document.body.contains(printContainer)) {
-      document.body.removeChild(printContainer);
-    }
-    if (document.head.contains(style)) {
-      document.head.removeChild(style);
-    }
+    // If anything goes wrong, make sure the window is closed and rethrow
+    try {
+      printWindow.close();
+    } catch {}
     throw error;
   }
 };
