@@ -48,7 +48,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
@@ -301,6 +301,14 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/product-tracking")}>
+                          <NavLink to="/product-tracking" className="flex items-center gap-3">
+                            <Barcode className="h-4 w-4" />
+                            <span>Product Tracking</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
