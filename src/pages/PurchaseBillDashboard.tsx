@@ -21,6 +21,7 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Hom
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface PurchaseItem {
   id: string;
@@ -52,6 +53,7 @@ interface PurchaseBill {
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { currentOrganization } = useOrganization();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -176,13 +178,18 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
-      // Fetch settings to get default barcode format
+      // Fetch settings to get default barcode format and templates
       const { data: settingsData } = await supabase
         .from("settings")
         .select("bill_barcode_settings")
-        .maybeSingle();
+        .eq("organization_id", currentOrganization?.id)
+        .single();
 
       const barcodeFormat = (settingsData?.bill_barcode_settings as any)?.barcode_format || "a4_12x4";
+      const templates = (settingsData?.bill_barcode_settings as any)?.barcode_templates || [];
+      
+      // Find default template matching the format
+      const defaultTemplate = templates.find((t: any) => t.sheetType === barcodeFormat);
 
       // Fetch bill items with product details
       const { data: items, error } = await supabase
@@ -223,8 +230,11 @@ const PurchaseBillDashboard = () => {
         bill_number: item.bill_number || "",
       }));
 
-      // Print barcodes directly with selected format
-      await printBarcodesDirectly(barcodeItems, { sheetType: barcodeFormat as any });
+      // Print barcodes directly with selected format and template config
+      await printBarcodesDirectly(barcodeItems, { 
+        sheetType: barcodeFormat as any,
+        labelConfig: defaultTemplate?.labelConfig
+      });
       
       toast({
         title: "Success",
