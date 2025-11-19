@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { Loader2 } from "lucide-react";
 
-type AppRole = "admin" | "manager" | "user";
+type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
 interface RoleProtectedRouteProps {
   children: React.ReactNode;

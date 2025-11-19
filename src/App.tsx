@@ -33,6 +33,7 @@ import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import PlatformAdmin from "./pages/PlatformAdmin";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -46,15 +47,25 @@ const App = () => {
         <AuthProvider>
           <OrganizationProvider>
             <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/organization-setup"
-                element={
-                  <ProtectedRoute>
-                    <OrganizationSetup />
-                  </ProtectedRoute>
-                }
-              />
+            <Route path="/auth" element={<Auth />} />
+            <Route
+              path="/platform-admin"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["platform_admin"]}>
+                    <PlatformAdmin />
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organization-setup"
+              element={
+                <ProtectedRoute>
+                  <OrganizationSetup />
+                </ProtectedRoute>
+              }
+            />
               <Route
                 path="/organization-management"
                 element={
