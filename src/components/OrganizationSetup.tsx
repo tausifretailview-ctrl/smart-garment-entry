@@ -29,47 +29,19 @@ export const OrganizationSetup = () => {
     try {
       console.log("Creating organization with user:", user.id);
       
-      // Create organization
-      const { data: org, error: orgError } = await supabase
-        .from("organizations")
-        .insert({
-          name: orgName.trim(),
-          subscription_tier: "free",
-          enabled_features: [],
-          settings: {},
-        })
-        .select()
-        .single();
+      // Create organization atomically using database function
+      const { data: orgData, error } = await supabase.rpc('create_organization', {
+        p_name: orgName.trim(),
+        p_user_id: user.id
+      });
 
-      if (orgError) {
-        console.error("Organization creation error:", orgError);
-        throw orgError;
+      if (error) {
+        console.error("Organization creation error:", error);
+        throw error;
       }
       
+      const org = orgData as { id: string; name: string };
       console.log("Organization created:", org);
-
-      // Add user as admin member
-      const { error: memberError } = await supabase
-        .from("organization_members")
-        .insert({
-          organization_id: org.id,
-          user_id: user.id,
-          role: "admin",
-        });
-
-      if (memberError) throw memberError;
-
-      // Add default admin role to user_roles
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: user.id,
-          role: "admin",
-        });
-
-      if (roleError && !roleError.message.includes("duplicate")) {
-        throw roleError;
-      }
 
       toast.success("Organization created successfully!");
       

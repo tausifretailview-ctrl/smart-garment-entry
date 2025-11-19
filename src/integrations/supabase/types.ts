@@ -1093,6 +1093,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_organization: {
+        Args: { p_name: string; p_user_id?: string }
+        Returns: Json
+      }
       generate_next_barcode: { Args: never; Returns: string }
       generate_purchase_bill_number: {
         Args: { p_date?: string }
