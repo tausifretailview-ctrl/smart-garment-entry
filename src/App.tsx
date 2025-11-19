@@ -30,6 +30,7 @@ import EmployeeMaster from "./pages/EmployeeMaster";
 import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
 import SalesReportByCustomer from "./pages/SalesReportByCustomer";
 import AuditLog from "./pages/AuditLog";
+import Accounts from "./pages/Accounts";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -266,6 +267,16 @@ const App = () => {
                     <Layout>
                       <AuditLog />
                     </Layout>
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/accounts"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <Accounts />
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
