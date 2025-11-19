@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Home, Save } from "lucide-react";
+import { Home, Save, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { useEffect as useEffectForSizeGroups } from "react";
+import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 
 interface FieldConfig {
   label: string;
@@ -285,6 +286,67 @@ export default function Settings() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestPrintBarcodes = async () => {
+    try {
+      // Create sample barcode items for testing
+      const sampleItems = [
+        {
+          sku_id: 'sample-1',
+          product_name: 'Sample Product 1',
+          brand: 'SMART INVENTORY',
+          color: 'Blue',
+          style: 'Casual',
+          size: 'M',
+          sale_price: 1299,
+          barcode: '10001001',
+          qty: 2,
+          bill_number: 'B0125001',
+        },
+        {
+          sku_id: 'sample-2',
+          product_name: 'Sample Product 2',
+          brand: 'SMART INVENTORY',
+          color: 'Red',
+          style: 'Formal',
+          size: 'L',
+          sale_price: 1599,
+          barcode: '10001002',
+          qty: 2,
+          bill_number: 'B0125001',
+        },
+        {
+          sku_id: 'sample-3',
+          product_name: 'Sample Product 3',
+          brand: 'SMART INVENTORY',
+          color: 'Black',
+          style: 'Sport',
+          size: 'XL',
+          sale_price: 1899,
+          barcode: '10001003',
+          qty: 2,
+          bill_number: 'B0125002',
+        },
+      ];
+
+      const selectedFormat = settings.bill_barcode_settings?.barcode_format || 'a4_12x4';
+      
+      await printBarcodesDirectly(sampleItems, { 
+        sheetType: selectedFormat as any 
+      });
+      
+      toast({
+        title: "Test Print Sent",
+        description: "Sample barcodes sent to printer with selected format",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to test print barcodes",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1090,6 +1152,16 @@ export default function Settings() {
                     <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
                   </select>
                   <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestPrintBarcodes}
+                    className="mt-2"
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Test Print Preview
+                  </Button>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
