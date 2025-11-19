@@ -203,7 +203,8 @@ const PurchaseEntry = () => {
         // New bill mode - generate new bill number using bill date
         try {
           const { data, error } = await supabase.rpc("generate_purchase_bill_number", {
-            p_date: billDate.toISOString().split('T')[0]
+            p_date: billDate.toISOString().split('T')[0],
+            p_organization_id: currentOrganization?.id
           });
           if (error) throw error;
           setSoftwareBillNo(data);
@@ -287,7 +288,9 @@ const PurchaseEntry = () => {
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
-      const { data, error } = await supabase.rpc('generate_next_barcode');
+      const { data, error } = await supabase.rpc('generate_next_barcode', {
+        p_organization_id: currentOrganization?.id
+      });
       if (error) throw error;
       return data;
     } catch (error) {
@@ -699,7 +702,10 @@ const PurchaseEntry = () => {
         setLineItems([]);
         
         // Generate new bill number for next entry
-        const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number");
+        const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number", {
+          p_date: new Date().toISOString().split('T')[0],
+          p_organization_id: currentOrganization?.id
+        });
         if (newBillNo) setSoftwareBillNo(newBillNo);
       }
     } catch (error: any) {

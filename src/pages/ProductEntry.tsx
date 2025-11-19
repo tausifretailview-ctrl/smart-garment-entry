@@ -263,7 +263,9 @@ const ProductEntry = () => {
 
   const generateSequentialBarcode = async (): Promise<string> => {
     try {
-      const { data, error } = await supabase.rpc('generate_next_barcode');
+      const { data, error } = await supabase.rpc('generate_next_barcode', {
+        p_organization_id: currentOrganization?.id
+      });
       if (error) throw error;
       return data;
     } catch (error) {

@@ -114,19 +114,30 @@ export type Database = {
         Row: {
           id: number
           next_barcode: number
+          organization_id: string | null
           updated_at: string | null
         }
         Insert: {
           id?: number
           next_barcode?: number
+          organization_id?: string | null
           updated_at?: string | null
         }
         Update: {
           id?: number
           next_barcode?: number
+          organization_id?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "barcode_sequence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       batch_stock: {
         Row: {
@@ -181,6 +192,7 @@ export type Database = {
           id: number
           month: number
           next_sequence: number
+          organization_id: string | null
           updated_at: string | null
           year: number
         }
@@ -188,6 +200,7 @@ export type Database = {
           id?: number
           month: number
           next_sequence?: number
+          organization_id?: string | null
           updated_at?: string | null
           year: number
         }
@@ -195,10 +208,19 @@ export type Database = {
           id?: number
           month?: number
           next_sequence?: number
+          organization_id?: string | null
           updated_at?: string | null
           year?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bill_number_sequence_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       customers: {
         Row: {
@@ -1097,12 +1119,18 @@ export type Database = {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
       }
-      generate_next_barcode: { Args: never; Returns: string }
-      generate_purchase_bill_number: {
-        Args: { p_date?: string }
+      generate_next_barcode: {
+        Args: { p_organization_id: string }
         Returns: string
       }
-      generate_sale_number: { Args: never; Returns: string }
+      generate_purchase_bill_number: {
+        Args: { p_date?: string; p_organization_id?: string }
+        Returns: string
+      }
+      generate_sale_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_voucher_number: {
         Args: { p_date?: string; p_type: string }
         Returns: string
