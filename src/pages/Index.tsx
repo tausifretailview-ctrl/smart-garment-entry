@@ -9,9 +9,11 @@ import {
   Users,
   Store,
   DollarSign,
+  MessageCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { Badge } from "@/components/ui/badge";
 
 const MetricCard = ({
   title,
@@ -39,6 +41,25 @@ const MetricCard = ({
 
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
+  const navigate = useNavigate();
+  
+  // Fetch WhatsApp connection status
+  const { data: whatsappStatus } = useQuery({
+    queryKey: ["whatsapp-status"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('whatsapp-manager', {
+          body: { action: 'status' }
+        });
+        if (error) throw error;
+        return data;
+      } catch (error) {
+        console.error('Error checking WhatsApp status:', error);
+        return { connected: false, sessionActive: false };
+      }
+    },
+    refetchInterval: 30000, // Check every 30 seconds
+  });
   
   // Fetch total stock quantity
   const { data: stockData } = useQuery({
@@ -145,6 +166,29 @@ const DashboardContent = () => {
             Welcome to Smart Inventory Management System
           </p>
         </div>
+        
+        {/* WhatsApp Connection Status */}
+        <Card 
+          className="hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+          onClick={() => navigate('/settings')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <MessageCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">WhatsApp Status</span>
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${whatsappStatus?.connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <Badge variant={whatsappStatus?.connected ? "default" : "destructive"} className="text-xs">
+                    {whatsappStatus?.connected ? 'Connected' : 'Not Connected'}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Sales Metrics */}
