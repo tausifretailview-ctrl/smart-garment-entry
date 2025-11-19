@@ -11,8 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, Trash2 } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, Trash2, UserX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface Organization {
   id: string;
@@ -50,6 +51,12 @@ export default function PlatformAdmin() {
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [editFeaturesOpen, setEditFeaturesOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
+  const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
+  const [editMemberOpen, setEditMemberOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<OrgMember | null>(null);
+  const [newRole, setNewRole] = useState<"admin" | "manager" | "user">("user");
+  const [removeUserId, setRemoveUserId] = useState<string | null>(null);
+  const [removeOrgId, setRemoveOrgId] = useState<string | null>(null);
   
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -189,6 +196,89 @@ export default function PlatformAdmin() {
     },
   });
 
+  // Delete organization mutation
+  const deleteOrgMutation = useMutation({
+    mutationFn: async (orgId: string) => {
+      // First delete all organization members
+      const { error: membersError } = await supabase
+        .from("organization_members")
+        .delete()
+        .eq("organization_id", orgId);
+
+      if (membersError) throw membersError;
+
+      // Then delete the organization
+      const { error: orgError } = await supabase
+        .from("organizations")
+        .delete()
+        .eq("id", orgId);
+
+      if (orgError) throw orgError;
+    },
+    onSuccess: () => {
+      toast.success("Organization deleted successfully!");
+      setDeleteOrgId(null);
+      queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to delete organization");
+    },
+  });
+
+  // Update user role mutation
+  const updateRoleMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedMember) throw new Error("No member selected");
+
+      const { error } = await supabase
+        .from("organization_members")
+        .update({ role: newRole })
+        .eq("user_id", selectedMember.user_id)
+        .eq("organization_id", selectedMember.organization_id);
+
+      if (error) throw error;
+
+      // Also update user_roles table
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .upsert({ user_id: selectedMember.user_id, role: newRole }, { onConflict: "user_id,role" });
+
+      if (roleError) throw roleError;
+    },
+    onSuccess: () => {
+      toast.success("User role updated successfully!");
+      setEditMemberOpen(false);
+      setSelectedMember(null);
+      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to update user role");
+    },
+  });
+
+  // Remove user from organization mutation
+  const removeUserMutation = useMutation({
+    mutationFn: async ({ userId, orgId }: { userId: string; orgId: string }) => {
+      const { error } = await supabase
+        .from("organization_members")
+        .delete()
+        .eq("user_id", userId)
+        .eq("organization_id", orgId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("User removed from organization successfully!");
+      setRemoveUserId(null);
+      setRemoveOrgId(null);
+      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to remove user");
+    },
+  });
+
   const handleCreateOrg = () => {
     if (!orgName.trim()) {
       toast.error("Organization name is required");
@@ -221,6 +311,17 @@ export default function PlatformAdmin() {
         ? prev.filter(f => f !== feature)
         : [...prev, feature]
     );
+  };
+
+  const handleEditRole = (member: OrgMember) => {
+    setSelectedMember(member);
+    setNewRole(member.role as "admin" | "manager" | "user");
+    setEditMemberOpen(true);
+  };
+
+  const handleRemoveUser = (userId: string, orgId: string) => {
+    setRemoveUserId(userId);
+    setRemoveOrgId(orgId);
   };
 
   const orgCount = organizations.length;
@@ -390,6 +491,13 @@ export default function PlatformAdmin() {
                           <Edit className="h-3 w-3 mr-1" />
                           Features
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => setDeleteOrgId(org.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -492,9 +600,26 @@ export default function PlatformAdmin() {
                           {member.org_name} • {member.role}
                         </p>
                       </div>
-                      <Badge variant="outline" className="capitalize">
-                        {member.role}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="capitalize">
+                          {member.role}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditRole(member)}
+                        >
+                          <Edit className="h-3 w-3 mr-1" />
+                          Edit Role
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleRemoveUser(member.user_id, member.organization_id)}
+                        >
+                          <UserX className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -539,6 +664,86 @@ export default function PlatformAdmin() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Organization Confirmation */}
+        <AlertDialog open={!!deleteOrgId} onOpenChange={() => setDeleteOrgId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Organization</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this organization? This will remove all associated users and data. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => deleteOrgId && deleteOrgMutation.mutate(deleteOrgId)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Edit User Role Dialog */}
+        <Dialog open={editMemberOpen} onOpenChange={setEditMemberOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit User Role</DialogTitle>
+              <DialogDescription>
+                Change the role for {selectedMember?.user_email} in {selectedMember?.org_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="editRole">New Role</Label>
+                <Select value={newRole} onValueChange={(value: any) => setNewRole(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditMemberOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => updateRoleMutation.mutate()}
+                disabled={updateRoleMutation.isPending}
+              >
+                {updateRoleMutation.isPending ? "Updating..." : "Update Role"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Remove User Confirmation */}
+        <AlertDialog open={!!removeUserId} onOpenChange={() => { setRemoveUserId(null); setRemoveOrgId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove User from Organization</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to remove this user from the organization? They will lose access to all organization data.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => removeUserId && removeOrgId && removeUserMutation.mutate({ userId: removeUserId, orgId: removeOrgId })}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Remove
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </Layout>
   );
