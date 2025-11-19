@@ -19,7 +19,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
 import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";
 import { MinimalTemplate } from "@/components/invoice-templates/MinimalTemplate";
-import { generateInvoiceFromHTML } from "@/utils/pdfGenerator";
+import { generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
 import {
   Command,
   CommandEmpty,

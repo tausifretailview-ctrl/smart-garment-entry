@@ -26,7 +26,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { generateInvoiceFromHTML } from "@/utils/pdfGenerator";
+import { generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
@@ -379,12 +379,12 @@ Thank you for choosing us!`;
         termsList,
       };
 
-      // Generate and download PDF
-      await generateInvoiceFromHTML(invoiceData);
+      // Print directly to default printer
+      await printInvoiceDirectly(invoiceData);
       
       toast({
-        title: "Invoice Generated",
-        description: `Invoice PDF for ${invoice.sale_number} has been downloaded`,
+        title: "Printing Invoice",
+        description: `Invoice ${invoice.sale_number} sent to printer`,
       });
     } catch (error: any) {
       console.error('Error generating invoice PDF:', error);
