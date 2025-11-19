@@ -71,6 +71,8 @@ const POSDashboard = () => {
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchSales();
@@ -371,6 +373,27 @@ const POSDashboard = () => {
     return matchesSearch && matchesDateRange;
   });
 
+  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedSales = filteredSales.slice(startIndex, endIndex);
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, startDate, endDate]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
       <BackToDashboard />
@@ -463,14 +486,14 @@ const POSDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredSales.length === 0 ? (
+                    {paginatedSales.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredSales.map((sale) => (
+                      paginatedSales.map((sale) => (
                         <>
                           <TableRow
                             key={sale.id}
@@ -581,6 +604,37 @@ const POSDashboard = () => {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {filteredSales.length > 0 && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredSales.length)} of {filteredSales.length} sales
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-2 px-3">
+                    <span className="text-sm">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
