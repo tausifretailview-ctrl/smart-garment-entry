@@ -469,80 +469,74 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     // Convert canvas to image
     const imgData = canvas.toDataURL('image/png');
     
-    // Create A5 PDF
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a5'
-    });
-    
-    // Calculate dimensions to fit A5 (148mm x 210mm)
-    const pageWidth = 148;
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * pageWidth) / canvas.width;
-    
-    // Add image to PDF
-    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-    
-    // Create printable HTML content with A5 page setup
-    const pdfBlob = pdf.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    
-    // Create a new window for printing with proper page setup
+    // Create A5-sized HTML print window using the rendered image (more reliable preview)
+    const pageWidthMm = 148; // A5 width
+    const pageHeightMm = 210; // A5 height
+
     const printWindow = window.open('', '_blank');
-    
-    if (printWindow) {
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Print Invoice</title>
-            <style>
-              @page {
-                size: A5 portrait;
-                margin: 0;
-              }
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-              }
-              body {
-                margin: 0;
-                padding: 0;
-                width: 148mm;
-                height: 210mm;
-              }
-              embed {
-                width: 100%;
-                height: 100%;
-                border: none;
-              }
-            </style>
-          </head>
-          <body>
-            <embed src="${pdfUrl}" type="application/pdf" />
-          </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-      
-      // Wait for PDF to load then trigger print
-      setTimeout(() => {
+
+    if (!printWindow) {
+      console.error('Failed to open print window - popup may be blocked');
+      // Cleanup
+      root.unmount();
+      document.body.removeChild(container);
+      return;
+    }
+
+    // Build HTML with the invoice image and A5 page setup
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Invoice</title>
+          <style>
+            @page {
+              size: ${pageWidthMm}mm ${pageHeightMm}mm;
+              margin: 0;
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            html, body {
+              width: ${pageWidthMm}mm;
+              height: ${pageHeightMm}mm;
+            }
+            body {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              background: #ffffff;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100%;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${imgData}" alt="Invoice" />
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+
+    // Wait a bit to ensure image is loaded, then trigger print
+    printWindow.onload = () => {
+      try {
         printWindow.focus();
         printWindow.print();
-        console.log('Print dialog opened');
-      }, 500);
-      
-      // Clean up after a delay
-      setTimeout(() => {
-        URL.revokeObjectURL(pdfUrl);
-      }, 5000);
-    } else {
-      console.error('Failed to open print window - popup may be blocked');
-      URL.revokeObjectURL(pdfUrl);
-    }
+        console.log('Print dialog opened with image preview');
+      } catch (e) {
+        console.error('Print error:', e);
+      }
+    };
+
+    // Cleanup
+    root.unmount();
+    document.body.removeChild(container);
     
     // Cleanup
     root.unmount();
