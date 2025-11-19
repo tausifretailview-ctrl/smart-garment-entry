@@ -484,20 +484,37 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     // Add image to PDF
     pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
     
-    // Open PDF in new window and trigger print
+    // Create hidden iframe for printing (avoids popup blockers)
     const pdfBlob = pdf.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
-    const printWindow = window.open(pdfUrl, '_blank');
     
-    if (printWindow) {
-      printWindow.onload = () => {
-        printWindow.print();
-        // Clean up URL after printing
-        setTimeout(() => URL.revokeObjectURL(pdfUrl), 1000);
-      };
-    }
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.right = '0';
+    printFrame.style.bottom = '0';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = 'none';
+    document.body.appendChild(printFrame);
     
-    console.log('Print dialog opened');
+    printFrame.onload = () => {
+      try {
+        printFrame.contentWindow?.print();
+        console.log('Print dialog opened');
+        
+        // Clean up after print dialog is closed
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+          URL.revokeObjectURL(pdfUrl);
+        }, 1000);
+      } catch (e) {
+        console.error('Print error:', e);
+        document.body.removeChild(printFrame);
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+    
+    printFrame.src = pdfUrl;
     
     // Cleanup
     root.unmount();
