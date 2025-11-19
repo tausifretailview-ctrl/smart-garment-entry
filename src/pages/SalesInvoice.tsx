@@ -19,6 +19,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
 import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";
 import { MinimalTemplate } from "@/components/invoice-templates/MinimalTemplate";
+import { generateInvoiceFromHTML } from "@/utils/pdfGenerator";
 import {
   Command,
   CommandEmpty,
@@ -413,8 +414,105 @@ export default function SalesInvoice() {
       return;
     }
 
-    // Create WhatsApp message
-    const message = `Hello ${selectedCustomer?.customer_name || 'Customer'},
+    try {
+      // Fetch the full invoice data from database
+      const { data: invoiceData, error: fetchError } = await supabase
+        .from('sales')
+        .select(`
+          *,
+          sale_items (*)
+        `)
+        .eq('sale_number', invoiceNumber)
+        .single();
+
+      if (fetchError || !invoiceData) {
+        throw new Error('Failed to fetch invoice data');
+      }
+
+      // Generate and download PDF first
+      const billSettings = settingsData?.bill_barcode_settings as any || {};
+      const declarationText = billSettings.bill_header || 'Declaration: Composition taxable person, not eligible to collect tax on supplies.';
+      const termsText = billSettings.bill_footer || '';
+      const termsList = termsText ? termsText.split('\n').filter((t: string) => t.trim()) : [
+        'GOODS ONCE SOLD WILL NOT BE TAKEN BACK.',
+        'NO EXCHANGE WITHOUT BARCODE & BILL.',
+        'EXCHANGE TIME: 01:00 TO 04:00 PM.'
+      ];
+
+      // Fetch shop logo if available
+      let logoUrl: string | undefined;
+      const saleSettings = settingsData?.sale_settings as any || {};
+      if (saleSettings.shop_logo_path) {
+        const { data: logoData } = await supabase
+          .storage
+          .from('company-logos')
+          .createSignedUrl(saleSettings.shop_logo_path, 3600);
+        
+        if (logoData?.signedUrl) {
+          logoUrl = logoData.signedUrl;
+        }
+      }
+
+      // Transform invoice items for PDF generation
+      const transformedItems = invoiceData.sale_items?.map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        hsn: '',
+        sp: item.mrp,
+        qty: item.quantity,
+        rate: item.unit_price,
+        total: item.line_total,
+      })) || [];
+
+      // Calculate payment details
+      const paymentMethod = invoiceData.payment_method || 'pending';
+      let cashPaid = 0, upiPaid = 0, cardPaid = 0;
+      if (invoiceData.payment_status === 'completed') {
+        if (paymentMethod === 'cash') cashPaid = invoiceData.net_amount;
+        else if (paymentMethod === 'upi') upiPaid = invoiceData.net_amount;
+        else if (paymentMethod === 'card') cardPaid = invoiceData.net_amount;
+      }
+
+      // Prepare invoice data for PDF
+      const pdfInvoiceData = {
+        billNo: invoiceData.sale_number,
+        date: new Date(invoiceData.sale_date),
+        time: new Date(invoiceData.sale_date).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        customerName: invoiceData.customer_name,
+        customerAddress: invoiceData.customer_address || '',
+        customerMobile: invoiceData.customer_phone || '',
+        items: transformedItems,
+        subTotal: invoiceData.gross_amount,
+        discount: invoiceData.discount_amount,
+        grandTotal: invoiceData.net_amount,
+        tenderAmount: invoiceData.net_amount,
+        cashPaid,
+        upiPaid,
+        cardPaid,
+        refundCash: 0,
+        paymentMethod,
+        businessName: settingsData?.business_name || 'BUSINESS NAME',
+        businessAddress: settingsData?.address || '',
+        businessContact: settingsData?.mobile_number || '',
+        businessEmail: settingsData?.email_id || '',
+        gstNumber: settingsData?.gst_number || '',
+        logo: logoUrl,
+        mrpTotal: invoiceData.gross_amount,
+        declarationText,
+        termsList,
+      };
+
+      // Generate and download PDF
+      await generateInvoiceFromHTML(pdfInvoiceData);
+
+      // Create WhatsApp message
+      const message = `Hello ${selectedCustomer?.customer_name || 'Customer'},
 
 Thank you for your business!
 
@@ -435,20 +533,28 @@ ${paymentTerm ? `Payment Terms: ${paymentTerm}` : ''}
 
 Thank you for choosing us!`;
 
-    // Format phone number (remove non-digits and ensure country code)
-    let formattedPhone = customerPhone.replace(/[^\d]/g, '');
-    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
-      formattedPhone = '91' + formattedPhone;
+      // Format phone number (remove non-digits and ensure country code)
+      let formattedPhone = customerPhone.replace(/[^\d]/g, '');
+      if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
+        formattedPhone = '91' + formattedPhone;
+      }
+
+      // Open WhatsApp with pre-filled message
+      const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+
+      toast({
+        title: "PDF Downloaded & WhatsApp Opened",
+        description: "Please attach the downloaded PDF in WhatsApp chat",
+      });
+    } catch (error: any) {
+      console.error('Error sending to WhatsApp:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to generate invoice PDF",
+      });
     }
-
-    // Open WhatsApp with pre-filled message
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-
-    toast({
-      title: "Opening WhatsApp",
-      description: "Invoice details will be sent to customer",
-    });
   };
 
   const handleSaveInvoice = async () => {
