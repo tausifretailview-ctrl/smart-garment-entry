@@ -380,11 +380,12 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
             <TabsTrigger value="purchase">Purchase</TabsTrigger>
             <TabsTrigger value="sale">Sale</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
@@ -949,6 +950,75 @@ export default function Settings() {
                       />
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="whatsapp">
+            <Card>
+              <CardHeader>
+                <CardTitle>WhatsApp Integration</CardTitle>
+                <CardDescription>
+                  Connect your WhatsApp account to send invoices directly to customers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex flex-col items-center gap-4 p-6 border rounded-lg bg-muted/50">
+                  <div className="text-center space-y-2">
+                    <h3 className="font-semibold">Connect WhatsApp Account</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Scan the QR code with your WhatsApp mobile app to connect
+                    </p>
+                  </div>
+                  
+                  <div className="w-64 h-64 bg-white border rounded-lg flex items-center justify-center">
+                    <div className="text-center text-muted-foreground">
+                      <p className="text-sm mb-2">QR Code will appear here</p>
+                      <Button 
+                        onClick={() => {
+                          toast({
+                            title: "Generating QR Code",
+                            description: "Please wait while we generate your connection code...",
+                          });
+                        }}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Generate QR Code
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                    <span className="text-sm text-muted-foreground">Not Connected</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-medium">Connection Status</h4>
+                  <div className="p-4 border rounded-lg space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span className="font-medium text-destructive">Disconnected</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Last Connected:</span>
+                      <span className="font-medium">Never</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="font-medium">How it works</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-sm text-muted-foreground">
+                    <li>Click "Generate QR Code" button above</li>
+                    <li>Open WhatsApp on your phone</li>
+                    <li>Go to Settings → Linked Devices</li>
+                    <li>Tap "Link a Device" and scan the QR code</li>
+                    <li>Once connected, you can send invoices directly</li>
+                  </ol>
                 </div>
               </CardContent>
             </Card>

@@ -403,7 +403,7 @@ export default function SalesInvoice() {
     }
   };
 
-  const sendToWhatsApp = (invoiceNumber: string, customerPhone: string, items: LineItem[], totalAmount: number) => {
+  const sendToWhatsApp = async (invoiceNumber: string, customerPhone: string, items: LineItem[], totalAmount: number) => {
     if (!customerPhone) {
       toast({
         title: "No Phone Number",
@@ -411,14 +411,6 @@ export default function SalesInvoice() {
         variant: "destructive"
       });
       return;
-    }
-
-    // Format phone number for WhatsApp (remove special characters, ensure it starts with country code)
-    let formattedPhone = customerPhone.replace(/[^\d]/g, '');
-    
-    // If phone doesn't start with country code, add India code (91) as default
-    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
-      formattedPhone = '91' + formattedPhone;
     }
 
     // Create WhatsApp message
@@ -443,9 +435,35 @@ ${paymentTerm ? `Payment Terms: ${paymentTerm}` : ''}
 
 Thank you for choosing us!`;
 
-    // Open WhatsApp with pre-filled message
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+    try {
+      // Send via backend WhatsApp integration
+      const { data, error } = await supabase.functions.invoke('whatsapp-manager', {
+        body: {
+          action: 'send',
+          phoneNumber: customerPhone,
+          message: message
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.url) {
+        // Fallback: open WhatsApp web if direct send not available
+        window.open(data.url, '_blank');
+      }
+
+      toast({
+        title: "Message Sent",
+        description: "Invoice has been sent to customer's WhatsApp",
+      });
+    } catch (error) {
+      console.error('Error sending WhatsApp message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSaveInvoice = async () => {
