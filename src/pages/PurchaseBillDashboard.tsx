@@ -20,6 +20,7 @@ import {
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 
 interface PurchaseItem {
   id: string;
@@ -211,16 +212,20 @@ const PurchaseBillDashboard = () => {
         sale_price: item.sale_price,
         barcode: item.barcode,
         qty: item.qty,
+        bill_number: item.bill_number || "",
       }));
 
-      // Navigate to barcode printing page with items
-      navigate("/barcode-printing", {
-        state: { purchaseItems: barcodeItems },
+      // Print barcodes directly
+      await printBarcodesDirectly(barcodeItems);
+      
+      toast({
+        title: "Success",
+        description: "Barcodes sent to printer",
       });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to load bill items for printing",
+        description: error.message || "Failed to print barcodes",
         variant: "destructive",
       });
     } finally {
