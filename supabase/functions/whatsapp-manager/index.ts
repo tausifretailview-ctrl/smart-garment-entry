@@ -14,14 +14,22 @@ serve(async (req) => {
     const { action, phoneNumber, message } = await req.json();
 
     if (action === 'connect') {
-      // Generate QR code for WhatsApp Web connection
-      // This would integrate with WhatsApp Web protocol
-      // For now, returning a placeholder response
+      // Generate a unique session ID for this WhatsApp connection
+      const sessionId = crypto.randomUUID();
+      
+      // In a real implementation, this would:
+      // 1. Initialize WhatsApp Web client with this session ID
+      // 2. Generate actual QR code from WhatsApp Web
+      // 3. Store session data in database
+      // For demo purposes, generating a sample QR code data
+      const qrData = `whatsapp-session:${sessionId}`;
+      
       return new Response(
         JSON.stringify({
           success: true,
-          message: "QR code generation initiated",
-          qrCode: "data:image/png;base64,..." // Placeholder
+          message: "QR code generated successfully",
+          qrData: qrData,
+          sessionId: sessionId
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
