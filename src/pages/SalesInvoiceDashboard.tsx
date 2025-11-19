@@ -18,7 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Home, Search, Printer, Edit, ChevronDown, ChevronUp, DollarSign, FileText, TrendingUp, AlertCircle, Clock } from "lucide-react";
+import { Home, Search, Printer, Edit, ChevronDown, ChevronUp, DollarSign, FileText, TrendingUp, AlertCircle, Clock, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -145,6 +145,56 @@ export default function SalesInvoiceDashboard() {
       newExpanded.add(invoiceId);
     }
     setExpandedRows(newExpanded);
+  };
+
+  const sendToWhatsApp = (invoice: any) => {
+    if (!invoice.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send via WhatsApp",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Format phone number for WhatsApp
+    let formattedPhone = invoice.customer_phone.replace(/[^\d]/g, '');
+    
+    // Add India code if needed
+    if (!formattedPhone.startsWith('91') && formattedPhone.length === 10) {
+      formattedPhone = '91' + formattedPhone;
+    }
+
+    // Create WhatsApp message
+    const message = `Hello ${invoice.customer_name},
+
+Thank you for your business!
+
+*Invoice Details:*
+Invoice No: ${invoice.sale_number}
+Date: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}
+Amount: ₹${invoice.net_amount.toFixed(2)}
+
+Items: ${invoice.sale_items?.length || 0} product(s)
+
+${invoice.sale_items?.map((item: any, i: number) => 
+  `${i + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
+).join('\n')}
+
+Total Amount: *₹${invoice.net_amount.toFixed(2)}*
+
+${invoice.payment_term ? `Payment Terms: ${invoice.payment_term}` : ''}
+
+Thank you for choosing us!`;
+
+    // Open WhatsApp
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    toast({
+      title: "WhatsApp Opened",
+      description: "Invoice details have been loaded in WhatsApp",
+    });
   };
 
   const handleEdit = (invoice: any) => {
@@ -543,6 +593,7 @@ export default function SalesInvoiceDashboard() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleEdit(invoice)}
+                              title="Edit Invoice"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -550,8 +601,18 @@ export default function SalesInvoiceDashboard() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handlePrint(invoice)}
+                              title="Print Invoice"
                             >
                               <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => sendToWhatsApp(invoice)}
+                              title="Send to WhatsApp"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              <MessageCircle className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
