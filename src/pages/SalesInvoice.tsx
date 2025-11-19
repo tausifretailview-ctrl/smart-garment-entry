@@ -81,7 +81,24 @@ export default function SalesInvoice() {
   const navigate = useNavigate();
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
-  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+  // Initialize 5 empty rows for predefined table
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    Array(5).fill(null).map((_, i) => ({
+      id: `row-${i}`,
+      productId: '',
+      variantId: '',
+      productName: '',
+      size: '',
+      barcode: '',
+      quantity: 0,
+      mrp: 0,
+      salePrice: 0,
+      discountPercent: 0,
+      discountAmount: 0,
+      gstPercent: 0,
+      lineTotal: 0,
+    }))
+  );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
@@ -223,8 +240,8 @@ export default function SalesInvoice() {
   }, [taxType]);
 
   const addProductToInvoice = (product: any, variant: any) => {
-    // Check if product already exists
-    const existingIndex = lineItems.findIndex(item => item.variantId === variant.id);
+    // Check if product already exists in filled rows
+    const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
       // Increase quantity if already exists
@@ -233,9 +250,21 @@ export default function SalesInvoice() {
       updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
       setLineItems(updatedItems);
     } else {
-      // Add new line item
+      // Find first empty row and fill it
+      const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+      
+      if (emptyRowIndex === -1) {
+        toast({
+          title: "Table Full",
+          description: "All 5 rows are filled. Remove an item to add more.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const updatedItems = [...lineItems];
       const newItem: LineItem = {
-        id: `${Date.now()}-${variant.id}`,
+        id: updatedItems[emptyRowIndex].id,
         productId: product.id,
         variantId: variant.id,
         productName: product.product_name,
@@ -247,9 +276,10 @@ export default function SalesInvoice() {
         discountPercent: 0,
         discountAmount: 0,
         gstPercent: product.gst_per || 0,
-        lineTotal: variant.sale_price || 0,
+        lineTotal: 0,
       };
-      setLineItems([...lineItems, calculateLineTotal(newItem)]);
+      updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
+      setLineItems(updatedItems);
     }
     
     setOpenProductSearch(false);
@@ -314,7 +344,25 @@ export default function SalesInvoice() {
   };
 
   const removeItem = (id: string) => {
-    setLineItems(lineItems.filter(item => item.id !== id));
+    // Clear the row instead of removing it
+    const updatedItems = lineItems.map(item => 
+      item.id === id ? {
+        ...item,
+        productId: '',
+        variantId: '',
+        productName: '',
+        size: '',
+        barcode: '',
+        quantity: 0,
+        mrp: 0,
+        salePrice: 0,
+        discountPercent: 0,
+        discountAmount: 0,
+        gstPercent: 0,
+        lineTotal: 0,
+      } : item
+    );
+    setLineItems(updatedItems);
   };
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
@@ -366,7 +414,8 @@ export default function SalesInvoice() {
       return;
     }
 
-    if (lineItems.length === 0) {
+    const filledItems = lineItems.filter(item => item.productId !== '');
+    if (filledItems.length === 0) {
       toast({
         variant: "destructive",
         title: "Validation Error",
@@ -411,8 +460,8 @@ export default function SalesInvoice() {
 
         if (deleteError) throw deleteError;
 
-        // Insert updated sale items
-        const saleItems = lineItems.map(item => ({
+        // Insert updated sale items (only filled rows)
+        const saleItems = filledItems.map(item => ({
           sale_id: editingInvoiceId,
           product_id: item.productId,
           variant_id: item.variantId,
@@ -479,7 +528,7 @@ export default function SalesInvoice() {
 
         if (saleError) throw saleError;
 
-        const saleItems = lineItems.map(item => ({
+        const saleItems = filledItems.map(item => ({
           sale_id: saleData.id,
           product_id: item.productId,
           variant_id: item.variantId,
@@ -838,31 +887,31 @@ export default function SalesInvoice() {
                 </Popover>
               </div>
 
-              {/* Line Items Table */}
-              {lineItems.length > 0 ? (
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[40px]">#</TableHead>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Size</TableHead>
-                        <TableHead className="w-[100px]">Qty</TableHead>
-                        <TableHead className="w-[120px]">Price</TableHead>
-                        <TableHead className="w-[100px]">Disc%</TableHead>
-                        <TableHead className="w-[120px]">Disc Amt</TableHead>
-                        <TableHead className="w-[80px]">GST%</TableHead>
-                        <TableHead className="text-right w-[120px]">Total</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {lineItems.map((item, index) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell>
+              {/* Line Items Table - Always show 5 rows */}
+              <div className="border rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">#</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead className="w-[100px]">Qty</TableHead>
+                      <TableHead className="w-[120px]">Price</TableHead>
+                      <TableHead className="w-[100px]">Disc%</TableHead>
+                      <TableHead className="w-[120px]">Disc Amt</TableHead>
+                      <TableHead className="w-[80px]">GST%</TableHead>
+                      <TableHead className="text-right w-[120px]">Total</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lineItems.map((item, index) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="font-medium">{item.productName || '-'}</TableCell>
+                        <TableCell>{item.size || '-'}</TableCell>
+                        <TableCell>
+                          {item.productId ? (
                             <Input
                               type="number"
                               min="1"
@@ -870,9 +919,13 @@ export default function SalesInvoice() {
                               onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                               className="w-full"
                             />
-                          </TableCell>
-                          <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
-                          <TableCell>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{item.productId ? `₹${item.salePrice.toFixed(2)}` : '-'}</TableCell>
+                        <TableCell>
+                          {item.productId ? (
                             <Input
                               type="number"
                               min="0"
@@ -881,8 +934,12 @@ export default function SalesInvoice() {
                               onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                               className="w-full"
                             />
-                          </TableCell>
-                          <TableCell>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.productId ? (
                             <Input
                               type="number"
                               min="0"
@@ -890,34 +947,29 @@ export default function SalesInvoice() {
                               onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                               className="w-full"
                             />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={item.gstPercent}
-                              onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
-                              className="w-full"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            ₹{item.lineTotal.toFixed(2)}
-                          </TableCell>
-                          <TableCell>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{item.productId ? `${item.gstPercent}%` : '-'}</TableCell>
+                        <TableCell className="text-right">
+                          {item.productId ? `₹${item.lineTotal.toFixed(2)}` : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {item.productId && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => removeItem(item.id)}
                             >
-                              <X className="h-4 w-4 text-destructive" />
+                              <X className="h-4 w-4" />
                             </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
                   
                   {/* Summary Section */}
                   <div className="border-t p-4 bg-muted/30">
@@ -947,15 +999,6 @@ export default function SalesInvoice() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <Card className="p-4 min-h-[300px] flex items-center justify-center">
-                  <div className="text-center text-muted-foreground">
-                    <Search className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>No products added yet</p>
-                    <p className="text-sm">Click the search box above to add products</p>
-                  </div>
-                </Card>
-              )}
             </TabsContent>
             
             <TabsContent value="terms" className="mt-4">
