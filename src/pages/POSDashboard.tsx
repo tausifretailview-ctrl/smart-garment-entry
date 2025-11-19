@@ -419,7 +419,7 @@ const POSDashboard = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredSales.map((sale) => (
+                {filteredSales.map((sale, index) => (
                   <Card
                     key={sale.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
@@ -427,7 +427,11 @@ const POSDashboard = () => {
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1 grid grid-cols-2 md:grid-cols-5 gap-4">
+                        <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">SR</p>
+                            <p className="font-semibold">{index + 1}</p>
+                          </div>
                           <div>
                             <p className="text-sm text-muted-foreground">Invoice #</p>
                             <p className="font-semibold">{sale.sale_number}</p>
