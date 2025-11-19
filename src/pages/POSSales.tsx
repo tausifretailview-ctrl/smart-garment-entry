@@ -26,6 +26,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -67,6 +77,8 @@ export default function POSSales() {
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [showPrintConfirmDialog, setShowPrintConfirmDialog] = useState(false);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
@@ -550,89 +562,109 @@ export default function POSSales() {
         description: `Invoice ${result.sale_number} saved with ${method.toUpperCase()} payment`,
       });
       
-      // Auto-print invoice
-      try {
-        const { data: settings } = await supabase
-          .from('settings')
-          .select('*')
-          .eq('organization_id', currentOrganization?.id)
-          .maybeSingle();
-
-        const saleSettings = settings?.sale_settings as any;
-        const invoiceTemplate = saleSettings?.invoice_template || 'classic';
-        const currentTime = new Date().toLocaleTimeString('en-US');
-        const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
-        const cardPaid = method === 'card' ? finalAmount : 0;
-        const cashPaid = method === 'cash' ? finalAmount : 0;
-        const upiPaid = method === 'upi' ? finalAmount : 0;
-
-        const invoiceData = {
-          billNo: result.sale_number,
-          date: new Date(),
-          customerName: customerName,
-          customerAddress: "",
-          customerMobile: "",
-          items: items.map((item, index) => ({
-            sr: index + 1,
-            particulars: item.productName,
-            size: item.size,
-            barcode: item.barcode,
-            hsn: "",
-            sp: item.mrp,
-            qty: item.quantity,
-            rate: item.unitCost,
-            total: item.netAmount,
-          })),
-          subTotal: totals.subtotal,
-          discount: totals.discount + flatDiscountAmount,
-          grandTotal: finalAmount,
-          tenderAmount: finalAmount,
-          cashPaid: cashPaid,
-          refundCash: 0,
-          upiPaid: upiPaid,
-          paymentMethod: method,
-          businessName: settings?.business_name || 'BUSINESS NAME',
-          businessAddress: settings?.address || '',
-          businessContact: settings?.mobile_number || '',
-          businessEmail: settings?.email_id || '',
-          gstNumber: settings?.gst_number || '',
-          logo: (settings?.bill_barcode_settings as any)?.logo_url,
-          time: currentTime,
-          mrpTotal: mrpTotal,
-          cardPaid: cardPaid,
-          declarationText: saleSettings?.declaration_text,
-          termsList: saleSettings?.terms_list,
-        };
-
-        if (invoiceTemplate === 'html-classic') {
-          await generateInvoiceFromHTML(invoiceData);
-        } else {
-          await printInvoicePDF(invoiceData);
-        }
-        
-        toast({
-          title: "Invoice Downloaded",
-          description: "Invoice PDF downloaded successfully",
-        });
-      } catch (error: any) {
-        console.error('Error generating PDF:', error);
-        toast({
-          title: "Print Error",
-          description: "Sale saved but failed to print invoice",
-          variant: "destructive",
-        });
-      }
-      
-      // Clear cart on success
-      setItems([]);
-      setCustomerId("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setFlatDiscountPercent(0);
-      setRoundOff(0);
-      setSearchInput("");
-      setCurrentInvoiceIndex(0);
+      // Store invoice data and show print dialog
+      setSavedInvoiceData({
+        invoiceNumber: result.sale_number,
+        saleId: result.id,
+        items: items,
+        totals: totals,
+        flatDiscountAmount: flatDiscountAmount,
+        finalAmount: finalAmount,
+        method: method,
+        customerName: customerName,
+        customerPhone: customerPhone,
+      });
+      setShowPrintConfirmDialog(true);
     }
+  };
+
+  const handlePrintFromDialog = async () => {
+    if (!savedInvoiceData) return;
+
+    try {
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      const saleSettings = settings?.sale_settings as any;
+      const currentTime = new Date().toLocaleTimeString('en-US');
+      const mrpTotal = savedInvoiceData.items.reduce((sum: number, item: any) => sum + (item.mrp * item.quantity), 0);
+      const cardPaid = savedInvoiceData.method === 'card' ? savedInvoiceData.finalAmount : 0;
+      const cashPaid = savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0;
+      const upiPaid = savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0;
+
+      const invoiceData = {
+        billNo: savedInvoiceData.invoiceNumber,
+        date: new Date(),
+        customerName: savedInvoiceData.customerName,
+        customerAddress: "",
+        customerMobile: savedInvoiceData.customerPhone,
+        items: savedInvoiceData.items.map((item: any, index: number) => ({
+          sr: index + 1,
+          particulars: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          hsn: "",
+          sp: item.mrp,
+          qty: item.quantity,
+          rate: item.unitCost,
+          total: item.netAmount,
+        })),
+        subTotal: savedInvoiceData.totals.subtotal,
+        discount: savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount,
+        grandTotal: savedInvoiceData.finalAmount,
+        tenderAmount: savedInvoiceData.finalAmount,
+        cashPaid: cashPaid,
+        refundCash: 0,
+        upiPaid: upiPaid,
+        paymentMethod: savedInvoiceData.method,
+        businessName: settings?.business_name || 'BUSINESS NAME',
+        businessAddress: settings?.address || '',
+        businessContact: settings?.mobile_number || '',
+        businessEmail: settings?.email_id || '',
+        gstNumber: settings?.gst_number || '',
+        logo: (settings?.bill_barcode_settings as any)?.logo_url,
+        time: currentTime,
+        mrpTotal: mrpTotal,
+        cardPaid: cardPaid,
+        declarationText: saleSettings?.declaration_text,
+        termsList: saleSettings?.terms_list,
+      };
+
+      await printInvoiceDirectly(invoiceData);
+      
+      toast({
+        title: "Printing Invoice",
+        description: `Invoice ${savedInvoiceData.invoiceNumber} sent to printer`,
+      });
+
+      handleClosePrintConfirmDialog();
+    } catch (error: any) {
+      console.error('Error printing invoice:', error);
+      toast({
+        title: "Print Error",
+        description: "Failed to print invoice",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleClosePrintConfirmDialog = () => {
+    setShowPrintConfirmDialog(false);
+    
+    // Clear cart
+    setItems([]);
+    setCustomerId("");
+    setCustomerName("");
+    setCustomerPhone("");
+    setFlatDiscountPercent(0);
+    setRoundOff(0);
+    setSearchInput("");
+    setCurrentInvoiceIndex(0);
+    
+    setSavedInvoiceData(null);
   };
 
   const handlePrint = () => {
@@ -1628,6 +1660,27 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Print Confirmation Dialog */}
+        <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
+                Would you like to print it now?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleClosePrintConfirmDialog}>
+                Skip
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={handlePrintFromDialog}>
+                Print Now
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );

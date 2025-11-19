@@ -27,7 +27,7 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edi
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { printInvoicePDF, generateInvoiceFromHTML } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
 
 interface SaleItem {
   id: string;
@@ -254,15 +254,11 @@ const POSDashboard = () => {
         termsList: saleSettings?.terms_list,
       };
 
-      if (invoiceTemplate === 'html-classic') {
-        await generateInvoiceFromHTML(invoiceData);
-      } else {
-        await printInvoicePDF(invoiceData);
-      }
+      await printInvoiceDirectly(invoiceData);
       
       toast({
-        title: "Success",
-        description: "Invoice PDF downloaded successfully",
+        title: "Printing Invoice",
+        description: `Invoice ${sale.sale_number} sent to printer`,
       });
     } catch (error: any) {
       console.error('Error generating PDF:', error);
