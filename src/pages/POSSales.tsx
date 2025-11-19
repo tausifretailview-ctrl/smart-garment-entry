@@ -32,7 +32,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InvoicePrint } from "@/components/InvoicePrint";
-import { printInvoicePDF, generateInvoiceFromHTML } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
 
 interface CartItem {
   id: string;
@@ -716,14 +716,14 @@ export default function POSSales() {
       console.log('Generating invoice PDF with template:', invoiceTemplate);
       
       if (invoiceTemplate === 'html-classic') {
-        await generateInvoiceFromHTML(invoiceData);
+        await printInvoiceDirectly(invoiceData);
       } else {
         await printInvoicePDF(invoiceData);
       }
       
       toast({
         title: "Success",
-        description: "Invoice PDF downloaded successfully",
+        description: "Invoice sent to printer",
       });
       
       // Close dialog after initiating download
