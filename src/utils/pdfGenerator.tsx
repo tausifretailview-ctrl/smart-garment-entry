@@ -484,41 +484,65 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     // Add image to PDF
     pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
     
-    // Create hidden iframe for printing (avoids popup blockers)
+    // Create printable HTML content with A5 page setup
     const pdfBlob = pdf.output('blob');
     const pdfUrl = URL.createObjectURL(pdfBlob);
     
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.right = '0';
-    printFrame.style.bottom = '0';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = 'none';
-    document.body.appendChild(printFrame);
+    // Create a new window for printing with proper page setup
+    const printWindow = window.open('', '_blank');
     
-    printFrame.onload = () => {
-      try {
-        if (!printFrame.contentWindow) {
-          throw new Error('Print frame contentWindow not available');
-        }
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Print Invoice</title>
+            <style>
+              @page {
+                size: A5 portrait;
+                margin: 0;
+              }
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                width: 148mm;
+                height: 210mm;
+              }
+              embed {
+                width: 100%;
+                height: 100%;
+                border: none;
+              }
+            </style>
+          </head>
+          <body>
+            <embed src="${pdfUrl}" type="application/pdf" />
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+      
+      // Wait for PDF to load then trigger print
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
         console.log('Print dialog opened');
-        
-        // Clean up after print dialog is closed
-        setTimeout(() => {
-          document.body.removeChild(printFrame);
-          URL.revokeObjectURL(pdfUrl);
-        }, 1000);
-      } catch (e) {
-        console.error('Print error:', e);
-        document.body.removeChild(printFrame);
+      }, 500);
+      
+      // Clean up after a delay
+      setTimeout(() => {
         URL.revokeObjectURL(pdfUrl);
-      }
-    };
-    
-    printFrame.src = pdfUrl;
+      }, 5000);
+    } else {
+      console.error('Failed to open print window - popup may be blocked');
+      URL.revokeObjectURL(pdfUrl);
+    }
     
     // Cleanup
     root.unmount();
