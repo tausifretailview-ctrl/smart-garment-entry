@@ -499,7 +499,11 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     
     printFrame.onload = () => {
       try {
-        printFrame.contentWindow?.print();
+        if (!printFrame.contentWindow) {
+          throw new Error('Print frame contentWindow not available');
+        }
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
         console.log('Print dialog opened');
         
         // Clean up after print dialog is closed
