@@ -79,6 +79,24 @@ const POSDashboard = () => {
     fetchSales();
   }, [currentOrganization]);
 
+  // Keyboard shortcut for printing
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "p") {
+        e.preventDefault();
+        if (expandedSale && sales.length > 0) {
+          const sale = sales.find(s => s.id === expandedSale);
+          if (sale) {
+            handlePrintClick(sale, { stopPropagation: () => {} } as React.MouseEvent);
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [expandedSale, sales]);
+
   const fetchSales = async () => {
     if (!currentOrganization?.id) return;
     

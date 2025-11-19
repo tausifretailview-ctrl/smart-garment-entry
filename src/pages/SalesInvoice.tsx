@@ -128,6 +128,21 @@ export default function SalesInvoice() {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
 
+  // Keyboard shortcut for printing
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "p") {
+        e.preventDefault();
+        if (savedInvoiceData) {
+          handlePrintInvoice();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [savedInvoiceData]);
+
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
     defaultValues: {

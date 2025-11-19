@@ -134,11 +134,18 @@ export default function POSSales() {
         e.preventDefault();
         handleClearAll();
       }
+      // Ctrl+P - Print saved invoice
+      else if (e.ctrlKey && e.key === 'p') {
+        e.preventDefault();
+        if (savedInvoiceData) {
+          handlePrintFromDialog();
+        }
+      }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountPercent, roundOff, paymentMethod]);
+  }, [items, customerName, flatDiscountPercent, roundOff, paymentMethod, savedInvoiceData]);
 
   // Apply defaults when settings are loaded
   useEffect(() => {
