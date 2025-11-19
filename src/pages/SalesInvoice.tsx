@@ -11,6 +11,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
 import { format } from "date-fns";
@@ -115,6 +125,8 @@ export default function SalesInvoice() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
   const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern" | "minimal">("classic");
   const [showPreview, setShowPreview] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -648,16 +660,14 @@ Thank you for choosing us!`;
           .eq('id', editingInvoiceId)
           .single();
 
-        // Ask if user wants to send via WhatsApp
-        if (selectedCustomer?.phone && invoiceData) {
-          const sendWhatsApp = window.confirm("Invoice updated! Do you want to send it via WhatsApp?");
-          if (sendWhatsApp) {
-            sendToWhatsApp(invoiceData.sale_number, selectedCustomer.phone, filledItems, netAmount);
-          }
-        }
-
-        // Navigate back to dashboard
-        navigate('/sales-invoice-dashboard');
+        // Store invoice data and show print dialog
+        setSavedInvoiceData({
+          invoiceNumber: invoiceData?.sale_number,
+          filledItems,
+          netAmount,
+          customer: selectedCustomer,
+        });
+        setShowPrintDialog(true);
       } else {
         // Create new invoice
         const { data: saleNumber, error: saleNumError } = await supabase
@@ -723,42 +733,17 @@ Thank you for choosing us!`;
           description: `Invoice ${saleNumber} has been created successfully`,
         });
 
-        // Ask if user wants to send via WhatsApp
-        if (selectedCustomer?.phone) {
-          const sendWhatsApp = window.confirm(`Invoice ${saleNumber} created! Do you want to send it to customer via WhatsApp?`);
-          if (sendWhatsApp) {
-            sendToWhatsApp(saleNumber, selectedCustomer.phone, filledItems, netAmount);
-          }
-        }
+        // Store invoice data and show print dialog
+        setSavedInvoiceData({
+          invoiceNumber: saleNumber,
+          filledItems,
+          netAmount,
+          customer: selectedCustomer,
+        });
+        setShowPrintDialog(true);
 
-        // Reset form
-        setLineItems(
-          Array(5).fill(null).map((_, i) => ({
-            id: `row-${i}`,
-            productId: '',
-            variantId: '',
-            productName: '',
-            size: '',
-            barcode: '',
-            quantity: 0,
-            mrp: 0,
-            salePrice: 0,
-            discountPercent: 0,
-            discountAmount: 0,
-            gstPercent: 0,
-            lineTotal: 0,
-          }))
-        );
-        setSelectedCustomerId("");
-        setSelectedCustomer(null);
-        setInvoiceDate(new Date());
-        setDueDate(new Date());
-        setPaymentTerm("");
-        setTermsConditions("");
-        setNotes("");
-        setShippingAddress("");
-        setShippingInstructions("");
-        setEditingInvoiceId(null);
+        // Reset form after user closes print dialog (will be handled in dialog onClose)
+        // Don't reset immediately to allow printing
       }
     } catch (error: any) {
       console.error('Error saving invoice:', error);
@@ -770,6 +755,130 @@ Thank you for choosing us!`;
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePrintInvoice = async () => {
+    if (!savedInvoiceData || !currentOrganization?.id) return;
+
+    try {
+      // Fetch logo if available
+      let logoUrl = '';
+      const saleSettings = settingsData?.sale_settings as any;
+      if (saleSettings?.logo_path) {
+        const { data: logoData } = await supabase.storage
+          .from('company-logos')
+          .createSignedUrl(saleSettings.logo_path, 60);
+        if (logoData?.signedUrl) {
+          logoUrl = logoData.signedUrl;
+        }
+      }
+
+      const declarationText = saleSettings?.declaration_text || '';
+      const termsList = saleSettings?.terms_list || [];
+
+      // Transform invoice items for PDF generation
+      const transformedItems = savedInvoiceData.filledItems.map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.productName,
+        size: item.size,
+        barcode: item.barcode || '',
+        hsn: '',
+        sp: item.mrp,
+        qty: item.quantity,
+        rate: item.salePrice,
+        total: item.lineTotal,
+      }));
+
+      // Prepare invoice data for PDF
+      const invoiceData = {
+        billNo: savedInvoiceData.invoiceNumber,
+        date: invoiceDate,
+        time: new Date().toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        customerName: savedInvoiceData.customer.customer_name,
+        customerAddress: savedInvoiceData.customer.address || '',
+        customerMobile: savedInvoiceData.customer.phone || '',
+        items: transformedItems,
+        subTotal: grossAmount,
+        discount: totalDiscount,
+        grandTotal: savedInvoiceData.netAmount,
+        tenderAmount: savedInvoiceData.netAmount,
+        cashPaid: 0,
+        upiPaid: 0,
+        cardPaid: 0,
+        refundCash: 0,
+        paymentMethod: 'pending',
+        businessName: settingsData?.business_name || 'BUSINESS NAME',
+        businessAddress: settingsData?.address || '',
+        businessContact: settingsData?.mobile_number || '',
+        businessEmail: settingsData?.email_id || '',
+        gstNumber: settingsData?.gst_number || '',
+        logo: logoUrl,
+        mrpTotal: grossAmount,
+        declarationText,
+        termsList,
+      };
+
+      // Print invoice
+      await printInvoiceDirectly(invoiceData);
+      
+      toast({
+        title: "Printing Invoice",
+        description: `Invoice ${savedInvoiceData.invoiceNumber} sent to printer`,
+      });
+
+      handleClosePrintDialog();
+    } catch (error: any) {
+      console.error('Error printing invoice:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to print invoice",
+      });
+    }
+  };
+
+  const handleClosePrintDialog = () => {
+    setShowPrintDialog(false);
+    
+    // Reset form if it was a new invoice
+    if (!editingInvoiceId) {
+      setLineItems(
+        Array(5).fill(null).map((_, i) => ({
+          id: `row-${i}`,
+          productId: '',
+          variantId: '',
+          productName: '',
+          size: '',
+          barcode: '',
+          quantity: 0,
+          mrp: 0,
+          salePrice: 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: 0,
+          lineTotal: 0,
+        }))
+      );
+      setSelectedCustomerId("");
+      setSelectedCustomer(null);
+      setInvoiceDate(new Date());
+      setDueDate(new Date());
+      setPaymentTerm("");
+      setTermsConditions("");
+      setNotes("");
+      setShippingAddress("");
+      setShippingInstructions("");
+    } else {
+      // Navigate back to dashboard if editing
+      navigate('/sales-invoice-dashboard');
+    }
+    
+    setEditingInvoiceId(null);
+    setSavedInvoiceData(null);
   };
 
   // Calculate totals
@@ -1464,6 +1573,27 @@ Thank you for choosing us!`;
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Print Confirmation Dialog */}
+      <AlertDialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
+              Would you like to print it now?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleClosePrintDialog}>
+              Skip
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handlePrintInvoice}>
+              Print Now
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
