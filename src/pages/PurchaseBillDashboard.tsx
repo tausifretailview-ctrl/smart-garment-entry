@@ -22,6 +22,8 @@ import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface PurchaseItem {
   id: string;
@@ -65,9 +67,20 @@ const PurchaseBillDashboard = () => {
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
 
+  // Selection and pagination states
+  const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
   useEffect(() => {
     fetchBills();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, startDate, endDate, itemsPerPage]);
 
   const fetchBills = async () => {
     setLoading(true);
@@ -137,7 +150,10 @@ const PurchaseBillDashboard = () => {
 
     setDeletingBill(billToDelete.id);
     try {
-      // First delete all purchase items
+      // Restore stock before deleting
+      await restoreStockForBill(billToDelete.id);
+
+      // Delete purchase items
       const { error: itemsError } = await supabase
         .from("purchase_items")
         .delete()
@@ -145,7 +161,7 @@ const PurchaseBillDashboard = () => {
 
       if (itemsError) throw itemsError;
 
-      // Then delete the purchase bill
+      // Delete purchase bill
       const { error: billError } = await supabase
         .from("purchase_bills")
         .delete()
@@ -155,13 +171,12 @@ const PurchaseBillDashboard = () => {
 
       toast({
         title: "Success",
-        description: `Purchase bill ${billToDelete.software_bill_no || billToDelete.supplier_invoice_no} deleted successfully`,
+        description: "Purchase bill deleted and stock restored successfully",
       });
 
-      // Refresh the bills list
+      setBillToDelete(null);
       await fetchBills();
     } catch (error: any) {
-      console.error("Error deleting bill:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to delete purchase bill",
@@ -169,7 +184,116 @@ const PurchaseBillDashboard = () => {
       });
     } finally {
       setDeletingBill(null);
-      setBillToDelete(null);
+    }
+  };
+
+  const restoreStockForBill = async (billId: string) => {
+    try {
+      const { data: items, error: itemsError } = await supabase
+        .from("purchase_items")
+        .select("*")
+        .eq("bill_id", billId);
+
+      if (itemsError) throw itemsError;
+
+      for (const item of items || []) {
+        if (item.sku_id) {
+          const { data: currentVariant, error: variantError } = await supabase
+            .from("product_variants")
+            .select("stock_qty")
+            .eq("id", item.sku_id)
+            .single();
+
+          if (variantError) throw variantError;
+
+          const { error: updateError } = await supabase
+            .from("product_variants")
+            .update({ stock_qty: currentVariant.stock_qty - item.qty })
+            .eq("id", item.sku_id);
+
+          if (updateError) throw updateError;
+        }
+      }
+    } catch (error: any) {
+      console.error("Error restoring stock:", error);
+      throw error;
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedBills.size === paginatedBills.length) {
+      setSelectedBills(new Set());
+    } else {
+      setSelectedBills(new Set(paginatedBills.map(b => b.id)));
+    }
+  };
+
+  const toggleSelectBill = (billId: string) => {
+    const newSelected = new Set(selectedBills);
+    if (newSelected.has(billId)) {
+      newSelected.delete(billId);
+    } else {
+      newSelected.add(billId);
+    }
+    setSelectedBills(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const billsToDelete = Array.from(selectedBills);
+      
+      for (const billId of billsToDelete) {
+        await restoreStockForBill(billId);
+
+        const { error: itemsError } = await supabase
+          .from("purchase_items")
+          .delete()
+          .eq("bill_id", billId);
+
+        if (itemsError) throw itemsError;
+
+        const { error: billError } = await supabase
+          .from("purchase_bills")
+          .delete()
+          .eq("id", billId);
+
+        if (billError) throw billError;
+      }
+
+      toast({
+        title: "Success",
+        description: `${billsToDelete.length} purchase bill(s) deleted and stock restored successfully`,
+      });
+
+      setSelectedBills(new Set());
+      setShowBulkDeleteDialog(false);
+      await fetchBills();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete purchase bills",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
     }
   };
 
@@ -264,6 +388,12 @@ const PurchaseBillDashboard = () => {
 
     return matchesSearch && matchesStartDate && matchesEndDate;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedBills = filteredBills.slice(startIndex, endIndex);
 
   const totalPurchaseAmount = filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0);
 
@@ -380,8 +510,8 @@ const PurchaseBillDashboard = () => {
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {filteredBills.map((bill, index) => (
+              <TableBody>
+                {paginatedBills.map((bill, index) => (
                       <>
                         <TableRow
                           key={bill.id}
@@ -548,6 +678,34 @@ const PurchaseBillDashboard = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Selected Bills</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedBills.size} purchase bill(s)? This will restore the stock quantities and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

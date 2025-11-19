@@ -8,10 +8,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ProductVariant {
   variant_id: string;
@@ -54,10 +65,22 @@ const ProductDashboard = () => {
   const [sizeGroups, setSizeGroups] = useState<Array<{ id: string; group_name: string }>>([]);
   const [categories, setCategories] = useState<string[]>([]);
 
+  // Selection and pagination states
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
   useEffect(() => {
     fetchProductVariants();
     fetchSizeGroups();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
   const fetchProductVariants = async () => {
     setLoading(true);
@@ -155,6 +178,83 @@ const ProductDashboard = () => {
     setSearchQuery("");
   };
 
+  const toggleSelectAll = () => {
+    if (selectedProducts.size === paginatedRows.length) {
+      setSelectedProducts(new Set());
+    } else {
+      setSelectedProducts(new Set(paginatedRows.map(p => p.product_id)));
+    }
+  };
+
+  const toggleSelectProduct = (productId: string) => {
+    const newSelected = new Set(selectedProducts);
+    if (newSelected.has(productId)) {
+      newSelected.delete(productId);
+    } else {
+      newSelected.add(productId);
+    }
+    setSelectedProducts(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const productsToDelete = Array.from(selectedProducts);
+      
+      for (const productId of productsToDelete) {
+        // Delete variants first
+        const { error: variantsError } = await supabase
+          .from("product_variants")
+          .delete()
+          .eq("product_id", productId);
+
+        if (variantsError) throw variantsError;
+
+        // Then delete product
+        const { error: productError } = await supabase
+          .from("products")
+          .delete()
+          .eq("id", productId);
+
+        if (productError) throw productError;
+      }
+
+      toast({
+        title: "Success",
+        description: `${productsToDelete.length} product(s) deleted successfully`,
+      });
+
+      setSelectedProducts(new Set());
+      setShowBulkDeleteDialog(false);
+      await fetchProductVariants();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete products",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setItemsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   const hasActiveFilters = 
     selectedCategory !== "all" || 
     selectedSizeGroup !== "all" || 
@@ -201,6 +301,12 @@ const ProductDashboard = () => {
 
     return true;
   });
+
+  // Pagination
+  const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedRows = filteredRows.slice(startIndex, endIndex);
 
   if (loading) {
     return (
@@ -493,8 +599,8 @@ const ProductDashboard = () => {
                       <TableHead className="w-16">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {filteredRows.map((row, index) => (
+              <TableBody>
+                {paginatedRows.map((row, index) => (
                       <>
                         <TableRow
                           key={row.product_id}
