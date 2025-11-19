@@ -427,7 +427,7 @@ const POSDashboard = () => {
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex-1 grid grid-cols-2 md:grid-cols-6 gap-4">
+                        <div className="flex-1 grid gap-4" style={{ gridTemplateColumns: "60px 1fr 1fr 1fr 1fr 1fr" }}>
                           <div>
                             <p className="text-sm text-muted-foreground">SR</p>
                             <p className="font-semibold">{index + 1}</p>
