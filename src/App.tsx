@@ -29,6 +29,7 @@ import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
 import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
 import SalesReportByCustomer from "./pages/SalesReportByCustomer";
+import ProductTrackingReport from "./pages/ProductTrackingReport";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import Auth from "./pages/Auth";
@@ -266,6 +267,16 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <SalesReportByCustomer />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/product-tracking"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ProductTrackingReport />
                   </Layout>
                 </ProtectedRoute>
               }
