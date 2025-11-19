@@ -15,8 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, Search } from "lucide-react";
-import { format } from "date-fns";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet } from "lucide-react";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 
 export default function Accounts() {
@@ -108,6 +108,71 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch sales data for P&L calculation
+  const { data: sales } = useQuery({
+    queryKey: ["sales", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("organization_id", currentOrganization?.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Calculate dashboard metrics
+  const dashboardMetrics = {
+    totalReceivables: vouchers
+      ?.filter((v) => v.reference_type === "customer" && v.voucher_type === "receipt")
+      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
+    
+    totalPayables: vouchers
+      ?.filter((v) => (v.reference_type === "supplier" || v.reference_type === "employee") && v.voucher_type === "payment")
+      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
+    
+    monthlyExpenses: vouchers
+      ?.filter((v) => {
+        const voucherDate = new Date(v.voucher_date);
+        const now = new Date();
+        return (
+          v.reference_type === "expense" &&
+          voucherDate >= startOfMonth(now) &&
+          voucherDate <= endOfMonth(now)
+        );
+      })
+      .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
+    
+    currentMonthPL: (() => {
+      const now = new Date();
+      const monthStart = startOfMonth(now);
+      const monthEnd = endOfMonth(now);
+      
+      // Calculate revenue from sales
+      const revenue = sales
+        ?.filter((s) => {
+          const saleDate = new Date(s.sale_date);
+          return saleDate >= monthStart && saleDate <= monthEnd;
+        })
+        .reduce((sum, s) => sum + Number(s.net_amount), 0) || 0;
+      
+      // Calculate expenses
+      const expenses = vouchers
+        ?.filter((v) => {
+          const voucherDate = new Date(v.voucher_date);
+          return (
+            v.voucher_type === "payment" &&
+            voucherDate >= monthStart &&
+            voucherDate <= monthEnd
+          );
+        })
+        .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0;
+      
+      return revenue - expenses;
+    })(),
+  };
+
   // Create voucher mutation
   const createVoucher = useMutation({
     mutationFn: async (voucherData: any) => {
@@ -180,6 +245,102 @@ export default function Accounts() {
               Manage payments, expenses, vouchers and financial reports
             </p>
           </div>
+        </div>
+
+        {/* Dashboard Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+                Total Receivables
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                ₹{dashboardMetrics.totalReceivables.toFixed(2)}
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                Customer payments received
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">
+                Total Payables
+              </CardTitle>
+              <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-900 dark:text-red-100">
+                ₹{dashboardMetrics.totalPayables.toFixed(2)}
+              </div>
+              <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                Supplier & employee payments
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                Monthly Expenses
+              </CardTitle>
+              <DollarSign className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                ₹{dashboardMetrics.monthlyExpenses.toFixed(2)}
+              </div>
+              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                Current month expenses
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(
+            "bg-gradient-to-br border-2",
+            dashboardMetrics.currentMonthPL >= 0
+              ? "from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800"
+              : "from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800"
+          )}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className={cn(
+                "text-sm font-medium",
+                dashboardMetrics.currentMonthPL >= 0
+                  ? "text-blue-900 dark:text-blue-100"
+                  : "text-purple-900 dark:text-purple-100"
+              )}>
+                Current Month P/L
+              </CardTitle>
+              <Wallet className={cn(
+                "h-4 w-4",
+                dashboardMetrics.currentMonthPL >= 0
+                  ? "text-blue-600 dark:text-blue-400"
+                  : "text-purple-600 dark:text-purple-400"
+              )} />
+            </CardHeader>
+            <CardContent>
+              <div className={cn(
+                "text-2xl font-bold",
+                dashboardMetrics.currentMonthPL >= 0
+                  ? "text-blue-900 dark:text-blue-100"
+                  : "text-purple-900 dark:text-purple-100"
+              )}>
+                ₹{dashboardMetrics.currentMonthPL.toFixed(2)}
+              </div>
+              <p className={cn(
+                "text-xs mt-1",
+                dashboardMetrics.currentMonthPL >= 0
+                  ? "text-blue-700 dark:text-blue-300"
+                  : "text-purple-700 dark:text-purple-300"
+              )}>
+                {dashboardMetrics.currentMonthPL >= 0 ? "Profit" : "Loss"} for {format(new Date(), "MMMM yyyy")}
+              </p>
+            </CardContent>
+          </Card>
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
