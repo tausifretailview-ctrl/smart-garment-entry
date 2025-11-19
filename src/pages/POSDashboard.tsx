@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,17 +18,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { printInvoiceDirectly } from "@/utils/pdfGenerator";
 
 interface SaleItem {
   id: string;
@@ -41,6 +36,7 @@ interface SaleItem {
   gst_percent: number;
   line_total: number;
   barcode: string;
+  variant_id: string;
 }
 
 interface Sale {
@@ -58,7 +54,6 @@ interface Sale {
   payment_method: string;
   payment_status: string;
   created_at: string;
-  items?: SaleItem[];
 }
 
 const POSDashboard = () => {
@@ -72,14 +67,15 @@ const POSDashboard = () => {
   const [endDate, setEndDate] = useState("");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
-  const [deletingSale, setDeletingSale] = useState<string | null>(null);
+  const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     fetchSales();
   }, [currentOrganization]);
 
-  // Keyboard shortcut for printing
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "p") {
@@ -106,10 +102,10 @@ const POSDashboard = () => {
         .from("sales")
         .select("*")
         .eq("organization_id", currentOrganization.id)
+        .eq("sale_type", "pos")
         .order("sale_date", { ascending: false });
 
       if (error) throw error;
-
       setSales(data || []);
     } catch (error: any) {
       toast({
@@ -123,30 +119,23 @@ const POSDashboard = () => {
   };
 
   const fetchSaleItems = async (saleId: string): Promise<SaleItem[]> => {
-    if (saleItems[saleId]) {
-      return saleItems[saleId]; // Already fetched
-    }
+    if (saleItems[saleId]) return saleItems[saleId];
 
     try {
       const { data, error } = await supabase
         .from("sale_items")
         .select("*")
-        .eq("sale_id", saleId)
-        .order("created_at");
+        .eq("sale_id", saleId);
 
       if (error) throw error;
 
       const items = data || [];
-      setSaleItems((prev) => ({
-        ...prev,
-        [saleId]: items,
-      }));
-      
+      setSaleItems((prev) => ({ ...prev, [saleId]: items }));
       return items;
     } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to load sale items",
+        description: error.message || "Failed to load sale items",
         variant: "destructive",
       });
       return [];
@@ -162,17 +151,42 @@ const POSDashboard = () => {
     }
   };
 
-  const handleDeleteClick = (sale: Sale, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setSaleToDelete(sale);
+  const restoreStockForSale = async (saleId: string) => {
+    const { data: items, error: fetchError } = await supabase
+      .from("sale_items")
+      .select("*")
+      .eq("sale_id", saleId);
+
+    if (fetchError) throw fetchError;
+
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const { data: variant } = await supabase
+          .from("product_variants")
+          .select("stock_qty")
+          .eq("id", item.variant_id)
+          .single();
+
+        if (variant) {
+          const newStock = variant.stock_qty + item.quantity;
+          const { error: updateError } = await supabase
+            .from("product_variants")
+            .update({ stock_qty: newStock })
+            .eq("id", item.variant_id);
+
+          if (updateError) throw updateError;
+        }
+      }
+    }
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteSale = async () => {
     if (!saleToDelete) return;
 
-    setDeletingSale(saleToDelete.id);
+    setIsDeleting(true);
     try {
-      // First delete all sale items
+      await restoreStockForSale(saleToDelete.id);
+
       const { error: itemsError } = await supabase
         .from("sale_items")
         .delete()
@@ -180,7 +194,6 @@ const POSDashboard = () => {
 
       if (itemsError) throw itemsError;
 
-      // Then delete the sale
       const { error: saleError } = await supabase
         .from("sales")
         .delete()
@@ -190,10 +203,9 @@ const POSDashboard = () => {
 
       toast({
         title: "Success",
-        description: `Sale ${saleToDelete.sale_number} deleted successfully`,
+        description: `Sale ${saleToDelete.sale_number} deleted and stock restored`,
       });
 
-      // Refresh the sales list
       await fetchSales();
     } catch (error: any) {
       console.error("Error deleting sale:", error);
@@ -203,9 +215,72 @@ const POSDashboard = () => {
         variant: "destructive",
       });
     } finally {
-      setDeletingSale(null);
+      setIsDeleting(false);
       setSaleToDelete(null);
     }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedSales.size === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const salesToDelete = Array.from(selectedSales);
+      
+      for (const saleId of salesToDelete) {
+        await restoreStockForSale(saleId);
+
+        const { error: itemsError } = await supabase
+          .from("sale_items")
+          .delete()
+          .eq("sale_id", saleId);
+
+        if (itemsError) throw itemsError;
+
+        const { error: saleError } = await supabase
+          .from("sales")
+          .delete()
+          .eq("id", saleId);
+
+        if (saleError) throw saleError;
+      }
+
+      toast({
+        title: "Success",
+        description: `${salesToDelete.length} sale(s) deleted and stock restored`,
+      });
+
+      setSelectedSales(new Set());
+      setShowBulkDeleteDialog(false);
+      await fetchSales();
+    } catch (error: any) {
+      console.error("Error deleting sales:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete sales",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSales.size === filteredSales.length && filteredSales.length > 0) {
+      setSelectedSales(new Set());
+    } else {
+      setSelectedSales(new Set(filteredSales.map(s => s.id)));
+    }
+  };
+
+  const toggleSelectSale = (saleId: string) => {
+    const newSelected = new Set(selectedSales);
+    if (newSelected.has(saleId)) {
+      newSelected.delete(saleId);
+    } else {
+      newSelected.add(saleId);
+    }
+    setSelectedSales(newSelected);
   };
 
   const handleEditSale = (saleId: string, event: React.MouseEvent) => {
@@ -216,10 +291,8 @@ const POSDashboard = () => {
   const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     
-    // Fetch items and get them directly
     const items = await fetchSaleItems(sale.id);
     
-    // Directly generate and download PDF
     try {
       const { data: settings } = await supabase
         .from('settings')
@@ -228,11 +301,9 @@ const POSDashboard = () => {
         .maybeSingle();
 
       const saleSettings = settings?.sale_settings as any;
-      const invoiceTemplate = saleSettings?.invoice_template || 'classic';
       const saleDate = new Date(sale.sale_date);
       const currentTime = saleDate.toLocaleTimeString('en-US');
       const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
-      const cardPaid = sale.payment_method === 'card' ? sale.net_amount : 0;
 
       const invoiceData = {
         billNo: sale.sale_number,
@@ -267,7 +338,7 @@ const POSDashboard = () => {
         logo: (settings?.bill_barcode_settings as any)?.logo_url,
         time: currentTime,
         mrpTotal: mrpTotal,
-        cardPaid: cardPaid,
+        cardPaid: sale.payment_method === 'card' ? sale.net_amount : 0,
         declarationText: saleSettings?.declaration_text,
         termsList: saleSettings?.terms_list,
       };
@@ -279,123 +350,72 @@ const POSDashboard = () => {
         description: `Invoice ${sale.sale_number} sent to printer`,
       });
     } catch (error: any) {
-      console.error('Error generating PDF:', error);
+      console.error('Error printing invoice:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to generate PDF invoice",
         variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to print invoice",
       });
     }
   };
 
   const filteredSales = sales.filter((sale) => {
     const matchesSearch =
-      searchQuery === "" ||
-      sale.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       sale.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.customer_phone?.toLowerCase().includes(searchQuery.toLowerCase());
+      sale.customer_name.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const saleDate = new Date(sale.sale_date);
-    const matchesStartDate = !startDate || saleDate >= new Date(startDate);
-    const matchesEndDate = !endDate || saleDate <= new Date(endDate);
+    const matchesDateRange =
+      (!startDate || new Date(sale.sale_date) >= new Date(startDate)) &&
+      (!endDate || new Date(sale.sale_date) <= new Date(endDate));
 
-    return matchesSearch && matchesStartDate && matchesEndDate;
+    return matchesSearch && matchesDateRange;
   });
 
-  const totalSalesAmount = filteredSales.reduce((sum, sale) => sum + sale.net_amount, 0);
-  const totalQuantity = filteredSales.reduce((sum, sale) => {
-    const items = saleItems[sale.id] || [];
-    return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
-  }, 0);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
+      <BackToDashboard />
+      
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-              POS Sales Dashboard
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              POS Dashboard
             </h1>
-            <p className="text-muted-foreground mt-2">
-              View and manage all POS sales transactions
-            </p>
+            <p className="text-muted-foreground mt-1">View and manage all POS sales</p>
           </div>
-          <div className="flex gap-3">
-            <BackToDashboard />
-            <Button 
-              onClick={() => navigate("/pos-sales")}
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
-            >
-              <Plus className="mr-2 h-4 w-4" />
+          <div className="flex gap-2">
+            <Button onClick={() => navigate("/pos-sales")} className="gap-2">
+              <Plus className="h-4 w-4" />
               New Sale
             </Button>
+            {selectedSales.size > 0 && (
+              <Button
+                onClick={() => setShowBulkDeleteDialog(true)}
+                disabled={isDeleting}
+                variant="destructive"
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete Selected ({selectedSales.size})
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-l-4 border-l-indigo-500">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Sales
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600">
-                {filteredSales.length}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-l-4 border-l-green-500">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Amount
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                ₹{totalSalesAmount.toFixed(2)}
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-l-4 border-l-purple-500">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Items Sold
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {totalQuantity}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <Card>
+        <Card className="border-border/50 shadow-lg">
           <CardHeader>
-            <CardTitle>Filters</CardTitle>
-            <CardDescription>
-              Search and filter sales transactions
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Sales Records
+            </CardTitle>
+            <CardDescription>Search and filter your sales history</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+          <CardContent className="space-y-4">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by customer, invoice..."
+                  placeholder="Search by sale number or customer..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -405,218 +425,209 @@ const POSDashboard = () => {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="w-40"
                 placeholder="Start Date"
               />
               <Input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="w-40"
                 placeholder="End Date"
               />
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Sales List */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Transactions</CardTitle>
-            <CardDescription>
-              {filteredSales.length} transaction(s) found
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {filteredSales.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No sales transactions found</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredSales.map((sale, index) => (
-                  <Card
-                    key={sale.id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
-                    onClick={() => toggleExpanded(sale.id)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 grid gap-4" style={{ gridTemplateColumns: "60px 1fr 1fr 1fr 1fr 1fr" }}>
-                          <div>
-                            <p className="text-sm text-muted-foreground">SR</p>
-                            <p className="font-semibold">{index + 1}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Invoice #</p>
-                            <p className="font-semibold">{sale.sale_number}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Customer</p>
-                            <p className="font-medium">{sale.customer_name}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Date</p>
-                            <p className="font-medium">
-                              {format(new Date(sale.sale_date), "dd MMM yyyy")}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-muted-foreground">Amount</p>
-                            <p className="font-bold text-green-600">
-                              ₹{sale.net_amount.toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <Badge
-                              variant={
-                                sale.payment_status === "completed"
-                                  ? "default"
-                                  : "secondary"
-                              }
-                            >
-                              {sale.payment_method.toUpperCase()}
-                            </Badge>
-                            <Badge
-                              variant={
-                                sale.payment_status === "completed"
-                                  ? "default"
-                                  : "destructive"
-                              }
-                            >
-                              {sale.payment_status}
-                            </Badge>
-                          </div>
-                        </div>
-                          <div className="flex items-center gap-2 ml-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => handlePrintClick(sale, e)}
-                            title="Download Invoice PDF"
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[50px]">
+                        <Checkbox
+                          checked={selectedSales.size === filteredSales.length && filteredSales.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead>Sale Number</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredSales.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                          No sales found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredSales.map((sale) => (
+                        <>
+                          <TableRow
+                            key={sale.id}
+                            className="cursor-pointer hover:bg-accent/50"
                           >
-                            <Printer className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => handleEditSale(sale.id, e)}
-                            title="Edit Sale"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={(e) => handleDeleteClick(sale, e)}
-                            disabled={deletingSale === sale.id}
-                            title="Delete Sale"
-                          >
-                            {deletingSale === sale.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            )}
-                          </Button>
-                          {expandedSale === sale.id ? (
-                            <ChevronDown className="h-5 w-5" />
-                          ) : (
-                            <ChevronRight className="h-5 w-5" />
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                checked={selectedSales.has(sale.id)}
+                                onCheckedChange={() => toggleSelectSale(sale.id)}
+                              />
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {expandedSale === sale.id ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
+                              {sale.sale_number}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>{sale.customer_name}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {format(new Date(sale.sale_date), "dd/MM/yyyy")}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>₹{sale.net_amount.toFixed(2)}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <Badge variant={sale.payment_method === "cash" ? "default" : "secondary"}>
+                                {sale.payment_method}
+                              </Badge>
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <Badge variant={sale.payment_status === "completed" ? "default" : "destructive"}>
+                                {sale.payment_status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => handlePrintClick(sale, e)}
+                                  title="Print Invoice (Ctrl+P)"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => handleEditSale(sale.id, e)}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSaleToDelete(sale);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {expandedSale === sale.id && saleItems[sale.id] && (
+                            <TableRow>
+                              <TableCell colSpan={9} className="bg-muted/50 p-4">
+                                <div className="space-y-2">
+                                  <h4 className="font-semibold text-sm">Sale Items:</h4>
+                                  <div className="rounded-md border">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Product</TableHead>
+                                          <TableHead>Size</TableHead>
+                                          <TableHead>Quantity</TableHead>
+                                          <TableHead>MRP</TableHead>
+                                          <TableHead>Unit Price</TableHead>
+                                          <TableHead>Discount</TableHead>
+                                          <TableHead>GST</TableHead>
+                                          <TableHead className="text-right">Total</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {saleItems[sale.id].map((item) => (
+                                          <TableRow key={item.id}>
+                                            <TableCell>{item.product_name}</TableCell>
+                                            <TableCell>{item.size}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
+                                            <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
+                                            <TableCell>{item.discount_percent}%</TableCell>
+                                            <TableCell>{item.gst_percent}%</TableCell>
+                                            <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </div>
-                      </div>
-
-                      {/* Expanded Items View */}
-                      {expandedSale === sale.id && saleItems[sale.id] && (
-                        <div className="mt-4 pt-4 border-t">
-                          <h4 className="font-semibold mb-3">Sale Items</h4>
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Size</TableHead>
-                                <TableHead>Barcode</TableHead>
-                                <TableHead className="text-right">Qty</TableHead>
-                                <TableHead className="text-right">MRP</TableHead>
-                                <TableHead className="text-right">Disc %</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {saleItems[sale.id].map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className="font-medium">
-                                    {item.product_name}
-                                  </TableCell>
-                                  <TableCell>{item.size}</TableCell>
-                                  <TableCell className="font-mono text-xs">
-                                    {item.barcode}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {item.quantity}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    ₹{item.mrp.toFixed(2)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    {item.discount_percent}%
-                                  </TableCell>
-                                  <TableCell className="text-right font-semibold">
-                                    ₹{item.line_total.toFixed(2)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                          <div className="mt-4 flex justify-end space-x-8 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Gross: </span>
-                              <span className="font-semibold">₹{sale.gross_amount.toFixed(2)}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Discount: </span>
-                              <span className="font-semibold text-orange-600">
-                                -₹{(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Round Off: </span>
-                              <span className="font-semibold">₹{sale.round_off.toFixed(2)}</span>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Net: </span>
-                              <span className="font-bold text-green-600">
-                                ₹{sale.net_amount.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                        </>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!saleToDelete} onOpenChange={() => setSaleToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Sale</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete sale <strong>{saleToDelete?.sale_number}</strong> and all its items.
-              This action cannot be undone.
+              Are you sure you want to delete sale {saleToDelete?.sale_number}? Stock quantities will be restored. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteConfirm}
-              className="bg-destructive hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleDeleteSale} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedSales.size} Sale(s)</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedSales.size} selected sale(s)? Stock quantities will be restored for all items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleBulkDelete} 
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete All'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
