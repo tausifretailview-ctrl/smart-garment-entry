@@ -176,6 +176,14 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
+      // Fetch settings to get default barcode format
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("bill_barcode_settings")
+        .maybeSingle();
+
+      const barcodeFormat = (settingsData?.bill_barcode_settings as any)?.barcode_format || "a4_12x4";
+
       // Fetch bill items with product details
       const { data: items, error } = await supabase
         .from("purchase_items")
@@ -215,8 +223,8 @@ const PurchaseBillDashboard = () => {
         bill_number: item.bill_number || "",
       }));
 
-      // Print barcodes directly
-      await printBarcodesDirectly(barcodeItems);
+      // Print barcodes directly with selected format
+      await printBarcodesDirectly(barcodeItems, { sheetType: barcodeFormat as any });
       
       toast({
         title: "Success",

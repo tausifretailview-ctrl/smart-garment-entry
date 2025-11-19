@@ -1069,11 +1069,11 @@ export default function Settings() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="barcode_format">Barcode Printing Format</Label>
+                  <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
                   <select
                     id="barcode_format"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={settings.bill_barcode_settings?.barcode_format || ""}
+                    value={settings.bill_barcode_settings?.barcode_format || "a4_12x4"}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
@@ -1084,17 +1084,12 @@ export default function Settings() {
                       })
                     }
                   >
-                    <option value="">Select barcode format</option>
-                    <option value="a4-48">A4-48 Label Sheet</option>
-                    <option value="a4-40">A4-40 Label Sheet</option>
-                    <option value="a4-65">A4-65 Label Sheet</option>
-                    <option value="thermal-38x25">Thermal-38x25</option>
-                    <option value="thermal-50x25">Thermal-50x25</option>
-                    <option value="custom">Custom Label Set</option>
+                    <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
+                    <option value="novajet40">Novajet 40 (8 cols, 35x25mm)</option>
+                    <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
+                    <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
                   </select>
-                  <p className="text-xs text-muted-foreground">
-                    Select the default barcode label format for printing
-                  </p>
+                  <p className="text-xs text-muted-foreground">Used when printing barcodes directly from Purchase Bills</p>
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
