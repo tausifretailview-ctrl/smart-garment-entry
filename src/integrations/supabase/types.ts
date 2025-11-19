@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_ledgers: {
+        Row: {
+          account_name: string
+          account_type: string
+          created_at: string | null
+          current_balance: number | null
+          id: string
+          opening_balance: number | null
+          organization_id: string | null
+          parent_account_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_name: string
+          account_type: string
+          created_at?: string | null
+          current_balance?: number | null
+          id?: string
+          opening_balance?: number | null
+          organization_id?: string | null
+          parent_account_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_name?: string
+          account_type?: string
+          created_at?: string | null
+          current_balance?: number | null
+          id?: string
+          opening_balance?: number | null
+          organization_id?: string | null
+          parent_account_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_ledgers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_ledgers_parent_account_id_fkey"
+            columns: ["parent_account_id"]
+            isOneToOne: false
+            referencedRelation: "account_ledgers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -939,6 +990,104 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_entries: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          organization_id: string | null
+          reference_id: string | null
+          reference_type: string | null
+          total_amount: number
+          updated_at: string | null
+          voucher_date: string
+          voucher_number: string
+          voucher_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_id?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          voucher_date?: string
+          voucher_number: string
+          voucher_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          organization_id?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          voucher_date?: string
+          voucher_number?: string
+          voucher_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voucher_items: {
+        Row: {
+          account_id: string
+          created_at: string | null
+          credit_amount: number | null
+          debit_amount: number | null
+          description: string | null
+          id: string
+          voucher_id: string
+        }
+        Insert: {
+          account_id: string
+          created_at?: string | null
+          credit_amount?: number | null
+          debit_amount?: number | null
+          description?: string | null
+          id?: string
+          voucher_id: string
+        }
+        Update: {
+          account_id?: string
+          created_at?: string | null
+          credit_amount?: number | null
+          debit_amount?: number | null
+          description?: string | null
+          id?: string
+          voucher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "account_ledgers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voucher_items_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -950,6 +1099,10 @@ export type Database = {
         Returns: string
       }
       generate_sale_number: { Args: never; Returns: string }
+      generate_voucher_number: {
+        Args: { p_date?: string; p_type: string }
+        Returns: string
+      }
       get_user_organization_ids: {
         Args: { user_id: string }
         Returns: string[]

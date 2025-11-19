@@ -14,6 +14,7 @@ import {
   Barcode,
   ChevronDown,
   ShoppingBag,
+  Wallet,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -273,7 +274,7 @@ export function AppSidebar() {
                           <SidebarMenuSubButton asChild isActive={isActive("/purchase-report")}>
                             <NavLink to="/purchase-report" className="flex items-center gap-3">
                               <BarChart3 className="h-4 w-4" />
-                              <span>Purchase Report</span>
+                              <span>Purchase</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
@@ -285,6 +286,22 @@ export function AppSidebar() {
             </CollapsibleContent>
           </Collapsible>
         </SidebarGroup>
+
+        {/* Accounts */}
+        {canAccessPurchases && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/accounts")}>
+                  <NavLink to="/accounts" className="flex items-center gap-3">
+                    <Wallet className="h-5 w-5" />
+                    {open && <span>Accounts</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
 
         {/* Settings */}
         <SidebarGroup>
