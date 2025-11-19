@@ -686,7 +686,7 @@ Thank you for choosing us!`;
       } else {
         // Create new invoice
         const { data: saleNumber, error: saleNumError } = await supabase
-          .rpc('generate_sale_number');
+          .rpc('generate_sale_number', { p_organization_id: currentOrganization?.id });
 
         if (saleNumError) throw saleNumError;
 
