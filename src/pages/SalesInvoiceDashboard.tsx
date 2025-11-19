@@ -35,6 +35,8 @@ export default function SalesInvoiceDashboard() {
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const { data: invoicesData, isLoading, refetch } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, searchQuery],
@@ -199,6 +201,27 @@ export default function SalesInvoiceDashboard() {
     setExpandedRows(newExpanded);
   };
 
+  const totalPages = Math.ceil((invoicesData?.length || 0) / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInvoices = invoicesData?.slice(startIndex, endIndex) || [];
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
       <BackToDashboard />
@@ -265,14 +288,14 @@ export default function SalesInvoiceDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!invoicesData || invoicesData.length === 0 ? (
+                    {paginatedInvoices.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
                     ) : (
-                      invoicesData.map((invoice: any) => (
+                      paginatedInvoices.map((invoice: any) => (
                         <>
                           <TableRow key={invoice.id} className="cursor-pointer hover:bg-accent/50">
                             <TableCell onClick={(e) => e.stopPropagation()}>
@@ -351,6 +374,37 @@ export default function SalesInvoiceDashboard() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {invoicesData && invoicesData.length > 0 && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Showing {startIndex + 1} to {Math.min(endIndex, invoicesData.length)} of {invoicesData.length} invoices
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-2 px-3">
+                    <span className="text-sm">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </div>
