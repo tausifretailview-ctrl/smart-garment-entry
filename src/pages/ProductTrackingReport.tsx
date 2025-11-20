@@ -38,6 +38,8 @@ interface MovementRecord {
   size: string;
   barcode: string;
   running_balance: number;
+  category: string;
+  brand: string;
 }
 
 const ProductTrackingReport = () => {
@@ -48,6 +50,9 @@ const ProductTrackingReport = () => {
   const [searchBarcode, setSearchBarcode] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [brandFilter, setBrandFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(25);
 
@@ -59,11 +64,11 @@ const ProductTrackingReport = () => {
 
   useEffect(() => {
     applyFilters();
-  }, [movements, searchBarcode, startDate, endDate]);
+  }, [movements, searchBarcode, startDate, endDate, movementTypeFilter, categoryFilter, brandFilter]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchBarcode, startDate, endDate, itemsPerPage]);
+  }, [searchBarcode, startDate, endDate, movementTypeFilter, categoryFilter, brandFilter, itemsPerPage]);
 
   const fetchMovements = async () => {
     try {
@@ -85,7 +90,9 @@ const ProductTrackingReport = () => {
             product_id,
             products!inner (
               product_name,
-              organization_id
+              organization_id,
+              category,
+              brand
             )
           )
         `)
@@ -126,6 +133,8 @@ const ProductTrackingReport = () => {
           size: movement.product_variants.size,
           barcode: movement.product_variants.barcode || "",
           running_balance: runningBalance,
+          category: movement.product_variants.products.category || "",
+          brand: movement.product_variants.products.brand || "",
         });
       });
 
@@ -157,6 +166,18 @@ const ProductTrackingReport = () => {
           m.product_name.toLowerCase().includes(searchBarcode.toLowerCase()) ||
           m.size.toLowerCase().includes(searchBarcode.toLowerCase())
       );
+    }
+
+    if (movementTypeFilter !== "all") {
+      filtered = filtered.filter((m) => m.movement_type === movementTypeFilter);
+    }
+
+    if (categoryFilter !== "all") {
+      filtered = filtered.filter((m) => m.category === categoryFilter);
+    }
+
+    if (brandFilter !== "all") {
+      filtered = filtered.filter((m) => m.brand === brandFilter);
     }
 
     if (startDate) {
@@ -194,6 +215,10 @@ const ProductTrackingReport = () => {
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
   };
+
+  // Get unique categories and brands for filters
+  const uniqueCategories = Array.from(new Set(movements.map(m => m.category).filter(Boolean)));
+  const uniqueBrands = Array.from(new Set(movements.map(m => m.brand).filter(Boolean)));
 
   if (loading) {
     return (
@@ -239,6 +264,54 @@ const ProductTrackingReport = () => {
             </div>
 
             <div className="space-y-2">
+              <label className="text-sm font-medium">Movement Type</label>
+              <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  <SelectItem value="purchase">Purchase</SelectItem>
+                  <SelectItem value="sale">Sale</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Category</label>
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {uniqueCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Brand</label>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Brands" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Brands</SelectItem>
+                  {uniqueBrands.map((brand) => (
+                    <SelectItem key={brand} value={brand}>
+                      {brand}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-sm font-medium">Start Date</label>
               <Input
                 type="date"
@@ -267,6 +340,9 @@ const ProductTrackingReport = () => {
                 setSearchBarcode("");
                 setStartDate("");
                 setEndDate("");
+                setMovementTypeFilter("all");
+                setCategoryFilter("all");
+                setBrandFilter("all");
               }}
             >
               Clear Filters
