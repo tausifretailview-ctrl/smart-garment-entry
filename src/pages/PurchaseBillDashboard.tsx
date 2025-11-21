@@ -335,6 +335,15 @@ const PurchaseBillDashboard = () => {
         labelConfig = defaultTemplate?.labelConfig;
       }
 
+      // Fetch business name from settings
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("business_name")
+        .eq("organization_id", currentOrganization?.id)
+        .single();
+
+      const businessName = settingsData?.business_name || "";
+
       // Fetch bill items with product details
       const { data: items, error } = await supabase
         .from("purchase_items")
@@ -372,6 +381,7 @@ const PurchaseBillDashboard = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: item.bill_number || "",
+        business_name: businessName,
       }));
 
       // Print barcodes directly with selected format and template config
