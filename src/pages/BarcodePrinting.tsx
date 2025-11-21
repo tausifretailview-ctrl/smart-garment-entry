@@ -323,7 +323,13 @@ export default function BarcodePrinting() {
           setSheetType(defaultFormat.sheetType);
         }
         if (defaultFormat.labelConfig) {
-          setLabelConfig(defaultFormat.labelConfig);
+          // Ensure barcode and barcode text are always enabled
+          const configWithBarcode = {
+            ...defaultFormat.labelConfig,
+            barcode: { ...defaultFormat.labelConfig.barcode, show: true },
+            barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+          };
+          setLabelConfig(configWithBarcode);
         }
         if (defaultFormat.topOffset !== undefined) {
           setTopOffset(defaultFormat.topOffset);
@@ -1071,9 +1077,16 @@ export default function BarcodePrinting() {
   };
 
   const handleSaveAsDefault = () => {
+    // Ensure barcode and barcode text are always enabled
+    const configToSave = {
+      ...labelConfig,
+      barcode: { ...labelConfig.barcode, show: true },
+      barcodeText: { ...labelConfig.barcodeText, show: true },
+    };
+    
     const defaultFormat = {
       sheetType,
-      labelConfig: { ...labelConfig },
+      labelConfig: configToSave,
       topOffset,
       leftOffset,
       customDimensions: sheetType === "custom" ? {

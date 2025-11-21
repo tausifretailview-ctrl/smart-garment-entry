@@ -312,7 +312,16 @@ const PurchaseBillDashboard = () => {
         try {
           const defaultFormat = JSON.parse(storedDefaultFormat);
           sheetType = defaultFormat.sheetType || "a4_12x4";
-          labelConfig = defaultFormat.labelConfig;
+          
+          // Ensure barcode and barcode text are always enabled
+          if (defaultFormat.labelConfig) {
+            labelConfig = {
+              ...defaultFormat.labelConfig,
+              barcode: { ...defaultFormat.labelConfig.barcode, show: true },
+              barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+            };
+          }
+          
           customDimensions = defaultFormat.customDimensions;
         } catch (error) {
           console.error("Failed to parse default format:", error);
