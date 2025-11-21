@@ -573,6 +573,30 @@ const ProductDashboard = () => {
           </Card>
         )}
 
+        {/* Bulk Actions */}
+        {selectedProducts.size > 0 && (
+          <Card className="mb-4 border-primary/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium">
+                    {selectedProducts.size} product(s) selected
+                  </span>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Selected
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Table */}
         <Card>
           <CardContent className="p-0">
@@ -588,6 +612,12 @@ const ProductDashboard = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedProducts.size === paginatedRows.length && paginatedRows.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead className="w-16 text-center">Sr. No.</TableHead>
                       <TableHead className="w-20">Image</TableHead>
                       <TableHead>Category</TableHead>
@@ -614,8 +644,14 @@ const ProductDashboard = () => {
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
                             )}
                           </TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedProducts.has(row.product_id)}
+                              onCheckedChange={() => toggleSelectProduct(row.product_id)}
+                            />
+                          </TableCell>
                           <TableCell className="text-center font-medium">
-                            {index + 1}
+                            {startIndex + index + 1}
                           </TableCell>
                           <TableCell>
                             <Avatar className="h-12 w-12 rounded">
@@ -671,7 +707,7 @@ const ProductDashboard = () => {
                         {/* Expanded Variants Row */}
                         {expandedProduct === row.product_id && row.variants.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={10} className="bg-muted/20 p-0">
+                            <TableCell colSpan={11} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
                                 <div className="border rounded-lg overflow-hidden">
@@ -719,12 +755,84 @@ const ProductDashboard = () => {
           </CardContent>
         </Card>
 
-        {/* Footer Summary */}
+        {/* Pagination Controls */}
         {filteredRows.length > 0 && (
-          <div className="mt-4 text-sm text-muted-foreground text-right">
-            Showing {filteredRows.length} of {productRows.length} products
-          </div>
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Rows per page:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
+                      <SelectTrigger className="w-20 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredRows.length)} of {filteredRows.length} products
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Bulk Delete Confirmation Dialog */}
+        <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Selected Products</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete {selectedProducts.size} product(s)? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleBulkDelete}
+                disabled={isDeleting}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
