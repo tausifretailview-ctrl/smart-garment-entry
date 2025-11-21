@@ -310,6 +310,8 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
   container.style.top = '-9999px';
   document.body.appendChild(container);
   
+  let root;
+  
   try {
     // Transform data for HTML template
     const transformedItems = data.items.map((item) => {
@@ -352,7 +354,7 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
     };
     
     // Render InvoiceTemplateHTML component into container
-    const root = createRoot(container);
+    root = createRoot(container);
     root.render(<InvoiceTemplateHTML {...htmlProps} />);
     
     // Wait for rendering to complete
@@ -391,11 +393,25 @@ export const generateInvoiceFromHTML = async (data: InvoiceData): Promise<void> 
     console.log('PDF download initiated:', fileName);
     
     // Cleanup
-    root.unmount();
-    document.body.removeChild(container);
+    if (root) root.unmount();
+    if (container.parentNode) {
+      document.body.removeChild(container);
+    }
   } catch (error) {
     console.error('Error generating HTML invoice PDF:', error);
-    document.body.removeChild(container);
+    // Safe cleanup
+    try {
+      if (root) root.unmount();
+    } catch (e) {
+      console.error('Error unmounting root:', e);
+    }
+    try {
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+    } catch (e) {
+      console.error('Error removing container:', e);
+    }
     throw error;
   }
 };
@@ -409,6 +425,8 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
   container.style.left = '-9999px';
   container.style.top = '-9999px';
   document.body.appendChild(container);
+  
+  let root;
   
   try {
     // Transform data for HTML template
@@ -452,7 +470,7 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     };
     
     // Render InvoiceTemplateHTML component into container
-    const root = createRoot(container);
+    root = createRoot(container);
     root.render(<InvoiceTemplateHTML {...htmlProps} />);
     
     // Wait for rendering to complete
@@ -478,8 +496,10 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     if (!printWindow) {
       console.error('Failed to open print window - popup may be blocked');
       // Cleanup
-      root.unmount();
-      document.body.removeChild(container);
+      if (root) root.unmount();
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
       return;
     }
 
@@ -539,16 +559,32 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
       }
     };
 
-    // Cleanup
-    root.unmount();
-    document.body.removeChild(container);
-    
-    // Cleanup
-    root.unmount();
-    document.body.removeChild(container);
+    // Cleanup after a short delay to ensure print dialog has opened
+    setTimeout(() => {
+      try {
+        if (root) root.unmount();
+        if (container.parentNode) {
+          document.body.removeChild(container);
+        }
+      } catch (cleanupError) {
+        console.error('Cleanup error:', cleanupError);
+      }
+    }, 1000);
   } catch (error) {
     console.error('Error printing invoice:', error);
-    document.body.removeChild(container);
+    // Safe cleanup
+    try {
+      if (root) root.unmount();
+    } catch (e) {
+      console.error('Error unmounting root:', e);
+    }
+    try {
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+    } catch (e) {
+      console.error('Error removing container:', e);
+    }
     throw error;
   }
 };
