@@ -66,7 +66,30 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
     return details.length > 0 ? details.join(' | ') : '';
   };
   return (
-    <div style={{
+    <>
+      <style>{`
+        @media print {
+          @page {
+            size: A5 portrait;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+          .classic-invoice-container {
+            width: 148mm !important;
+            min-height: 210mm !important;
+            margin: 0 !important;
+            padding: 10mm !important;
+            page-break-after: avoid;
+            transform: none !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+      <div className="classic-invoice-container" style={{
       width: '210mm',
       minHeight: '297mm',
       margin: '0 auto',
@@ -191,5 +214,6 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         <p style={{ margin: 0 }}>Thank you for your business!</p>
       </div>
     </div>
+    </>
   );
 };
