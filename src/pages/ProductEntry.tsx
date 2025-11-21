@@ -497,23 +497,44 @@ const ProductEntry = () => {
 
         // For updates, handle variants with upsert
         if (variants.length > 0) {
-          const variantsToUpsert = variants.map((v) => ({
-            product_id: editingProductId,
-            size: v.size,
-            pur_price: v.pur_price,
-            sale_price: v.sale_price,
-            barcode: v.barcode,
-            active: v.active,
-            opening_qty: v.opening_qty,
-          }));
+          for (const v of variants) {
+            // Get existing variant to calculate stock adjustment
+            const { data: existingVariant } = await supabase
+              .from("product_variants")
+              .select("id, opening_qty, stock_qty")
+              .eq("product_id", editingProductId)
+              .eq("size", v.size)
+              .maybeSingle();
 
-          const { error: variantsError } = await supabase
-            .from("product_variants")
-            .upsert(variantsToUpsert, {
-              onConflict: "product_id,size",
-            });
+            let newStockQty = v.opening_qty;
 
-          if (variantsError) throw variantsError;
+            if (existingVariant) {
+              // Calculate stock adjustment based on opening qty change
+              const openingQtyDiff = v.opening_qty - (existingVariant.opening_qty || 0);
+              newStockQty = (existingVariant.stock_qty || 0) + openingQtyDiff;
+              
+              // Ensure stock doesn't go negative
+              if (newStockQty < 0) newStockQty = 0;
+            }
+
+            // Upsert the variant with updated stock_qty
+            const { error: variantError } = await supabase
+              .from("product_variants")
+              .upsert({
+                product_id: editingProductId,
+                size: v.size,
+                pur_price: v.pur_price,
+                sale_price: v.sale_price,
+                barcode: v.barcode,
+                active: v.active,
+                opening_qty: v.opening_qty,
+                stock_qty: newStockQty,
+              }, {
+                onConflict: "product_id,size",
+              });
+
+            if (variantError) throw variantError;
+          }
         }
 
         toast({
