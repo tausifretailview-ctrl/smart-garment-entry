@@ -701,17 +701,46 @@ export default function POSSales() {
     setSavedInvoiceData(null);
   };
 
-  const handlePrint = () => {
-    if (items.length === 0) {
+  const handlePrint = async () => {
+    if (!savedInvoiceData) {
       toast({
-        title: "No Items",
-        description: "Please add items to the cart before printing",
+        title: "Save Invoice First",
+        description: "Please save the invoice before printing",
         variant: "destructive",
       });
       return;
     }
-    
-    setShowPrintDialog(true);
+
+    try {
+      const { data: settings } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization?.id)
+        .single();
+
+      if (!settings) {
+        toast({
+          title: "Error",
+          description: "Could not load business settings",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      await printInvoiceDirectly(savedInvoiceData);
+      
+      toast({
+        title: "Success",
+        description: "Invoice sent to printer",
+      });
+    } catch (error: any) {
+      console.error('Error printing invoice:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to print invoice",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleWhatsAppShare = () => {
@@ -1141,7 +1170,7 @@ export default function POSSales() {
 
         <Button
           onClick={handlePrint}
-          disabled={!currentSaleId}
+          disabled={!savedInvoiceData}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50"
           title="Print"
         >
