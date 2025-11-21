@@ -20,7 +20,6 @@ import {
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -302,57 +301,6 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
-      // First try to load default format from localStorage
-      const storedDefaultFormat = localStorage.getItem("barcode_default_format");
-      let sheetType = "a4_12x4";
-      let labelConfig = undefined;
-      let customDimensions = undefined;
-
-      if (storedDefaultFormat) {
-        try {
-          const defaultFormat = JSON.parse(storedDefaultFormat);
-          sheetType = defaultFormat.sheetType || "a4_12x4";
-          
-          // Ensure barcode and barcode text are always enabled
-          if (defaultFormat.labelConfig) {
-            labelConfig = {
-              ...defaultFormat.labelConfig,
-              barcode: { ...defaultFormat.labelConfig.barcode, show: true },
-              barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
-            };
-          }
-          
-          customDimensions = defaultFormat.customDimensions;
-        } catch (error) {
-          console.error("Failed to parse default format:", error);
-        }
-      } else {
-        // Fallback to settings-based templates
-        const { data: settingsData } = await supabase
-          .from("settings")
-          .select("bill_barcode_settings")
-          .eq("organization_id", currentOrganization?.id)
-          .single();
-
-        const barcodeFormat = (settingsData?.bill_barcode_settings as any)?.barcode_format || "a4_12x4";
-        const templates = (settingsData?.bill_barcode_settings as any)?.barcode_templates || [];
-        
-        // Find default template matching the format
-        const defaultTemplate = templates.find((t: any) => t.sheetType === barcodeFormat);
-        
-        sheetType = barcodeFormat;
-        labelConfig = defaultTemplate?.labelConfig;
-      }
-
-      // Fetch business name from settings
-      const { data: settingsData } = await supabase
-        .from("settings")
-        .select("business_name")
-        .eq("organization_id", currentOrganization?.id)
-        .single();
-
-      const businessName = settingsData?.business_name || "";
-
       // Fetch bill items with product details
       const { data: items, error } = await supabase
         .from("purchase_items")
@@ -378,7 +326,7 @@ const PurchaseBillDashboard = () => {
         return;
       }
 
-      // Format items for barcode printing
+      // Format items for barcode printing page
       const barcodeItems = items.map((item: any) => ({
         sku_id: item.sku_id,
         product_name: item.products?.product_name || "",
@@ -390,42 +338,17 @@ const PurchaseBillDashboard = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: item.bill_number || "",
-        business_name: businessName,
       }));
 
-      // Ensure complete labelConfig with all required properties
-      const finalLabelConfig = labelConfig ? {
-        ...labelConfig,
-        barcode: { ...(labelConfig.barcode || {}), show: true },
-        barcodeText: { ...(labelConfig.barcodeText || {}), show: true },
-      } : {
-        brand: { show: true, fontSize: 8, bold: false },
-        productName: { show: true, fontSize: 10, bold: true },
-        color: { show: true, fontSize: 8, bold: false },
-        style: { show: true, fontSize: 8, bold: false },
-        size: { show: true, fontSize: 9, bold: true },
-        price: { show: true, fontSize: 9, bold: true },
-        barcode: { show: true, fontSize: 8, bold: false },
-        barcodeText: { show: true, fontSize: 9, bold: true },
-        billNumber: { show: true, fontSize: 7, bold: false },
-        fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText', 'billNumber']
-      };
-
-      // Print barcodes directly with selected format and template config
-      await printBarcodesDirectly(barcodeItems, { 
-        sheetType: sheetType as any,
-        labelConfig: finalLabelConfig,
-        customDimensions: customDimensions
+      // Navigate to barcode printing page with items
+      navigate("/barcode-printing", { 
+        state: { purchaseItems: barcodeItems } 
       });
       
-      toast({
-        title: "Success",
-        description: "Barcodes sent to printer",
-      });
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to print barcodes",
+        description: error.message || "Failed to load items",
         variant: "destructive",
       });
     } finally {
