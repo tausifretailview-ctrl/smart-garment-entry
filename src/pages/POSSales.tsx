@@ -735,17 +735,8 @@ export default function POSSales() {
     const phoneNumber = customerPhone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    // Create temporary link to open WhatsApp
-    const link = document.createElement('a');
-    link.href = whatsappUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
-    
-    toast({
-      title: "Opening WhatsApp",
-      description: "WhatsApp opened with invoice details",
-    });
+    // Directly open WhatsApp app
+    window.location.href = whatsappUrl;
   };
 
   const handlePrintInvoice = async () => {
