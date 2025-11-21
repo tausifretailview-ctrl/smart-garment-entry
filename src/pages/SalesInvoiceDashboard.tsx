@@ -247,7 +247,7 @@ export default function SalesInvoiceDashboard() {
     const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    window.open(whatsappUrl, '_blank');
+    window.location.href = whatsappUrl;
   };
 
   return (
