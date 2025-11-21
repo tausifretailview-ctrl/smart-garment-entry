@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useStockValidation } from "@/hooks/useStockValidation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -88,6 +89,7 @@ const customerSchema = z.object({
 export default function SalesInvoice() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const location = useLocation();
   const navigate = useNavigate();
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
@@ -267,14 +269,16 @@ export default function SalesInvoice() {
     }
   }, [taxType]);
 
-  const addProductToInvoice = (product: any, variant: any) => {
-    // Check stock availability
-    if (variant.stock_qty <= 0) {
-      toast({
-        title: "Out of Stock",
-        description: "This product is currently out of stock",
-        variant: "destructive",
-      });
+  const addProductToInvoice = async (product: any, variant: any) => {
+    // Real-time stock validation
+    const stockCheck = await checkStock(variant.id, 1);
+    if (!stockCheck.isAvailable) {
+      showStockError(
+        stockCheck.productName,
+        stockCheck.size,
+        1,
+        stockCheck.availableStock
+      );
       return;
     }
 
@@ -282,20 +286,23 @@ export default function SalesInvoice() {
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
-      // Check if we can increase quantity
-      const currentQty = lineItems[existingIndex].quantity;
-      if (currentQty >= variant.stock_qty) {
-        toast({
-          title: "Insufficient Stock",
-          description: `Only ${variant.stock_qty} units available in stock`,
-          variant: "destructive",
-        });
+      // Real-time stock validation for increased quantity
+      const newQty = lineItems[existingIndex].quantity + 1;
+      const stockCheckIncrease = await checkStock(variant.id, newQty);
+      
+      if (!stockCheckIncrease.isAvailable) {
+        showStockError(
+          stockCheckIncrease.productName,
+          stockCheckIncrease.size,
+          newQty,
+          stockCheckIncrease.availableStock
+        );
         return;
       }
       
       // Increase quantity if already exists
       const updatedItems = [...lineItems];
-      updatedItems[existingIndex].quantity += 1;
+      updatedItems[existingIndex].quantity = newQty;
       updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
       setLineItems(updatedItems);
     } else {
@@ -363,23 +370,23 @@ export default function SalesInvoice() {
     };
   };
 
-  const updateQuantity = (id: string, quantity: number) => {
+  const updateQuantity = async (id: string, quantity: number) => {
     if (quantity < 1) return;
     
     // Find the item being updated
     const item = lineItems.find(i => i.id === id);
     if (!item || !item.variantId) return;
     
-    // Find the variant to check stock
-    const product = productsData?.find((p: any) => p.id === item.productId);
-    const variant = product?.product_variants?.find((v: any) => v.id === item.variantId);
+    // Real-time stock validation
+    const stockCheck = await checkStock(item.variantId, quantity);
     
-    if (variant && quantity > variant.stock_qty) {
-      toast({
-        title: "Insufficient Stock",
-        description: `Only ${variant.stock_qty} units available in stock`,
-        variant: "destructive",
-      });
+    if (!stockCheck.isAvailable) {
+      showStockError(
+        item.productName,
+        item.size,
+        quantity,
+        stockCheck.availableStock
+      );
       return;
     }
     
@@ -641,6 +648,21 @@ Thank you for choosing us!`;
         title: "Validation Error",
         description: "Please add at least one product",
       });
+      return;
+    }
+
+    // Real-time stock validation before saving
+    const invoiceItems = filledItems.map(item => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+      productName: item.productName,
+      size: item.size,
+    }));
+
+    const insufficientItems = await validateCartStock(invoiceItems);
+    
+    if (insufficientItems.length > 0) {
+      showMultipleStockErrors(insufficientItems);
       return;
     }
 

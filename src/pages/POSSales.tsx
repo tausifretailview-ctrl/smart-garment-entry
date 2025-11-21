@@ -12,6 +12,7 @@ import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, Chevr
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
+import { useStockValidation } from "@/hooks/useStockValidation";
 import {
   Command,
   CommandEmpty,
@@ -65,6 +66,7 @@ export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { saveSale, isSaving } = useSaveSale();
+  const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("");
@@ -319,34 +321,40 @@ export default function POSSales() {
     }
   };
 
-  const addItemToCart = (product: any, variant: any) => {
+  const addItemToCart = async (product: any, variant: any) => {
     const existingItemIndex = items.findIndex(item => item.barcode === variant.barcode);
     
     if (existingItemIndex >= 0) {
-      // Check if there's enough stock before incrementing
-      const currentQtyInCart = items[existingItemIndex].quantity;
-      if (currentQtyInCart >= variant.stock_qty) {
-        toast({
-          title: "Insufficient Stock",
-          description: `Only ${variant.stock_qty} units available in stock`,
-          variant: "destructive",
-        });
+      // Real-time stock validation before incrementing
+      const newQty = items[existingItemIndex].quantity + 1;
+      const stockCheck = await checkStock(variant.id, newQty);
+      
+      if (!stockCheck.isAvailable) {
+        showStockError(
+          stockCheck.productName,
+          stockCheck.size,
+          newQty,
+          stockCheck.availableStock
+        );
         return;
       }
       
       // Increment quantity if already in cart
       const updatedItems = [...items];
-      updatedItems[existingItemIndex].quantity += 1;
+      updatedItems[existingItemIndex].quantity = newQty;
       updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
       setItems(updatedItems);
     } else {
-      // Check if there's any stock available
-      if (variant.stock_qty < 1) {
-        toast({
-          title: "Out of Stock",
-          description: "This product is currently out of stock",
-          variant: "destructive",
-        });
+      // Real-time stock validation before adding new item
+      const stockCheck = await checkStock(variant.id, 1);
+      
+      if (!stockCheck.isAvailable) {
+        showStockError(
+          stockCheck.productName,
+          stockCheck.size,
+          1,
+          stockCheck.availableStock
+        );
         return;
       }
       
@@ -405,21 +413,20 @@ export default function POSSales() {
     setItems(items.filter((_, i) => i !== index));
   };
 
-  const updateQuantity = (index: number, newQty: number) => {
+  const updateQuantity = async (index: number, newQty: number) => {
     if (newQty < 1) return;
     
-    // Find the variant to check stock
+    // Real-time stock validation before updating quantity
     const item = items[index];
-    const variant = productsData?.flatMap((p: any) => 
-      p.product_variants?.filter((v: any) => v.id === item.variantId)
-    ).find((v: any) => v);
+    const stockCheck = await checkStock(item.variantId, newQty);
     
-    if (variant && newQty > variant.stock_qty) {
-      toast({
-        title: "Insufficient Stock",
-        description: `Only ${variant.stock_qty} units available in stock`,
-        variant: "destructive",
-      });
+    if (!stockCheck.isAvailable) {
+      showStockError(
+        item.productName,
+        item.size,
+        newQty,
+        stockCheck.availableStock
+      );
       return;
     }
     
@@ -528,6 +535,21 @@ export default function POSSales() {
         description: "Please add items to the cart before processing payment",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Real-time stock validation before saving
+    const cartItems = items.map(item => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+      productName: item.productName,
+      size: item.size,
+    }));
+
+    const insufficientItems = await validateCartStock(cartItems);
+    
+    if (insufficientItems.length > 0) {
+      showMultipleStockErrors(insufficientItems);
       return;
     }
 
