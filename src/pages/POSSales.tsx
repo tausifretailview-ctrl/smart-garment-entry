@@ -175,12 +175,28 @@ export default function POSSales() {
       if (currentSaleId || !settingsData) return;
       
       const saleSettings = (settingsData as any)?.sale_settings;
-      const format = saleSettings?.invoice_format || 'SALE/{YYYY}/{####}';
+      let format = saleSettings?.invoice_format || 'INV/{YY-YY}/{####}';
       
       try {
         const now = new Date();
         const year = now.getFullYear();
-        const basePattern = format.replace(/\d+$/, '');
+        const month = now.getMonth(); // 0-11
+        
+        // Calculate financial year (April to March)
+        let financialYear = '';
+        if (month >= 3) { // April (3) onwards
+          financialYear = `${year.toString().slice(2)}${(year + 1).toString().slice(2)}`;
+        } else { // Jan-March
+          financialYear = `${(year - 1).toString().slice(2)}${year.toString().slice(2)}`;
+        }
+        
+        // Replace placeholders
+        format = format.replace(/\{YY-YY\}/g, financialYear);
+        format = format.replace(/\{YYYY\}/g, year.toString());
+        format = format.replace(/\{YY\}/g, year.toString().slice(2));
+        
+        // Extract base pattern (everything before sequence numbers)
+        const basePattern = format.replace(/\{#+\}/g, '');
         
         const { data: lastSale } = await (supabase as any)
           .from('sales')
@@ -199,7 +215,11 @@ export default function POSSales() {
           }
         }
         
-        const nextNumber = `${basePattern}${sequence}`;
+        // Replace sequence placeholder with actual number
+        const sequencePadding = (format.match(/\{#+\}/) || ['####'])[0].length - 2; // Subtract { and }
+        const paddedSequence = sequence.toString().padStart(sequencePadding, '0');
+        const nextNumber = format.replace(/\{#+\}/g, paddedSequence);
+        
         setNextInvoicePreview(nextNumber);
       } catch (error) {
         console.error('Error previewing next invoice:', error);
@@ -689,6 +709,15 @@ export default function POSSales() {
   };
 
   const handleWhatsAppShare = () => {
+    if (!currentSaleId) {
+      toast({
+        title: "Save Invoice First",
+        description: "Please save the invoice before sharing on WhatsApp",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!customerPhone) {
       toast({
         title: "No Phone Number",
@@ -698,20 +727,11 @@ export default function POSSales() {
       return;
     }
 
-    if (items.length === 0) {
-      toast({
-        title: "No Items",
-        description: "Please add items to the cart before sharing",
-        variant: "destructive",
-      });
-      return;
-    }
-
     const itemsList = items.map((item, index) => 
       `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount.toFixed(2)}`
     ).join('\n');
 
-    const message = `*Invoice Details*\n\nInvoice No: ${currentInvoiceNumber || 'NEW'}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${customerName || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${totals.mrp.toFixed(2)}\nDiscount: ₹${(totals.discount + flatDiscountAmount).toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${finalAmount.toFixed(2)}*\n\nPayment Method: ${paymentMethod.toUpperCase()}\n\nThank you for your business!`;
+    const message = `*Invoice Details*\n\nInvoice No: ${currentInvoiceNumber}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${customerName || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${totals.mrp.toFixed(2)}\nDiscount: ₹${(totals.discount + flatDiscountAmount).toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${finalAmount.toFixed(2)}*\n\nPayment Method: ${paymentMethod.toUpperCase()}\n\nThank you for your business!`;
 
     const phoneNumber = customerPhone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
@@ -1136,9 +1156,9 @@ export default function POSSales() {
         {/* WhatsApp Share Button */}
         <Button
           onClick={handleWhatsAppShare}
-          disabled={items.length === 0 || !customerPhone}
+          disabled={!currentSaleId || !customerPhone}
           className="h-16 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-          title="Share on WhatsApp"
+          title="Share on WhatsApp (after saving)"
         >
           <MessageCircle className="h-5 w-5" />
           <span>WhatsApp</span>
