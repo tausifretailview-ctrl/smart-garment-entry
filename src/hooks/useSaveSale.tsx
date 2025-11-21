@@ -23,6 +23,7 @@ interface CartItem {
 interface SaleData {
   customerId?: string | null;
   customerName: string;
+  customerPhone?: string | null;
   items: CartItem[];
   grossAmount: number;
   discountAmount: number;
@@ -181,6 +182,7 @@ export const useSaveSale = () => {
           sale_type: 'pos',
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
+          customer_phone: saleData.customerPhone || null,
           gross_amount: saleData.grossAmount,
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,

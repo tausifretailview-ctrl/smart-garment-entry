@@ -474,6 +474,7 @@ export default function POSSales() {
     const saleData = {
       customerId: customerId || null,
       customerName,
+      customerPhone: customerPhone || null,
       items,
       grossAmount: totals.mrp,
       discountAmount: totals.discount,
@@ -534,6 +535,7 @@ export default function POSSales() {
     const saleData = {
       customerId: customerId || null,
       customerName,
+      customerPhone: customerPhone || null,
       items,
       grossAmount: totals.mrp,
       discountAmount: totals.discount,
