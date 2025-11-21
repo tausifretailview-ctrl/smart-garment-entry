@@ -393,14 +393,22 @@ const PurchaseBillDashboard = () => {
         business_name: businessName,
       }));
 
-      // Ensure barcode and barcode text are always enabled
+      // Ensure complete labelConfig with all required properties
       const finalLabelConfig = labelConfig ? {
         ...labelConfig,
         barcode: { ...(labelConfig.barcode || {}), show: true },
         barcodeText: { ...(labelConfig.barcodeText || {}), show: true },
       } : {
+        brand: { show: true, fontSize: 8, bold: false },
+        productName: { show: true, fontSize: 10, bold: true },
+        color: { show: true, fontSize: 8, bold: false },
+        style: { show: true, fontSize: 8, bold: false },
+        size: { show: true, fontSize: 9, bold: true },
+        price: { show: true, fontSize: 9, bold: true },
         barcode: { show: true, fontSize: 8, bold: false },
         barcodeText: { show: true, fontSize: 9, bold: true },
+        billNumber: { show: true, fontSize: 7, bold: false },
+        fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText', 'billNumber']
       };
 
       // Print barcodes directly with selected format and template config
