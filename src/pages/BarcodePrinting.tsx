@@ -594,10 +594,11 @@ export default function BarcodePrinting() {
     if (!billNumber.trim()) return;
 
     try {
+      // Search by software_bill_no or supplier_invoice_no
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
         .select("id")
-        .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
+        .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
         .limit(1)
         .maybeSingle();
 
@@ -636,10 +637,11 @@ export default function BarcodePrinting() {
     }
 
     try {
+      // First try to find by software_bill_no or supplier_invoice_no
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
         .select("id, supplier_invoice_no, software_bill_no, bill_date")
-        .or(`id.eq.${billNumber},supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
+        .or(`supplier_invoice_no.ilike.%${billNumber}%,software_bill_no.ilike.%${billNumber}%`)
         .limit(1)
         .maybeSingle();
 
