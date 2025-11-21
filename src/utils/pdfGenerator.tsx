@@ -514,6 +514,11 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
               max-height: 100%;
             }
           </style>
+          <script>
+            window.onafterprint = function() {
+              window.close();
+            };
+          </script>
         </head>
         <body>
           <img src="${imgData}" alt="Invoice" />
