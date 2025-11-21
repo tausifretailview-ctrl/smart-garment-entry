@@ -21,6 +21,7 @@ interface Organization {
   subscription_tier: string;
   enabled_features: string[];
   created_at: string;
+  organization_number: number;
 }
 
 interface User {
@@ -76,7 +77,7 @@ export default function PlatformAdmin() {
       const { data, error } = await supabase
         .from("organizations")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("organization_number", { ascending: true });
       
       if (error) throw error;
       return data as Organization[];
@@ -465,7 +466,12 @@ export default function PlatformAdmin() {
                   <Card key={org.id}>
                     <CardHeader>
                       <CardTitle className="flex items-center justify-between">
-                        <span>{org.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="font-mono">
+                            #{org.organization_number}
+                          </Badge>
+                          <span>{org.name}</span>
+                        </div>
                         <Badge variant="secondary">{org.subscription_tier}</Badge>
                       </CardTitle>
                       <CardDescription>
@@ -473,6 +479,10 @@ export default function PlatformAdmin() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Barcode Series:</span>
+                        <span className="font-medium font-mono">{org.organization_number}0001001</span>
+                      </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Users:</span>
                         <span className="font-medium">{orgMembers.length}</span>
@@ -554,7 +564,7 @@ export default function PlatformAdmin() {
                         <SelectContent>
                           {organizations.map((org) => (
                             <SelectItem key={org.id} value={org.id}>
-                              {org.name}
+                              #{org.organization_number} - {org.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
