@@ -202,7 +202,43 @@ const ProductDashboard = () => {
       const productsToDelete = Array.from(selectedProducts);
       
       for (const productId of productsToDelete) {
-        // Delete variants first
+        // Delete related records first
+        
+        // 1. Delete batch_stock records
+        const { data: variants } = await supabase
+          .from("product_variants")
+          .select("id")
+          .eq("product_id", productId);
+
+        if (variants && variants.length > 0) {
+          const variantIds = variants.map(v => v.id);
+          
+          // Delete batch stock for these variants
+          await supabase
+            .from("batch_stock")
+            .delete()
+            .in("variant_id", variantIds);
+
+          // Delete stock movements for these variants
+          await supabase
+            .from("stock_movements")
+            .delete()
+            .in("variant_id", variantIds);
+        }
+
+        // 2. Delete purchase items
+        await supabase
+          .from("purchase_items")
+          .delete()
+          .eq("product_id", productId);
+
+        // 3. Delete sale items
+        await supabase
+          .from("sale_items")
+          .delete()
+          .eq("product_id", productId);
+
+        // 4. Delete variants
         const { error: variantsError } = await supabase
           .from("product_variants")
           .delete()
@@ -210,7 +246,7 @@ const ProductDashboard = () => {
 
         if (variantsError) throw variantsError;
 
-        // Then delete product
+        // 5. Finally delete product
         const { error: productError } = await supabase
           .from("products")
           .delete()
@@ -221,7 +257,7 @@ const ProductDashboard = () => {
 
       toast({
         title: "Success",
-        description: `${productsToDelete.length} product(s) deleted successfully`,
+        description: `${productsToDelete.length} product(s) permanently deleted`,
       });
 
       setSelectedProducts(new Set());
@@ -332,12 +368,6 @@ const ProductDashboard = () => {
             </Button>
             <h1 className="text-2xl font-bold text-foreground">Product</h1>
           </div>
-          <Link
-            to="/product-entry"
-            className="text-sm text-primary hover:underline"
-          >
-            Setup Opening Stock
-          </Link>
         </div>
 
         {/* Toolbar */}
@@ -345,31 +375,6 @@ const ProductDashboard = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="default" size="sm" className="gap-2">
-                      <Upload className="h-4 w-4" />
-                      Import/Export
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import Products
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Products
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button variant="default" size="sm" className="gap-2">
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-
                 <Button 
                   variant={showFilters ? "default" : "outline"} 
                   size="sm" 
@@ -809,9 +814,9 @@ const ProductDashboard = () => {
         <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Selected Products</AlertDialogTitle>
+              <AlertDialogTitle>Permanently Delete Selected Products</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete {selectedProducts.size} product(s)? This action cannot be undone.
+                Are you sure you want to permanently delete {selectedProducts.size} product(s)? This will remove all associated variants, stock records, and transaction history. This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
