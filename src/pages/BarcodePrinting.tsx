@@ -1565,10 +1565,12 @@ export default function BarcodePrinting() {
             </div>
           </div>
 
-          {sheetType === "custom" && !selectedPreset && (
+          {sheetType === "custom" && (
             <div className="border rounded-lg p-4 space-y-4 bg-muted/50">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm">Custom Label Dimensions</h3>
+                <h3 className="font-semibold text-sm">
+                  {selectedPreset ? `Editing: ${selectedPreset}` : 'Custom Label Dimensions'}
+                </h3>
                 <div className="text-xs text-muted-foreground">
                   Sheet Size: {customCols} × {customRows} = {customCols * customRows} labels
                 </div>
