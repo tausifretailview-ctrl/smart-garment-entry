@@ -354,6 +354,7 @@ export type Database = {
           enabled_features: Json
           id: string
           name: string
+          organization_number: number | null
           settings: Json
           subscription_tier: Database["public"]["Enums"]["subscription_tier"]
           updated_at: string
@@ -363,6 +364,7 @@ export type Database = {
           enabled_features?: Json
           id?: string
           name: string
+          organization_number?: number | null
           settings?: Json
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
@@ -372,6 +374,7 @@ export type Database = {
           enabled_features?: Json
           id?: string
           name?: string
+          organization_number?: number | null
           settings?: Json
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
