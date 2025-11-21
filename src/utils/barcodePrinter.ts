@@ -11,6 +11,7 @@ interface BarcodeItem {
   barcode: string;
   qty: number;
   bill_number?: string;
+  business_name?: string;
 }
 
 interface LabelFieldConfig {
@@ -74,6 +75,11 @@ const getLabelHTML = (
   
   let html = '';
   
+  // Add business name at the top if provided
+  if (item.business_name) {
+    html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: center;">${item.business_name}</div>`;
+  }
+  
   if (config.productName.show) {
     html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">${item.product_name} (${item.size})</div>`;
   }
@@ -89,9 +95,9 @@ const getLabelHTML = (
   if (config.barcode.show) {
     html += `<svg class="barcode" data-code="${barcode}" style="margin-bottom: 2mm;"></svg>`;
   }
-  if (config.barcodeText.show) {
-    html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'};">${barcode}</div>`;
-  }
+  // Always show barcode text (number)
+  html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; margin-bottom: 1mm;">${barcode}</div>`;
+  
   if (config.billNumber.show && item.bill_number) {
     html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; margin-top: 1.5mm;">Bill: ${item.bill_number}</div>`;
   }
