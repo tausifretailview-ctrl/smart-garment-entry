@@ -393,10 +393,20 @@ const PurchaseBillDashboard = () => {
         business_name: businessName,
       }));
 
+      // Ensure barcode and barcode text are always enabled
+      const finalLabelConfig = labelConfig ? {
+        ...labelConfig,
+        barcode: { ...labelConfig.barcode, show: true },
+        barcodeText: { ...labelConfig.barcodeText, show: true },
+      } : {
+        barcode: { show: true },
+        barcodeText: { show: true },
+      };
+
       // Print barcodes directly with selected format and template config
       await printBarcodesDirectly(barcodeItems, { 
         sheetType: sheetType as any,
-        labelConfig: labelConfig,
+        labelConfig: finalLabelConfig,
         customDimensions: customDimensions
       });
       
