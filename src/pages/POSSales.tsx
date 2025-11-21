@@ -1134,7 +1134,7 @@ export default function POSSales() {
 
       {/* Main Content Area */}
       <div className="flex-1 p-2 md:p-4">
-        <BackToDashboard />
+        <BackToDashboard label="Back to POS Dashboard" to="/pos-dashboard" />
         
         <div className="max-w-[1800px] mx-auto space-y-3">
           {/* Header Section with Invoice Number */}
