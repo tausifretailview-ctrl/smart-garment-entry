@@ -385,7 +385,12 @@ const POSDashboard = () => {
     const phoneNumber = sale.customer_phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    window.location.href = whatsappUrl;
+    // Create temporary link to open WhatsApp
+    const link = document.createElement('a');
+    link.href = whatsappUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
   };
 
   const filteredSales = sales.filter((sale) => {
