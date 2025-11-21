@@ -231,6 +231,7 @@ export default function BarcodePrinting() {
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
   const [leftOffset, setLeftOffset] = useState(0);
+  const [businessName, setBusinessName] = useState("SMART INVENTORY");
   
   // Custom dimensions state
   const [customWidth, setCustomWidth] = useState(50);
@@ -312,6 +313,28 @@ export default function BarcodePrinting() {
         console.error("Failed to load label templates:", error);
       }
     }
+  }, []);
+
+  // Fetch business name from settings
+  useEffect(() => {
+    const fetchBusinessName = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("settings")
+          .select("business_name")
+          .maybeSingle();
+
+        if (error) throw error;
+        
+        if (data?.business_name) {
+          setBusinessName(data.business_name);
+        }
+      } catch (error) {
+        console.error("Failed to fetch business name:", error);
+      }
+    };
+
+    fetchBusinessName();
   }, []);
 
   // Pre-fill items from purchase entry if passed via navigation state
@@ -1045,7 +1068,7 @@ export default function BarcodePrinting() {
       
       switch (fieldKey) {
         case 'brand':
-          html += `<div class="brand" style="${getStyle(field)}">SMART INVENTORY</div>`;
+          html += `<div class="brand" style="${getStyle(field)}">${businessName}</div>`;
           break;
         case 'productName':
           const prodText = item.product_name + 
