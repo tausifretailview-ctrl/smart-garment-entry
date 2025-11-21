@@ -75,6 +75,7 @@ const ProductEntry = () => {
   useEffect(() => {
     fetchSizeGroups();
     fetchFieldSettings();
+    fetchDefaultSizeGroup();
     
     // Check if we're editing an existing product
     const searchParams = new URLSearchParams(location.search);
@@ -102,10 +103,30 @@ const ProductEntry = () => {
     }
   };
 
+  const fetchDefaultSizeGroup = async () => {
+    if (!currentOrganization) return;
+    
+    const { data, error } = await supabase
+      .from("settings")
+      .select("product_settings")
+      .eq("organization_id", currentOrganization.id)
+      .single();
+
+    if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
+      const settings = data.product_settings as any;
+      if (settings.default_size_group && !editingProductId) {
+        setFormData(prev => ({ ...prev, size_group_id: settings.default_size_group }));
+      }
+    }
+  };
+
   const fetchSizeGroups = async () => {
+    if (!currentOrganization) return;
+    
     const { data, error } = await supabase
       .from("size_groups")
       .select("*")
+      .eq("organization_id", currentOrganization.id)
       .order("group_name");
 
     if (error) {
