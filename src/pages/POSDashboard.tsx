@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2 } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -362,6 +362,32 @@ const POSDashboard = () => {
     }
   };
 
+  const handleWhatsAppShare = async (sale: Sale, event: React.MouseEvent) => {
+    event.stopPropagation();
+    
+    if (!sale.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send WhatsApp message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const items = await fetchSaleItems(sale.id);
+    
+    const itemsList = items.map((item, index) => 
+      `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
+    ).join('\n');
+
+    const message = `*Invoice Details*\n\nInvoice No: ${sale.sale_number}\nDate: ${format(new Date(sale.sale_date), 'dd/MM/yyyy')}\nCustomer: ${sale.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${sale.gross_amount.toFixed(2)}\nDiscount: ₹${(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}\nRound Off: ₹${sale.round_off.toFixed(2)}\n*Net Amount: ₹${sale.net_amount.toFixed(2)}*\n\nPayment Method: ${sale.payment_method.toUpperCase()}\n\nThank you for your business!`;
+
+    const phoneNumber = sale.customer_phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
+  };
+
   const filteredSales = sales.filter((sale) => {
     const matchesSearch =
       sale.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -484,6 +510,7 @@ const POSDashboard = () => {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Sale Number</TableHead>
                       <TableHead>Customer</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Payment</TableHead>
@@ -523,6 +550,9 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>{sale.customer_name}</TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {sale.customer_phone || '-'}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {format(new Date(sale.sale_date), "dd/MM/yyyy")}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>₹{sale.net_amount.toFixed(2)}</TableCell>
@@ -538,6 +568,15 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => handleWhatsAppShare(sale, e)}
+                                  title="Share on WhatsApp"
+                                  disabled={!sale.customer_phone}
+                                >
+                                  <MessageCircle className="h-4 w-4 text-green-600" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
