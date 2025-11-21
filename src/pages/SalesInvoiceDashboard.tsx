@@ -62,42 +62,15 @@ export default function SalesInvoiceDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  const restoreStockForInvoice = async (invoiceId: string) => {
-    const { data: items, error: fetchError } = await supabase
-      .from("sale_items")
-      .select("*")
-      .eq("sale_id", invoiceId);
-
-    if (fetchError) throw fetchError;
-
-    if (items && items.length > 0) {
-      for (const item of items) {
-        const { data: variant } = await supabase
-          .from("product_variants")
-          .select("stock_qty")
-          .eq("id", item.variant_id)
-          .single();
-
-        if (variant) {
-          const newStock = variant.stock_qty + item.quantity;
-          const { error: updateError } = await supabase
-            .from("product_variants")
-            .update({ stock_qty: newStock })
-            .eq("id", item.variant_id);
-
-          if (updateError) throw updateError;
-        }
-      }
-    }
-  };
-
+  // Stock restoration is now handled automatically by database triggers
+  // No need for manual stock restoration code
+  
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
 
     setIsDeleting(true);
     try {
-      await restoreStockForInvoice(invoiceToDelete.id);
-
+      // Delete sale_items first - trigger will automatically restore stock
       const { error: itemsError } = await supabase
         .from("sale_items")
         .delete()
@@ -105,6 +78,7 @@ export default function SalesInvoiceDashboard() {
 
       if (itemsError) throw itemsError;
 
+      // Then delete the sale record
       const { error: saleError } = await supabase
         .from("sales")
         .delete()
@@ -137,9 +111,8 @@ export default function SalesInvoiceDashboard() {
     try {
       const invoicesToDelete = Array.from(selectedInvoices);
       
+      // Delete sale_items for all invoices - triggers will automatically restore stock
       for (const invoiceId of invoicesToDelete) {
-        await restoreStockForInvoice(invoiceId);
-
         const { error: itemsError } = await supabase
           .from("sale_items")
           .delete()
