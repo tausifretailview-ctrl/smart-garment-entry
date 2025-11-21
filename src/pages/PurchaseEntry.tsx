@@ -20,6 +20,7 @@ import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer } from
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 
 interface ProductVariant {
   id: string;
@@ -49,6 +50,9 @@ interface LineItem {
   barcode: string;
   discount: number; // discount in rupees
   line_total: number; // total before GST
+  brand?: string;
+  color?: string;
+  style?: string;
 }
 
 interface SizeQuantity {
@@ -1223,12 +1227,36 @@ const PurchaseEntry = () => {
                   No, Thanks
                 </Button>
                 <Button
-                  onClick={() => {
-                    // Navigate to barcode printing page with state
-                    navigate("/barcode-printing", {
-                      state: { purchaseItems: savedPurchaseItems },
-                    });
-                    setShowPrintDialog(false);
+                  onClick={async () => {
+                    try {
+                      // Transform items to BarcodeItem format
+                      const barcodeItems = savedPurchaseItems.map(item => ({
+                        sku_id: item.sku_id,
+                        product_name: item.product_name,
+                        brand: item.brand || "",
+                        color: item.color || "",
+                        style: item.style || "",
+                        size: item.size,
+                        sale_price: item.sale_price,
+                        barcode: item.barcode,
+                        qty: item.qty,
+                        bill_number: softwareBillNo,
+                      }));
+
+                      // Trigger direct print
+                      await printBarcodesDirectly(barcodeItems, {
+                        sheetType: 'a4_12x4',
+                      });
+
+                      setShowPrintDialog(false);
+                    } catch (error) {
+                      console.error("Print error:", error);
+                      toast({
+                        title: "Print Error",
+                        description: "Failed to print barcodes",
+                        variant: "destructive",
+                      });
+                    }
                   }}
                   className="gap-2"
                 >
