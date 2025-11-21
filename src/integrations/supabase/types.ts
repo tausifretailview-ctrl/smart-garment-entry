@@ -876,7 +876,7 @@ export type Database = {
           created_at: string | null
           group_name: string
           id: string
-          organization_id: string | null
+          organization_id: string
           sizes: Json
           updated_at: string | null
         }
@@ -884,7 +884,7 @@ export type Database = {
           created_at?: string | null
           group_name: string
           id?: string
-          organization_id?: string | null
+          organization_id: string
           sizes?: Json
           updated_at?: string | null
         }
@@ -892,7 +892,7 @@ export type Database = {
           created_at?: string | null
           group_name?: string
           id?: string
-          organization_id?: string | null
+          organization_id?: string
           sizes?: Json
           updated_at?: string | null
         }
