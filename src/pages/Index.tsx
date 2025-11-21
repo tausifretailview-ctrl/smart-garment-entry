@@ -269,7 +269,7 @@ const Index = () => {
 
   // Redirect to organization setup if user has no organization
   if (!loading && !currentOrganization) {
-    navigate("/organization-setup");
+    navigate("/organization-setup", { replace: true });
     return null;
   }
 

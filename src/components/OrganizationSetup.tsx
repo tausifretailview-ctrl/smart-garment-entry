@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,8 +19,16 @@ import { toast } from "sonner";
 export const OrganizationSetup = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { organizations, loading: orgLoading } = useOrganization();
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect to dashboard if user already has organizations
+  useEffect(() => {
+    if (!orgLoading && organizations.length > 0) {
+      navigate("/", { replace: true });
+    }
+  }, [organizations, orgLoading, navigate]);
 
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,6 +37,20 @@ export const OrganizationSetup = () => {
     setLoading(true);
     try {
       console.log("Creating organization with user:", user.id);
+      
+      // Check if user already has organizations
+      const { data: existingOrgs, error: checkError } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id);
+      
+      if (checkError) throw checkError;
+      
+      if (existingOrgs && existingOrgs.length > 0) {
+        toast.error("You already have an organization. Redirecting to dashboard...");
+        navigate("/", { replace: true });
+        return;
+      }
       
       // Create organization atomically using database function
       const { data: orgData, error } = await supabase.rpc('create_organization', {
@@ -43,14 +66,16 @@ export const OrganizationSetup = () => {
       const org = orgData as { id: string; name: string };
       console.log("Organization created:", org);
 
-      toast.success("Organization created successfully!");
+      toast.success("Organization created successfully! Redirecting to dashboard...");
       
       // Store the organization ID
       localStorage.setItem(`currentOrgId_${user.id}`, org.id);
       
-      // Navigate to dashboard
-      navigate("/");
-      window.location.reload(); // Reload to fetch organization data
+      // Wait a moment for the database to update, then navigate
+      setTimeout(() => {
+        navigate("/", { replace: true });
+        window.location.reload(); // Reload to fetch organization data
+      }, 500);
     } catch (error: any) {
       console.error("Error creating organization:", error);
       toast.error(error.message || "Failed to create organization");
