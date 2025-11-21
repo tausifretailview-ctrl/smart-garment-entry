@@ -916,7 +916,7 @@ Thank you for choosing us!`;
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <BackToDashboard />
+      <BackToDashboard label="Back to Sales Invoice Dashboard" to="/sales-invoice-dashboard" />
       
       <div className="max-w-[1400px] mx-auto space-y-6">
         {/* Header */}
