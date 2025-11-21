@@ -302,18 +302,36 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
-      // Fetch settings to get default barcode format and templates
-      const { data: settingsData } = await supabase
-        .from("settings")
-        .select("bill_barcode_settings")
-        .eq("organization_id", currentOrganization?.id)
-        .single();
+      // First try to load default format from localStorage
+      const storedDefaultFormat = localStorage.getItem("barcode_default_format");
+      let sheetType = "a4_12x4";
+      let labelConfig = undefined;
 
-      const barcodeFormat = (settingsData?.bill_barcode_settings as any)?.barcode_format || "a4_12x4";
-      const templates = (settingsData?.bill_barcode_settings as any)?.barcode_templates || [];
-      
-      // Find default template matching the format
-      const defaultTemplate = templates.find((t: any) => t.sheetType === barcodeFormat);
+      if (storedDefaultFormat) {
+        try {
+          const defaultFormat = JSON.parse(storedDefaultFormat);
+          sheetType = defaultFormat.sheetType || "a4_12x4";
+          labelConfig = defaultFormat.labelConfig;
+        } catch (error) {
+          console.error("Failed to parse default format:", error);
+        }
+      } else {
+        // Fallback to settings-based templates
+        const { data: settingsData } = await supabase
+          .from("settings")
+          .select("bill_barcode_settings")
+          .eq("organization_id", currentOrganization?.id)
+          .single();
+
+        const barcodeFormat = (settingsData?.bill_barcode_settings as any)?.barcode_format || "a4_12x4";
+        const templates = (settingsData?.bill_barcode_settings as any)?.barcode_templates || [];
+        
+        // Find default template matching the format
+        const defaultTemplate = templates.find((t: any) => t.sheetType === barcodeFormat);
+        
+        sheetType = barcodeFormat;
+        labelConfig = defaultTemplate?.labelConfig;
+      }
 
       // Fetch bill items with product details
       const { data: items, error } = await supabase
@@ -356,8 +374,8 @@ const PurchaseBillDashboard = () => {
 
       // Print barcodes directly with selected format and template config
       await printBarcodesDirectly(barcodeItems, { 
-        sheetType: barcodeFormat as any,
-        labelConfig: defaultTemplate?.labelConfig
+        sheetType: sheetType as any,
+        labelConfig: labelConfig
       });
       
       toast({

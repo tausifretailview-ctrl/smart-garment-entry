@@ -107,7 +107,7 @@ type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 8, width: "35mm", height: "25mm", gap: "1mm" },
+  novajet40: { cols: 5, width: "40mm", height: "32mm", gap: "2mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
@@ -311,6 +311,28 @@ export default function BarcodePrinting() {
         setSavedLabelTemplates(JSON.parse(storedLabelTemplates));
       } catch (error) {
         console.error("Failed to load label templates:", error);
+      }
+    }
+
+    // Load default format if available
+    const storedDefaultFormat = localStorage.getItem("barcode_default_format");
+    if (storedDefaultFormat) {
+      try {
+        const defaultFormat = JSON.parse(storedDefaultFormat);
+        if (defaultFormat.sheetType) {
+          setSheetType(defaultFormat.sheetType);
+        }
+        if (defaultFormat.labelConfig) {
+          setLabelConfig(defaultFormat.labelConfig);
+        }
+        if (defaultFormat.topOffset !== undefined) {
+          setTopOffset(defaultFormat.topOffset);
+        }
+        if (defaultFormat.leftOffset !== undefined) {
+          setLeftOffset(defaultFormat.leftOffset);
+        }
+      } catch (error) {
+        console.error("Failed to load default format:", error);
       }
     }
   }, []);
@@ -820,7 +842,7 @@ export default function BarcodePrinting() {
     // Calculate rows based on preset type
     const rowsMap: Record<string, number> = {
       novajet48: 6,
-      novajet40: 5,
+      novajet40: 8,
       novajet65: 13,
       a4_12x4: 12,
     };
@@ -1046,6 +1068,18 @@ export default function BarcodePrinting() {
     localStorage.setItem("barcode_label_templates", JSON.stringify(updatedTemplates));
     setSelectedLabelTemplate("");
     toast.success(`Template "${selectedLabelTemplate}" deleted`);
+  };
+
+  const handleSaveAsDefault = () => {
+    const defaultFormat = {
+      sheetType,
+      labelConfig: { ...labelConfig },
+      topOffset,
+      leftOffset,
+    };
+
+    localStorage.setItem("barcode_default_format", JSON.stringify(defaultFormat));
+    toast.success("Current layout saved as default format for purchase direct printing");
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -1481,7 +1515,7 @@ export default function BarcodePrinting() {
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
                   <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (35mm × 25mm, 8 cols - A4 Vertical)</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (40mm × 32mm, 5 cols × 8 rows - A4 Vertical)</SelectItem>
                   <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
                   <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
                   <SelectItem value="custom">Custom Dimensions</SelectItem>
@@ -1977,6 +2011,10 @@ export default function BarcodePrinting() {
         <Button onClick={handleExportPDF} variant="outline">
           <Download className="h-4 w-4 mr-2" />
           Export PDF
+        </Button>
+        <Button onClick={handleSaveAsDefault} variant="secondary">
+          <Save className="h-4 w-4 mr-2" />
+          Save as Default Format
         </Button>
       </div>
 
