@@ -84,6 +84,7 @@ export default function POSSales() {
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
@@ -424,6 +425,11 @@ export default function POSSales() {
     // Close search dropdown and clear input
     setOpenProductSearch(false);
     setSearchInput("");
+    
+    // Refocus on barcode input for next scan
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 100);
   };
 
   const calculateNetAmount = (item: CartItem) => {
@@ -1212,6 +1218,7 @@ export default function POSSales() {
               <div className="relative">
                 <Label className="text-sm font-medium mb-1 block">Barcode</Label>
                 <Input
+                  ref={barcodeInputRef}
                   placeholder="Scan Barcode/Enter Product Name"
                   value={searchInput}
                   onChange={(e) => {
