@@ -451,6 +451,30 @@ const PurchaseBillDashboard = () => {
           </Card>
         </div>
 
+        {/* Bulk Actions */}
+        {selectedBills.size > 0 && (
+          <Card className="mb-4 border-primary/50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-medium">
+                    {selectedBills.size} bill(s) selected
+                  </span>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                  className="gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Selected
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card className="shadow-lg border-border">
           <CardHeader>
             <div className="flex flex-col gap-4">
@@ -498,6 +522,12 @@ const PurchaseBillDashboard = () => {
                   <TableHeader>
                     <TableRow className="bg-muted/50">
                       <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedBills.size === paginatedBills.length && paginatedBills.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead className="w-16">Sr. No.</TableHead>
                       <TableHead>Bill No.</TableHead>
                       <TableHead>Date</TableHead>
@@ -518,13 +548,19 @@ const PurchaseBillDashboard = () => {
                           className="cursor-pointer hover:bg-muted/30 transition-colors"
                           onClick={() => toggleExpanded(bill.id)}
                         >
-                          <TableCell>
-                            {expandedBill === bill.id ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </TableCell>
+                        <TableCell>
+                          {expandedBill === bill.id ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedBills.has(bill.id)}
+                            onCheckedChange={() => toggleSelectBill(bill.id)}
+                          />
+                        </TableCell>
                           <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-mono text-xs">
@@ -594,7 +630,7 @@ const PurchaseBillDashboard = () => {
                         {/* Expanded Items Row */}
                         {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={10} className="bg-muted/20 p-0">
+                            <TableCell colSpan={11} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-semibold text-sm">Purchase Items Details</h4>
@@ -656,6 +692,56 @@ const PurchaseBillDashboard = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Pagination Controls */}
+        {filteredBills.length > 0 && (
+          <Card className="mt-4">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Rows per page:</span>
+                    <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
+                      <SelectTrigger className="w-20 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="25">25</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1}-{Math.min(endIndex, filteredBills.length)} of {filteredBills.length} bills
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePreviousPage}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleNextPage}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}
