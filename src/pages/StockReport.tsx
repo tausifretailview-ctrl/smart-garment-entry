@@ -18,6 +18,9 @@ interface StockItem {
   color: string;
   size: string;
   stock_qty: number;
+  opening_qty: number;
+  purchase_qty: number;
+  sales_qty: number;
   sale_price: number;
   barcode: string;
 }
@@ -89,6 +92,7 @@ export default function StockReport() {
           id,
           size,
           stock_qty,
+          opening_qty,
           sale_price,
           barcode,
           products (
@@ -102,16 +106,46 @@ export default function StockReport() {
 
       if (error) throw error;
 
-      const formattedData = data?.map((item: any) => ({
-        id: item.id,
-        product_name: item.products?.product_name || "",
-        brand: item.products?.brand || "",
-        color: item.products?.color || "",
-        size: item.size,
-        stock_qty: item.stock_qty,
-        sale_price: item.sale_price,
-        barcode: item.barcode || "",
-      })) || [];
+      // Fetch stock movements to calculate purchase and sales quantities
+      const { data: movementsData, error: movementsError } = await supabase
+        .from("stock_movements")
+        .select("variant_id, movement_type, quantity");
+
+      if (movementsError) throw movementsError;
+
+      // Calculate purchase and sales quantities per variant
+      const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
+        if (!acc[movement.variant_id]) {
+          acc[movement.variant_id] = { purchase: 0, sales: 0 };
+        }
+        
+        if (movement.movement_type === 'purchase') {
+          acc[movement.variant_id].purchase += movement.quantity;
+        } else if (movement.movement_type === 'sale') {
+          // Sales are stored as negative in stock_movements
+          acc[movement.variant_id].sales += Math.abs(movement.quantity);
+        }
+        
+        return acc;
+      }, {});
+
+      const formattedData = data?.map((item: any) => {
+        const movements = variantMovements[item.id] || { purchase: 0, sales: 0 };
+        
+        return {
+          id: item.id,
+          product_name: item.products?.product_name || "",
+          brand: item.products?.brand || "",
+          color: item.products?.color || "",
+          size: item.size,
+          stock_qty: item.stock_qty,
+          opening_qty: item.opening_qty || 0,
+          purchase_qty: movements.purchase,
+          sales_qty: movements.sales,
+          sale_price: item.sale_price,
+          barcode: item.barcode || "",
+        };
+      }) || [];
 
       setStockItems(formattedData);
     } catch (error) {
@@ -327,53 +361,69 @@ export default function StockReport() {
           <Card>
             <CardHeader>
               <CardTitle>Current Stock Levels</CardTitle>
-              <CardDescription>All active product variants</CardDescription>
+              <CardDescription>
+                Stock breakdown: Opening Qty + Purchase Qty - Sales Qty = Current Stock Qty
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Color</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Barcode</TableHead>
-                    <TableHead className="text-right">Stock Qty</TableHead>
-                    <TableHead className="text-right">Sale Price</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Barcode</TableHead>
+                      <TableHead className="text-right bg-blue-50 dark:bg-blue-950">Opening Qty</TableHead>
+                      <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
+                      <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
+                      <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
+                      <TableHead className="text-right">Sale Price</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredStockItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                           No products found matching your search
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredStockItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.product_name}</TableCell>
-                      <TableCell>{item.brand}</TableCell>
-                      <TableCell>{item.color}</TableCell>
-                      <TableCell>{item.size}</TableCell>
-                      <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
-                      <TableCell className="text-right">{item.stock_qty}</TableCell>
-                      <TableCell className="text-right">₹{item.sale_price}</TableCell>
-                      <TableCell>
-                      {item.stock_qty === 0 ? (
-                        <Badge variant="destructive">Out of Stock</Badge>
-                      ) : item.stock_qty <= lowStockThreshold ? (
-                        <Badge variant="secondary">Low Stock</Badge>
-                      ) : (
-                        <Badge variant="outline">In Stock</Badge>
-                      )}
-                        </TableCell>
-                      </TableRow>
+                        <TableRow key={item.id}>
+                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell>{item.brand}</TableCell>
+                          <TableCell>{item.size}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
+                          <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium">
+                            {item.opening_qty}
+                          </TableCell>
+                          <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400">
+                            +{item.purchase_qty}
+                          </TableCell>
+                          <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
+                            -{item.sales_qty}
+                          </TableCell>
+                          <TableCell className="text-right bg-primary/10 font-bold text-primary">
+                            {item.stock_qty}
+                          </TableCell>
+                          <TableCell className="text-right">₹{item.sale_price}</TableCell>
+                          <TableCell>
+                            {item.stock_qty === 0 ? (
+                              <Badge variant="destructive">Out of Stock</Badge>
+                            ) : item.stock_qty <= lowStockThreshold ? (
+                              <Badge variant="secondary">Low Stock</Badge>
+                            ) : (
+                              <Badge variant="outline">In Stock</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
                       ))
                     )}
                   </TableBody>
-              </Table>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -385,46 +435,58 @@ export default function StockReport() {
                 <TrendingDown className="h-5 w-5 text-destructive" />
                 Low Stock Items
               </CardTitle>
-              <CardDescription>Products below {lowStockThreshold} units</CardDescription>
+              <CardDescription>Products below {lowStockThreshold} units with stock breakdown</CardDescription>
             </CardHeader>
             <CardContent>
               {lowStockItems.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">No low stock items</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Color</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Stock Qty</TableHead>
-                      <TableHead className="text-right">Sale Price</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lowStockItems.length === 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                          {searchTerm ? "No low stock products found matching your search" : "No low stock items"}
-                        </TableCell>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Brand</TableHead>
+                        <TableHead>Size</TableHead>
+                        <TableHead className="text-right bg-blue-50 dark:bg-blue-950">Opening Qty</TableHead>
+                        <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
+                        <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
+                        <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
+                        <TableHead className="text-right">Sale Price</TableHead>
                       </TableRow>
-                    ) : (
-                      lowStockItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.product_name}</TableCell>
-                        <TableCell>{item.brand}</TableCell>
-                        <TableCell>{item.color}</TableCell>
-                        <TableCell>{item.size}</TableCell>
-                        <TableCell className="text-right font-bold text-destructive">
-                          {item.stock_qty}
-                        </TableCell>
-                         <TableCell className="text-right">₹{item.sale_price}</TableCell>
-                      </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {lowStockItems.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                            {searchTerm ? "No low stock products found matching your search" : "No low stock items"}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        lowStockItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.product_name}</TableCell>
+                            <TableCell>{item.brand}</TableCell>
+                            <TableCell>{item.size}</TableCell>
+                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-medium">
+                              {item.opening_qty}
+                            </TableCell>
+                            <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400">
+                              +{item.purchase_qty}
+                            </TableCell>
+                            <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
+                              -{item.sales_qty}
+                            </TableCell>
+                            <TableCell className="text-right bg-primary/10 font-bold text-destructive">
+                              {item.stock_qty}
+                            </TableCell>
+                            <TableCell className="text-right">₹{item.sale_price}</TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
