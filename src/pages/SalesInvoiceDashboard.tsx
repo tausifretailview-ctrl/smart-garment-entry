@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2 } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -228,6 +228,28 @@ export default function SalesInvoiceDashboard() {
     setCurrentPage(1);
   };
 
+  const handleWhatsAppShare = (invoice: any) => {
+    if (!invoice.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send WhatsApp message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const itemsList = invoice.sale_items?.map((item: any, index: number) => 
+      `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
+    ).join('\n') || '';
+
+    const message = `*Invoice Details*\n\nInvoice No: ${invoice.sale_number}\nDate: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}\nCustomer: ${invoice.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${invoice.gross_amount.toFixed(2)}\nDiscount: ₹${invoice.discount_amount.toFixed(2)}\nRound Off: ₹${invoice.round_off.toFixed(2)}\n*Net Amount: ₹${invoice.net_amount.toFixed(2)}*\n\nPayment Method: ${invoice.payment_method.toUpperCase()}\nPayment Status: ${invoice.payment_status}\n${invoice.terms_conditions ? `\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}\n\nThank you for your business!`;
+
+    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
       <BackToDashboard />
@@ -287,6 +309,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Invoice No</TableHead>
                       <TableHead>Customer</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Status</TableHead>
@@ -296,7 +319,7 @@ export default function SalesInvoiceDashboard() {
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -322,6 +345,9 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>{invoice.customer_name}</TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                              {invoice.customer_phone || '-'}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id)}>
                               {format(new Date(invoice.sale_date), 'dd/MM/yyyy')}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
@@ -332,6 +358,15 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleWhatsAppShare(invoice)}
+                                  title="Share on WhatsApp"
+                                  disabled={!invoice.customer_phone}
+                                >
+                                  <MessageCircle className="h-4 w-4 text-green-600" />
+                                </Button>
                                 <Button variant="ghost" size="icon">
                                   <Printer className="h-4 w-4" />
                                 </Button>
@@ -346,7 +381,7 @@ export default function SalesInvoiceDashboard() {
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={8} className="bg-muted/50 p-4">
+                              <TableCell colSpan={9} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold">Items:</h4>
                                   <Table>
