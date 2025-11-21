@@ -786,6 +786,55 @@ const PurchaseEntry = () => {
 
   const totals = { grossAmount, gstAmount, netAmount };
 
+  const handlePrintBarcodes = async () => {
+    if (lineItems.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Add items to print barcodes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Fetch full product details for barcode printing
+      const itemsWithDetails = await Promise.all(
+        lineItems.map(async (item) => {
+          const { data: product } = await supabase
+            .from("products")
+            .select("brand, color, style")
+            .eq("id", item.product_id)
+            .single();
+          
+          return {
+            sku_id: item.sku_id,
+            product_name: item.product_name,
+            brand: product?.brand || "",
+            color: product?.color || "",
+            style: product?.style || "",
+            size: item.size,
+            sale_price: item.sale_price,
+            barcode: item.barcode,
+            qty: item.qty,
+            bill_number: softwareBillNo,
+          };
+        })
+      );
+
+      // Trigger direct print
+      await printBarcodesDirectly(itemsWithDetails, {
+        sheetType: 'a4_12x4',
+      });
+    } catch (error) {
+      console.error("Print error:", error);
+      toast({
+        title: "Print Error",
+        description: "Failed to print barcodes",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -1127,7 +1176,17 @@ const PurchaseEntry = () => {
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-3">
+          <Button
+            onClick={handlePrintBarcodes}
+            disabled={lineItems.length === 0}
+            size="lg"
+            variant="outline"
+            className="gap-2 min-w-[150px]"
+          >
+            <Printer className="h-4 w-4" />
+            Print Barcodes
+          </Button>
           <Button
             onClick={handleSave}
             disabled={loading || lineItems.length === 0}
