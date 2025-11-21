@@ -396,11 +396,11 @@ const PurchaseBillDashboard = () => {
       // Ensure barcode and barcode text are always enabled
       const finalLabelConfig = labelConfig ? {
         ...labelConfig,
-        barcode: { ...labelConfig.barcode, show: true },
-        barcodeText: { ...labelConfig.barcodeText, show: true },
+        barcode: { ...(labelConfig.barcode || {}), show: true },
+        barcodeText: { ...(labelConfig.barcodeText || {}), show: true },
       } : {
-        barcode: { show: true },
-        barcodeText: { show: true },
+        barcode: { show: true, fontSize: 8, bold: false },
+        barcodeText: { show: true, fontSize: 9, bold: true },
       };
 
       // Print barcodes directly with selected format and template config
