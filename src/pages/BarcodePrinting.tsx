@@ -1402,7 +1402,11 @@ export default function BarcodePrinting() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <BackToDashboard />
+      {location.state?.purchaseItems ? (
+        <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
+      ) : (
+        <BackToDashboard />
+      )}
       <h1 className="text-3xl font-bold">Barcode Printing</h1>
 
       {/* Search Bar with Dropdown */}
