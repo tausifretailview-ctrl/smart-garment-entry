@@ -125,7 +125,15 @@ export const printBarcodesDirectly = async (
 
   const doc = printWindow.document;
   doc.open();
-  doc.write('<html><head><title>Barcode Labels</title></head><body></body></html>');
+  doc.write(`
+    <html>
+      <head>
+        <title>Barcode Labels</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+      </head>
+      <body></body>
+    </html>
+  `);
   doc.close();
 
   const printContainer = doc.createElement('div');
@@ -202,37 +210,44 @@ export const printBarcodesDirectly = async (
 
     printContainer.appendChild(gridDiv);
 
-    // Wait for DOM to be ready, then render barcodes
+    // Wait for JsBarcode library to load, then render barcodes
     await new Promise((resolve) => {
-      setTimeout(() => {
-        const barcodes = printContainer.querySelectorAll('svg.barcode');
-        barcodes.forEach((svg) => {
-          const code = (svg as HTMLElement).dataset.code;
-          if (code) {
-            try {
-              JsBarcode(svg, code, {
-                format: 'CODE128',
-                fontSize: 10,
-                height: 28,
-                width: 1.8,
-                textMargin: 0,
-                margin: 0,
-                displayValue: false,
-              });
-            } catch (error) {
-              console.error('Barcode generation failed for code:', code, error);
-              const textEl = doc.createElement('div');
-              textEl.textContent = code;
-              textEl.style.cssText = 'font-size: 10px; font-weight: bold;';
-              svg.parentElement?.replaceChild(textEl, svg);
+      const checkJsBarcode = () => {
+        if ((printWindow as any).JsBarcode) {
+          const barcodes = printContainer.querySelectorAll('svg.barcode');
+          barcodes.forEach((svg) => {
+            const code = (svg as HTMLElement).dataset.code;
+            if (code) {
+              try {
+                (printWindow as any).JsBarcode(svg, code, {
+                  format: 'CODE128',
+                  fontSize: 10,
+                  height: 28,
+                  width: 1.8,
+                  textMargin: 0,
+                  margin: 0,
+                  displayValue: false,
+                });
+              } catch (error) {
+                console.error('Barcode generation failed for code:', code, error);
+                const textEl = doc.createElement('div');
+                textEl.textContent = code;
+                textEl.style.cssText = 'font-size: 10px; font-weight: bold;';
+                svg.parentElement?.replaceChild(textEl, svg);
+              }
             }
-          }
-        });
-        resolve(true);
-      }, 200);
+          });
+          resolve(true);
+        } else {
+          // Retry after 100ms if JsBarcode isn't loaded yet
+          setTimeout(checkJsBarcode, 100);
+        }
+      };
+      // Start checking after a short delay to allow script loading
+      setTimeout(checkJsBarcode, 300);
     });
 
-    // Trigger print dialog
+    // Trigger print dialog after barcodes are rendered
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
@@ -240,7 +255,7 @@ export const printBarcodesDirectly = async (
       setTimeout(() => {
         printWindow.close();
       }, 500);
-    }, 200);
+    }, 300);
   } catch (error) {
     // If anything goes wrong, make sure the window is closed and rethrow
     try {
