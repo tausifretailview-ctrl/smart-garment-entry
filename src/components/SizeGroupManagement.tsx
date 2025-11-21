@@ -129,7 +129,10 @@ export function SizeGroupManagement() {
           organization_id: currentOrganization.id,
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Database error details:", error);
+        throw error;
+      }
 
       toast({
         title: "Success",
@@ -138,11 +141,12 @@ export function SizeGroupManagement() {
 
       setNewGroup({ group_name: "", sizes: "" });
       fetchSizeGroups();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding size group:", error);
+      const errorMessage = error?.message || "Failed to add size group";
       toast({
         title: "Error",
-        description: "Failed to add size group",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
