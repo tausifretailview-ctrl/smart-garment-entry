@@ -86,6 +86,7 @@ const PurchaseEntry = () => {
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -171,7 +172,7 @@ const PurchaseEntry = () => {
           if (itemsError) throw itemsError;
           
           const loadedItems: LineItem[] = itemsData.map((item: any) => ({
-            temp_id: item.id,
+            temp_id: item.id, // Use actual database ID as temp_id for tracking
             product_id: item.product_id,
             sku_id: item.sku_id || "",
             product_name: item.products?.product_name || "",
@@ -187,6 +188,7 @@ const PurchaseEntry = () => {
           }));
           
           setLineItems(loadedItems);
+          setOriginalLineItems(loadedItems); // Store original items for comparison
           
           toast({
             title: "Bill Loaded",
@@ -589,34 +591,93 @@ const PurchaseEntry = () => {
 
         if (billError) throw billError;
 
-        // Delete old items
-        const { error: deleteError } = await supabase
-          .from("purchase_items")
-          .delete()
-          .eq("bill_id", editingBillId);
+        // =====================================================
+        // INTELLIGENT LINE ITEM HANDLING
+        // Compare old vs new items to determine INSERT/UPDATE/DELETE
+        // =====================================================
 
-        if (deleteError) throw deleteError;
+        // Build maps for comparison
+        const originalItemsMap = new Map(
+          originalLineItems.map(item => [item.temp_id, item])
+        );
+        const currentItemsMap = new Map(
+          lineItems.map(item => [item.temp_id, item])
+        );
 
-        // Insert updated items
-        const itemsToInsert = lineItems.map((item) => ({
-          bill_id: editingBillId,
-          product_id: item.product_id,
-          sku_id: item.sku_id,
-          size: item.size,
-          qty: item.qty,
-          pur_price: item.pur_price,
-          sale_price: item.sale_price,
-          gst_per: item.gst_per,
-          hsn_code: item.hsn_code || null,
-          barcode: item.barcode || null,
-          line_total: item.line_total,
-        }));
+        // 1. Find items to DELETE (in original but not in current)
+        const itemsToDelete = originalLineItems
+          .filter(item => !currentItemsMap.has(item.temp_id))
+          .map(item => item.temp_id);
 
-        const { error: itemsError } = await supabase
-          .from("purchase_items")
-          .insert(itemsToInsert);
+        if (itemsToDelete.length > 0) {
+          const { error: deleteError } = await supabase
+            .from("purchase_items")
+            .delete()
+            .in("id", itemsToDelete);
+          
+          if (deleteError) throw deleteError;
+          console.log(`Deleted ${itemsToDelete.length} items`);
+        }
 
-        if (itemsError) throw itemsError;
+        // 2. Find items to UPDATE (exists in both, but qty/price changed)
+        const itemsToUpdate = lineItems.filter(item => {
+          const original = originalItemsMap.get(item.temp_id);
+          if (!original) return false; // Not in original, so it's new
+          
+          // Check if any relevant fields changed
+          return (
+            original.qty !== item.qty ||
+            original.pur_price !== item.pur_price ||
+            original.sale_price !== item.sale_price ||
+            original.gst_per !== item.gst_per
+          );
+        });
+
+        for (const item of itemsToUpdate) {
+          const { error: updateError } = await supabase
+            .from("purchase_items")
+            .update({
+              qty: item.qty,
+              pur_price: item.pur_price,
+              sale_price: item.sale_price,
+              gst_per: item.gst_per,
+              line_total: item.line_total,
+            })
+            .eq("id", item.temp_id);
+          
+          if (updateError) throw updateError;
+        }
+        
+        if (itemsToUpdate.length > 0) {
+          console.log(`Updated ${itemsToUpdate.length} items`);
+        }
+
+        // 3. Find items to INSERT (new items not in original)
+        const itemsToInsert = lineItems
+          .filter(item => !originalItemsMap.has(item.temp_id))
+          .map(item => ({
+            bill_id: editingBillId,
+            product_id: item.product_id,
+            sku_id: item.sku_id,
+            size: item.size,
+            qty: item.qty,
+            pur_price: item.pur_price,
+            sale_price: item.sale_price,
+            gst_per: item.gst_per,
+            hsn_code: item.hsn_code || null,
+            barcode: item.barcode || null,
+            line_total: item.line_total,
+            bill_number: softwareBillNo,
+          }));
+
+        if (itemsToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from("purchase_items")
+            .insert(itemsToInsert);
+          
+          if (insertError) throw insertError;
+          console.log(`Inserted ${itemsToInsert.length} new items`);
+        }
 
         toast({
           title: "Success",
