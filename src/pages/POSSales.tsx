@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { format } from "date-fns";
 
 interface CartItem {
   id: string;
@@ -687,6 +688,42 @@ export default function POSSales() {
     setShowPrintDialog(true);
   };
 
+  const handleWhatsAppShare = () => {
+    if (!customerPhone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send WhatsApp message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before sharing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const itemsList = items.map((item, index) => 
+      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount.toFixed(2)}`
+    ).join('\n');
+
+    const message = `*Invoice Details*\n\nInvoice No: ${currentInvoiceNumber || 'NEW'}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${customerName || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${totals.mrp.toFixed(2)}\nDiscount: ₹${(totals.discount + flatDiscountAmount).toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${finalAmount.toFixed(2)}*\n\nPayment Method: ${paymentMethod.toUpperCase()}\n\nThank you for your business!`;
+
+    const phoneNumber = customerPhone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
+    
+    toast({
+      title: "Opening WhatsApp",
+      description: "WhatsApp opened with invoice details",
+    });
+  };
+
   const handlePrintInvoice = async () => {
     if (!currentSaleId) {
       toast({
@@ -1094,6 +1131,17 @@ export default function POSSales() {
           <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
           <X className="h-5 w-5" />
           <span>Clear</span>
+        </Button>
+        
+        {/* WhatsApp Share Button */}
+        <Button
+          onClick={handleWhatsAppShare}
+          disabled={items.length === 0 || !customerPhone}
+          className="h-16 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+          title="Share on WhatsApp"
+        >
+          <MessageCircle className="h-5 w-5" />
+          <span>WhatsApp</span>
         </Button>
         
         {/* Payment Method Buttons */}
