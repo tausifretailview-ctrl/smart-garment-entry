@@ -13,6 +13,10 @@ interface MinimalTemplateProps {
   items: Array<{
     sr: number;
     particulars: string;
+    brand?: string;
+    category?: string;
+    color?: string;
+    style?: string;
     size: string;
     qty: number;
     rate: number;
@@ -25,6 +29,13 @@ interface MinimalTemplateProps {
   netAmount: number;
   paymentMethod?: string;
   termsConditions?: string;
+  productDetailsSettings?: {
+    show_brand?: boolean;
+    show_category?: boolean;
+    show_color?: boolean;
+    show_style?: boolean;
+    show_hsn_code?: boolean;
+  };
 }
 
 export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
@@ -44,7 +55,16 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   netAmount,
   paymentMethod,
   termsConditions,
+  productDetailsSettings,
 }) => {
+  const formatProductDetails = (item: any) => {
+    const details: string[] = [];
+    if (productDetailsSettings?.show_brand && item.brand) details.push(item.brand);
+    if (productDetailsSettings?.show_category && item.category) details.push(item.category);
+    if (productDetailsSettings?.show_color && item.color) details.push(item.color);
+    if (productDetailsSettings?.show_style && item.style) details.push(item.style);
+    return details.length > 0 ? details.join(' | ') : '';
+  };
   return (
     <div style={{
       width: '210mm',
@@ -103,16 +123,24 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
           </tr>
         </thead>
         <tbody>
-          {items.map((item, index) => (
-            <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: '12px 0', fontSize: '10pt' }}>{item.particulars}</td>
-              <td style={{ padding: '12px 0', textAlign: 'center', fontSize: '9pt', color: '#666' }}>{item.size}</td>
-              <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt' }}>{item.qty}</td>
-              <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt' }}>₹{item.rate.toFixed(2)}</td>
-              <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt', color: '#999' }}>{item.discPercent}%</td>
-              <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '10pt', fontWeight: '400' }}>₹{item.total.toFixed(2)}</td>
-            </tr>
-          ))}
+          {items.map((item, index) => {
+            const productDetails = formatProductDetails(item);
+            return (
+              <tr key={index} style={{ borderBottom: '1px solid #eee' }}>
+                <td style={{ padding: '12px 0', fontSize: '10pt' }}>
+                  <div>{item.particulars}</div>
+                  {productDetails && (
+                    <div style={{ fontSize: '8pt', color: '#999', marginTop: '2px' }}>{productDetails}</div>
+                  )}
+                </td>
+                <td style={{ padding: '12px 0', textAlign: 'center', fontSize: '9pt', color: '#666' }}>{item.size}</td>
+                <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt' }}>{item.qty}</td>
+                <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt' }}>₹{item.rate.toFixed(2)}</td>
+                <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '9pt', color: '#999' }}>{item.discPercent}%</td>
+                <td style={{ padding: '12px 0', textAlign: 'right', fontSize: '10pt', fontWeight: '400' }}>₹{item.total.toFixed(2)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
