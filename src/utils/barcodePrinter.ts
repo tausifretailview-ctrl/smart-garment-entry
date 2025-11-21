@@ -33,10 +33,16 @@ interface LabelConfig {
 }
 
 interface PrintOptions {
-  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4';
+  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4' | 'custom';
   topOffset?: number;
   leftOffset?: number;
   labelConfig?: LabelConfig;
+  customDimensions?: {
+    width: number;
+    height: number;
+    cols: number;
+    gap: number;
+  };
 }
 
 const sheetPresets = {
@@ -102,6 +108,7 @@ export const printBarcodesDirectly = async (
     topOffset = 0,
     leftOffset = 0,
     labelConfig,
+    customDimensions,
   } = options;
 
   // Open a dedicated print window so the preview is never blank
@@ -156,7 +163,14 @@ export const printBarcodesDirectly = async (
   doc.body.appendChild(printContainer);
 
   try {
-    const dimensions = sheetPresets[sheetType];
+    const dimensions = sheetType === 'custom' && customDimensions
+      ? { 
+          cols: customDimensions.cols, 
+          width: `${customDimensions.width}mm`, 
+          height: `${customDimensions.height}mm`, 
+          gap: `${customDimensions.gap}mm` 
+        }
+      : sheetPresets[sheetType];
 
     const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';

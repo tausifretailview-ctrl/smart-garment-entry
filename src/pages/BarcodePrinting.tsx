@@ -1076,6 +1076,12 @@ export default function BarcodePrinting() {
       labelConfig: { ...labelConfig },
       topOffset,
       leftOffset,
+      customDimensions: sheetType === "custom" ? {
+        width: customWidth,
+        height: customHeight,
+        cols: customCols,
+        gap: customGap,
+      } : undefined,
     };
 
     localStorage.setItem("barcode_default_format", JSON.stringify(defaultFormat));
