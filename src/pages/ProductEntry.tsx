@@ -543,7 +543,7 @@ const ProductEntry = () => {
         });
 
         // Navigate back to product dashboard after edit
-        navigate("/product-dashboard");
+        navigate("/products");
         return;
       } else {
         // Insert new product
