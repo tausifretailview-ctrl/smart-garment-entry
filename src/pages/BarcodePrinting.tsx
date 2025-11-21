@@ -60,6 +60,13 @@ interface SearchResult {
   stock_qty: number;
 }
 
+interface RecentBill {
+  id: string;
+  software_bill_no: string;
+  supplier_name: string;
+  bill_date: string;
+}
+
 interface CustomPreset {
   name: string;
   width: number;
@@ -227,6 +234,7 @@ export default function BarcodePrinting() {
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
   const [billNumber, setBillNumber] = useState("");
+  const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [sheetType, setSheetType] = useState<SheetType>("novajet48");
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
@@ -363,6 +371,30 @@ export default function BarcodePrinting() {
     };
 
     fetchBusinessName();
+  }, []);
+
+  // Fetch recent bills
+  useEffect(() => {
+    const fetchRecentBills = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("purchase_bills")
+          .select("id, software_bill_no, supplier_name, bill_date")
+          .order("bill_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+        
+        if (data) {
+          setRecentBills(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch recent bills:", error);
+      }
+    };
+
+    fetchRecentBills();
   }, []);
 
   // Pre-fill items from purchase entry if passed via navigation state
@@ -1451,13 +1483,52 @@ export default function BarcodePrinting() {
         </div>
 
         {quantityMode === "byBill" && (
-          <div className="flex gap-2">
-            <Input
-              placeholder="Enter bill number or ID"
-              value={billNumber}
-              onChange={(e) => setBillNumber(e.target.value)}
-            />
-            <Button onClick={handleLoadByBill}>Load</Button>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select
+                  value={billNumber}
+                  onValueChange={(value) => {
+                    setBillNumber(value);
+                    // Auto-load when bill is selected from dropdown
+                    if (value) {
+                      setTimeout(() => handleLoadByBill(), 100);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder="Select recent bill..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    {recentBills.length > 0 ? (
+                      recentBills.map((bill) => (
+                        <SelectItem key={bill.id} value={bill.software_bill_no || bill.id}>
+                          <div className="flex flex-col">
+                            <span className="font-medium">{bill.software_bill_no}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {bill.supplier_name} - {new Date(bill.bill_date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-bills" disabled>
+                        No recent bills found
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Or enter bill number manually"
+                value={billNumber}
+                onChange={(e) => setBillNumber(e.target.value)}
+                className="flex-1"
+              />
+              <Button onClick={handleLoadByBill}>Load</Button>
+            </div>
           </div>
         )}
 
