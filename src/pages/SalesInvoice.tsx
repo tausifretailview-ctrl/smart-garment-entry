@@ -268,10 +268,31 @@ export default function SalesInvoice() {
   }, [taxType]);
 
   const addProductToInvoice = (product: any, variant: any) => {
+    // Check stock availability
+    if (variant.stock_qty <= 0) {
+      toast({
+        title: "Out of Stock",
+        description: "This product is currently out of stock",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if product already exists in filled rows
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
+      // Check if we can increase quantity
+      const currentQty = lineItems[existingIndex].quantity;
+      if (currentQty >= variant.stock_qty) {
+        toast({
+          title: "Insufficient Stock",
+          description: `Only ${variant.stock_qty} units available in stock`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
       // Increase quantity if already exists
       const updatedItems = [...lineItems];
       updatedItems[existingIndex].quantity += 1;
@@ -344,6 +365,24 @@ export default function SalesInvoice() {
 
   const updateQuantity = (id: string, quantity: number) => {
     if (quantity < 1) return;
+    
+    // Find the item being updated
+    const item = lineItems.find(i => i.id === id);
+    if (!item || !item.variantId) return;
+    
+    // Find the variant to check stock
+    const product = productsData?.find((p: any) => p.id === item.productId);
+    const variant = product?.product_variants?.find((v: any) => v.id === item.variantId);
+    
+    if (variant && quantity > variant.stock_qty) {
+      toast({
+        title: "Insufficient Stock",
+        description: `Only ${variant.stock_qty} units available in stock`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     const updatedItems = lineItems.map(item => 
       item.id === id ? calculateLineTotal({ ...item, quantity }) : item
     );
