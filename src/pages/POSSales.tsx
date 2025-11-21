@@ -173,62 +173,24 @@ export default function POSSales() {
   // Preview next invoice number when not editing existing sale
   useEffect(() => {
     const previewNextInvoice = async () => {
-      if (currentSaleId || !settingsData) return;
-      
-      const saleSettings = (settingsData as any)?.sale_settings;
-      let format = saleSettings?.invoice_format || 'INV/{YY-YY}/{####}';
+      if (currentSaleId || !currentOrganization?.id) return;
       
       try {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth(); // 0-11
+        // Use the database function to get the next invoice number
+        const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
+          p_organization_id: currentOrganization.id
+        });
         
-        // Calculate financial year (April to March)
-        let financialYear = '';
-        if (month >= 3) { // April (3) onwards
-          financialYear = `${year.toString().slice(2)}${(year + 1).toString().slice(2)}`;
-        } else { // Jan-March
-          financialYear = `${(year - 1).toString().slice(2)}${year.toString().slice(2)}`;
-        }
-        
-        // Replace placeholders
-        format = format.replace(/\{YY-YY\}/g, financialYear);
-        format = format.replace(/\{YYYY\}/g, year.toString());
-        format = format.replace(/\{YY\}/g, year.toString().slice(2));
-        
-        // Extract base pattern (everything before sequence numbers)
-        const basePattern = format.replace(/\{#+\}/g, '');
-        
-        const { data: lastSale } = await (supabase as any)
-          .from('sales')
-          .select('sale_number')
-          .eq('organization_id', currentOrganization?.id)
-          .like('sale_number', `${basePattern}%`)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        let sequence = 1;
-        if (lastSale?.sale_number) {
-          const matches = lastSale.sale_number.match(/(\d+)$/);
-          if (matches) {
-            sequence = parseInt(matches[1]) + 1;
-          }
-        }
-        
-        // Replace sequence placeholder with actual number
-        const sequencePadding = (format.match(/\{#+\}/) || ['####'])[0].length - 2; // Subtract { and }
-        const paddedSequence = sequence.toString().padStart(sequencePadding, '0');
-        const nextNumber = format.replace(/\{#+\}/g, paddedSequence);
-        
-        setNextInvoicePreview(nextNumber);
+        if (error) throw error;
+        setNextInvoicePreview(nextNumber || 'INV/25-26/1');
       } catch (error) {
         console.error('Error previewing next invoice:', error);
+        setNextInvoicePreview('INV/25-26/1');
       }
     };
     
     previewNextInvoice();
-  }, [currentSaleId, settingsData, currentOrganization?.id]);
+  }, [currentSaleId, currentOrganization?.id]);
 
   // Fetch today's sales
   const { data: todaysSales } = useQuery({
