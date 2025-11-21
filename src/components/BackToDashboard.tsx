@@ -2,18 +2,23 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Home } from "lucide-react";
 
-export const BackToDashboard = () => {
+interface BackToDashboardProps {
+  label?: string;
+  to?: string;
+}
+
+export const BackToDashboard = ({ label = "Back to Dashboard", to = "/" }: BackToDashboardProps) => {
   const navigate = useNavigate();
 
   return (
     <Button
       variant="outline"
       size="sm"
-      onClick={() => navigate("/")}
+      onClick={() => navigate(to)}
       className="mb-4"
     >
       <Home className="h-4 w-4 mr-2" />
-      Back to Dashboard
+      {label}
     </Button>
   );
 };
