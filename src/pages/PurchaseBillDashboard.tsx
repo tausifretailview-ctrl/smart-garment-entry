@@ -306,12 +306,14 @@ const PurchaseBillDashboard = () => {
       const storedDefaultFormat = localStorage.getItem("barcode_default_format");
       let sheetType = "a4_12x4";
       let labelConfig = undefined;
+      let customDimensions = undefined;
 
       if (storedDefaultFormat) {
         try {
           const defaultFormat = JSON.parse(storedDefaultFormat);
           sheetType = defaultFormat.sheetType || "a4_12x4";
           labelConfig = defaultFormat.labelConfig;
+          customDimensions = defaultFormat.customDimensions;
         } catch (error) {
           console.error("Failed to parse default format:", error);
         }
@@ -375,7 +377,8 @@ const PurchaseBillDashboard = () => {
       // Print barcodes directly with selected format and template config
       await printBarcodesDirectly(barcodeItems, { 
         sheetType: sheetType as any,
-        labelConfig: labelConfig
+        labelConfig: labelConfig,
+        customDimensions: customDimensions
       });
       
       toast({
