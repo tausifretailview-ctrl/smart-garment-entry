@@ -415,6 +415,8 @@ export default function BarcodePrinting() {
         sale_price: item.sale_price,
         barcode: item.barcode,
         qty: item.qty,
+        bill_number: item.bill_number || "",
+        supplier_code: item.supplier_code || "",
       }));
       setLabelItems(items);
       toast.success(`Loaded ${items.length} items from purchase bill`);
