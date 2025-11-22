@@ -31,6 +31,7 @@ interface LabelConfig {
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
+  supplierCode: LabelFieldConfig;
   fieldOrder: string[];
 }
 
@@ -71,6 +72,7 @@ const getLabelHTML = (
     barcode: { show: true, fontSize: 8, bold: false },
     barcodeText: { show: true, fontSize: 9, bold: true },
     billNumber: { show: false, fontSize: 7, bold: false },
+    supplierCode: { show: true, fontSize: 7, bold: false },
     fieldOrder: []
   };
   
@@ -82,8 +84,8 @@ const getLabelHTML = (
   }
   
   // Supplier Code
-  if (item.supplier_code) {
-    html += `<div style="font-size: 7px; font-weight: normal; margin-bottom: 1mm; text-align: center; color: #666;">Supplier: ${item.supplier_code}</div>`;
+  if (config.supplierCode.show && item.supplier_code) {
+    html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: center; color: #666;">Supplier: ${item.supplier_code}</div>`;
   }
   
   if (config.productName.show) {
