@@ -46,6 +46,7 @@ interface LabelItem {
   barcode: string;
   bill_number: string;
   qty: number;
+  supplier_code?: string;
 }
 
 interface SearchResult {

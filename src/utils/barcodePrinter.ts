@@ -12,6 +12,7 @@ interface BarcodeItem {
   qty: number;
   bill_number?: string;
   business_name?: string;
+  supplier_code?: string;
 }
 
 interface LabelFieldConfig {
@@ -78,6 +79,11 @@ const getLabelHTML = (
   // Add business name at the top if provided
   if (item.business_name) {
     html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: center;">${item.business_name}</div>`;
+  }
+  
+  // Supplier Code
+  if (item.supplier_code) {
+    html += `<div style="font-size: 7px; font-weight: normal; margin-bottom: 1mm; text-align: center; color: #666;">Supplier: ${item.supplier_code}</div>`;
   }
   
   if (config.productName.show) {
