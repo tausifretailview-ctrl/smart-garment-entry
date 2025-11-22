@@ -23,7 +23,7 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edi
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 
 interface SaleItem {
   id: string;
@@ -317,9 +317,10 @@ const POSDashboard = () => {
         cardPaid: sale.payment_method === 'card' ? sale.net_amount : 0,
         declarationText: saleSettings?.declaration_text,
         termsList: saleSettings?.terms_list,
+        upiId: (settings?.bill_barcode_settings as any)?.upi_id,
       };
 
-      await printInvoiceDirectly(invoiceData);
+      await printA5BillFormat(invoiceData);
       
       toast({
         title: "Printing Invoice",

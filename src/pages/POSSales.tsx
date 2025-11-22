@@ -43,7 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InvoicePrint } from "@/components/InvoicePrint";
-import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 
 interface CartItem {
@@ -614,28 +614,30 @@ export default function POSSales() {
       const cardPaid = savedInvoiceData.method === 'card' ? savedInvoiceData.finalAmount : 0;
       const cashPaid = savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0;
       const upiPaid = savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0;
+      
+      const invoiceItems = savedInvoiceData.items.map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.productName,
+        size: item.size,
+        barcode: item.barcode,
+        hsn: '',
+        sp: item.mrp,
+        qty: item.quantity,
+        rate: item.unitCost,
+        total: item.netAmount
+      }));
 
       const invoiceData = {
         billNo: savedInvoiceData.invoiceNumber,
-        date: new Date(),
+        date: new Date(savedInvoiceData.date || new Date()),
         customerName: savedInvoiceData.customerName,
         customerAddress: "",
-        customerMobile: savedInvoiceData.customerPhone,
-        items: savedInvoiceData.items.map((item: any, index: number) => ({
-          sr: index + 1,
-          particulars: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          hsn: "",
-          sp: item.mrp,
-          qty: item.quantity,
-          rate: item.unitCost,
-          total: item.netAmount,
-        })),
-        subTotal: savedInvoiceData.totals.subtotal,
-        discount: savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount,
-        grandTotal: savedInvoiceData.finalAmount,
-        tenderAmount: savedInvoiceData.finalAmount,
+        customerMobile: savedInvoiceData.customerPhone || "",
+        items: invoiceItems,
+        subTotal: savedInvoiceData.grossAmount,
+        discount: savedInvoiceData.discountAmount,
+        grandTotal: savedInvoiceData.netAmount,
+        tenderAmount: 0,
         cashPaid: cashPaid,
         refundCash: 0,
         upiPaid: upiPaid,
@@ -651,9 +653,10 @@ export default function POSSales() {
         cardPaid: cardPaid,
         declarationText: saleSettings?.declaration_text,
         termsList: saleSettings?.terms_list,
+        upiId: (settings?.bill_barcode_settings as any)?.upi_id,
       };
 
-      await printInvoiceDirectly(invoiceData);
+      await printA5BillFormat(invoiceData);
       
       toast({
         title: "Printing Invoice",
