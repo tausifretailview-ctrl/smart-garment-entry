@@ -178,12 +178,12 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")}>
-                              <NavLink to="/purchase-return-entry" className="flex items-center gap-3">
-                                <Plus className="h-4 w-4" />
-                                <span>New Return</span>
-                              </NavLink>
-                            </SidebarMenuSubButton>
+                          <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")}>
+                            <NavLink to="/purchase-return-entry" className="flex items-center gap-3">
+                              <Plus className="h-4 w-4" />
+                              <span>Purchase Return</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-entry")}>
