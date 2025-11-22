@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -9,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, DollarSign, TrendingDown, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, DollarSign, TrendingDown, Plus, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
 
 interface PurchaseReturnItem {
   id: string;
@@ -19,6 +21,7 @@ interface PurchaseReturnItem {
   size: string;
   qty: number;
   pur_price: number;
+  gst_per: number;
   line_total: number;
   barcode?: string;
   product_name?: string;
@@ -53,6 +56,9 @@ const PurchaseReturnDashboard = () => {
   const [returnToDelete, setReturnToDelete] = useState<PurchaseReturn | null>(null);
   const [selectedReturns, setSelectedReturns] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [returnToPrint, setReturnToPrint] = useState<PurchaseReturn | null>(null);
+  const [businessDetails, setBusinessDetails] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,8 +67,25 @@ const PurchaseReturnDashboard = () => {
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchReturns();
+      fetchBusinessDetails();
     }
   }, [currentOrganization]);
+
+  const fetchBusinessDetails = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("business_name, address, mobile_number, gst_number")
+        .eq("organization_id", currentOrganization.id)
+        .single();
+
+      if (error) throw error;
+      setBusinessDetails(data);
+    } catch (error) {
+      console.error("Error fetching business details:", error);
+    }
+  };
 
   const fetchReturns = async () => {
     if (!currentOrganization?.id) return;
@@ -217,6 +240,25 @@ const PurchaseReturnDashboard = () => {
       });
     } finally {
       setBulkDeleteDialogOpen(false);
+    }
+  };
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Purchase_Return_${returnToPrint?.original_bill_number || returnToPrint?.id}`,
+  });
+
+  const handlePrintClick = async (returnRecord: PurchaseReturn) => {
+    if (!returnRecord.items) {
+      await fetchReturnItems(returnRecord.id);
+      const updatedReturn = returns.find(r => r.id === returnRecord.id);
+      if (updatedReturn?.items) {
+        setReturnToPrint(updatedReturn);
+        setTimeout(() => handlePrint(), 100);
+      }
+    } else {
+      setReturnToPrint(returnRecord);
+      setTimeout(() => handlePrint(), 100);
     }
   };
 
@@ -445,6 +487,14 @@ const PurchaseReturnDashboard = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => handlePrintClick(returnRecord)}
+                              title="Print Return Receipt"
+                            >
+                              <Printer className="h-4 w-4 text-primary" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => toggleExpanded(returnRecord.id)}
                             >
                               {expandedReturns.has(returnRecord.id) ? (
@@ -596,6 +646,18 @@ const PurchaseReturnDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hidden Print Component */}
+      <div className="hidden">
+        {returnToPrint && (
+          <PurchaseReturnPrint
+            ref={printRef}
+            returnData={returnToPrint}
+            items={returnToPrint.items || []}
+            businessDetails={businessDetails}
+          />
+        )}
+      </div>
     </div>
   );
 };
