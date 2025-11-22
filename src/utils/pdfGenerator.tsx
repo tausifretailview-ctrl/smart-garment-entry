@@ -605,6 +605,7 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
   try {
     // Import A5BillFormat component
     const { A5BillFormat } = await import('@/components/A5BillFormat');
+    const { createRoot } = await import('react-dom/client');
     
     // Transform InvoiceData to BillData
     const billData = {
@@ -635,21 +636,110 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
     };
     
     // Render A5BillFormat component into container
-    const { createRoot } = await import('react-dom/client');
     root = createRoot(container);
     root.render(<A5BillFormat data={billData} />);
     
     // Wait for rendering and QR code generation
-    await new Promise(resolve => setTimeout(resolve, 800));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Open print dialog
-    window.print();
+    // Use html2canvas to capture the rendered component
+    const canvas = await html2canvas(container.firstChild as HTMLElement, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff',
+      width: 559, // 148mm in pixels at 96 DPI
+      height: 794  // 210mm in pixels at 96 DPI
+    });
+    
+    // Convert canvas to image
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Create print window with A5 content positioned at top-left of A4
+    const printWindow = window.open('', '_blank');
+    
+    if (!printWindow) {
+      console.error('Failed to open print window - popup may be blocked');
+      if (root) root.unmount();
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+      return;
+    }
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Invoice ${data.billNo}</title>
+          <style>
+            @media print {
+              @page {
+                size: A4 portrait;
+                margin: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              .print-container {
+                width: 148mm;
+                height: 210mm;
+                position: absolute;
+                top: 0;
+                left: 0;
+                overflow: hidden;
+              }
+              .print-container img {
+                width: 148mm;
+                height: auto;
+                display: block;
+              }
+            }
+            body {
+              margin: 0;
+              padding: 0;
+            }
+            .print-container {
+              width: 148mm;
+              margin: 0;
+              padding: 0;
+            }
+            .print-container img {
+              width: 100%;
+              height: auto;
+              display: block;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-container">
+            <img src="${imgData}" alt="Invoice" />
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                setTimeout(function() {
+                  window.close();
+                }, 500);
+              }, 250);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
     
     // Cleanup
-    if (root) root.unmount();
-    if (container.parentNode) {
-      document.body.removeChild(container);
-    }
+    setTimeout(() => {
+      if (root) root.unmount();
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+    }, 1000);
+    
   } catch (error) {
     console.error('Error printing A5 bill:', error);
     // Safe cleanup
