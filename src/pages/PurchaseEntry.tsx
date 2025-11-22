@@ -844,15 +844,6 @@ const PurchaseEntry = () => {
     }
 
     try {
-      // Fetch settings for business name
-      const { data: settingsData } = await supabase
-        .from("settings")
-        .select("business_name")
-        .eq("organization_id", currentOrganization?.id)
-        .single();
-
-      const businessName = settingsData?.business_name || "";
-
       // Fetch supplier code
       let supplierCode = "";
       if (billData.supplier_id) {
@@ -865,41 +856,31 @@ const PurchaseEntry = () => {
         supplierCode = supplierData?.supplier_code || "";
       }
 
-      // Fetch full product details for barcode printing
-      const itemsWithDetails = await Promise.all(
-        lineItems.map(async (item) => {
-          const { data: product } = await supabase
-            .from("products")
-            .select("brand, color, style")
-            .eq("id", item.product_id)
-            .single();
-          
-          return {
-            sku_id: item.sku_id,
-            product_name: item.product_name,
-            brand: product?.brand || "",
-            color: product?.color || "",
-            style: product?.style || "",
-            size: item.size,
-            sale_price: item.sale_price,
-            barcode: item.barcode,
-            qty: item.qty,
-            bill_number: softwareBillNo,
-            business_name: businessName,
-            supplier_code: supplierCode,
-          };
-        })
-      );
+      // Format items for barcode printing page
+      const barcodeItems = lineItems.map((item) => ({
+        sku_id: item.sku_id,
+        product_name: item.product_name || "",
+        brand: item.brand || "",
+        category: item.category || "",
+        color: item.color || "",
+        style: item.style || "",
+        size: item.size,
+        sale_price: item.sale_price,
+        barcode: item.barcode,
+        qty: item.qty,
+        bill_number: softwareBillNo || "",
+        supplier_code: supplierCode,
+      }));
 
-      // Trigger direct print
-      await printBarcodesDirectly(itemsWithDetails, {
-        sheetType: 'a4_12x4',
+      // Navigate to barcode printing page with items
+      navigate("/barcode-printing", { 
+        state: { purchaseItems: barcodeItems } 
       });
     } catch (error) {
-      console.error("Print error:", error);
+      console.error("Error preparing barcode data:", error);
       toast({
-        title: "Print Error",
-        description: "Failed to print barcodes",
+        title: "Error",
+        description: "Failed to prepare barcode data",
         variant: "destructive",
       });
     }
@@ -1428,31 +1409,45 @@ const PurchaseEntry = () => {
                 <Button
                   onClick={async () => {
                     try {
-                      // Transform items to BarcodeItem format
+                      // Fetch supplier code
+                      let supplierCode = "";
+                      if (billData.supplier_id) {
+                        const { data: supplierData } = await supabase
+                          .from("suppliers")
+                          .select("supplier_code")
+                          .eq("id", billData.supplier_id)
+                          .single();
+                        
+                        supplierCode = supplierData?.supplier_code || "";
+                      }
+
+                      // Transform items to barcode format
                       const barcodeItems = savedPurchaseItems.map(item => ({
                         sku_id: item.sku_id,
-                        product_name: item.product_name,
+                        product_name: item.product_name || "",
                         brand: item.brand || "",
+                        category: item.category || "",
                         color: item.color || "",
                         style: item.style || "",
                         size: item.size,
                         sale_price: item.sale_price,
                         barcode: item.barcode,
                         qty: item.qty,
-                        bill_number: softwareBillNo,
+                        bill_number: softwareBillNo || "",
+                        supplier_code: supplierCode,
                       }));
 
-                      // Trigger direct print
-                      await printBarcodesDirectly(barcodeItems, {
-                        sheetType: 'a4_12x4',
-                      });
-
                       setShowPrintDialog(false);
+
+                      // Navigate to barcode printing page
+                      navigate("/barcode-printing", { 
+                        state: { purchaseItems: barcodeItems } 
+                      });
                     } catch (error) {
-                      console.error("Print error:", error);
+                      console.error("Error preparing barcode data:", error);
                       toast({
-                        title: "Print Error",
-                        description: "Failed to print barcodes",
+                        title: "Error",
+                        description: "Failed to prepare barcode data",
                         variant: "destructive",
                       });
                     }
