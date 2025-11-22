@@ -39,6 +39,7 @@ interface LabelItem {
   sku_id: string;
   product_name: string;
   brand: string;
+  category: string;
   color: string;
   style: string;
   size: string;
@@ -53,6 +54,7 @@ interface SearchResult {
   id: string;
   product_name: string;
   brand: string;
+  category: string;
   color: string;
   style: string;
   size: string;
@@ -409,6 +411,7 @@ export default function BarcodePrinting() {
         sku_id: item.sku_id,
         product_name: item.product_name,
         brand: item.brand || "",
+        category: item.category || "",
         color: item.color || "",
         style: item.style || "",
         size: item.size,
@@ -482,6 +485,7 @@ export default function BarcodePrinting() {
           id: v.id,
           product_name: v.products?.product_name || "",
           brand: v.products?.brand || "",
+          category: v.products?.category || "",
           color: v.products?.color || "",
           style: v.products?.style || "",
           size: v.size,
@@ -519,6 +523,7 @@ export default function BarcodePrinting() {
       sku_id: result.id,
       product_name: result.product_name,
       brand: result.brand,
+      category: result.category,
       color: result.color,
       style: result.style,
       size: result.size,
@@ -714,6 +719,7 @@ export default function BarcodePrinting() {
         variantMap.set(variant.id, {
           product_name: variant.products?.product_name || "",
           brand: variant.products?.brand || "",
+          category: variant.products?.category || "",
           color: variant.products?.color || "",
           style: variant.products?.style || "",
           size: variant.size,
@@ -731,6 +737,7 @@ export default function BarcodePrinting() {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
             brand: variantInfo.brand,
+            category: variantInfo.category,
             color: variantInfo.color,
             style: variantInfo.style,
             size: item.size || variantInfo.size,
@@ -1574,6 +1581,7 @@ export default function BarcodePrinting() {
                 <TableHead>Size</TableHead>
                 <TableHead>MRP</TableHead>
                 <TableHead>Barcode</TableHead>
+                <TableHead>Supplier Code</TableHead>
                 <TableHead>Label Qty</TableHead>
               </TableRow>
             </TableHeader>
@@ -1588,6 +1596,7 @@ export default function BarcodePrinting() {
                   <TableCell>{item.size}</TableCell>
                   <TableCell>₹{item.sale_price}</TableCell>
                   <TableCell className="font-mono text-xs">{item.barcode || "(auto-gen)"}</TableCell>
+                  <TableCell>{item.supplier_code || "-"}</TableCell>
                   <TableCell>
                     <Input
                       type="number"
