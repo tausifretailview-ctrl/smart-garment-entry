@@ -41,6 +41,7 @@ interface InvoiceData {
   cardPaid?: number;
   declarationText?: string;
   termsList?: string[];
+  upiId?: string;
 }
 
 export const generateInvoicePDF = async (data: InvoiceData) => {
@@ -572,6 +573,85 @@ export const printInvoiceDirectly = async (data: InvoiceData): Promise<void> => 
     }, 1000);
   } catch (error) {
     console.error('Error printing invoice:', error);
+    // Safe cleanup
+    try {
+      if (root) root.unmount();
+    } catch (e) {
+      console.error('Error unmounting root:', e);
+    }
+    try {
+      if (container.parentNode) {
+        document.body.removeChild(container);
+      }
+    } catch (e) {
+      console.error('Error removing container:', e);
+    }
+    throw error;
+  }
+};
+
+export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
+  console.log('Starting A5 Bill Print...');
+  
+  // Create temporary container div
+  const container = document.createElement('div');
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  document.body.appendChild(container);
+  
+  let root;
+  
+  try {
+    // Import A5BillFormat component
+    const { A5BillFormat } = await import('@/components/A5BillFormat');
+    
+    // Transform InvoiceData to BillData
+    const billData = {
+      invoiceNo: data.billNo,
+      date: data.date.toLocaleDateString('en-GB'),
+      customerName: data.customerName,
+      customerPhone: data.customerMobile,
+      items: data.items.map(item => ({
+        name: item.particulars,
+        variant: item.size,
+        barcode: item.barcode,
+        quantity: item.qty,
+        price: item.rate,
+        total: item.total
+      })),
+      subtotal: data.subTotal,
+      tax: 0,
+      discount: data.discount,
+      grandTotal: data.grandTotal,
+      organization: {
+        name: data.businessName || 'BUSINESS NAME',
+        address: data.businessAddress || '',
+        phone: data.businessContact || '',
+        email: data.businessEmail,
+        upiId: data.upiId,
+        terms: data.declarationText
+      }
+    };
+    
+    // Render A5BillFormat component into container
+    const { createRoot } = await import('react-dom/client');
+    root = createRoot(container);
+    root.render(<A5BillFormat data={billData} />);
+    
+    // Wait for rendering and QR code generation
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // Open print dialog
+    window.print();
+    
+    // Cleanup
+    if (root) root.unmount();
+    if (container.parentNode) {
+      document.body.removeChild(container);
+    }
+  } catch (error) {
+    console.error('Error printing A5 bill:', error);
     // Safe cleanup
     try {
       if (root) root.unmount();
