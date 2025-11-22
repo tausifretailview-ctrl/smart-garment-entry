@@ -4,6 +4,7 @@ interface BarcodeItem {
   sku_id: string;
   product_name: string;
   brand: string;
+  category?: string;
   color: string;
   style: string;
   size: string;
@@ -88,14 +89,17 @@ const getLabelHTML = (
     html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: center; color: #666;">Supplier: ${item.supplier_code}</div>`;
   }
   
+  // Product Description: ProductName - Category - Brand - Style - Color - Size
   if (config.productName.show) {
-    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">${item.product_name} (${item.size})</div>`;
-  }
-  if (config.color.show && item.color) {
-    html += `<div class="color" style="font-size: ${config.color.fontSize}px; font-weight: ${config.color.bold ? 'bold' : 'normal'}; margin-bottom: 1.5mm;">Color: ${item.color}</div>`;
-  }
-  if (config.style.show && item.style) {
-    html += `<div class="style" style="font-size: ${config.style.fontSize}px; font-weight: ${config.style.bold ? 'bold' : 'normal'}; margin-bottom: 1.5mm;">Style: ${item.style}</div>`;
+    const descParts = [item.product_name];
+    if (item.category) descParts.push(item.category);
+    if (item.brand) descParts.push(item.brand);
+    if (item.style) descParts.push(item.style);
+    if (item.color) descParts.push(item.color);
+    descParts.push(item.size);
+    
+    const productDesc = descParts.join(' - ');
+    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">${productDesc}</div>`;
   }
   if (config.price.show) {
     html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;

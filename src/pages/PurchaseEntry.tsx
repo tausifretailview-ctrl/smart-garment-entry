@@ -32,6 +32,8 @@ interface ProductVariant {
   product_name: string;
   brand: string;
   category: string;
+  color: string;
+  style: string;
   gst_per: number;
   hsn_code: string;
 }
@@ -51,6 +53,7 @@ interface LineItem {
   discount: number; // discount in rupees
   line_total: number; // total before GST
   brand?: string;
+  category?: string;
   color?: string;
   style?: string;
 }
@@ -251,6 +254,8 @@ const PurchaseEntry = () => {
           product_name: product.product_name,
           brand: product.brand || '',
           category: product.category || '',
+          color: product.color || '',
+          style: product.style || '',
           gst_per: product.gst_per,
           hsn_code: product.hsn_code || '',
         });
@@ -340,6 +345,7 @@ const PurchaseEntry = () => {
             id,
             product_name,
             brand,
+            category,
             style,
             color,
             hsn_code,
@@ -371,6 +377,8 @@ const PurchaseEntry = () => {
         product_name: v.products?.product_name || "",
         brand: v.products?.brand || "",
         category: v.products?.category || "",
+        color: v.products?.color || "",
+        style: v.products?.style || "",
         gst_per: v.products?.gst_per || 0,
         hsn_code: v.products?.hsn_code || "",
       }));
@@ -411,6 +419,9 @@ const PurchaseEntry = () => {
           id,
           product_name,
           brand,
+          category,
+          color,
+          style,
           hsn_code,
           gst_per,
           default_pur_price,
@@ -461,6 +472,10 @@ const PurchaseEntry = () => {
         hsn_code: product.hsn_code || "",
         barcode: barcode,
         discount: 0,
+        brand: product.brand || "",
+        category: product.category || "",
+        color: product.color || "",
+        style: product.style || "",
       });
       return;
     }
@@ -489,6 +504,10 @@ const PurchaseEntry = () => {
       barcode: variant.barcode,
       discount: 0,
       line_total: lineTotal,
+      brand: variant.brand || "",
+      category: variant.category || "",
+      color: variant.color || "",
+      style: variant.style || "",
     };
     setLineItems([...lineItems, newItem]);
   };
@@ -668,6 +687,10 @@ const PurchaseEntry = () => {
             barcode: item.barcode || null,
             line_total: item.line_total,
             bill_number: softwareBillNo,
+            brand: item.brand || null,
+            category: item.category || null,
+            color: item.color || null,
+            style: item.style || null,
           }));
 
         if (itemsToInsert.length > 0) {
@@ -722,6 +745,10 @@ const PurchaseEntry = () => {
           barcode: item.barcode,
           line_total: item.line_total,
           bill_number: softwareBillNo,
+          brand: item.brand || null,
+          category: item.category || null,
+          color: item.color || null,
+          style: item.style || null,
         }));
 
         const { error: itemsError } = await supabase
