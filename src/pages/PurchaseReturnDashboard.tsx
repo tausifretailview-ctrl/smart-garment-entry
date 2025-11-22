@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, DollarSign, TrendingDown } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, DollarSign, TrendingDown, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,6 +41,7 @@ interface PurchaseReturn {
 
 const PurchaseReturnDashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);
@@ -267,6 +269,10 @@ const PurchaseReturnDashboard = () => {
             View and manage all purchase return records
           </p>
         </div>
+        <Button onClick={() => navigate("/purchase-return-entry")}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create New Return
+        </Button>
       </div>
 
       {/* Summary Cards */}

@@ -17,6 +17,7 @@ import ProductEntry from "./pages/ProductEntry";
 import PurchaseEntry from "./pages/PurchaseEntry";
 import PurchaseBillDashboard from "./pages/PurchaseBillDashboard";
 import PurchaseReturnDashboard from "./pages/PurchaseReturnDashboard";
+import PurchaseReturnEntry from "./pages/PurchaseReturnEntry";
 import BarcodePrinting from "./pages/BarcodePrinting";
 import StockReport from "./pages/StockReport";
 import Settings from "./pages/Settings";
@@ -141,6 +142,18 @@ const App = () => {
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                     <Layout>
                       <PurchaseReturnDashboard />
+                    </Layout>
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/purchase-return-entry"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <Layout>
+                      <PurchaseReturnEntry />
                     </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
