@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   FileText,
   TrendingUp,
+  TrendingDown,
   BarChart3,
   Settings,
   User,
@@ -46,7 +47,7 @@ export function AppSidebar() {
 
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
-  const inventoryPaths = ["/purchase-bills", "/purchase-entry", "/product-entry", "/products"];
+  const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard"];
   const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
@@ -164,6 +165,14 @@ export function AppSidebar() {
                               <NavLink to="/purchase-bills" className="flex items-center gap-3">
                                 <FileText className="h-4 w-4" />
                                 <span>Purchase Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/purchase-returns")}>
+                              <NavLink to="/purchase-returns" className="flex items-center gap-3">
+                                <TrendingDown className="h-4 w-4" />
+                                <span>Purchase Returns</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
