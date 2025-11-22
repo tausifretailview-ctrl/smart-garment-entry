@@ -65,6 +65,24 @@ interface SizeQuantity {
   barcode: string;
 }
 
+// Helper function to format product description
+const formatProductDescription = (item: {
+  product_name: string;
+  category?: string;
+  brand?: string;
+  style?: string;
+  color?: string;
+  size: string;
+}) => {
+  const parts = [item.product_name];
+  if (item.category) parts.push(item.category);
+  if (item.brand) parts.push(item.brand);
+  if (item.style) parts.push(item.style);
+  if (item.color) parts.push(item.color);
+  parts.push(item.size);
+  return parts.join(' - ');
+};
+
 const PurchaseEntry = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -1046,10 +1064,15 @@ const PurchaseEntry = () => {
                           onClick={() => handleProductSelect(result)}
                           className="w-full text-left px-4 py-3 hover:bg-accent border-b border-border last:border-0"
                         >
-                          <div className="font-medium">{result.product_name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {result.brand}
-                            {result.size && ` | Size: ${result.size}`}
+                          <div className="font-medium">
+                            {formatProductDescription({
+                              product_name: result.product_name,
+                              category: result.category,
+                              brand: result.brand,
+                              style: result.style,
+                              color: result.color,
+                              size: result.size
+                            })}
                           </div>
                           {result.barcode && (
                             <div className="text-xs text-muted-foreground">
@@ -1094,7 +1117,7 @@ const PurchaseEntry = () => {
                         <TableRow key={item.temp_id}>
                           <TableCell className="text-center font-medium">{index + 1}</TableCell>
                           <TableCell className="font-medium">
-                            {item.product_name} - {item.size}
+                            {formatProductDescription(item)}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="font-mono text-xs">
@@ -1361,6 +1384,10 @@ const PurchaseEntry = () => {
                           hsn_code: selectedProduct.hsn_code,
                           barcode: barcode,
                           discount: 0,
+                          brand: selectedProduct.brand || "",
+                          category: selectedProduct.category || "",
+                          color: selectedProduct.color || "",
+                          style: selectedProduct.style || "",
                         });
                       }
                     }
