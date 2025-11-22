@@ -106,16 +106,22 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         .meta-col { display: flex; flex-direction: column; gap: 3px; }
         .label { font-weight: 600; color: #666; margin-right: 4px; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: auto; }
+        table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          font-size: 9pt; 
+          margin-bottom: auto; 
+          border: 1px solid #000;
+        }
         thead th { 
-          border-top: 2px solid #000; 
-          border-bottom: 2px solid #000; 
+          border: 1px solid #000; 
           text-align: left; 
           padding: 6px 4px; 
           font-weight: 700;
+          background: #f5f5f5;
         }
         tbody td { 
-          border-bottom: 1px dotted #ccc; 
+          border: 1px solid #000; 
           padding: 6px 4px; 
           vertical-align: top; 
         }
