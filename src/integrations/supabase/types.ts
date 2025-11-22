@@ -642,6 +642,119 @@ export type Database = {
           },
         ]
       }
+      purchase_return_items: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          gst_per: number
+          hsn_code: string | null
+          id: string
+          line_total: number
+          product_id: string
+          pur_price: number
+          qty: number
+          return_id: string
+          size: string
+          sku_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          gst_per: number
+          hsn_code?: string | null
+          id?: string
+          line_total: number
+          product_id: string
+          pur_price: number
+          qty: number
+          return_id: string
+          size: string
+          sku_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          gst_per?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          product_id?: string
+          pur_price?: number
+          qty?: number
+          return_id?: string
+          size?: string
+          sku_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_returns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_return_items_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_returns: {
+        Row: {
+          created_at: string
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          organization_id: string
+          original_bill_number: string | null
+          return_date: string
+          supplier_id: string | null
+          supplier_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id: string
+          original_bill_number?: string | null
+          return_date?: string
+          supplier_id?: string | null
+          supplier_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id?: string
+          original_bill_number?: string | null
+          return_date?: string
+          supplier_id?: string | null
+          supplier_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_returns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_items: {
         Row: {
           barcode: string | null
