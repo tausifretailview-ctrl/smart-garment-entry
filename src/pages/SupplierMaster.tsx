@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -34,6 +35,7 @@ interface Supplier {
   email: string | null;
   address: string | null;
   gst_number: string | null;
+  supplier_code: string | null;
   created_at: string;
 }
 
@@ -48,6 +50,7 @@ const SupplierMaster = () => {
     email: "",
     address: "",
     gst_number: "",
+    supplier_code: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -137,6 +140,7 @@ const SupplierMaster = () => {
       email: "",
       address: "",
       gst_number: "",
+      supplier_code: "",
     });
     setEditingSupplier(null);
   };
@@ -159,6 +163,7 @@ const SupplierMaster = () => {
       email: supplier.email || "",
       address: supplier.address || "",
       gst_number: supplier.gst_number || "",
+      supplier_code: supplier.supplier_code || "",
     });
     setIsDialogOpen(true);
   };
@@ -172,7 +177,8 @@ const SupplierMaster = () => {
   const filteredSuppliers = suppliers.filter((supplier) =>
     supplier.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     supplier.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.phone?.toLowerCase().includes(searchQuery.toLowerCase())
+    supplier.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    supplier.supplier_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -246,6 +252,18 @@ const SupplierMaster = () => {
                   onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="supplier_code">Supplier Code</Label>
+                <Input
+                  id="supplier_code"
+                  value={formData.supplier_code}
+                  onChange={(e) => setFormData({ ...formData, supplier_code: e.target.value })}
+                  placeholder="Enter supplier code (optional)"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This code will be displayed on barcode labels to identify the supplier
+                </p>
+              </div>
               <Button type="submit" className="w-full">
                 {editingSupplier ? "Update" : "Create"} Supplier
               </Button>
@@ -273,6 +291,7 @@ const SupplierMaster = () => {
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>GST Number</TableHead>
+              <TableHead>Supplier Code</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -293,6 +312,13 @@ const SupplierMaster = () => {
                   <TableCell>{supplier.phone || "-"}</TableCell>
                   <TableCell>{supplier.email || "-"}</TableCell>
                   <TableCell>{supplier.gst_number || "-"}</TableCell>
+                  <TableCell>
+                    {supplier.supplier_code ? (
+                      <Badge variant="secondary">{supplier.supplier_code}</Badge>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"

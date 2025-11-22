@@ -301,6 +301,24 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
+      // Fetch bill details including supplier
+      const { data: billData, error: billError } = await supabase
+        .from("purchase_bills")
+        .select(`
+          id,
+          software_bill_no,
+          supplier_id,
+          suppliers!supplier_id (
+            supplier_code
+          )
+        `)
+        .eq("id", billId)
+        .single();
+
+      if (billError) throw billError;
+
+      const supplierCode = (billData?.suppliers as any)?.supplier_code || "";
+
       // Fetch bill items with product details
       const { data: items, error } = await supabase
         .from("purchase_items")
@@ -338,6 +356,7 @@ const PurchaseBillDashboard = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: item.bill_number || "",
+        supplier_code: supplierCode,
       }));
 
       // Navigate to barcode printing page with items

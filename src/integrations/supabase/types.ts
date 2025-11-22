@@ -1168,6 +1168,7 @@ export type Database = {
           id: string
           organization_id: string | null
           phone: string | null
+          supplier_code: string | null
           supplier_name: string
           updated_at: string | null
         }
@@ -1180,6 +1181,7 @@ export type Database = {
           id?: string
           organization_id?: string | null
           phone?: string | null
+          supplier_code?: string | null
           supplier_name: string
           updated_at?: string | null
         }
@@ -1192,6 +1194,7 @@ export type Database = {
           id?: string
           organization_id?: string | null
           phone?: string | null
+          supplier_code?: string | null
           supplier_name?: string
           updated_at?: string | null
         }

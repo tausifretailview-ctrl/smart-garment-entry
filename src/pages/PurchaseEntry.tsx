@@ -797,6 +797,27 @@ const PurchaseEntry = () => {
     }
 
     try {
+      // Fetch settings for business name
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("business_name")
+        .eq("organization_id", currentOrganization?.id)
+        .single();
+
+      const businessName = settingsData?.business_name || "";
+
+      // Fetch supplier code
+      let supplierCode = "";
+      if (billData.supplier_id) {
+        const { data: supplierData } = await supabase
+          .from("suppliers")
+          .select("supplier_code")
+          .eq("id", billData.supplier_id)
+          .single();
+        
+        supplierCode = supplierData?.supplier_code || "";
+      }
+
       // Fetch full product details for barcode printing
       const itemsWithDetails = await Promise.all(
         lineItems.map(async (item) => {
@@ -817,6 +838,8 @@ const PurchaseEntry = () => {
             barcode: item.barcode,
             qty: item.qty,
             bill_number: softwareBillNo,
+            business_name: businessName,
+            supplier_code: supplierCode,
           };
         })
       );
