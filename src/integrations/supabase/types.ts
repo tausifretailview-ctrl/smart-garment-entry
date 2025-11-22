@@ -580,6 +580,7 @@ export type Database = {
           id: string
           line_total: number
           product_id: string
+          product_name: string | null
           pur_price: number
           qty: number
           sale_price: number
@@ -601,6 +602,7 @@ export type Database = {
           id?: string
           line_total?: number
           product_id: string
+          product_name?: string | null
           pur_price?: number
           qty?: number
           sale_price?: number
@@ -622,6 +624,7 @@ export type Database = {
           id?: string
           line_total?: number
           product_id?: string
+          product_name?: string | null
           pur_price?: number
           qty?: number
           sale_price?: number
