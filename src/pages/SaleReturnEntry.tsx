@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { Trash2, Search, Plus } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -30,6 +31,7 @@ interface Product {
 
 interface Variant {
   id: string;
+  product_id: string;
   size: string;
   sale_price: number;
   stock_qty: number;
@@ -65,8 +67,10 @@ export default function SaleReturnEntry() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [returnItems, setReturnItems] = useState<ReturnItem[]>([]);
+  const [barcodeInput, setBarcodeInput] = useState<string>("");
   
   const [saving, setSaving] = useState(false);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (currentOrganization) {
@@ -90,9 +94,50 @@ export default function SaleReturnEntry() {
   };
 
   const fetchProducts = async () => {
+    // Step 1: Get sold items to filter only products that have been sold
+    const { data: salesData, error: salesError } = await supabase
+      .from("sales")
+      .select("id")
+      .eq("organization_id", currentOrganization?.id);
+
+    if (salesError) {
+      toast({ title: "Error", description: "Failed to load sales data", variant: "destructive" });
+      return;
+    }
+
+    const saleIds = salesData?.map(s => s.id) || [];
+    
+    if (saleIds.length === 0) {
+      setProducts([]);
+      setVariants([]);
+      return;
+    }
+
+    const { data: soldItems, error: soldError } = await supabase
+      .from("sale_items")
+      .select("product_id, variant_id")
+      .in("sale_id", saleIds);
+
+    if (soldError) {
+      toast({ title: "Error", description: "Failed to load sold products", variant: "destructive" });
+      return;
+    }
+
+    // Get unique product and variant IDs
+    const uniqueProductIds = [...new Set(soldItems?.map(s => s.product_id))];
+    const uniqueVariantIds = [...new Set(soldItems?.map(s => s.variant_id))];
+
+    if (uniqueProductIds.length === 0) {
+      setProducts([]);
+      setVariants([]);
+      return;
+    }
+
+    // Step 2: Fetch product details for sold products only
     const { data: productsData, error: productsError } = await supabase
       .from("products")
       .select("id, product_name, brand, category")
+      .in("id", uniqueProductIds)
       .eq("organization_id", currentOrganization?.id)
       .eq("status", "active");
 
@@ -101,10 +146,11 @@ export default function SaleReturnEntry() {
       return;
     }
 
+    // Step 3: Fetch variants for sold products
     const { data: variantsData, error: variantsError } = await supabase
       .from("product_variants")
       .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
-      .in("product_id", productsData?.map((p) => p.id) || [])
+      .in("id", uniqueVariantIds)
       .eq("active", true);
 
     if (variantsError) {
@@ -116,6 +162,7 @@ export default function SaleReturnEntry() {
     setVariants(
       variantsData?.map((v) => ({
         id: v.id,
+        product_id: v.product_id,
         size: v.size,
         sale_price: v.sale_price || 0,
         stock_qty: v.stock_qty,
@@ -127,10 +174,14 @@ export default function SaleReturnEntry() {
 
   const filteredProducts = products.filter((product) => {
     const search = searchTerm.toLowerCase();
+    const matchingVariants = variants.filter(v => v.product_id === product.id);
+    const barcodeMatch = matchingVariants.some(v => v.barcode?.toLowerCase().includes(search));
+    
     return (
       product.product_name.toLowerCase().includes(search) ||
       product.brand?.toLowerCase().includes(search) ||
-      product.category?.toLowerCase().includes(search)
+      product.category?.toLowerCase().includes(search) ||
+      barcodeMatch
     );
   });
 
@@ -157,6 +208,64 @@ export default function SaleReturnEntry() {
     setReturnItems([...returnItems, newItem]);
     setSearchOpen(false);
     setSearchTerm("");
+    
+    // Auto-focus barcode input after adding
+    setTimeout(() => barcodeInputRef.current?.focus(), 100);
+  };
+
+  const handleBarcodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!barcodeInput.trim()) return;
+    
+    // Find variant by barcode
+    const variant = variants.find((v) => v.barcode === barcodeInput.trim());
+    
+    if (!variant) {
+      toast({ 
+        title: "Not Found", 
+        description: "No product found with this barcode",
+        variant: "destructive" 
+      });
+      setBarcodeInput("");
+      return;
+    }
+    
+    // Find associated product
+    const product = products.find((p) => p.id === variant.product_id);
+    
+    if (!product) {
+      toast({ 
+        title: "Error", 
+        description: "Product data not found",
+        variant: "destructive" 
+      });
+      setBarcodeInput("");
+      return;
+    }
+    
+    // Check if already added
+    const existingIndex = returnItems.findIndex(
+      (item) => item.variantId === variant.id
+    );
+    
+    if (existingIndex !== -1) {
+      // Increment quantity if already exists
+      const updated = [...returnItems];
+      updated[existingIndex].quantity += 1;
+      updated[existingIndex].lineTotal = 
+        updated[existingIndex].quantity * updated[existingIndex].unitPrice;
+      setReturnItems(updated);
+      toast({ title: "Updated", description: "Quantity increased" });
+    } else {
+      // Add new item
+      addProduct(product.id, variant.id);
+      toast({ title: "Added", description: `${product.product_name} added to return` });
+    }
+    
+    // Clear input and refocus
+    setBarcodeInput("");
+    barcodeInputRef.current?.focus();
   };
 
   const updateQuantity = (index: number, quantity: number) => {
@@ -261,6 +370,29 @@ export default function SaleReturnEntry() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Barcode Scanner</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+              <Input
+                ref={barcodeInputRef}
+                type="text"
+                placeholder="Scan or enter barcode..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                className="flex-1"
+                autoFocus
+              />
+              <Button type="submit">Add</Button>
+            </form>
+            <p className="text-sm text-muted-foreground mt-2">
+              Scan barcode or manually enter barcode number to add product to return
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Return Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -305,7 +437,10 @@ export default function SaleReturnEntry() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Return Items</span>
+              <div className="flex items-center gap-2">
+                <span>Return Items</span>
+                <Badge variant="secondary" className="text-xs">Sold Products Only</Badge>
+              </div>
               <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                 <PopoverTrigger asChild>
                   <Button size="sm">
@@ -324,7 +459,7 @@ export default function SaleReturnEntry() {
                       <CommandEmpty>No products found</CommandEmpty>
                       <CommandGroup>
                         {filteredProducts.map((product) => {
-                          const productVariants = variants.filter((v) => v.id === product.id);
+                          const productVariants = variants.filter((v) => v.product_id === product.id);
                           return productVariants.map((variant) => (
                             <CommandItem
                               key={variant.id}
