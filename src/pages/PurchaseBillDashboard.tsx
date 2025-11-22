@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -73,6 +73,7 @@ const PurchaseBillDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     fetchBills();
@@ -93,6 +94,26 @@ const PurchaseBillDashboard = () => {
       if (error) throw error;
 
       setBills(data || []);
+      
+      // Fetch item counts for all bills
+      if (data && data.length > 0) {
+        const billIds = data.map(b => b.id);
+        const { data: allItems, error: itemsError } = await supabase
+          .from("purchase_items")
+          .select("bill_id, qty, id, product_id, size, pur_price, sale_price, gst_per, hsn_code, barcode, line_total")
+          .in("bill_id", billIds);
+        
+        if (!itemsError && allItems) {
+          const itemsByBill: Record<string, PurchaseItem[]> = {};
+          allItems.forEach(item => {
+            if (!itemsByBill[item.bill_id]) {
+              itemsByBill[item.bill_id] = [];
+            }
+            itemsByBill[item.bill_id].push(item);
+          });
+          setBillItems(itemsByBill);
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -446,6 +467,10 @@ const PurchaseBillDashboard = () => {
     const matchesEndDate = !endDate || billDate <= new Date(endDate);
 
     return matchesSearch && matchesStartDate && matchesEndDate;
+  }).sort((a, b) => {
+    const dateA = new Date(a.bill_date).getTime();
+    const dateB = new Date(b.bill_date).getTime();
+    return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
   });
 
   // Pagination
@@ -558,7 +583,7 @@ const PurchaseBillDashboard = () => {
                   {filteredBills.length} {filteredBills.length === 1 ? "bill" : "bills"} found
                 </CardDescription>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -580,6 +605,16 @@ const PurchaseBillDashboard = () => {
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                 />
+                <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
+                  <SelectTrigger className="gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">Newest First (DESC)</SelectItem>
+                    <SelectItem value="asc">Oldest First (ASC)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </CardHeader>
@@ -635,7 +670,7 @@ const PurchaseBillDashboard = () => {
                             onCheckedChange={() => toggleSelectBill(bill.id)}
                           />
                         </TableCell>
-                          <TableCell className="font-medium">{index + 1}</TableCell>
+                          <TableCell className="font-medium">{startIndex + index + 1}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-mono text-xs">
                               {bill.software_bill_no || "N/A"}
@@ -647,7 +682,12 @@ const PurchaseBillDashboard = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="font-mono text-sm">{bill.supplier_invoice_no}</TableCell>
-                          <TableCell className="font-medium">{bill.supplier_name}</TableCell>
+                          <TableCell className="font-medium">
+                            {bill.supplier_name}
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              Qty: {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">₹{bill.gross_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-right">₹{bill.gst_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-right font-semibold text-primary">
