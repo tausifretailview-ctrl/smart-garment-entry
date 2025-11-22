@@ -26,6 +26,8 @@ import POSSales from "./pages/POSSales";
 import POSDashboard from "./pages/POSDashboard";
 import SalesInvoice from "./pages/SalesInvoice";
 import SalesInvoiceDashboard from "./pages/SalesInvoiceDashboard";
+import SaleReturnEntry from "./pages/SaleReturnEntry";
+import SaleReturnDashboard from "./pages/SaleReturnDashboard";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
@@ -235,6 +237,26 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <SalesInvoiceDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sale-return-entry"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SaleReturnEntry />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sale-returns"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SaleReturnDashboard />
                   </Layout>
                 </ProtectedRoute>
               }

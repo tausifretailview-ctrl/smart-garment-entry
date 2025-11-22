@@ -814,6 +814,104 @@ export type Database = {
           },
         ]
       }
+      sale_return_items: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          gst_percent: number
+          id: string
+          line_total: number
+          product_id: string
+          product_name: string
+          quantity: number
+          return_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          gst_percent: number
+          id?: string
+          line_total: number
+          product_id: string
+          product_name: string
+          quantity: number
+          return_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          gst_percent?: number
+          id?: string
+          line_total?: number
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          return_id?: string
+          size?: string
+          unit_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "sale_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_returns: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          customer_name: string
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          organization_id: string
+          original_sale_number: string | null
+          return_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id: string
+          original_sale_number?: string | null
+          return_date?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id?: string
+          original_sale_number?: string | null
+          return_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sales: {
         Row: {
           created_at: string
