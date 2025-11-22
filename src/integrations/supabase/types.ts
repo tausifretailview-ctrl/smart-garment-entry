@@ -571,6 +571,9 @@ export type Database = {
           barcode: string | null
           bill_id: string
           bill_number: string | null
+          brand: string | null
+          category: string | null
+          color: string | null
           created_at: string
           gst_per: number
           hsn_code: string | null
@@ -582,12 +585,16 @@ export type Database = {
           sale_price: number
           size: string
           sku_id: string | null
+          style: string | null
           updated_at: string
         }
         Insert: {
           barcode?: string | null
           bill_id: string
           bill_number?: string | null
+          brand?: string | null
+          category?: string | null
+          color?: string | null
           created_at?: string
           gst_per?: number
           hsn_code?: string | null
@@ -599,12 +606,16 @@ export type Database = {
           sale_price?: number
           size: string
           sku_id?: string | null
+          style?: string | null
           updated_at?: string
         }
         Update: {
           barcode?: string | null
           bill_id?: string
           bill_number?: string | null
+          brand?: string | null
+          category?: string | null
+          color?: string | null
           created_at?: string
           gst_per?: number
           hsn_code?: string | null
@@ -616,6 +627,7 @@ export type Database = {
           sale_price?: number
           size?: string
           sku_id?: string | null
+          style?: string | null
           updated_at?: string
         }
         Relationships: [

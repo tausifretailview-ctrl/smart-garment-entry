@@ -319,18 +319,10 @@ const PurchaseBillDashboard = () => {
 
       const supplierCode = (billData?.suppliers as any)?.supplier_code || "";
 
-      // Fetch bill items with product details
+      // Fetch bill items with product details directly from purchase_items
       const { data: items, error } = await supabase
         .from("purchase_items")
-        .select(`
-          *,
-          products (
-            product_name,
-            brand,
-            color,
-            style
-          )
-        `)
+        .select("*")
         .eq("bill_id", billId);
 
       if (error) throw error;
@@ -344,13 +336,14 @@ const PurchaseBillDashboard = () => {
         return;
       }
 
-      // Format items for barcode printing page
+      // Format items for barcode printing page - use saved product details
       const barcodeItems = items.map((item: any) => ({
         sku_id: item.sku_id,
-        product_name: item.products?.product_name || "",
-        brand: item.products?.brand || "",
-        color: item.products?.color || "",
-        style: item.products?.style || "",
+        product_name: item.product_name || "",
+        brand: item.brand || "",
+        category: item.category || "",
+        color: item.color || "",
+        style: item.style || "",
         size: item.size,
         sale_price: item.sale_price,
         barcode: item.barcode,
