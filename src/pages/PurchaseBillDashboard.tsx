@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2 } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -72,6 +72,7 @@ const PurchaseBillDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
 
   useEffect(() => {
     fetchBills();
@@ -279,6 +280,71 @@ const PurchaseBillDashboard = () => {
     }
   };
 
+  const handleFixMissingProductNames = async () => {
+    setIsFixing(true);
+    try {
+      // Fetch all purchase items with missing product_name
+      const { data: itemsToFix, error: fetchError } = await supabase
+        .from("purchase_items")
+        .select(`
+          id,
+          sku_id,
+          product_variants!inner (
+            id,
+            products!inner (
+              product_name
+            )
+          )
+        `)
+        .or("product_name.is.null,product_name.eq.");
+
+      if (fetchError) throw fetchError;
+
+      if (!itemsToFix || itemsToFix.length === 0) {
+        toast({
+          title: "All Good!",
+          description: "No purchase items with missing product names found",
+        });
+        return;
+      }
+
+      // Update each item with the correct product_name
+      let updatedCount = 0;
+      for (const item of itemsToFix) {
+        const productName = (item.product_variants as any)?.products?.product_name;
+        
+        if (productName) {
+          const { error: updateError } = await supabase
+            .from("purchase_items")
+            .update({ product_name: productName })
+            .eq("id", item.id);
+
+          if (updateError) {
+            console.error(`Failed to update item ${item.id}:`, updateError);
+          } else {
+            updatedCount++;
+          }
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `Fixed ${updatedCount} purchase item(s) with missing product names`,
+      });
+
+      // Refresh bills to reflect changes
+      await fetchBills();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fix missing product names",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
     setCurrentPage(1);
@@ -415,10 +481,25 @@ const PurchaseBillDashboard = () => {
             <Receipt className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
           </div>
-          <Button onClick={() => navigate("/purchase-entry")} className="gap-2">
-            <Plus className="h-4 w-4" />
-            New Purchase
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleFixMissingProductNames} 
+              variant="outline"
+              className="gap-2"
+              disabled={isFixing}
+            >
+              {isFixing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Database className="h-4 w-4" />
+              )}
+              Fix Missing Data
+            </Button>
+            <Button onClick={() => navigate("/purchase-entry")} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Purchase
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
