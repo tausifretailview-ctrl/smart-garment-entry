@@ -49,7 +49,7 @@ export function AppSidebar() {
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
-  const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard"];
+  const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
   const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
@@ -265,6 +265,22 @@ export function AppSidebar() {
                           <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-3">
                             <BarChart3 className="h-4 w-4" />
                             <span>Invoice Dashboard</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/sale-return-entry")}>
+                          <NavLink to="/sale-return-entry" className="flex items-center gap-3">
+                            <TrendingDown className="h-4 w-4" />
+                            <span>Sale Return</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/sale-returns")}>
+                          <NavLink to="/sale-returns" className="flex items-center gap-3">
+                            <BarChart3 className="h-4 w-4" />
+                            <span>Return Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
