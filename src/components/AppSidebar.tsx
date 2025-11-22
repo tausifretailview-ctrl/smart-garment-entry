@@ -17,6 +17,7 @@ import {
   ShoppingBag,
   Wallet,
   Shield,
+  Plus,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -173,6 +174,14 @@ export function AppSidebar() {
                               <NavLink to="/purchase-returns" className="flex items-center gap-3">
                                 <TrendingDown className="h-4 w-4" />
                                 <span>Purchase Returns</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")}>
+                              <NavLink to="/purchase-return-entry" className="flex items-center gap-3">
+                                <Plus className="h-4 w-4" />
+                                <span>New Return</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
