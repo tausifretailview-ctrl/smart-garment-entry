@@ -116,7 +116,7 @@ type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "40mm", height: "32mm", gap: "2mm" },
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "2mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
@@ -267,17 +267,17 @@ export default function BarcodePrinting() {
   
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
-    brand: { show: true, fontSize: 9, bold: true },
-    productName: { show: true, fontSize: 9, bold: true },
-    color: { show: false, fontSize: 8, bold: false },
-    style: { show: false, fontSize: 8, bold: false },
-    size: { show: true, fontSize: 9, bold: false },
-    price: { show: true, fontSize: 9, bold: true },
-    barcode: { show: true, fontSize: 9, bold: false },
+    brand: { show: true, fontSize: 8, bold: true },
+    productName: { show: true, fontSize: 8, bold: true },
+    color: { show: false, fontSize: 7, bold: false },
+    style: { show: false, fontSize: 7, bold: false },
+    size: { show: true, fontSize: 8, bold: false },
+    price: { show: true, fontSize: 8, bold: true },
+    barcode: { show: true, fontSize: 8, bold: false },
     barcodeText: { show: true, fontSize: 7, bold: false },
-    billNumber: { show: true, fontSize: 7, bold: false },
+    billNumber: { show: false, fontSize: 6, bold: false },
     supplierCode: { show: true, fontSize: 7, bold: false },
-    fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
+    fieldOrder: ['brand', 'productName', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -1187,6 +1187,16 @@ export default function BarcodePrinting() {
         case 'barcodeText':
           html += `<div class="meta" style="${getStyle(field)}">${barcode}</div>`;
           break;
+        case 'billNumber':
+          if (item.bill_number) {
+            html += `<div class="bill-num" style="${getStyle(field)}">Bill: ${item.bill_number}</div>`;
+          }
+          break;
+        case 'supplierCode':
+          if (item.supplier_code) {
+            html += `<div class="supplier-code" style="${getStyle(field)}">Sup: ${item.supplier_code}</div>`;
+          }
+          break;
       }
     });
 
@@ -1288,9 +1298,9 @@ export default function BarcodePrinting() {
             // Use CODE128 format which is more flexible and doesn't require specific checksums
             JsBarcode(svg, code, {
               format: "CODE128",
-              fontSize: 9,
-              height: 24,
-              width: 1.5,
+              fontSize: 8,
+              height: 20,
+              width: 1.2,
               textMargin: 0,
               margin: 0,
               displayValue: false,
@@ -2186,16 +2196,71 @@ export default function BarcodePrinting() {
           font-size: 9px;
           line-height: 1.05;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: space-between;
+          box-sizing: border-box;
+          page-break-inside: avoid;
         }
 
-        .brand { font-weight: 800; }
-        .prod { font-weight: 600; font-size: 8.5px; }
-        .mrp { font-weight: 700; font-size: 9px; }
-        .meta { font-size: 8px; }
+        .brand { 
+          font-weight: 800; 
+          text-transform: uppercase;
+          width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          line-height: 1.1;
+          margin-bottom: 0.5mm;
+        }
+        
+        .prod { 
+          font-weight: 600; 
+          font-size: 8.5px; 
+          width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: 0.5mm;
+        }
+        
+        .mrp { 
+          font-weight: 700; 
+          font-size: 9px;
+          margin: 0.5mm 0;
+        }
+        
+        .meta { 
+          font-size: 8px;
+          font-family: monospace;
+          line-height: 1;
+          margin: 0.5mm 0;
+        }
 
         svg.barcode {
           width: 100%;
           height: 24px;
+          flex-grow: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          max-width: 100%;
+          margin: 1mm 0;
+        }
+
+        .supplier-code {
+          font-family: monospace;
+          line-height: 1;
+          margin-top: 0.5mm;
+          color: #666;
+        }
+
+        .bill-num {
+          font-family: monospace;
+          font-size: 6px;
+          line-height: 1;
+          color: #888;
         }
 
         @page { size: A4; margin: 0; }
@@ -2207,6 +2272,13 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
+          }
+          
+          .label-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
           }
         }
       `}</style>
