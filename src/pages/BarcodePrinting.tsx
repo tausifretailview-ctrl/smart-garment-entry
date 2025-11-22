@@ -93,6 +93,7 @@ interface LabelDesignConfig {
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
+  supplierCode: LabelFieldConfig;
   fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder'>>;
 }
 
@@ -153,6 +154,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
     barcode: 'Barcode Image',
     barcodeText: 'Barcode Number',
     billNumber: 'Bill Number',
+    supplierCode: 'Supplier Code',
   };
 
   const field = labelConfig[fieldKey];
@@ -274,7 +276,8 @@ export default function BarcodePrinting() {
     barcode: { show: true, fontSize: 9, bold: false },
     barcodeText: { show: true, fontSize: 7, bold: false },
     billNumber: { show: true, fontSize: 7, bold: false },
-    fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText'],
+    supplierCode: { show: true, fontSize: 7, bold: false },
+    fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
   });
 
   // Label template state
@@ -975,7 +978,8 @@ export default function BarcodePrinting() {
           barcode: preset.labelConfig.barcode || { show: true, fontSize: 9, bold: false },
           barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
           billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText'],
+          supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
+          fieldOrder: preset.labelConfig.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
         };
         setLabelConfig(mergedConfig);
       }
@@ -1066,7 +1070,8 @@ export default function BarcodePrinting() {
         barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
         barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
         billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText'],
+        supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
       };
       setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
@@ -1090,7 +1095,8 @@ export default function BarcodePrinting() {
         barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
         barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
         billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText'],
+        supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
       };
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
