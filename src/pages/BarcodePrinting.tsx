@@ -1292,6 +1292,10 @@ export default function BarcodePrinting() {
         cell.className = "label-cell";
         cell.style.width = dimensions.width;
         cell.style.height = dimensions.height;
+        // Add extra left padding for novajet40 to shift content right
+        if (sheetType === 'novajet40') {
+          cell.style.paddingLeft = '2mm';
+        }
         cell.innerHTML = getLabelHTML(item, designFormat);
         gridDiv.appendChild(cell);
       }
@@ -2292,6 +2296,10 @@ export default function BarcodePrinting() {
           justify-content: space-between;
           box-sizing: border-box;
           page-break-inside: avoid;
+        }
+        
+        .label-cell[style*="padding-left: 2mm"] {
+          padding-left: 2mm !important;
         }
 
         .brand { 
