@@ -1194,7 +1194,7 @@ export default function BarcodePrinting() {
           html += `<svg class="barcode" data-code="${barcode}"></svg>`;
           break;
         case 'barcodeText':
-          html += `<div class="meta" style="${getStyle(field)}">${barcode}</div>`;
+          html += `<div class="meta barcode-text" style="${getStyle(field)}">${barcode}</div>`;
           break;
         case 'billNumber':
           if (item.bill_number) {
@@ -2335,6 +2335,11 @@ export default function BarcodePrinting() {
           line-height: 1;
           margin: 0.5mm 0;
         }
+        
+        .barcode-text {
+          margin-top: -0.5mm !important;
+          margin-bottom: 0.5mm;
+        }
 
         svg.barcode {
           width: 100%;
@@ -2344,7 +2349,7 @@ export default function BarcodePrinting() {
           align-items: center;
           justify-content: center;
           max-width: 100%;
-          margin: 1mm 0;
+          margin: 1mm 0 0.5mm 0;
         }
 
         .supplier-code {
@@ -2361,7 +2366,11 @@ export default function BarcodePrinting() {
           color: #888;
         }
 
-        @page { size: A4; margin: 0; }
+        @page { 
+          size: A4; 
+          margin: 3mm 0 0 0;
+        }
+        
         @media print {
           body * { visibility: hidden; }
           #printArea, #printArea * { visibility: visible; }
@@ -2372,11 +2381,23 @@ export default function BarcodePrinting() {
             display: block !important;
           }
           
+          .label-grid {
+            page-break-after: auto;
+          }
+          
           .label-cell {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: space-between;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          
+          /* Ensure business name and all fields print on every page */
+          .brand, .prod, .mrp, .meta, .barcode, .supplier-code, .bill-num {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
         }
       `}</style>
