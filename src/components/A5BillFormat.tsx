@@ -20,6 +20,7 @@ interface BillData {
   tax: number;
   discount: number;
   grandTotal: number;
+  paymentMethod?: string;
   organization: {
     name: string;
     address: string;
@@ -27,6 +28,7 @@ interface BillData {
     email?: string;
     upiId?: string;
     terms?: string;
+    logo?: string;
   };
 }
 
@@ -99,7 +101,9 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         }
 
         .invoice-header { 
-          text-align: center; 
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
           margin-bottom: 12px; 
           padding-bottom: 12px;
           border-bottom: 3px solid #2563eb;
@@ -108,8 +112,25 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
           border-radius: 4px 4px 0 0;
         }
         
+        .logo-section {
+          width: 60px;
+          flex-shrink: 0;
+        }
+        
+        .logo-section img {
+          width: 100%;
+          height: auto;
+          max-height: 60px;
+          object-fit: contain;
+        }
+        
+        .org-info {
+          flex: 1;
+          text-align: center;
+        }
+        
         .org-name { 
-          font-size: 20pt; 
+          font-size: 18pt; 
           font-weight: 800; 
           text-transform: uppercase; 
           line-height: 1.2; 
@@ -123,6 +144,15 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
           color: #64748b; 
           margin: 2px 0;
           line-height: 1.4;
+        }
+        
+        .invoice-label {
+          width: 60px;
+          text-align: right;
+          font-size: 12pt;
+          font-weight: 700;
+          color: #1e40af;
+          text-transform: uppercase;
         }
 
         .bill-info-section {
@@ -203,6 +233,56 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         .t-right { text-align: right; }
         .t-center { text-align: center; }
 
+        .payment-terms-section {
+          margin-bottom: 12px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        
+        .payment-box {
+          padding: 10px;
+          background: #ecfdf5;
+          border: 2px solid #10b981;
+          border-radius: 6px;
+        }
+        
+        .payment-label {
+          font-size: 8pt;
+          color: #065f46;
+          text-transform: uppercase;
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+        
+        .payment-value {
+          font-size: 11pt;
+          font-weight: 700;
+          color: #047857;
+          text-transform: uppercase;
+        }
+        
+        .terms-box {
+          padding: 10px;
+          background: #fef3c7;
+          border: 2px solid #f59e0b;
+          border-radius: 6px;
+        }
+        
+        .terms-label {
+          font-size: 8pt;
+          color: #92400e;
+          text-transform: uppercase;
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+        
+        .terms-text {
+          font-size: 8pt;
+          color: #78350f;
+          line-height: 1.3;
+        }
+        
         .summary-section { 
           margin-top: 15px; 
           display: grid;
@@ -305,12 +385,22 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         }
       `}</style>
 
-      {/* Professional Header */}
+      {/* Professional Header with Logo */}
       <div className="invoice-header">
-        <div className="org-name">{data.organization.name}</div>
-        <div className="org-details">{data.organization.address}</div>
-        <div className="org-details">Phone: {data.organization.phone}</div>
-        {data.organization.email && <div className="org-details">Email: {data.organization.email}</div>}
+        <div className="logo-section">
+          {data.organization.logo && (
+            <img src={data.organization.logo} alt="Logo" />
+          )}
+        </div>
+        <div className="org-info">
+          <div className="org-name">{data.organization.name}</div>
+          <div className="org-details">{data.organization.address}</div>
+          <div className="org-details">Phone: {data.organization.phone}</div>
+          {data.organization.email && <div className="org-details">Email: {data.organization.email}</div>}
+        </div>
+        <div className="invoice-label">
+          Invoice
+        </div>
       </div>
 
       {/* Bill & Customer Info Section */}
@@ -327,12 +417,29 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         </div>
       </div>
 
+      {/* Payment Method & Terms */}
+      <div className="payment-terms-section">
+        {data.paymentMethod && (
+          <div className="payment-box">
+            <div className="payment-label">Payment Method</div>
+            <div className="payment-value">{data.paymentMethod}</div>
+          </div>
+        )}
+        {data.organization.terms && (
+          <div className="terms-box">
+            <div className="terms-label">Terms & Conditions</div>
+            <div className="terms-text">{data.organization.terms}</div>
+          </div>
+        )}
+      </div>
+
       {/* Items Table */}
       <table className="items-table">
         <thead>
           <tr>
+            <th style={{width: '5%'}}>Sr</th>
             <th style={{width: '18%'}}>Barcode</th>
-            <th style={{width: '38%'}}>Description</th>
+            <th style={{width: '33%'}}>Description</th>
             <th className="t-center" style={{width: '12%'}}>Qty</th>
             <th className="t-right" style={{width: '16%'}}>Price</th>
             <th className="t-right" style={{width: '16%'}}>Total</th>
@@ -341,6 +448,7 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         <tbody>
           {data.items.map((item, index) => (
             <tr key={index}>
+              <td className="t-center" style={{fontWeight: 600, color: '#64748b'}}>{index + 1}</td>
               <td style={{fontSize: '8pt', fontFamily: 'monospace', color: '#475569'}}>{item.barcode}</td>
               <td>
                 <div className="item-name">{item.name}</div>
@@ -374,8 +482,8 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         {/* Totals */}
         <div className="totals-box">
           <div className="total-row qty-row">
-            <span>Total Quantity:</span>
-            <strong>{totalQty}</strong>
+            <span>Total Items:</span>
+            <strong>{totalQty} pcs</strong>
           </div>
           <div className="total-row subtotal">
             <span>Subtotal:</span>
@@ -387,6 +495,12 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
               <span>- ₹{data.discount.toFixed(2)}</span>
             </div>
           )}
+          {data.tax > 0 && (
+            <div className="total-row">
+              <span>Tax/GST:</span>
+              <span>₹{data.tax.toFixed(2)}</span>
+            </div>
+          )}
           <div className="total-row grand-total">
             <span>Grand Total:</span>
             <span>₹{data.grandTotal.toFixed(2)}</span>
@@ -394,9 +508,9 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         </div>
       </div>
 
-      {/* Terms Footer */}
+      {/* Footer Note */}
       <div className="terms-footer">
-        {data.organization.terms || "Thank you for your business! Goods once sold will not be taken back."}
+        Thank you for your business! Visit again.
       </div>
     </div>
   );
