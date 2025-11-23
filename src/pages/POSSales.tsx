@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
@@ -68,6 +69,7 @@ export default function POSSales() {
   const { saveSale, isSaving } = useSaveSale();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [customerId, setCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -97,6 +99,77 @@ export default function POSSales() {
     address: "",
     gst_number: "",
   });
+
+  // Load sale data if saleId is in URL (edit mode)
+  useEffect(() => {
+    const saleId = searchParams.get('saleId');
+    if (saleId && currentOrganization?.id) {
+      loadSaleForEdit(saleId);
+    }
+  }, [searchParams, currentOrganization?.id]);
+
+  const loadSaleForEdit = async (saleId: string) => {
+    try {
+      // Fetch sale data
+      const { data: sale, error: saleError } = await supabase
+        .from('sales')
+        .select('*')
+        .eq('id', saleId)
+        .eq('organization_id', currentOrganization?.id)
+        .single();
+
+      if (saleError) throw saleError;
+
+      // Fetch sale items
+      const { data: saleItems, error: itemsError } = await supabase
+        .from('sale_items')
+        .select('*')
+        .eq('sale_id', saleId);
+
+      if (itemsError) throw itemsError;
+
+      // Populate form with sale data
+      setCurrentSaleId(saleId);
+      setCurrentInvoiceNumber(sale.sale_number);
+      setCustomerId(sale.customer_id || "");
+      setCustomerName(sale.customer_name);
+      setCustomerPhone(sale.customer_phone || "");
+      setFlatDiscountPercent(sale.flat_discount_percent);
+      setRoundOff(sale.round_off);
+      setPaymentMethod(sale.payment_method as any);
+
+      // Convert sale items to cart items
+      const cartItems: CartItem[] = saleItems.map(item => ({
+        id: item.id,
+        barcode: item.barcode || '',
+        productName: item.product_name,
+        size: item.size,
+        quantity: item.quantity,
+        mrp: item.mrp,
+        gstPer: item.gst_percent,
+        discountPercent: item.discount_percent,
+        discountAmount: 0,
+        unitCost: item.unit_price,
+        netAmount: item.line_total,
+        productId: item.product_id,
+        variantId: item.variant_id,
+      }));
+
+      setItems(cartItems);
+
+      toast({
+        title: "Invoice Loaded",
+        description: `Invoice ${sale.sale_number} loaded for editing`,
+      });
+    } catch (error: any) {
+      console.error('Error loading sale:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load invoice for editing",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Fetch settings to apply defaults
   const { data: settingsData } = useQuery({
