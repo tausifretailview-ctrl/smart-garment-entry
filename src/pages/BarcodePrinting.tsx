@@ -1370,60 +1370,137 @@ export default function BarcodePrinting() {
 
     toast.info("Generating PDF...");
 
-    // Create a temporary container for rendering
-    const tempContainer = document.createElement("div");
-    tempContainer.id = "pdfExportArea";
-    tempContainer.style.position = "absolute";
-    tempContainer.style.left = "-9999px";
-    tempContainer.style.top = "0";
-    document.body.appendChild(tempContainer);
+    try {
+      // Calculate total labels needed
+      const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      
+      // Get dimensions based on sheet type
+      const dimensions = sheetType === "custom"
+        ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+        : {
+            cols: sheetPresets[sheetType].cols,
+            rows: Math.ceil(totalLabels / sheetPresets[sheetType].cols),
+            width: parseInt(sheetPresets[sheetType].width),
+            height: parseInt(sheetPresets[sheetType].height),
+            gap: parseInt(sheetPresets[sheetType].gap)
+          };
+      
+      // Calculate labels per page
+      const labelsPerPage = dimensions.cols * 
+        Math.floor((297 - topOffset - 20) / (dimensions.height + dimensions.gap)); // A4 height is 297mm
+      
+      // Calculate number of pages needed
+      const numPages = Math.ceil(totalLabels / labelsPerPage);
+      
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-    // Generate labels in the temporary container
-    generatePreview("pdfExportArea");
+      // Create temporary container for rendering each page
+      const tempContainer = document.createElement("div");
+      tempContainer.id = "pdfExportArea";
+      tempContainer.style.position = "absolute";
+      tempContainer.style.left = "-9999px";
+      tempContainer.style.top = "0";
+      tempContainer.style.width = "210mm";
+      document.body.appendChild(tempContainer);
 
-    // Wait for barcodes to render
-    setTimeout(async () => {
-      try {
-        const element = document.getElementById("pdfExportArea");
-        if (!element) {
-          toast.error("Failed to generate PDF");
-          return;
+      // Generate all labels as an array
+      const allLabels: { html: string; item: LabelItem }[] = [];
+      labelItems.forEach((item) => {
+        const qty = Number(item.qty) || 0;
+        for (let i = 0; i < qty; i++) {
+          allLabels.push({ html: getLabelHTML(item, designFormat), item });
+        }
+      });
+
+      // Process each page
+      for (let page = 0; page < numPages; page++) {
+        if (page > 0) {
+          pdf.addPage();
         }
 
-        // Capture the element as canvas
-        const canvas = await html2canvas(element, {
+        // Clear temp container
+        tempContainer.innerHTML = "";
+
+        // Create grid for this page
+        const gridDiv = document.createElement("div");
+        gridDiv.className = "label-grid";
+        gridDiv.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+          grid-auto-rows: ${dimensions.height}mm;
+          gap: ${dimensions.gap}mm;
+          padding-top: ${topOffset}mm;
+          padding-left: ${leftOffset}mm;
+          width: 210mm;
+        `;
+
+        // Add labels for this page
+        const startIdx = page * labelsPerPage;
+        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
+        
+        for (let i = startIdx; i < endIdx; i++) {
+          const cell = document.createElement("div");
+          cell.className = "label-cell";
+          cell.innerHTML = allLabels[i].html;
+          gridDiv.appendChild(cell);
+        }
+
+        tempContainer.appendChild(gridDiv);
+
+        // Render barcodes for this page
+        const barcodes = tempContainer.querySelectorAll("svg.barcode");
+        barcodes.forEach((svg) => {
+          const code = (svg as HTMLElement).dataset.code;
+          if (code) {
+            try {
+              JsBarcode(svg, code, {
+                format: "CODE128",
+                fontSize: 8,
+                height: 20,
+                width: 1.2,
+                textMargin: 0,
+                margin: 0,
+                displayValue: false,
+              });
+            } catch (error) {
+              console.error("Barcode generation failed for code:", code, error);
+            }
+          }
+        });
+
+        // Wait a bit for barcodes to render
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Capture this page
+        const canvas = await html2canvas(tempContainer, {
           scale: 2,
           backgroundColor: "#ffffff",
           logging: false,
-        });
-
-        // Calculate PDF dimensions based on canvas
-        const imgWidth = 210; // A4 width in mm
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        // Create PDF
-        const pdf = new jsPDF({
-          orientation: imgHeight > imgWidth ? "portrait" : "landscape",
-          unit: "mm",
-          format: "a4",
+          width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
+          height: 297 * 3.78,
         });
 
         const imgData = canvas.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
-
-        // Generate filename with timestamp
-        const timestamp = new Date().toISOString().split("T")[0];
-        pdf.save(`barcode-labels-${timestamp}.pdf`);
-
-        toast.success("PDF exported successfully");
-      } catch (error) {
-        console.error("Error generating PDF:", error);
-        toast.error("Failed to export PDF");
-      } finally {
-        // Clean up temporary container
-        document.body.removeChild(tempContainer);
+        pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
       }
-    }, 300);
+
+      // Clean up
+      document.body.removeChild(tempContainer);
+
+      // Save PDF
+      const timestamp = new Date().toISOString().split("T")[0];
+      pdf.save(`barcode-labels-${timestamp}.pdf`);
+
+      toast.success(`PDF generated with ${numPages} page${numPages > 1 ? 's' : ''}`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to export PDF");
+    }
   };
 
   return (
