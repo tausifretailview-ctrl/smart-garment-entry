@@ -828,7 +828,12 @@ const PurchaseEntry = () => {
     }
   };
 
-  const totals = { grossAmount, gstAmount, netAmount };
+  const totals = { 
+    totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
+    grossAmount, 
+    gstAmount, 
+    netAmount 
+  };
 
   const handlePrintBarcodes = async () => {
     if (lineItems.length === 0) {
@@ -1210,6 +1215,10 @@ const PurchaseEntry = () => {
                 <CardTitle className="text-lg">Bill Totals</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Qty:</span>
+                  <span className="font-semibold">{totals.totalQty}</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Gross Amount:</span>
                   <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
