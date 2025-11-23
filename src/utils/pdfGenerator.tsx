@@ -613,6 +613,7 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
       date: data.date.toLocaleDateString('en-GB'),
       customerName: data.customerName,
       customerPhone: data.customerMobile,
+      paymentMethod: data.paymentMethod,
       items: data.items.map(item => ({
         name: item.particulars,
         variant: item.size,
@@ -630,6 +631,7 @@ export const printA5BillFormat = async (data: InvoiceData): Promise<void> => {
         address: data.businessAddress || '',
         phone: data.businessContact || '',
         email: data.businessEmail,
+        logo: data.logo,
         upiId: data.upiId,
         terms: data.declarationText
       }
