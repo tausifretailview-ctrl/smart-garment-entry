@@ -118,7 +118,7 @@ type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "2mm" },
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
@@ -1290,6 +1290,8 @@ export default function BarcodePrinting() {
       for (let i = 0; i < qty; i++) {
         const cell = document.createElement("div");
         cell.className = "label-cell";
+        cell.style.width = dimensions.width;
+        cell.style.height = dimensions.height;
         cell.innerHTML = getLabelHTML(item, designFormat);
         gridDiv.appendChild(cell);
       }
@@ -1716,7 +1718,7 @@ export default function BarcodePrinting() {
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
                   <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (40mm × 32mm, 5 cols × 8 rows - A4 Vertical)</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (39mm × 35mm, 5 cols × 8 rows - A4 Vertical)</SelectItem>
                   <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
                   <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
                   <SelectItem value="custom">Custom Dimensions</SelectItem>
@@ -2279,7 +2281,7 @@ export default function BarcodePrinting() {
         }
 
         .label-cell {
-          padding: 1mm;
+          padding: 0.5mm 1mm;
           text-align: center;
           font-size: 9px;
           line-height: 1.05;
