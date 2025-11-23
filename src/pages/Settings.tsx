@@ -1309,7 +1309,7 @@ export default function Settings() {
                     }
                   >
                     <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
-                    <option value="novajet40">Novajet 40 (8 cols, 35x25mm)</option>
+                    <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
                     <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
                     <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
                   </select>
@@ -1369,7 +1369,7 @@ export default function Settings() {
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                             >
                               <option value="novajet48">Novajet 48 (8 cols, 33x19mm)</option>
-                              <option value="novajet40">Novajet 40 (8 cols, 35x25mm)</option>
+                              <option value="novajet40">Novajet 40 (5 cols × 8 rows, 39x35mm)</option>
                               <option value="novajet65">Novajet 65 (5 cols, 38x21mm)</option>
                               <option value="a4_12x4">A4 12x4 (4 cols, 50x24mm)</option>
                             </select>
@@ -1401,7 +1401,7 @@ export default function Settings() {
                             <p className="font-medium">{template.name}</p>
                             <p className="text-xs text-muted-foreground">
                               {template.sheetType === 'novajet48' && 'Novajet 48 (8 cols, 33x19mm)'}
-                              {template.sheetType === 'novajet40' && 'Novajet 40 (8 cols, 35x25mm)'}
+                              {template.sheetType === 'novajet40' && 'Novajet 40 (5 cols × 8 rows, 39x35mm)'}
                               {template.sheetType === 'novajet65' && 'Novajet 65 (5 cols, 38x21mm)'}
                               {template.sheetType === 'a4_12x4' && 'A4 12x4 (4 cols, 50x24mm)'}
                             </p>
