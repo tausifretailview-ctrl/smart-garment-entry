@@ -177,17 +177,10 @@ const PurchaseEntry = () => {
           setSoftwareBillNo(existingBill.software_bill_no || "");
           setBillDate(new Date(existingBill.bill_date));
           
-          // Load bill items
+          // Load bill items - get product details from purchase_items (denormalized data)
           const { data: itemsData, error: itemsError } = await supabase
             .from("purchase_items")
-            .select(`
-              *,
-              products (
-                product_name,
-                brand,
-                color
-              )
-            `)
+            .select("*")
             .eq("bill_id", billId);
           
           if (itemsError) throw itemsError;
@@ -196,7 +189,11 @@ const PurchaseEntry = () => {
             temp_id: item.id, // Use actual database ID as temp_id for tracking
             product_id: item.product_id,
             sku_id: item.sku_id || "",
-            product_name: item.products?.product_name || "",
+            product_name: item.product_name || "",
+            brand: item.brand || "",
+            category: item.category || "",
+            color: item.color || "",
+            style: item.style || "",
             size: item.size,
             qty: item.qty,
             pur_price: Number(item.pur_price),
