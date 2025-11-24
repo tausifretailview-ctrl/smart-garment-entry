@@ -58,6 +58,10 @@ export default function PlatformAdmin() {
   const [newRole, setNewRole] = useState<"admin" | "manager" | "user">("user");
   const [removeUserId, setRemoveUserId] = useState<string | null>(null);
   const [removeOrgId, setRemoveOrgId] = useState<string | null>(null);
+  const [assignUserOpen, setAssignUserOpen] = useState(false);
+  const [assignOrgId, setAssignOrgId] = useState<string>("");
+  const [assignUserEmail, setAssignUserEmail] = useState("");
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "manager" | "user">("user");
   
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
@@ -280,6 +284,33 @@ export default function PlatformAdmin() {
     },
   });
 
+  // Assign existing user to organization mutation
+  const assignUserMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke("add-existing-user", {
+        body: {
+          userEmail: assignUserEmail,
+          organizationId: assignOrgId,
+          role: assignUserRole,
+        },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success("User assigned to organization successfully!");
+      setAssignUserOpen(false);
+      setAssignUserEmail("");
+      setAssignUserRole("user");
+      setAssignOrgId("");
+      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to assign user");
+    },
+  });
+
   const handleCreateOrg = () => {
     if (!orgName.trim()) {
       toast.error("Organization name is required");
@@ -323,6 +354,19 @@ export default function PlatformAdmin() {
   const handleRemoveUser = (userId: string, orgId: string) => {
     setRemoveUserId(userId);
     setRemoveOrgId(orgId);
+  };
+
+  const handleAssignUser = (orgId: string) => {
+    setAssignOrgId(orgId);
+    setAssignUserOpen(true);
+  };
+
+  const handleSubmitAssignUser = () => {
+    if (!assignUserEmail || !assignOrgId) {
+      toast.error("Email and organization are required");
+      return;
+    }
+    assignUserMutation.mutate();
   };
 
   const orgCount = organizations.length;
@@ -495,11 +539,18 @@ export default function PlatformAdmin() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleEditFeatures(org)}
+                          onClick={() => handleAssignUser(org.id)}
                           className="flex-1"
                         >
-                          <Edit className="h-3 w-3 mr-1" />
-                          Features
+                          <Users className="h-3 w-3 mr-1" />
+                          Assign User
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditFeatures(org)}
+                        >
+                          <Edit className="h-3 w-3" />
                         </Button>
                         <Button
                           size="sm"
@@ -637,6 +688,51 @@ export default function PlatformAdmin() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Assign User Dialog */}
+        <Dialog open={assignUserOpen} onOpenChange={setAssignUserOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Assign User to Organization</DialogTitle>
+              <DialogDescription>
+                Add an existing user to {organizations.find(o => o.id === assignOrgId)?.name || "this organization"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="assignEmail">User Email *</Label>
+                <Input
+                  id="assignEmail"
+                  type="email"
+                  value={assignUserEmail}
+                  onChange={(e) => setAssignUserEmail(e.target.value)}
+                  placeholder="user@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="assignRole">Role *</Label>
+                <Select value={assignUserRole} onValueChange={(value: any) => setAssignUserRole(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAssignUserOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmitAssignUser} disabled={assignUserMutation.isPending}>
+                {assignUserMutation.isPending ? "Assigning..." : "Assign User"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Features Dialog */}
         <Dialog open={editFeaturesOpen} onOpenChange={setEditFeaturesOpen}>
