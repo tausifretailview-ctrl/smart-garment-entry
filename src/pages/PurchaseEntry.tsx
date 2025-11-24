@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -105,6 +105,8 @@ const PurchaseEntry = () => {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
+  const lastQtyInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
@@ -406,6 +408,8 @@ const PurchaseEntry = () => {
       openSizeGridModal(variant.product_id);
     } else {
       addInlineRow(variant);
+      // Focus on quantity input after adding inline row
+      setTimeout(() => lastQtyInputRef.current?.focus(), 100);
     }
     setSearchQuery("");
     setShowSearch(false);
@@ -1030,19 +1034,30 @@ const PurchaseEntry = () => {
                 </div>
                 <div className="relative w-80">
                   <Input
+                    ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && searchResults.length > 0) {
+                        handleProductSelect(searchResults[0]);
+                      }
+                    }}
                     placeholder="Search by product, brand, style, or barcode..."
                     className="pr-10"
                   />
-                  <Plus className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   {showSearch && searchResults.length > 0 && (
-                    <div className="absolute top-full mt-1 w-full bg-background border border-border rounded-md shadow-lg z-50 max-h-80 overflow-auto">
+                    <div className="absolute top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
                       {searchResults.map((result, idx) => (
                         <button
                           key={result.product_id + idx}
                           onClick={() => handleProductSelect(result)}
-                          className="w-full text-left px-4 py-3 hover:bg-accent border-b border-border last:border-0"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleProductSelect(result);
+                            }
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-accent text-popover-foreground border-b border-border last:border-0 transition-colors"
                         >
                           <div className="font-medium">
                             {formatProductDescription({
@@ -1106,6 +1121,7 @@ const PurchaseEntry = () => {
                           </TableCell>
                           <TableCell>
                             <Input
+                              ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
                               type="number"
                               min="1"
                               value={item.qty}
@@ -1378,6 +1394,9 @@ const PurchaseEntry = () => {
 
                     setShowSizeGrid(false);
                     setSizeQty({});
+                    
+                    // Focus on the first new item's quantity input
+                    setTimeout(() => lastQtyInputRef.current?.focus(), 100);
                   }}
                 >
                   Confirm (Enter)
