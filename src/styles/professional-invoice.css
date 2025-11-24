@@ -1,0 +1,89 @@
+/* Professional Invoice Template Print Styles */
+
+@media print {
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    margin: 0;
+    padding: 0;
+  }
+
+  .professional-invoice-template {
+    box-shadow: none !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+  }
+
+  .professional-invoice-template.format-a5-vertical {
+    width: 148mm;
+    min-height: 210mm;
+  }
+
+  .professional-invoice-template.format-a5-horizontal {
+    width: 210mm;
+    min-height: 148mm;
+  }
+
+  .professional-invoice-template.format-a4 {
+    width: 210mm;
+    min-height: 297mm;
+  }
+
+  /* Hide non-printable elements */
+  .no-print,
+  button,
+  .MuiButton-root {
+    display: none !important;
+  }
+
+  /* Ensure elements don't break across pages */
+  table,
+  .declaration,
+  .terms-section {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure good contrast for black and white printing */
+  * {
+    color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+
+/* Page setup for different formats */
+@page {
+  margin: 0;
+}
+
+@page :first {
+  margin: 0;
+}
+
+/* A5 Vertical - Portrait */
+@media print {
+  @page {
+    size: A5 portrait;
+  }
+  
+  .professional-invoice-template.format-a5-vertical {
+    page: A5;
+  }
+}
+
+/* A5 Horizontal - Landscape */
+@media print {
+  .professional-invoice-template.format-a5-horizontal {
+    @page {
+      size: A5 landscape;
+    }
+  }
+}
+
+/* A4 Full - Portrait */
+@media print {
+  .professional-invoice-template.format-a4 {
+    @page {
+      size: A4 portrait;
+    }
+  }
+}

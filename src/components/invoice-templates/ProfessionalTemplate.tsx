@@ -1,0 +1,502 @@
+import React from 'react';
+import '../styles/professional-invoice.css';
+
+interface InvoiceItem {
+  sr: number;
+  particulars: string;
+  size: string;
+  barcode: string;
+  hsn: string;
+  sp: number;
+  qty: number;
+  rate: number;
+  total: number;
+  brand?: string;
+  category?: string;
+  color?: string;
+  style?: string;
+}
+
+interface ProfessionalTemplateProps {
+  // Business Details
+  businessName: string;
+  address: string;
+  mobile: string;
+  email?: string;
+  gstNumber?: string;
+  logoUrl?: string;
+  
+  // Invoice Details
+  invoiceNumber: string;
+  invoiceDate: Date;
+  invoiceTime?: string;
+  
+  // Customer Details
+  customerName: string;
+  customerAddress?: string;
+  customerMobile?: string;
+  customerGSTIN?: string;
+  
+  // Items
+  items: InvoiceItem[];
+  
+  // Amounts
+  subtotal: number;
+  discount: number;
+  taxableAmount: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  totalTax: number;
+  roundOff: number;
+  grandTotal: number;
+  
+  // Payment
+  paymentMethod?: string;
+  amountPaid?: number;
+  balanceDue?: number;
+  
+  // Optional
+  qrCodeUrl?: string;
+  upiId?: string;
+  bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    accountHolder?: string;
+  };
+  declarationText?: string;
+  termsConditions?: string[];
+  showHSN?: boolean;
+  showBarcode?: boolean;
+  showGSTBreakdown?: boolean;
+  showBankDetails?: boolean;
+  format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
+  colorScheme?: string;
+}
+
+export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
+  businessName,
+  address,
+  mobile,
+  email,
+  gstNumber,
+  logoUrl,
+  invoiceNumber,
+  invoiceDate,
+  invoiceTime,
+  customerName,
+  customerAddress,
+  customerMobile,
+  customerGSTIN,
+  items,
+  subtotal,
+  discount,
+  taxableAmount,
+  cgstAmount = 0,
+  sgstAmount = 0,
+  igstAmount = 0,
+  totalTax,
+  roundOff,
+  grandTotal,
+  paymentMethod,
+  amountPaid,
+  balanceDue,
+  qrCodeUrl,
+  upiId,
+  bankDetails,
+  declarationText,
+  termsConditions,
+  showHSN = true,
+  showBarcode = true,
+  showGSTBreakdown = true,
+  showBankDetails = false,
+  format = 'a5-vertical',
+  colorScheme = 'blue'
+}) => {
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toFixed(2)}`;
+  };
+
+  const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
+    blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#dbeafe' },
+    green: { primary: '#15803d', secondary: '#22c55e', accent: '#dcfce7' },
+    purple: { primary: '#7e22ce', secondary: '#a855f7', accent: '#f3e8ff' },
+    red: { primary: '#b91c1c', secondary: '#ef4444', accent: '#fee2e2' },
+    orange: { primary: '#c2410c', secondary: '#f97316', accent: '#ffedd5' },
+  };
+
+  const colors = colorSchemes[colorScheme] || colorSchemes.blue;
+  
+  const isA4 = format === 'a4';
+  const isHorizontal = format === 'a5-horizontal';
+
+  return (
+    <div 
+      className={`professional-invoice-template format-${format}`}
+      style={{
+        width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
+        minHeight: isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm',
+        padding: isA4 ? '15mm' : isHorizontal ? '8mm' : '5mm',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: isA4 ? '11pt' : isHorizontal ? '9pt' : '8pt',
+        backgroundColor: 'white',
+        color: 'black',
+        boxSizing: 'border-box'
+      }}
+    >
+      {/* Header Section */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: isA4 ? '15px' : '10px',
+        marginBottom: isA4 ? '15px' : '10px',
+        paddingBottom: isA4 ? '12px' : '8px',
+        borderBottom: `3px solid ${colors.primary}`
+      }}>
+        {logoUrl && (
+          <div style={{ flexShrink: 0 }}>
+            <img src={logoUrl} alt="Logo" style={{
+              width: isA4 ? '70px' : isHorizontal ? '60px' : '50px',
+              height: isA4 ? '70px' : isHorizontal ? '60px' : '50px',
+              objectFit: 'contain'
+            }} />
+          </div>
+        )}
+        <div style={{ flex: 1, textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: isA4 ? '20pt' : isHorizontal ? '16pt' : '14pt',
+            fontWeight: 'bold',
+            margin: '0 0 4px 0',
+            color: colors.primary,
+            textTransform: 'uppercase',
+            letterSpacing: '1px'
+          }}>
+            {businessName}
+          </h1>
+          <p style={{
+            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
+            margin: '2px 0',
+            lineHeight: 1.4
+          }}>
+            {address}
+          </p>
+          <p style={{
+            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
+            margin: '2px 0'
+          }}>
+            <strong>Phone:</strong> {mobile} {email && `| Email: ${email}`}
+          </p>
+          {gstNumber && (
+            <p style={{
+              fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
+              margin: '2px 0',
+              fontWeight: 'bold'
+            }}>
+              <strong>GSTIN:</strong> {gstNumber}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Invoice Title */}
+      <div style={{
+        textAlign: 'center',
+        backgroundColor: colors.accent,
+        padding: isA4 ? '8px' : '6px',
+        marginBottom: isA4 ? '12px' : '8px',
+        border: `1px solid ${colors.primary}`
+      }}>
+        <h2 style={{
+          fontSize: isA4 ? '14pt' : isHorizontal ? '12pt' : '11pt',
+          margin: 0,
+          color: colors.primary,
+          fontWeight: 'bold',
+          letterSpacing: '0.5px'
+        }}>
+          {gstNumber ? 'TAX INVOICE' : 'INVOICE'}
+        </h2>
+      </div>
+
+      {/* Bill Information Section */}
+      <div style={{
+        display: 'flex',
+        border: `1px solid ${colors.primary}`,
+        marginBottom: isA4 ? '12px' : '8px',
+        fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt'
+      }}>
+        {/* Customer Details */}
+        <div style={{
+          flex: 1,
+          borderRight: `1px solid ${colors.primary}`,
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+        }}>
+          <h3 style={{
+            fontSize: isA4 ? '11pt' : isHorizontal ? '10pt' : '9pt',
+            margin: '0 0 6px 0',
+            color: colors.primary,
+            fontWeight: 'bold'
+          }}>
+            Bill To:
+          </h3>
+          <p style={{ margin: '3px 0', fontWeight: 'bold' }}>{customerName}</p>
+          {customerAddress && <p style={{ margin: '2px 0', lineHeight: 1.3 }}>{customerAddress}</p>}
+          {customerMobile && <p style={{ margin: '2px 0' }}><strong>Phone:</strong> {customerMobile}</p>}
+          {customerGSTIN && <p style={{ margin: '2px 0' }}><strong>GSTIN:</strong> {customerGSTIN}</p>}
+        </div>
+        
+        {/* Invoice Details */}
+        <div style={{
+          width: isHorizontal ? '35%' : '40%',
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+        }}>
+          <p style={{ margin: '3px 0' }}>
+            <strong>Invoice No:</strong><br />
+            <span style={{ color: colors.primary, fontWeight: 'bold' }}>{invoiceNumber}</span>
+          </p>
+          <p style={{ margin: '3px 0' }}>
+            <strong>Date:</strong> {formatDate(invoiceDate)}
+          </p>
+          {invoiceTime && (
+            <p style={{ margin: '3px 0' }}>
+              <strong>Time:</strong> {invoiceTime}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        marginBottom: isA4 ? '12px' : '8px',
+        fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt',
+        border: `1px solid ${colors.primary}`
+      }}>
+        <thead>
+          <tr style={{ backgroundColor: colors.primary, color: 'white' }}>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Sr.</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+            {showHSN && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>HSN</th>}
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Size</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Qty</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Rate</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.sr}>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.sr}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'left' }}>
+                {item.particulars}
+                {showBarcode && item.barcode && (
+                  <div style={{ fontSize: isA4 ? '8pt' : '7pt', color: colors.primary, marginTop: '2px' }}>
+                    [{item.barcode}]
+                  </div>
+                )}
+              </td>
+              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.hsn}</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.size}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.qty}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Summary Section */}
+      <div style={{
+        display: 'flex',
+        border: `1px solid ${colors.primary}`,
+        marginBottom: isA4 ? '12px' : '8px',
+        fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt'
+      }}>
+        {/* Left side - GST Breakdown or Declaration */}
+        <div style={{
+          flex: 1,
+          borderRight: `1px solid ${colors.primary}`,
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+        }}>
+          {showGSTBreakdown && (cgstAmount > 0 || sgstAmount > 0 || igstAmount > 0) && (
+            <div>
+              <h4 style={{ margin: '0 0 6px 0', color: colors.primary, fontSize: isA4 ? '10pt' : '8pt' }}>Tax Breakdown:</h4>
+              {cgstAmount > 0 && (
+                <>
+                  <p style={{ margin: '2px 0' }}>CGST: {formatCurrency(cgstAmount)}</p>
+                  <p style={{ margin: '2px 0' }}>SGST: {formatCurrency(sgstAmount)}</p>
+                </>
+              )}
+              {igstAmount > 0 && (
+                <p style={{ margin: '2px 0' }}>IGST: {formatCurrency(igstAmount)}</p>
+              )}
+            </div>
+          )}
+          {paymentMethod && (
+            <p style={{ margin: '6px 0 0 0' }}>
+              <strong>Payment Mode:</strong> {paymentMethod}
+            </p>
+          )}
+        </div>
+        
+        {/* Right side - Totals */}
+        <div style={{
+          width: isHorizontal ? '35%' : '40%',
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+            <span>Subtotal:</span>
+            <span>{formatCurrency(subtotal)}</span>
+          </div>
+          {discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+              <span>Discount:</span>
+              <span>-{formatCurrency(discount)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+            <span>Taxable Amount:</span>
+            <span>{formatCurrency(taxableAmount)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+            <span>Total Tax:</span>
+            <span>{formatCurrency(totalTax)}</span>
+          </div>
+          {roundOff !== 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+              <span>Round Off:</span>
+              <span>{formatCurrency(roundOff)}</span>
+            </div>
+          )}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            marginTop: '8px',
+            paddingTop: '8px',
+            borderTop: `2px solid ${colors.primary}`,
+            fontWeight: 'bold',
+            fontSize: isA4 ? '12pt' : isHorizontal ? '11pt' : '10pt',
+            color: colors.primary
+          }}>
+            <span>Grand Total:</span>
+            <span>{formatCurrency(grandTotal)}</span>
+          </div>
+          {amountPaid !== undefined && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt' }}>
+              <span>Paid:</span>
+              <span>{formatCurrency(amountPaid)}</span>
+            </div>
+          )}
+          {balanceDue !== undefined && balanceDue > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt', color: '#b91c1c', fontWeight: 'bold' }}>
+              <span>Balance Due:</span>
+              <span>{formatCurrency(balanceDue)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer Section */}
+      <div style={{
+        display: 'flex',
+        border: `1px solid ${colors.primary}`,
+        minHeight: isA4 ? '80px' : isHorizontal ? '70px' : '60px',
+        fontSize: isA4 ? '8pt' : '7pt'
+      }}>
+        {/* Left side - Declaration & Terms */}
+        <div style={{
+          flex: 1,
+          borderRight: `1px solid ${colors.primary}`,
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+        }}>
+          {declarationText && (
+            <div style={{ marginBottom: '6px' }}>
+              <p style={{ margin: '0', fontStyle: 'italic', lineHeight: 1.4 }}>{declarationText}</p>
+            </div>
+          )}
+          {termsConditions && termsConditions.length > 0 && (
+            <div>
+              <strong>Terms & Conditions:</strong>
+              <ol style={{ margin: '4px 0', paddingLeft: '16px', lineHeight: 1.4 }}>
+                {termsConditions.map((term, index) => (
+                  <li key={index} style={{ marginBottom: '2px' }}>{term}</li>
+                ))}
+              </ol>
+            </div>
+          )}
+          {showBankDetails && bankDetails && (
+            <div style={{ marginTop: '8px' }}>
+              <strong>Bank Details:</strong>
+              <p style={{ margin: '2px 0' }}>{bankDetails.bankName}</p>
+              <p style={{ margin: '2px 0' }}>A/c: {bankDetails.accountNumber}</p>
+              <p style={{ margin: '2px 0' }}>IFSC: {bankDetails.ifscCode}</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Right side - QR Code & Signature */}
+        <div style={{
+          width: isHorizontal ? '35%' : '40%',
+          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          {qrCodeUrl && (
+            <div style={{ textAlign: 'center' }}>
+              <img src={qrCodeUrl} alt="QR Code" style={{
+                width: isA4 ? '90px' : '80px',
+                height: isA4 ? '90px' : '80px'
+              }} />
+              {upiId && <p style={{ margin: '4px 0', fontSize: isA4 ? '8pt' : '7pt' }}>UPI: {upiId}</p>}
+            </div>
+          )}
+          <div style={{ textAlign: 'center', marginTop: 'auto' }}>
+            <p style={{ margin: '0', fontWeight: 'bold', fontSize: isA4 ? '9pt' : '8pt', color: colors.primary }}>
+              Authorized Signatory
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Thank You Message */}
+      <div style={{
+        textAlign: 'center',
+        marginTop: isA4 ? '12px' : '8px',
+        padding: isA4 ? '8px' : '6px',
+        backgroundColor: colors.accent,
+        border: `1px solid ${colors.primary}`,
+        fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt',
+        fontWeight: 'bold',
+        color: colors.primary
+      }}>
+        Thank you for your business!
+      </div>
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          .professional-invoice-template {
+            margin: 0;
+            padding: ${isA4 ? '15mm' : isHorizontal ? '8mm' : '5mm'};
+            box-shadow: none;
+          }
+          @page {
+            size: ${isA4 ? 'A4' : isHorizontal ? 'A5 landscape' : 'A5 portrait'};
+            margin: 0;
+          }
+          body {
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
