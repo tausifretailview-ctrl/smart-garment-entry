@@ -224,17 +224,8 @@ const PurchaseEntry = () => {
           setLoading(false);
         }
       } else {
-        // New bill mode - generate new bill number using bill date
-        try {
-          const { data, error } = await supabase.rpc("generate_purchase_bill_number", {
-            p_date: billDate.toISOString().split('T')[0],
-            p_organization_id: currentOrganization?.id
-          });
-          if (error) throw error;
-          setSoftwareBillNo(data);
-        } catch (error) {
-          console.error("Error generating bill number:", error);
-        }
+        // New bill mode - bill number will be auto-generated on save
+        setSoftwareBillNo("");
       }
     };
     
@@ -727,11 +718,21 @@ const PurchaseEntry = () => {
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
+        
+        // Generate bill number right before saving
+        const { data: newBillNo, error: billNoError } = await supabase.rpc("generate_purchase_bill_number", {
+          p_date: format(billDate, "yyyy-MM-dd"),
+          p_organization_id: currentOrganization.id
+        });
+        
+        if (billNoError) throw billNoError;
+        const finalBillNo = newBillNo;
+        
         const { data: billDataResult, error: billError } = await supabase
           .from("purchase_bills")
           .insert([
             {
-              software_bill_no: softwareBillNo,
+              software_bill_no: finalBillNo,
               supplier_id: billData.supplier_id || null,
               supplier_name: billData.supplier_name,
               supplier_invoice_no: billData.supplier_invoice_no,
@@ -761,7 +762,7 @@ const PurchaseEntry = () => {
           hsn_code: item.hsn_code,
           barcode: item.barcode,
           line_total: item.line_total,
-          bill_number: softwareBillNo,
+          bill_number: finalBillNo,
           brand: item.brand || null,
           category: item.category || null,
           color: item.color || null,
@@ -809,13 +810,7 @@ const PurchaseEntry = () => {
         });
         setBillDate(new Date());
         setLineItems([]);
-        
-        // Generate new bill number for next entry
-        const { data: newBillNo } = await supabase.rpc("generate_purchase_bill_number", {
-          p_date: new Date().toISOString().split('T')[0],
-          p_organization_id: currentOrganization?.id
-        });
-        if (newBillNo) setSoftwareBillNo(newBillNo);
+        setSoftwareBillNo(""); // Reset for next entry
       }
     } catch (error: any) {
       toast({
@@ -909,7 +904,7 @@ const PurchaseEntry = () => {
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
                 <Input
                   id="software_bill_no"
-                  value={softwareBillNo}
+                  value={isEditMode ? softwareBillNo : "(Auto-generated on save)"}
                   readOnly
                   className="bg-muted"
                   placeholder="Auto-generated"
