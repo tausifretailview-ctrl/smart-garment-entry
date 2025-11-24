@@ -54,7 +54,7 @@ interface PrintOptions {
 
 const sheetPresets = {
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm" },
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm", defaultTop: 2, defaultLeft: 1 },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
 };
@@ -169,7 +169,7 @@ export const printBarcodesDirectly = async (
   style.textContent = `
     body {
       margin: 0;
-      padding: 10mm;
+      padding: 0;
       box-sizing: border-box;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
@@ -180,7 +180,7 @@ export const printBarcodesDirectly = async (
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 3mm;
+      padding: 1.5mm;
       box-sizing: border-box;
       page-break-inside: avoid;
       line-height: 1.4;
