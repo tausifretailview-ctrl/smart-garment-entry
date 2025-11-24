@@ -76,12 +76,23 @@ interface SaleSettings {
   default_discount?: number;
   payment_methods?: string[];
   default_payment_method?: string;
-  invoice_format?: string;
+  invoice_numbering_format?: string;  // For INV-{YYYY}-{####}
+  invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4';  // Paper size
   sales_tax_rate?: number;
-  invoice_template?: string;
+  invoice_template?: 'professional' | 'modern' | 'classic' | 'compact';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
+  show_hsn_code?: boolean;
+  show_barcode?: boolean;
+  show_gst_breakdown?: boolean;
+  show_bank_details?: boolean;
+  bank_details?: {
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_holder?: string;
+  };
 }
 
 interface BillBarcodeSettings {
@@ -1080,16 +1091,16 @@ export default function Settings() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_format">Invoice Numbering Format</Label>
+                  <Label htmlFor="invoice_numbering_format">Invoice Numbering Format</Label>
                   <Input
-                    id="invoice_format"
-                    value={settings.sale_settings?.invoice_format || ""}
+                    id="invoice_numbering_format"
+                    value={settings.sale_settings?.invoice_numbering_format || ""}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
                         sale_settings: {
                           ...settings.sale_settings,
-                          invoice_format: e.target.value,
+                          invoice_numbering_format: e.target.value,
                         },
                       })
                     }
@@ -1098,6 +1109,30 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
                   </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_paper_format">Invoice Paper Format</Label>
+                  <Select
+                    value={settings.sale_settings?.invoice_paper_format || "a5-vertical"}
+                    onValueChange={(value) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          invoice_paper_format: value as 'a5-vertical' | 'a5-horizontal' | 'a4',
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger id="invoice_paper_format">
+                      <SelectValue placeholder="Select paper format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="a5-vertical">A5 Vertical (148mm × 210mm) - Most common</SelectItem>
+                      <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm) - Landscape</SelectItem>
+                      <SelectItem value="a4">A4 Full (210mm × 297mm) - Professional</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sales_tax_rate">Sales Tax Rate (%)</Label>
@@ -1121,15 +1156,15 @@ export default function Settings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_template">Invoice Template</Label>
+                  <Label htmlFor="invoice_template">Invoice Template Style</Label>
                   <Select
-                    value={settings.sale_settings?.invoice_template || "classic"}
+                    value={settings.sale_settings?.invoice_template || "professional"}
                     onValueChange={(value) =>
                       setSettings({
                         ...settings,
                         sale_settings: {
                           ...settings.sale_settings,
-                          invoice_template: value,
+                          invoice_template: value as 'professional' | 'modern' | 'classic' | 'compact',
                         },
                       })
                     }
@@ -1138,11 +1173,10 @@ export default function Settings() {
                       <SelectValue placeholder="Select template" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="classic">Classic - Traditional receipt style</SelectItem>
+                      <SelectItem value="professional">Professional - Vyapar style (Recommended)</SelectItem>
                       <SelectItem value="modern">Modern - Clean minimal design</SelectItem>
-                      <SelectItem value="professional">Professional - Corporate invoice</SelectItem>
+                      <SelectItem value="classic">Classic - Traditional receipt style</SelectItem>
                       <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
-                      <SelectItem value="html-classic">HTML Classic - Bill of Supply Design</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1220,6 +1254,188 @@ export default function Settings() {
                     ))}
                   </div>
                 </div>
+
+                {/* Invoice Display Options */}
+                <div className="space-y-4 pt-6 border-t">
+                  <h3 className="text-lg font-semibold">Invoice Display Options</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Customize what information appears on your invoices
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_hsn_code"
+                        checked={settings.sale_settings?.show_hsn_code ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_hsn_code: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_hsn_code" className="cursor-pointer">
+                        Show HSN Code
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_barcode"
+                        checked={settings.sale_settings?.show_barcode ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_barcode: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_barcode" className="cursor-pointer">
+                        Show Barcode
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_gst_breakdown"
+                        checked={settings.sale_settings?.show_gst_breakdown ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_gst_breakdown: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_gst_breakdown" className="cursor-pointer">
+                        Show GST Breakdown
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_bank_details"
+                        checked={settings.sale_settings?.show_bank_details ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_bank_details: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_bank_details" className="cursor-pointer">
+                        Show Bank Details
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bank Details Section */}
+                {settings.sale_settings?.show_bank_details && (
+                  <div className="space-y-4 pt-6 border-t">
+                    <h3 className="text-lg font-semibold">Bank Account Details</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Bank details will appear on your invoices
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="bank_name">Bank Name</Label>
+                        <Input
+                          id="bank_name"
+                          value={settings.sale_settings?.bank_details?.bank_name || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                bank_details: {
+                                  ...settings.sale_settings?.bank_details,
+                                  bank_name: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          placeholder="e.g., HDFC Bank"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="account_holder">Account Holder Name</Label>
+                        <Input
+                          id="account_holder"
+                          value={settings.sale_settings?.bank_details?.account_holder || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                bank_details: {
+                                  ...settings.sale_settings?.bank_details,
+                                  account_holder: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          placeholder="e.g., John Doe"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="account_number">Account Number</Label>
+                        <Input
+                          id="account_number"
+                          value={settings.sale_settings?.bank_details?.account_number || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                bank_details: {
+                                  ...settings.sale_settings?.bank_details,
+                                  account_number: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          placeholder="e.g., 1234567890"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="ifsc_code">IFSC Code</Label>
+                        <Input
+                          id="ifsc_code"
+                          value={settings.sale_settings?.bank_details?.ifsc_code || ""}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                bank_details: {
+                                  ...settings.sale_settings?.bank_details,
+                                  ifsc_code: e.target.value,
+                                },
+                              },
+                            })
+                          }
+                          placeholder="e.g., HDFC0001234"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Invoice Preview Section */}
                 <div className="space-y-4 pt-6 border-t">
