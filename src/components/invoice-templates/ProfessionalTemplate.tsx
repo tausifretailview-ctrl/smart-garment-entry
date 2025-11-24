@@ -1,5 +1,5 @@
 import React from 'react';
-import '../styles/professional-invoice.css';
+import '../../styles/professional-invoice.css';
 
 interface InvoiceItem {
   sr: number;
