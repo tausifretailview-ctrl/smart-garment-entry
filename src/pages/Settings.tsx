@@ -18,6 +18,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoicePrint } from "@/components/InvoicePrint";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
+import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -67,6 +68,8 @@ interface PurchaseSettings {
   payment_terms?: string;
   auto_approve_threshold?: number;
   default_tax_rate?: number;
+  purchase_code_alphabet?: string;
+  show_purchase_code?: boolean;
 }
 
 interface SaleSettings {
@@ -930,6 +933,65 @@ export default function Settings() {
                     placeholder="e.g., 18"
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="purchase_code_alphabet">Purchase Code Alphabet (0-9 mapping)</Label>
+                  <Input
+                    id="purchase_code_alphabet"
+                    value={settings.purchase_settings?.purchase_code_alphabet || "ABCDEFGHIK"}
+                    onChange={(e) => {
+                      const value = e.target.value.toUpperCase();
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          purchase_code_alphabet: value,
+                        },
+                      });
+                    }}
+                    maxLength={10}
+                    placeholder="ABCDEFGHIK"
+                    className={
+                      settings.purchase_settings?.purchase_code_alphabet &&
+                      !validatePurchaseCodeAlphabet(settings.purchase_settings.purchase_code_alphabet)
+                        ? "border-destructive"
+                        : ""
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter 10 unique letters (A-Z). First letter = 0, Second = 1, ... Tenth = 9. 
+                    Example: ABCDEFGHIK means 100 = BAA
+                  </p>
+                  {settings.purchase_settings?.purchase_code_alphabet &&
+                    !validatePurchaseCodeAlphabet(settings.purchase_settings.purchase_code_alphabet) && (
+                      <p className="text-xs text-destructive">
+                        Invalid alphabet: Must be exactly 10 unique uppercase letters (A-Z)
+                      </p>
+                    )}
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="show_purchase_code"
+                    checked={settings.purchase_settings?.show_purchase_code || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          show_purchase_code: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="show_purchase_code" className="font-normal cursor-pointer">
+                    Show Purchase Code on Barcode Labels
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, purchase prices will be automatically encoded using the alphabet above 
+                  and printed on barcode labels (e.g., ₹100 → BAA)
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
