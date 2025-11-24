@@ -299,6 +299,24 @@ export default function BarcodePrinting() {
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
 
+  // Helper function to check if a template is the current default
+  const getDefaultTemplateName = (): string | null => {
+    try {
+      const storedDefaultFormat = localStorage.getItem("barcode_default_format");
+      if (storedDefaultFormat) {
+        const defaultFormat = JSON.parse(storedDefaultFormat);
+        return defaultFormat.defaultTemplate || null;
+      }
+    } catch (error) {
+      console.error("Failed to read default template:", error);
+    }
+    return null;
+  };
+
+  const isTemplateDefault = (templateName: string): boolean => {
+    return getDefaultTemplateName() === templateName;
+  };
+
   // Drag and drop sensors
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -341,11 +359,37 @@ export default function BarcodePrinting() {
     if (storedDefaultFormat) {
       try {
         const defaultFormat = JSON.parse(storedDefaultFormat);
-        if (defaultFormat.sheetType) {
-          setSheetType(defaultFormat.sheetType);
-        }
-        if (defaultFormat.labelConfig) {
-          // Ensure barcode and barcode text are always enabled
+        
+        // Check if default references a template
+        if (defaultFormat.defaultTemplate) {
+          const storedTemplates = localStorage.getItem("barcode_label_templates");
+          if (storedTemplates) {
+            const templates = JSON.parse(storedTemplates);
+            const template = templates.find((t: LabelTemplate) => t.name === defaultFormat.defaultTemplate);
+            
+            if (template) {
+              // Load template config
+              const configWithBarcode = {
+                ...template.config,
+                barcode: { ...template.config.barcode, show: true },
+                barcodeText: { ...template.config.barcodeText, show: true },
+              };
+              setLabelConfig(configWithBarcode);
+              setSelectedLabelTemplate(template.name);
+            } else {
+              // Template was deleted, fall back to inline config if available
+              if (defaultFormat.labelConfig) {
+                const configWithBarcode = {
+                  ...defaultFormat.labelConfig,
+                  barcode: { ...defaultFormat.labelConfig.barcode, show: true },
+                  barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+                };
+                setLabelConfig(configWithBarcode);
+              }
+            }
+          }
+        } else if (defaultFormat.labelConfig) {
+          // No template reference, load inline config
           const configWithBarcode = {
             ...defaultFormat.labelConfig,
             barcode: { ...defaultFormat.labelConfig.barcode, show: true },
@@ -353,11 +397,22 @@ export default function BarcodePrinting() {
           };
           setLabelConfig(configWithBarcode);
         }
+        
+        // Always load sheet settings
+        if (defaultFormat.sheetType) {
+          setSheetType(defaultFormat.sheetType);
+        }
         if (defaultFormat.topOffset !== undefined) {
           setTopOffset(defaultFormat.topOffset);
         }
         if (defaultFormat.leftOffset !== undefined) {
           setLeftOffset(defaultFormat.leftOffset);
+        }
+        if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
+          setCustomWidth(defaultFormat.customDimensions.width);
+          setCustomHeight(defaultFormat.customDimensions.height);
+          setCustomCols(defaultFormat.customDimensions.cols);
+          setCustomGap(defaultFormat.customDimensions.gap);
         }
       } catch (error) {
         console.error("Failed to load default format:", error);
@@ -1173,8 +1228,10 @@ export default function BarcodePrinting() {
     };
     
     const defaultFormat = {
+      defaultTemplate: selectedLabelTemplate || null,
       sheetType,
-      labelConfig: configToSave,
+      // Only save inline config if no template is selected
+      labelConfig: selectedLabelTemplate ? undefined : configToSave,
       topOffset,
       leftOffset,
       customDimensions: sheetType === "custom" ? {
@@ -1186,7 +1243,12 @@ export default function BarcodePrinting() {
     };
 
     localStorage.setItem("barcode_default_format", JSON.stringify(defaultFormat));
-    toast.success("Current layout saved as default format for purchase direct printing");
+    
+    if (selectedLabelTemplate) {
+      toast.success(`Template "${selectedLabelTemplate}" set as default format`);
+    } else {
+      toast.success("Current layout saved as default format");
+    }
   };
 
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
@@ -2085,7 +2147,14 @@ export default function BarcodePrinting() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-semibold">Label Templates</h3>
-                <p className="text-sm text-muted-foreground">Load saved templates or customize field configurations</p>
+                <p className="text-sm text-muted-foreground">
+                  Load saved templates or customize field configurations
+                  {getDefaultTemplateName() && (
+                    <span className="ml-2 text-primary font-medium">
+                      · Default: {getDefaultTemplateName()}
+                    </span>
+                  )}
+                </p>
               </div>
               
               <div className="flex gap-2 items-center">
@@ -2111,7 +2180,14 @@ export default function BarcodePrinting() {
                         </SelectItem>
                         {savedLabelTemplates.map((template) => (
                           <SelectItem key={template.name} value={template.name}>
-                            {template.name}
+                            <div className="flex items-center gap-2">
+                              {template.name}
+                              {isTemplateDefault(template.name) && (
+                                <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                                  Default
+                                </span>
+                              )}
+                            </div>
                           </SelectItem>
                         ))}
                       </>
@@ -2264,9 +2340,19 @@ export default function BarcodePrinting() {
           <Download className="h-4 w-4 mr-2" />
           Export PDF
         </Button>
-        <Button onClick={handleSaveAsDefault} variant="secondary">
+        <Button 
+          onClick={handleSaveAsDefault} 
+          variant={selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? "default" : "secondary"}
+        >
           <Save className="h-4 w-4 mr-2" />
-          Save as Default Format
+          {selectedLabelTemplate && isTemplateDefault(selectedLabelTemplate) ? (
+            <>
+              <Check className="h-4 w-4 mr-1" />
+              Current Default
+            </>
+          ) : (
+            "Save as Default Format"
+          )}
         </Button>
       </div>
 
