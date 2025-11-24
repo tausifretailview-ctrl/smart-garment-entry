@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -76,6 +77,15 @@ const PurchaseBillDashboard = () => {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  
+  // Payment recording states
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedBillForPayment, setSelectedBillForPayment] = useState<PurchaseBill | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentNotes, setPaymentNotes] = useState("");
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
   useEffect(() => {
     fetchBills();
@@ -371,6 +381,85 @@ const PurchaseBillDashboard = () => {
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
     setCurrentPage(1);
+  };
+
+  const handleOpenPaymentDialog = (bill: PurchaseBill, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setSelectedBillForPayment(bill);
+    const remainingAmount = bill.net_amount - (bill.paid_amount || 0);
+    setPaymentAmount(remainingAmount.toFixed(2));
+    setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+    setPaymentMethod("cash");
+    setPaymentNotes("");
+    setShowPaymentDialog(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedBillForPayment) return;
+
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid payment amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentPaid = selectedBillForPayment.paid_amount || 0;
+    const newTotalPaid = currentPaid + amount;
+
+    if (newTotalPaid > selectedBillForPayment.net_amount) {
+      toast({
+        title: "Amount Exceeds Bill Total",
+        description: "Payment amount exceeds the remaining bill amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      // Determine new payment status
+      let newStatus = 'unpaid';
+      if (newTotalPaid >= selectedBillForPayment.net_amount) {
+        newStatus = 'paid';
+      } else if (newTotalPaid > 0) {
+        newStatus = 'partial';
+      }
+
+      // Update purchase bill with payment
+      const { error: updateError } = await supabase
+        .from("purchase_bills")
+        .update({
+          paid_amount: newTotalPaid,
+          payment_status: newStatus,
+        })
+        .eq("id", selectedBillForPayment.id);
+
+      if (updateError) throw updateError;
+
+      // TODO: Create voucher entry for this payment in accounts
+      // This can be integrated with the accounts module later
+
+      toast({
+        title: "Payment Recorded",
+        description: `₹${amount.toFixed(2)} payment recorded successfully`,
+      });
+
+      setShowPaymentDialog(false);
+      setSelectedBillForPayment(null);
+      await fetchBills();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record payment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecordingPayment(false);
+    }
   };
 
   const handleNextPage = () => {
@@ -733,6 +822,15 @@ const PurchaseBillDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                onClick={(e) => handleOpenPaymentDialog(bill, e)}
+                                className="gap-1"
+                                title="Record Payment"
+                              >
+                                <Wallet className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   navigate("/purchase-entry", { state: { editBillId: bill.id } });
@@ -935,6 +1033,113 @@ const PurchaseBillDashboard = () => {
                 </>
               ) : (
                 "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Payment Recording Dialog */}
+      <AlertDialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Record Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Record a payment for purchase bill {selectedBillForPayment?.software_bill_no}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {selectedBillForPayment && (
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Supplier:</span>
+                  <p className="font-medium">{selectedBillForPayment.supplier_name}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Bill Date:</span>
+                  <p className="font-medium">{format(new Date(selectedBillForPayment.bill_date), "dd MMM yyyy")}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Bill Amount:</span>
+                  <p className="font-medium">₹{selectedBillForPayment.net_amount.toFixed(2)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Paid Amount:</span>
+                  <p className="font-medium">₹{(selectedBillForPayment.paid_amount || 0).toFixed(2)}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-muted-foreground">Remaining Amount:</span>
+                  <p className="font-semibold text-lg text-primary">
+                    ₹{(selectedBillForPayment.net_amount - (selectedBillForPayment.paid_amount || 0)).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment-amount">Payment Amount</Label>
+                <Input
+                  id="payment-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="Enter payment amount"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment-date">Payment Date</Label>
+                <Input
+                  id="payment-date"
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment-method">Payment Method</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger id="payment-method">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="payment-notes">Notes (Optional)</Label>
+                <Input
+                  id="payment-notes"
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  placeholder="Payment reference or notes"
+                />
+              </div>
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRecordingPayment}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRecordPayment}
+              disabled={isRecordingPayment}
+            >
+              {isRecordingPayment ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Recording...
+                </>
+              ) : (
+                "Record Payment"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
