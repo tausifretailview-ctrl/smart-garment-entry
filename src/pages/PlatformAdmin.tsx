@@ -289,7 +289,7 @@ export default function PlatformAdmin() {
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("add-existing-user", {
         body: {
-          userEmail: assignUserEmail,
+          email: assignUserEmail,
           organizationId: assignOrgId,
           role: assignUserRole,
         },
