@@ -108,6 +108,8 @@ interface DesignFormatPreset {
   format: DesignFormat;
   topOffset: number;
   leftOffset: number;
+  bottomOffset: number;
+  rightOffset: number;
   labelConfig: LabelDesignConfig;
 }
 
@@ -249,6 +251,8 @@ export default function BarcodePrinting() {
   const [designFormat, setDesignFormat] = useState<DesignFormat>("BT1");
   const [topOffset, setTopOffset] = useState(0);
   const [leftOffset, setLeftOffset] = useState(0);
+  const [bottomOffset, setBottomOffset] = useState(0);
+  const [rightOffset, setRightOffset] = useState(0);
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
   
   // Auto-load default offsets when novajet40 is selected
@@ -420,6 +424,12 @@ export default function BarcodePrinting() {
         }
         if (defaultFormat.leftOffset !== undefined) {
           setLeftOffset(defaultFormat.leftOffset);
+        }
+        if (defaultFormat.bottomOffset !== undefined) {
+          setBottomOffset(defaultFormat.bottomOffset);
+        }
+        if (defaultFormat.rightOffset !== undefined) {
+          setRightOffset(defaultFormat.rightOffset);
         }
         if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
           setCustomWidth(defaultFormat.customDimensions.width);
@@ -1034,6 +1044,8 @@ export default function BarcodePrinting() {
       format: designFormat,
       topOffset,
       leftOffset,
+      bottomOffset,
+      rightOffset,
       labelConfig: { ...labelConfig },
     };
 
@@ -1066,6 +1078,8 @@ export default function BarcodePrinting() {
       setDesignFormat(preset.format);
       setTopOffset(preset.topOffset);
       setLeftOffset(preset.leftOffset);
+      setBottomOffset(preset.bottomOffset || 0);
+      setRightOffset(preset.rightOffset || 0);
       setNewDesignPresetName(preset.name);
       setIsEditingDesignPreset(true);
       setIsDesignSaveDialogOpen(true);
@@ -1078,6 +1092,8 @@ export default function BarcodePrinting() {
       setDesignFormat(preset.format);
       setTopOffset(preset.topOffset);
       setLeftOffset(preset.leftOffset);
+      setBottomOffset(preset.bottomOffset || 0);
+      setRightOffset(preset.rightOffset || 0);
       if (preset.labelConfig) {
         // Ensure the loaded config has all required properties with defaults
         const mergedConfig: LabelDesignConfig = {
@@ -1247,6 +1263,8 @@ export default function BarcodePrinting() {
       labelConfig: selectedLabelTemplate ? undefined : configToSave,
       topOffset,
       leftOffset,
+      bottomOffset,
+      rightOffset,
       customDimensions: sheetType === "custom" ? {
         width: customWidth,
         height: customHeight,
@@ -1410,7 +1428,7 @@ export default function BarcodePrinting() {
     // Calculate labels per page (only for preview mode)
     let numPages = 0;
     if (isPreviewMode) {
-      const availableHeight = 297 - topOffset - 10;
+      const availableHeight = 297 - topOffset - bottomOffset - 10;
       const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
       const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
       numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
@@ -1427,7 +1445,7 @@ export default function BarcodePrinting() {
 
     if (isPreviewMode && numPages > 0) {
       // Preview mode: Show pages with separators
-      const availableHeight = 297 - topOffset - 10;
+      const availableHeight = 297 - topOffset - bottomOffset - 10;
       const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
       const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
 
@@ -1476,6 +1494,8 @@ export default function BarcodePrinting() {
           gap: ${dimensions.gap}mm;
           padding-top: ${topOffset}mm;
           padding-left: ${leftOffset}mm;
+          padding-bottom: ${bottomOffset}mm;
+          padding-right: ${rightOffset}mm;
           margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
         `;
 
@@ -1505,6 +1525,8 @@ export default function BarcodePrinting() {
         gap: ${dimensions.gap}mm;
         padding-top: ${topOffset}mm;
         padding-left: ${leftOffset}mm;
+        padding-bottom: ${bottomOffset}mm;
+        padding-right: ${rightOffset}mm;
       `;
 
       allLabels.forEach((label) => {
@@ -1606,7 +1628,7 @@ export default function BarcodePrinting() {
           };
       
       // Calculate how many rows fit on one page
-      const availableHeight = 297 - topOffset - 10; // A4 height with margins
+      const availableHeight = 297 - topOffset - bottomOffset - 10; // A4 height with margins
       const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
       const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
       
@@ -1663,6 +1685,8 @@ export default function BarcodePrinting() {
           gap: ${dimensions.gap}mm;
           padding-top: ${topOffset}mm;
           padding-left: ${leftOffset}mm;
+          padding-bottom: ${bottomOffset}mm;
+          padding-right: ${rightOffset}mm;
           width: 210mm;
         `;
 
@@ -2181,7 +2205,7 @@ export default function BarcodePrinting() {
                       </SelectItem>
                       {savedDesignPresets.map((preset) => (
                         <SelectItem key={preset.name} value={`preset_${preset.name}`}>
-                          {preset.name} ({preset.format}, Top: {preset.topOffset}mm, Left: {preset.leftOffset}mm)
+                          {preset.name} ({preset.format}, T:{preset.topOffset} L:{preset.leftOffset} B:{preset.bottomOffset || 0} R:{preset.rightOffset || 0}mm)
                         </SelectItem>
                       ))}
                     </>
@@ -2218,12 +2242,14 @@ export default function BarcodePrinting() {
                         maxLength={50}
                       />
                     </div>
-                    <div className="text-sm text-muted-foreground space-y-1">
+                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>Current settings:</p>
                       <ul className="list-disc list-inside ml-2">
                         <li>Format: {designFormat}</li>
-                        <li>Top Offset: {topOffset}mm</li>
-                        <li>Left Offset: {leftOffset}mm</li>
+                        <li>Top Margin: {topOffset}mm</li>
+                        <li>Left Margin: {leftOffset}mm</li>
+                        <li>Bottom Margin: {bottomOffset}mm</li>
+                        <li>Right Margin: {rightOffset}mm</li>
                       </ul>
                     </div>
                   </div>
@@ -2428,7 +2454,7 @@ export default function BarcodePrinting() {
           </div>
 
           <div className="space-y-2">
-            <Label>Top Offset (mm)</Label>
+            <Label>Top Margin (mm)</Label>
             <Input
               type="number"
               min="0"
@@ -2438,12 +2464,32 @@ export default function BarcodePrinting() {
           </div>
 
           <div className="space-y-2">
-            <Label>Left Offset (mm)</Label>
+            <Label>Left Margin (mm)</Label>
             <Input
               type="number"
               min="0"
               value={leftOffset}
               onChange={(e) => setLeftOffset(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Bottom Margin (mm)</Label>
+            <Input
+              type="number"
+              min="0"
+              value={bottomOffset}
+              onChange={(e) => setBottomOffset(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Right Margin (mm)</Label>
+            <Input
+              type="number"
+              min="0"
+              value={rightOffset}
+              onChange={(e) => setRightOffset(parseFloat(e.target.value) || 0)}
             />
           </div>
         </div>
