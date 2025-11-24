@@ -113,6 +113,15 @@ interface DesignFormatPreset {
   labelConfig: LabelDesignConfig;
 }
 
+interface MarginPreset {
+  name: string;
+  topOffset: number;
+  leftOffset: number;
+  bottomOffset: number;
+  rightOffset: number;
+  description?: string;
+}
+
 interface LabelTemplate {
   name: string;
   config: LabelDesignConfig;
@@ -289,6 +298,14 @@ export default function BarcodePrinting() {
   const [newDesignPresetName, setNewDesignPresetName] = useState("");
   const [isEditingDesignPreset, setIsEditingDesignPreset] = useState(false);
   
+  // Margin preset state
+  const [savedMarginPresets, setSavedMarginPresets] = useState<MarginPreset[]>([]);
+  const [selectedMarginPreset, setSelectedMarginPreset] = useState<string>("");
+  const [isMarginSaveDialogOpen, setIsMarginSaveDialogOpen] = useState(false);
+  const [newMarginPresetName, setNewMarginPresetName] = useState("");
+  const [newMarginPresetDescription, setNewMarginPresetDescription] = useState("");
+  const [isEditingMarginPreset, setIsEditingMarginPreset] = useState(false);
+  
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
     brand: { show: true, fontSize: 8, bold: true },
@@ -368,6 +385,15 @@ export default function BarcodePrinting() {
         setSavedLabelTemplates(JSON.parse(storedLabelTemplates));
       } catch (error) {
         console.error("Failed to load label templates:", error);
+      }
+    }
+
+    const storedMarginPresets = localStorage.getItem("barcode_margin_presets");
+    if (storedMarginPresets) {
+      try {
+        setSavedMarginPresets(JSON.parse(storedMarginPresets));
+      } catch (error) {
+        console.error("Failed to load margin presets:", error);
       }
     }
 
@@ -1128,6 +1154,99 @@ export default function BarcodePrinting() {
     localStorage.setItem("barcode_design_presets", JSON.stringify(updatedPresets));
     setSelectedDesignPreset("");
     toast.success(`Design preset "${selectedDesignPreset}" deleted`);
+  };
+
+  // Margin preset management functions
+  const handleSaveMarginPreset = () => {
+    const trimmedName = newMarginPresetName.trim();
+    
+    if (!trimmedName) {
+      toast.error("Please enter a preset name");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      toast.error("Preset name must be less than 50 characters");
+      return;
+    }
+
+    const existingIndex = savedMarginPresets.findIndex(p => p.name === trimmedName);
+    
+    if (!isEditingMarginPreset && existingIndex !== -1) {
+      toast.error("A margin preset with this name already exists");
+      return;
+    }
+
+    const newPreset: MarginPreset = {
+      name: trimmedName,
+      topOffset,
+      leftOffset,
+      bottomOffset,
+      rightOffset,
+      description: newMarginPresetDescription.trim() || undefined,
+    };
+
+    let updatedPresets: MarginPreset[];
+    if (isEditingMarginPreset && existingIndex !== -1) {
+      updatedPresets = [...savedMarginPresets];
+      updatedPresets[existingIndex] = newPreset;
+      toast.success(`Margin preset "${trimmedName}" updated`);
+    } else {
+      updatedPresets = [...savedMarginPresets, newPreset];
+      toast.success(`Margin preset "${trimmedName}" saved`);
+    }
+
+    setSavedMarginPresets(updatedPresets);
+    localStorage.setItem("barcode_margin_presets", JSON.stringify(updatedPresets));
+    setSelectedMarginPreset(trimmedName);
+    setIsMarginSaveDialogOpen(false);
+    setIsEditingMarginPreset(false);
+    setNewMarginPresetName("");
+    setNewMarginPresetDescription("");
+  };
+
+  const handleEditMarginPreset = () => {
+    if (!selectedMarginPreset) {
+      toast.error("Please select a margin preset to edit");
+      return;
+    }
+
+    const preset = savedMarginPresets.find(p => p.name === selectedMarginPreset);
+    if (preset) {
+      setTopOffset(preset.topOffset);
+      setLeftOffset(preset.leftOffset);
+      setBottomOffset(preset.bottomOffset);
+      setRightOffset(preset.rightOffset);
+      setNewMarginPresetName(preset.name);
+      setNewMarginPresetDescription(preset.description || "");
+      setIsEditingMarginPreset(true);
+      setIsMarginSaveDialogOpen(true);
+    }
+  };
+
+  const handleLoadMarginPreset = (presetName: string) => {
+    const preset = savedMarginPresets.find(p => p.name === presetName);
+    if (preset) {
+      setTopOffset(preset.topOffset);
+      setLeftOffset(preset.leftOffset);
+      setBottomOffset(preset.bottomOffset);
+      setRightOffset(preset.rightOffset);
+      setSelectedMarginPreset(presetName);
+      toast.success(`Loaded margin preset "${presetName}"`);
+    }
+  };
+
+  const handleDeleteMarginPreset = () => {
+    if (!selectedMarginPreset) {
+      toast.error("Please select a margin preset to delete");
+      return;
+    }
+
+    const updatedPresets = savedMarginPresets.filter(p => p.name !== selectedMarginPreset);
+    setSavedMarginPresets(updatedPresets);
+    localStorage.setItem("barcode_margin_presets", JSON.stringify(updatedPresets));
+    setSelectedMarginPreset("");
+    toast.success(`Margin preset "${selectedMarginPreset}" deleted`);
   };
 
   // Label template management functions
@@ -2453,13 +2572,153 @@ export default function BarcodePrinting() {
             )}
           </div>
 
+          {/* Margin Presets Section */}
+          <div className="col-span-full border rounded-lg p-4 space-y-4 bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">Sheet Margin Presets</h3>
+                <p className="text-sm text-muted-foreground">
+                  Save margin configurations for different label sheet brands (Avery, Brother, etc.)
+                </p>
+              </div>
+              
+              <div className="flex gap-2 items-center">
+                <Select 
+                  value={selectedMarginPreset || "none"} 
+                  onValueChange={(v) => {
+                    if (v === "none") {
+                      setSelectedMarginPreset("");
+                    } else {
+                      handleLoadMarginPreset(v);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[240px]">
+                    <SelectValue placeholder="Select margin preset..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="none">No Preset</SelectItem>
+                    {savedMarginPresets.length > 0 && (
+                      <>
+                        <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50">
+                          — Saved Margin Presets —
+                        </SelectItem>
+                        {savedMarginPresets.map((preset) => (
+                          <SelectItem key={preset.name} value={preset.name}>
+                            <div className="flex flex-col items-start">
+                              <span>{preset.name}</span>
+                              {preset.description && (
+                                <span className="text-xs text-muted-foreground">{preset.description}</span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+
+                <Dialog open={isMarginSaveDialogOpen} onOpenChange={setIsMarginSaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setNewMarginPresetName("");
+                        setNewMarginPresetDescription("");
+                        setIsEditingMarginPreset(false);
+                      }}
+                    >
+                      <Save className="h-4 w-4 mr-1" />
+                      Save Margins
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{isEditingMarginPreset ? "Update" : "Save"} Margin Preset</DialogTitle>
+                      <DialogDescription>
+                        {isEditingMarginPreset ? "Update the margin preset" : "Save current margin settings for a specific label sheet brand"}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Preset Name</Label>
+                        <Input
+                          placeholder="e.g., Avery 5160, Brother DK-1234"
+                          value={newMarginPresetName}
+                          onChange={(e) => setNewMarginPresetName(e.target.value.slice(0, 50))}
+                          maxLength={50}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Description (Optional)</Label>
+                        <Input
+                          placeholder="e.g., Standard address labels, 30 per sheet"
+                          value={newMarginPresetDescription}
+                          onChange={(e) => setNewMarginPresetDescription(e.target.value.slice(0, 100))}
+                          maxLength={100}
+                        />
+                      </div>
+                      <div className="text-sm text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
+                        <p className="font-medium">Current Margins:</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>• Top: {topOffset}mm</div>
+                          <div>• Left: {leftOffset}mm</div>
+                          <div>• Bottom: {bottomOffset}mm</div>
+                          <div>• Right: {rightOffset}mm</div>
+                        </div>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => {
+                        setIsMarginSaveDialogOpen(false);
+                        setIsEditingMarginPreset(false);
+                        setNewMarginPresetName("");
+                        setNewMarginPresetDescription("");
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSaveMarginPreset}>
+                        {isEditingMarginPreset ? "Update" : "Save"} Preset
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {selectedMarginPreset && (
+                  <>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleEditMarginPreset}
+                      title="Edit this margin preset"
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={handleDeleteMarginPreset}
+                      title="Delete this margin preset"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label>Top Margin (mm)</Label>
             <Input
               type="number"
               min="0"
               value={topOffset}
-              onChange={(e) => setTopOffset(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setTopOffset(parseFloat(e.target.value) || 0);
+                setSelectedMarginPreset("");
+              }}
             />
           </div>
 
@@ -2469,7 +2728,10 @@ export default function BarcodePrinting() {
               type="number"
               min="0"
               value={leftOffset}
-              onChange={(e) => setLeftOffset(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setLeftOffset(parseFloat(e.target.value) || 0);
+                setSelectedMarginPreset("");
+              }}
             />
           </div>
 
@@ -2479,7 +2741,10 @@ export default function BarcodePrinting() {
               type="number"
               min="0"
               value={bottomOffset}
-              onChange={(e) => setBottomOffset(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setBottomOffset(parseFloat(e.target.value) || 0);
+                setSelectedMarginPreset("");
+              }}
             />
           </div>
 
@@ -2489,7 +2754,10 @@ export default function BarcodePrinting() {
               type="number"
               min="0"
               value={rightOffset}
-              onChange={(e) => setRightOffset(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                setRightOffset(parseFloat(e.target.value) || 0);
+                setSelectedMarginPreset("");
+              }}
             />
           </div>
         </div>
