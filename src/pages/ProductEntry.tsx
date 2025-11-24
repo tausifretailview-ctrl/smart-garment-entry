@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -57,6 +57,7 @@ const ProductEntry = () => {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
+  const productNameInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_name: "",
@@ -671,6 +672,11 @@ const ProductEntry = () => {
         setShowVariants(false);
         setImageFile(null);
         setImagePreview("");
+        
+        // Focus on product name input for next entry
+        setTimeout(() => {
+          productNameInputRef.current?.focus();
+        }, 0);
       }
     } catch (error: any) {
       toast({
@@ -749,6 +755,7 @@ const ProductEntry = () => {
                 <Label htmlFor="product_name">Product Name *</Label>
                 <Input
                   id="product_name"
+                  ref={productNameInputRef}
                   value={formData.product_name}
                   onChange={(e) =>
                     setFormData({ ...formData, product_name: e.target.value })
