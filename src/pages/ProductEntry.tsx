@@ -108,14 +108,25 @@ const ProductEntry = () => {
     
     const { data, error } = await supabase
       .from("settings")
-      .select("product_settings")
+      .select("product_settings, purchase_settings")
       .eq("organization_id", currentOrganization.id)
       .single();
 
-    if (data && typeof data.product_settings === 'object' && data.product_settings !== null) {
-      const settings = data.product_settings as any;
-      if (settings.default_size_group && !editingProductId) {
-        setFormData(prev => ({ ...prev, size_group_id: settings.default_size_group }));
+    if (data) {
+      // Apply default size group
+      if (typeof data.product_settings === 'object' && data.product_settings !== null) {
+        const productSettings = data.product_settings as any;
+        if (productSettings.default_size_group && !editingProductId) {
+          setFormData(prev => ({ ...prev, size_group_id: productSettings.default_size_group }));
+        }
+      }
+      
+      // Apply default GST tax rate
+      if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
+        const purchaseSettings = data.purchase_settings as any;
+        if (purchaseSettings.default_tax_rate !== undefined && !editingProductId) {
+          setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate }));
+        }
       }
     }
   };
