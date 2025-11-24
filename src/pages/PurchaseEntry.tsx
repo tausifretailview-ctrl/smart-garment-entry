@@ -107,6 +107,7 @@ const PurchaseEntry = () => {
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
   const lastQtyInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
@@ -326,6 +327,7 @@ const PurchaseEntry = () => {
   const searchProducts = async (query: string) => {
     if (!query || query.length < 1) {
       setSearchResults([]);
+      setSelectedSearchIndex(0);
       return;
     }
 
@@ -392,6 +394,7 @@ const PurchaseEntry = () => {
       }));
 
       setSearchResults(results);
+      setSelectedSearchIndex(0);
       setShowSearch(true);
     } catch (error: any) {
       console.error(error);
@@ -1038,8 +1041,21 @@ const PurchaseEntry = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && searchResults.length > 0) {
-                        handleProductSelect(searchResults[0]);
+                      if (searchResults.length === 0) return;
+                      
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setSelectedSearchIndex(prev => 
+                          prev < searchResults.length - 1 ? prev + 1 : 0
+                        );
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setSelectedSearchIndex(prev => 
+                          prev > 0 ? prev - 1 : searchResults.length - 1
+                        );
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleProductSelect(searchResults[selectedSearchIndex]);
                       }
                     }}
                     placeholder="Search by product, brand, style, or barcode..."
@@ -1052,12 +1068,11 @@ const PurchaseEntry = () => {
                         <button
                           key={result.product_id + idx}
                           onClick={() => handleProductSelect(result)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleProductSelect(result);
-                            }
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-accent text-popover-foreground border-b border-border last:border-0 transition-colors"
+                          onMouseEnter={() => setSelectedSearchIndex(idx)}
+                          className={cn(
+                            "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
+                            idx === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
+                          )}
                         >
                           <div className="font-medium">
                             {formatProductDescription({
