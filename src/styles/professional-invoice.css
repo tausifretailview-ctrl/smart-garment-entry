@@ -50,40 +50,53 @@
   }
 }
 
-/* Page setup for different formats */
+/* Default page setup */
 @page {
-  margin: 0;
+  margin: 10mm;
 }
 
-@page :first {
-  margin: 0;
-}
-
-/* A5 Vertical - Portrait */
+/* A5 Vertical - Portrait (default fallback) */
 @media print {
   @page {
     size: A5 portrait;
   }
-  
-  .professional-invoice-template.format-a5-vertical {
-    page: A5;
-  }
 }
 
 /* A5 Horizontal - Landscape */
-@media print {
-  .professional-invoice-template.format-a5-horizontal {
+@media print and (max-width: 210mm) {
+  body:has(.format-a5-horizontal) {
     @page {
       size: A5 landscape;
     }
   }
 }
 
-/* A4 Full - Portrait */
-@media print {
-  .professional-invoice-template.format-a4 {
-    @page {
-      size: A4 portrait;
-    }
-  }
+/* Force A5 Horizontal using page name */
+.professional-invoice-template.format-a5-horizontal {
+  page: a5horizontal;
+}
+
+@page a5horizontal {
+  size: A5 landscape;
+  margin: 10mm;
+}
+
+/* Force A5 Vertical using page name */
+.professional-invoice-template.format-a5-vertical {
+  page: a5vertical;
+}
+
+@page a5vertical {
+  size: A5 portrait;
+  margin: 10mm;
+}
+
+/* Force A4 using page name */
+.professional-invoice-template.format-a4 {
+  page: a4page;
+}
+
+@page a4page {
+  size: A4 portrait;
+  margin: 15mm;
 }

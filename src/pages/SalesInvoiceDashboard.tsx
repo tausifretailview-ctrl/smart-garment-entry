@@ -521,7 +521,7 @@ export default function SalesInvoiceDashboard() {
 
       {/* Hidden Invoice for Printing */}
       {invoiceToPrint && (
-        <div style={{ display: 'none' }}>
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           <InvoiceWrapper
             ref={printRef}
             billNo={invoiceToPrint.sale_number}
