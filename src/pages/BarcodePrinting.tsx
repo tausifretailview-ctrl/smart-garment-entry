@@ -15,6 +15,7 @@ import JsBarcode from "jsbarcode";
 import { Check, Save, Trash2, GripVertical, Eye, Download } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { encodePurchasePrice } from "@/utils/purchaseCodeEncoder";
 import {
   DndContext,
   closestCenter,
@@ -44,6 +45,8 @@ interface LabelItem {
   style: string;
   size: string;
   sale_price: number;
+  pur_price?: number;
+  purchase_code?: string;
   barcode: string;
   bill_number: string;
   qty: number;
@@ -96,6 +99,7 @@ interface LabelDesignConfig {
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
+  purchaseCode: LabelFieldConfig;
   fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder'>>;
 }
 
@@ -157,6 +161,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
     barcodeText: 'Barcode Number',
     billNumber: 'Bill Number',
     supplierCode: 'Supplier Code',
+    purchaseCode: 'Purchase Code',
   };
 
   const field = labelConfig[fieldKey];
@@ -279,7 +284,8 @@ export default function BarcodePrinting() {
     barcodeText: { show: true, fontSize: 7, bold: false },
     billNumber: { show: false, fontSize: 6, bold: false },
     supplierCode: { show: true, fontSize: 7, bold: false },
-    fieldOrder: ['brand', 'productName', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'billNumber', 'color', 'style'],
+    purchaseCode: { show: false, fontSize: 7, bold: false },
+    fieldOrder: ['brand', 'productName', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -290,6 +296,8 @@ export default function BarcodePrinting() {
   const [isEditingLabelTemplate, setIsEditingLabelTemplate] = useState(false);
   const [showCustomizeFields, setShowCustomizeFields] = useState(false);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
+  const [showPurchaseCode, setShowPurchaseCode] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -363,13 +371,31 @@ export default function BarcodePrinting() {
       try {
         const { data, error } = await supabase
           .from("settings")
-          .select("business_name")
+          .select("business_name, purchase_settings")
           .maybeSingle();
 
         if (error) throw error;
         
         if (data?.business_name) {
           setBusinessName(data.business_name);
+        }
+        
+        // Fetch purchase code settings
+        if (data?.purchase_settings) {
+          const purchaseSettings = data.purchase_settings as any;
+          if (purchaseSettings.purchase_code_alphabet) {
+            setPurchaseCodeAlphabet(purchaseSettings.purchase_code_alphabet);
+          }
+          if (purchaseSettings.show_purchase_code !== undefined) {
+            setShowPurchaseCode(purchaseSettings.show_purchase_code);
+            // Update labelConfig to show purchase code if enabled
+            if (purchaseSettings.show_purchase_code) {
+              setLabelConfig(prev => ({
+                ...prev,
+                purchaseCode: { ...prev.purchaseCode, show: true }
+              }));
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to fetch business name:", error);
@@ -407,24 +433,33 @@ export default function BarcodePrinting() {
   useEffect(() => {
     if (location.state?.purchaseItems) {
       const purchaseItems = location.state.purchaseItems;
-      const items: LabelItem[] = purchaseItems.map((item: any) => ({
-        sku_id: item.sku_id,
-        product_name: item.product_name,
-        brand: item.brand || "",
-        category: item.category || "",
-        color: item.color || "",
-        style: item.style || "",
-        size: item.size,
-        sale_price: item.sale_price,
-        barcode: item.barcode,
-        qty: item.qty,
-        bill_number: item.bill_number || "",
-        supplier_code: item.supplier_code || "",
-      }));
+      const items: LabelItem[] = purchaseItems.map((item: any) => {
+        const purPrice = item.pur_price || 0;
+        const purchaseCode = showPurchaseCode && purPrice > 0 
+          ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) 
+          : undefined;
+        
+        return {
+          sku_id: item.sku_id,
+          product_name: item.product_name,
+          brand: item.brand || "",
+          category: item.category || "",
+          color: item.color || "",
+          style: item.style || "",
+          size: item.size,
+          sale_price: item.sale_price,
+          pur_price: purPrice,
+          purchase_code: purchaseCode,
+          barcode: item.barcode,
+          qty: item.qty,
+          bill_number: item.bill_number || "",
+          supplier_code: item.supplier_code || "",
+        };
+      });
       setLabelItems(items);
       toast.success(`Loaded ${items.length} items from purchase bill`);
     }
-  }, [location.state]);
+  }, [location.state, showPurchaseCode, purchaseCodeAlphabet]);
 
   const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
@@ -988,7 +1023,8 @@ export default function BarcodePrinting() {
           barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
           billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
           supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
+          purchaseCode: preset.labelConfig.purchaseCode || { show: false, fontSize: 7, bold: false },
+          fieldOrder: preset.labelConfig.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
         };
         setLabelConfig(mergedConfig);
       }
@@ -1080,7 +1116,8 @@ export default function BarcodePrinting() {
         barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
         billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
         supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
+        purchaseCode: template.config.purchaseCode || { show: false, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
       };
       setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
@@ -1105,7 +1142,8 @@ export default function BarcodePrinting() {
         barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
         billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
         supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode'],
+        purchaseCode: template.config.purchaseCode || { show: false, fontSize: 7, bold: false },
+        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
       };
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
@@ -1204,6 +1242,11 @@ export default function BarcodePrinting() {
         case 'supplierCode':
           if (item.supplier_code) {
             html += `<div class="supplier-code" style="${getStyle(field)}">Sup: ${item.supplier_code}</div>`;
+          }
+          break;
+        case 'purchaseCode':
+          if (item.purchase_code) {
+            html += `<div class="purchase-code" style="${getStyle(field)}">Code: ${item.purchase_code}</div>`;
           }
           break;
       }

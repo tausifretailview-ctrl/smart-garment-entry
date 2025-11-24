@@ -9,6 +9,8 @@ interface BarcodeItem {
   style: string;
   size: string;
   sale_price: number;
+  pur_price?: number;
+  purchase_code?: string;
   barcode: string;
   qty: number;
   bill_number?: string;
@@ -33,6 +35,7 @@ interface LabelConfig {
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
+  purchaseCode: LabelFieldConfig;
   fieldOrder: string[];
 }
 
@@ -74,6 +77,7 @@ const getLabelHTML = (
     barcodeText: { show: true, fontSize: 9, bold: true },
     billNumber: { show: false, fontSize: 7, bold: false },
     supplierCode: { show: true, fontSize: 7, bold: false },
+    purchaseCode: { show: false, fontSize: 7, bold: false },
     fieldOrder: []
   };
   
@@ -109,6 +113,11 @@ const getLabelHTML = (
   }
   // Always show barcode text (number)
   html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; margin-bottom: 1mm;">${barcode}</div>`;
+  
+  // Purchase Code
+  if (config.purchaseCode.show && item.purchase_code) {
+    html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: center; color: #666;">Code: ${item.purchase_code}</div>`;
+  }
   
   if (config.billNumber.show && item.bill_number) {
     html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; margin-top: 1.5mm;">Bill: ${item.bill_number}</div>`;
