@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -27,7 +27,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
-import { generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { useReactToPrint } from "react-to-print";
 import {
   Command,
   CommandEmpty,
@@ -92,6 +92,7 @@ export default function SalesInvoice() {
   const navigate = useNavigate();
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
+  const printRef = useRef<HTMLDivElement>(null);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -579,8 +580,8 @@ export default function SalesInvoice() {
         termsList,
       };
 
-      // Generate and download PDF
-      await generateInvoiceFromHTML(pdfInvoiceData);
+      // TODO: Re-implement PDF generation for WhatsApp sharing
+      // await generateInvoiceFromHTML(pdfInvoiceData);
 
       // Create WhatsApp message
       const message = `Hello ${selectedCustomer?.customer_name || 'Customer'},
@@ -831,88 +832,23 @@ Thank you for choosing us!`;
     }
   };
 
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    onAfterPrint: () => {
+      toast({
+        title: "Success",
+        description: "Invoice printed successfully",
+      });
+    },
+  });
+
   const handlePrintInvoice = async () => {
     if (!savedInvoiceData || !currentOrganization?.id) return;
-
-    try {
-      // Fetch logo if available
-      let logoUrl = '';
-      const saleSettings = settingsData?.sale_settings as any;
-      if (saleSettings?.logo_path) {
-        const { data: logoData } = await supabase.storage
-          .from('company-logos')
-          .createSignedUrl(saleSettings.logo_path, 60);
-        if (logoData?.signedUrl) {
-          logoUrl = logoData.signedUrl;
-        }
-      }
-
-      const declarationText = saleSettings?.declaration_text || '';
-      const termsList = saleSettings?.terms_list || [];
-
-      // Transform invoice items for PDF generation
-      const transformedItems = savedInvoiceData.filledItems.map((item: any, index: number) => ({
-        sr: index + 1,
-        particulars: item.productName,
-        size: item.size,
-        barcode: item.barcode || '',
-        hsn: '',
-        sp: item.mrp,
-        qty: item.quantity,
-        rate: item.salePrice,
-        total: item.lineTotal,
-      }));
-
-      // Prepare invoice data for PDF
-      const invoiceData = {
-        billNo: savedInvoiceData.invoiceNumber,
-        date: invoiceDate,
-        time: new Date().toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        }),
-        customerName: savedInvoiceData.customer.customer_name,
-        customerAddress: savedInvoiceData.customer.address || '',
-        customerMobile: savedInvoiceData.customer.phone || '',
-        items: transformedItems,
-        subTotal: grossAmount,
-        discount: totalDiscount,
-        grandTotal: savedInvoiceData.netAmount,
-        tenderAmount: savedInvoiceData.netAmount,
-        cashPaid: 0,
-        upiPaid: 0,
-        cardPaid: 0,
-        refundCash: 0,
-        paymentMethod: 'pending',
-        businessName: settingsData?.business_name || 'BUSINESS NAME',
-        businessAddress: settingsData?.address || '',
-        businessContact: settingsData?.mobile_number || '',
-        businessEmail: settingsData?.email_id || '',
-        gstNumber: settingsData?.gst_number || '',
-        logo: logoUrl,
-        mrpTotal: grossAmount,
-        declarationText,
-        termsList,
-      };
-
-      // Print invoice
-      await printInvoiceDirectly(invoiceData);
-      
-      toast({
-        title: "Printing Invoice",
-        description: `Invoice ${savedInvoiceData.invoiceNumber} sent to printer`,
-      });
-
-      handleClosePrintDialog();
-    } catch (error: any) {
-      console.error('Error printing invoice:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to print invoice",
-      });
-    }
+    
+    // Trigger print
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
   };
 
   const handleClosePrintDialog = () => {
@@ -1609,6 +1545,36 @@ Thank you for choosing us!`;
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hidden Invoice for Printing */}
+      {savedInvoiceData && (
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <InvoiceWrapper
+            ref={printRef}
+            billNo={savedInvoiceData.invoiceNumber}
+            date={invoiceDate}
+            customerName={savedInvoiceData.customer.customer_name}
+            customerAddress={savedInvoiceData.customer.address || ""}
+            customerMobile={savedInvoiceData.customer.phone || ""}
+            customerGSTIN={savedInvoiceData.customer.gst_number || ""}
+            items={savedInvoiceData.filledItems.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.productName,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: "",
+              sp: item.mrp,
+              qty: item.quantity,
+              rate: item.salePrice,
+              total: item.lineTotal,
+            }))}
+            subTotal={grossAmount}
+            discount={totalDiscount}
+            grandTotal={netAmount}
+            paymentMethod="Pending"
+          />
+        </div>
+      )}
     </div>
   );
 }
