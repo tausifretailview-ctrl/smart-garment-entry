@@ -48,6 +48,8 @@ interface PurchaseBill {
   net_amount: number;
   notes: string;
   created_at: string;
+  payment_status?: string;
+  paid_amount?: number;
   items?: PurchaseItem[];
 }
 
@@ -481,6 +483,23 @@ const PurchaseBillDashboard = () => {
   const paginatedBills = filteredBills.slice(startIndex, endIndex);
 
   const totalPurchaseAmount = filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0);
+  const totalPurchaseQty = filteredBills.reduce((sum, bill) => {
+    const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
+    return sum + billQty;
+  }, 0);
+
+  const getPaymentStatusBadge = (bill: PurchaseBill) => {
+    const status = bill.payment_status || 'unpaid';
+    const paidAmount = bill.paid_amount || 0;
+    
+    if (status === 'paid' || paidAmount >= bill.net_amount) {
+      return <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">Paid</Badge>;
+    } else if (status === 'partial' || (paidAmount > 0 && paidAmount < bill.net_amount)) {
+      return <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">Partial</Badge>;
+    } else {
+      return <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">Unpaid</Badge>;
+    }
+  };
 
   if (loading) {
     return (
@@ -528,11 +547,17 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Total Bills</CardDescription>
               <CardTitle className="text-3xl">{filteredBills.length}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Total Purchase Qty</CardDescription>
+              <CardTitle className="text-3xl">{totalPurchaseQty}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
@@ -646,6 +671,7 @@ const PurchaseBillDashboard = () => {
                       <TableHead className="text-right">Gross Amount</TableHead>
                       <TableHead className="text-right">GST Amount</TableHead>
                       <TableHead className="text-right">Net Amount</TableHead>
+                      <TableHead className="text-center">Payment Status</TableHead>
                       <TableHead className="text-center">Items</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
@@ -693,6 +719,9 @@ const PurchaseBillDashboard = () => {
                           <TableCell className="text-right">₹{bill.gst_amount.toFixed(2)}</TableCell>
                           <TableCell className="text-right font-semibold text-primary">
                             ₹{bill.net_amount.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {getPaymentStatusBadge(bill)}
                           </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="secondary">
@@ -745,7 +774,7 @@ const PurchaseBillDashboard = () => {
                         {/* Expanded Items Row */}
                         {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={11} className="bg-muted/20 p-0">
+                            <TableCell colSpan={12} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-semibold text-sm">Purchase Items Details</h4>
