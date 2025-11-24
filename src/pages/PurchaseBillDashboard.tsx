@@ -28,6 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface PurchaseItem {
   id: string;
   product_id: string;
+  product_name?: string;
   size: string;
   qty: number;
   pur_price: number;
@@ -112,7 +113,7 @@ const PurchaseBillDashboard = () => {
         const billIds = data.map(b => b.id);
         const { data: allItems, error: itemsError } = await supabase
           .from("purchase_items")
-          .select("bill_id, qty, id, product_id, size, pur_price, sale_price, gst_per, hsn_code, barcode, line_total")
+          .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, gst_per, hsn_code, barcode, line_total")
           .in("bill_id", billIds);
         
         if (!itemsError && allItems) {
@@ -884,11 +885,11 @@ const PurchaseBillDashboard = () => {
                                 </div>
                                 <div className="border rounded-lg overflow-hidden">
                                   <Table>
-                                    <TableHeader>
+                                     <TableHeader>
                                       <TableRow className="bg-muted/30">
                                         <TableHead>Size</TableHead>
                                         <TableHead>Barcode</TableHead>
-                                        <TableHead>HSN Code</TableHead>
+                                        <TableHead>Product Name</TableHead>
                                         <TableHead className="text-right">Quantity</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
@@ -909,7 +910,7 @@ const PurchaseBillDashboard = () => {
                                               <span className="text-muted-foreground">—</span>
                                             )}
                                           </TableCell>
-                                          <TableCell className="text-xs">{item.hsn_code || "—"}</TableCell>
+                                          <TableCell>{item.product_name || "—"}</TableCell>
                                           <TableCell className="text-right">{item.qty}</TableCell>
                                           <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
                                           <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
