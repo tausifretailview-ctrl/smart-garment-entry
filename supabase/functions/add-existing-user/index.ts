@@ -49,36 +49,51 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Verify requesting user is an admin
-    const { data: membership, error: membershipError } = await supabaseAdmin
-      .from('organization_members')
+    // Check if user is platform admin or organization admin
+    const { data: isPlatformAdmin } = await supabaseAdmin
+      .from('user_roles')
       .select('role')
-      .eq('organization_id', organizationId)
       .eq('user_id', requestingUser.id)
+      .eq('role', 'platform_admin')
       .single()
 
-    if (membershipError || !membership || membership.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Only organization admins can add users' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    if (!isPlatformAdmin) {
+      // If not platform admin, verify they're an organization admin
+      const { data: membership, error: membershipError } = await supabaseAdmin
+        .from('organization_members')
+        .select('role')
+        .eq('organization_id', organizationId)
+        .eq('user_id', requestingUser.id)
+        .single()
+
+      if (membershipError || !membership || membership.role !== 'admin') {
+        return new Response(
+          JSON.stringify({ error: 'Only platform admins or organization admins can add users' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // Find user by email
+    console.log('Looking for user with email:', email)
     const { data: { users }, error: getUserError } = await supabaseAdmin.auth.admin.listUsers()
     
     if (getUserError) {
+      console.error('Error fetching users:', getUserError)
       throw new Error('Failed to fetch users')
     }
 
     const existingUser = users.find(u => u.email === email)
     
     if (!existingUser) {
+      console.error('User not found with email:', email)
       return new Response(
         JSON.stringify({ error: 'User not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    console.log('Found user:', existingUser.id)
 
     // Check if user is already in organization
     const { data: existingMember } = await supabaseAdmin
@@ -96,6 +111,7 @@ Deno.serve(async (req) => {
     }
 
     // Add user to organization
+    console.log('Adding user to organization:', organizationId)
     const { error: orgMemberError } = await supabaseAdmin
       .from('organization_members')
       .insert({
@@ -105,8 +121,11 @@ Deno.serve(async (req) => {
       })
 
     if (orgMemberError) {
-      throw new Error('Failed to add user to organization')
+      console.error('Error adding user to organization:', orgMemberError)
+      throw new Error(`Failed to add user to organization: ${orgMemberError.message}`)
     }
+
+    console.log('User added to organization successfully')
 
     // Ensure role exists in user_roles
     const { data: existingRole } = await supabaseAdmin
@@ -117,14 +136,20 @@ Deno.serve(async (req) => {
       .single()
 
     if (!existingRole) {
-      await supabaseAdmin
+      console.log('Adding role to user_roles')
+      const { error: roleError } = await supabaseAdmin
         .from('user_roles')
         .insert({
           user_id: existingUser.id,
           role: role
         })
+      
+      if (roleError) {
+        console.error('Error adding role:', roleError)
+      }
     }
 
+    console.log('Logging audit trail')
     // Log audit trail
     await supabaseAdmin.rpc('log_audit', {
       p_action: 'USER_ADDED_TO_ORG',
@@ -139,6 +164,8 @@ Deno.serve(async (req) => {
         added_by: requestingUser.id
       }
     })
+
+    console.log('User assignment completed successfully')
 
     return new Response(
       JSON.stringify({ 
