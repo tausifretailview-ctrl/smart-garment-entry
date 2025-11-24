@@ -1545,32 +1545,6 @@ export default function Settings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_format">Invoice Format</Label>
-                  <select
-                    id="invoice_format"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={settings.bill_barcode_settings?.invoice_format || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          invoice_format: e.target.value,
-                        },
-                      })
-                    }
-                  >
-                    <option value="">Select invoice format</option>
-                    <option value="a5-vertical">A5 - Vertical</option>
-                    <option value="a5-horizontal">A5 - Horizontal</option>
-                    <option value="a4-full">A4 Full Size</option>
-                    <option value="thermal-receipt">Thermal Receipt</option>
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Select the invoice print format for sales and POS
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="barcode_format">Default Barcode Label Format (for Direct Printing)</Label>
                   <select
                     id="barcode_format"

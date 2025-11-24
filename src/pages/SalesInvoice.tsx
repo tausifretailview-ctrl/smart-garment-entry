@@ -26,9 +26,7 @@ import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
-import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";
-import { MinimalTemplate } from "@/components/invoice-templates/MinimalTemplate";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { generateInvoiceFromHTML, printInvoiceDirectly } from "@/utils/pdfGenerator";
 import {
   Command,
@@ -1555,97 +1553,38 @@ Thank you for choosing us!`;
         <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto p-0">
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="flex items-center justify-between">
-              <span>Invoice Preview - {selectedTemplate.charAt(0).toUpperCase() + selectedTemplate.slice(1)} Template</span>
+              <span>Invoice Preview</span>
               <Button variant="outline" size="sm" onClick={() => setShowPreview(false)}>
                 Close Preview
               </Button>
             </DialogTitle>
           </DialogHeader>
           <div className="p-6">
-            {selectedTemplate === "classic" && (
-              <ClassicTemplate
-                businessName={settingsData?.business_name || "Your Business"}
-                businessAddress={settingsData?.address || "Business Address"}
-                businessContact={settingsData?.mobile_number || "Contact Number"}
-                businessEmail={settingsData?.email_id || "email@business.com"}
-                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
-                billNo="PREVIEW-001"
-                date={invoiceDate}
-                customerName={selectedCustomer?.customer_name || "Customer Name"}
-                customerPhone={selectedCustomer?.phone || ""}
-                items={lineItems.map((item, index) => ({
+            <InvoiceWrapper
+              billNo="PREVIEW-001"
+              date={invoiceDate}
+              customerName={selectedCustomer?.customer_name || "Customer Name"}
+              customerAddress={selectedCustomer?.address || ""}
+              customerMobile={selectedCustomer?.phone || ""}
+              customerGSTIN={selectedCustomer?.gst_number || ""}
+              items={lineItems
+                .filter(item => item.productId)
+                .map((item, index) => ({
                   sr: index + 1,
                   particulars: item.productName,
                   size: item.size,
+                  barcode: item.barcode,
+                  hsn: "",
+                  sp: item.mrp,
                   qty: item.quantity,
                   rate: item.salePrice,
-                  discPercent: item.discountPercent,
-                  total: item.lineTotal
+                  total: item.lineTotal,
                 }))}
-                subTotal={grossAmount}
-                discountAmount={totalDiscount}
-                totalGST={totalGST}
-                netAmount={netAmount}
-                paymentMethod="Cash"
-                termsConditions={termsConditions}
-              />
-            )}
-            {selectedTemplate === "modern" && (
-              <ModernTemplate
-                businessName={settingsData?.business_name || "Your Business"}
-                businessAddress={settingsData?.address || "Business Address"}
-                businessContact={settingsData?.mobile_number || "Contact Number"}
-                businessEmail={settingsData?.email_id || "email@business.com"}
-                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
-                billNo="PREVIEW-001"
-                date={invoiceDate}
-                customerName={selectedCustomer?.customer_name || "Customer Name"}
-                customerPhone={selectedCustomer?.phone || ""}
-                items={lineItems.map((item, index) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  size: item.size,
-                  qty: item.quantity,
-                  rate: item.salePrice,
-                  discPercent: item.discountPercent,
-                  total: item.lineTotal
-                }))}
-                subTotal={grossAmount}
-                discountAmount={totalDiscount}
-                totalGST={totalGST}
-                netAmount={netAmount}
-                paymentMethod="Cash"
-                termsConditions={termsConditions}
-              />
-            )}
-            {selectedTemplate === "minimal" && (
-              <MinimalTemplate
-                businessName={settingsData?.business_name || "Your Business"}
-                businessAddress={settingsData?.address || "Business Address"}
-                businessContact={settingsData?.mobile_number || "Contact Number"}
-                businessEmail={settingsData?.email_id || "email@business.com"}
-                logoUrl={(settingsData?.bill_barcode_settings as any)?.shopLogo || undefined}
-                billNo="PREVIEW-001"
-                date={invoiceDate}
-                customerName={selectedCustomer?.customer_name || "Customer Name"}
-                customerPhone={selectedCustomer?.phone || ""}
-                items={lineItems.map((item, index) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  size: item.size,
-                  qty: item.quantity,
-                  rate: item.salePrice,
-                  discPercent: item.discountPercent,
-                  total: item.lineTotal
-                }))}
-                subTotal={grossAmount}
-                discountAmount={totalDiscount}
-                totalGST={totalGST}
-                netAmount={netAmount}
-                paymentMethod="Cash"
-                termsConditions={termsConditions}
-              />
-            )}
+              subTotal={grossAmount}
+              discount={totalDiscount}
+              grandTotal={netAmount}
+              paymentMethod="Cash"
+            />
           </div>
         </DialogContent>
       </Dialog>
