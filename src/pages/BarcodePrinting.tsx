@@ -251,6 +251,19 @@ export default function BarcodePrinting() {
   const [leftOffset, setLeftOffset] = useState(0);
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
   
+  // Auto-load default offsets when novajet40 is selected
+  useEffect(() => {
+    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number }> = {
+      novajet40: { defaultTop: 2, defaultLeft: 1 },
+    };
+    
+    const preset = sheetPresets[sheetType];
+    if (preset && preset.defaultTop !== undefined && preset.defaultLeft !== undefined) {
+      setTopOffset(preset.defaultTop);
+      setLeftOffset(preset.defaultLeft);
+    }
+  }, [sheetType]);
+  
   // Custom dimensions state
   const [customWidth, setCustomWidth] = useState(50);
   const [customHeight, setCustomHeight] = useState(25);
@@ -1397,10 +1410,6 @@ export default function BarcodePrinting() {
         cell.className = "label-cell";
         cell.style.width = dimensions.width;
         cell.style.height = dimensions.height;
-        // Add extra left padding for novajet40 to shift content right
-        if (sheetType === 'novajet40') {
-          cell.style.paddingLeft = '2mm';
-        }
         cell.innerHTML = getLabelHTML(item, designFormat);
         gridDiv.appendChild(cell);
       }
@@ -1856,6 +1865,12 @@ export default function BarcodePrinting() {
                 </Button>
               )}
             </div>
+            {sheetType === "novajet40" && (
+              <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
+                <strong>Recommended Print Settings:</strong> Scale 100%, Margins: None, Headers/Footers: Off<br />
+                <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
+              </p>
+            )}
           </div>
 
           {sheetType === "custom" && (
@@ -2414,7 +2429,7 @@ export default function BarcodePrinting() {
         }
 
         .label-cell {
-          padding: 0.5mm 1mm;
+          padding: 1.5mm;
           text-align: center;
           font-size: 9px;
           line-height: 1.05;
@@ -2425,10 +2440,6 @@ export default function BarcodePrinting() {
           justify-content: space-between;
           box-sizing: border-box;
           page-break-inside: avoid;
-        }
-        
-        .label-cell[style*="padding-left: 2mm"] {
-          padding-left: 2mm !important;
         }
 
         .brand { 
