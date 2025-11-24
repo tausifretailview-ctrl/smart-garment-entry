@@ -2429,7 +2429,7 @@ export default function BarcodePrinting() {
         }
 
         .label-cell {
-          padding: 1.5mm;
+          padding: 0.5mm 1.5mm;
           text-align: center;
           font-size: 9px;
           line-height: 1.05;
