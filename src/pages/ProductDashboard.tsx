@@ -436,6 +436,25 @@ const ProductDashboard = () => {
     );
   }
 
+  // Calculate totals
+  const totalStockQty = productRows.reduce((sum, product) => 
+    sum + product.variants.reduce((vSum, variant) => vSum + variant.stock_qty, 0), 0
+  );
+  
+  const totalItems = productRows.reduce((sum, product) => sum + product.variants.length, 0);
+  
+  const totalPurchaseValue = productRows.reduce((sum, product) => 
+    sum + product.variants.reduce((vSum, variant) => 
+      vSum + (variant.stock_qty * variant.pur_price), 0
+    ), 0
+  );
+  
+  const totalSaleValue = productRows.reduce((sum, product) => 
+    sum + product.variants.reduce((vSum, variant) => 
+      vSum + (variant.stock_qty * variant.sale_price), 0
+    ), 0
+  );
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-[1600px] mx-auto">
@@ -452,6 +471,65 @@ const ProductDashboard = () => {
             </Button>
             <h1 className="text-2xl font-bold text-foreground">Product</h1>
           </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Stock Qty</p>
+                  <p className="text-2xl font-bold text-foreground">{totalStockQty.toLocaleString()}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Items</p>
+                  <p className="text-2xl font-bold text-foreground">{totalItems.toLocaleString()}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Purchase Value</p>
+                  <p className="text-2xl font-bold text-foreground">₹{totalPurchaseValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Sale Value</p>
+                  <p className="text-2xl font-bold text-foreground">₹{totalSaleValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Toolbar */}
