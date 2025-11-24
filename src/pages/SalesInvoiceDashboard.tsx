@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,7 +14,8 @@ import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, Message
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { printInvoiceDirectly } from "@/utils/pdfGenerator";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { useReactToPrint } from "react-to-print";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +39,8 @@ export default function SalesInvoiceDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
 
   const { data: invoicesData, isLoading, refetch } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, searchQuery],
@@ -201,6 +204,25 @@ export default function SalesInvoiceDashboard() {
     setCurrentPage(1);
   };
 
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    onAfterPrint: () => {
+      setInvoiceToPrint(null);
+      toast({
+        title: "Success",
+        description: "Invoice printed successfully",
+      });
+    },
+  });
+
+  const handlePrintInvoice = (invoice: any) => {
+    setInvoiceToPrint(invoice);
+    // Trigger print after state update
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
   const handleWhatsAppShare = (invoice: any) => {
     if (!invoice.customer_phone) {
       toast({
@@ -345,7 +367,12 @@ export default function SalesInvoiceDashboard() {
                                 >
                                   <MessageCircle className="h-4 w-4 text-green-600" />
                                 </Button>
-                                <Button variant="ghost" size="icon">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handlePrintInvoice(invoice)}
+                                  title="Print Invoice"
+                                >
                                   <Printer className="h-4 w-4" />
                                 </Button>
                                 <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
@@ -491,6 +518,36 @@ export default function SalesInvoiceDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hidden Invoice for Printing */}
+      {invoiceToPrint && (
+        <div style={{ display: 'none' }}>
+          <InvoiceWrapper
+            ref={printRef}
+            billNo={invoiceToPrint.sale_number}
+            date={new Date(invoiceToPrint.sale_date)}
+            customerName={invoiceToPrint.customer_name}
+            customerAddress={invoiceToPrint.customer_address || ""}
+            customerMobile={invoiceToPrint.customer_phone || ""}
+            customerGSTIN=""
+            items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.product_name,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: "",
+              sp: item.mrp,
+              qty: item.quantity,
+              rate: item.unit_price,
+              total: item.line_total,
+            })) || []}
+            subTotal={invoiceToPrint.gross_amount}
+            discount={invoiceToPrint.discount_amount}
+            grandTotal={invoiceToPrint.net_amount}
+            paymentMethod={invoiceToPrint.payment_method}
+          />
+        </div>
+      )}
     </div>
   );
 }
