@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -291,7 +292,65 @@ const ProductDashboard = () => {
     }
   };
 
-  const hasActiveFilters = 
+  const handleExportToExcel = () => {
+    try {
+      // Prepare data for export - flatten products with variants
+      const exportData = productRows.flatMap((product) => 
+        product.variants.map((variant) => ({
+          "Product Name": product.product_name,
+          "Category": product.category,
+          "Brand": product.brand,
+          "HSN Code": product.hsn_code,
+          "GST %": product.gst_per,
+          "Size": variant.size,
+          "Barcode": variant.barcode,
+          "Purchase Price": variant.pur_price,
+          "Sale Price": variant.sale_price,
+          "Stock Qty": variant.stock_qty,
+        }))
+      );
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths for better readability
+      ws['!cols'] = [
+        { wch: 30 }, // Product Name
+        { wch: 15 }, // Category
+        { wch: 15 }, // Brand
+        { wch: 12 }, // HSN Code
+        { wch: 8 },  // GST %
+        { wch: 10 }, // Size
+        { wch: 15 }, // Barcode
+        { wch: 15 }, // Purchase Price
+        { wch: 12 }, // Sale Price
+        { wch: 10 }, // Stock Qty
+      ];
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Products");
+
+      // Generate file name with current date
+      const fileName = `Products_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, fileName);
+
+      toast({
+        title: "Success",
+        description: `Exported ${exportData.length} product variants to Excel`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to export data",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const hasActiveFilters =
     selectedCategory !== "all" || 
     selectedSizeGroup !== "all" || 
     selectedStockLevel !== "all" || 
@@ -388,6 +447,16 @@ const ProductDashboard = () => {
                       {[selectedCategory !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
                     </Badge>
                   )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={handleExportToExcel}
+                  disabled={productRows.length === 0}
+                >
+                  <Download className="h-4 w-4" />
+                  Export
                 </Button>
               </div>
 
