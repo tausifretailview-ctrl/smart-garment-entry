@@ -432,6 +432,48 @@ const POSDashboard = () => {
           </div>
         </div>
 
+        {/* Summary Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-border/50 shadow-lg">
+            <CardHeader className="pb-3">
+              <CardDescription>Total Bills</CardDescription>
+              <CardTitle className="text-3xl font-bold text-primary">
+                {filteredSales.length}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-border/50 shadow-lg">
+            <CardHeader className="pb-3">
+              <CardDescription>Sale Quantity</CardDescription>
+              <CardTitle className="text-3xl font-bold text-primary">
+                {filteredSales.reduce((sum, sale) => {
+                  const items = saleItems[sale.id] || [];
+                  return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+                }, 0)}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-border/50 shadow-lg">
+            <CardHeader className="pb-3">
+              <CardDescription>Sale Amount</CardDescription>
+              <CardTitle className="text-3xl font-bold text-primary">
+                ₹{filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0).toFixed(2)}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+
+          <Card className="border-border/50 shadow-lg">
+            <CardHeader className="pb-3">
+              <CardDescription>Discount Amount</CardDescription>
+              <CardTitle className="text-3xl font-bold text-primary">
+                ₹{filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount, 0).toFixed(2)}
+              </CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+
         <Card className="border-border/50 shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
