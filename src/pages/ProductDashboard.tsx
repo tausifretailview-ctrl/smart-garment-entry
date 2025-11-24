@@ -39,9 +39,14 @@ interface ProductRow {
   product_name: string;
   category: string;
   brand: string;
+  style: string;
+  color: string;
   image_url?: string;
   hsn_code: string;
   gst_per: number;
+  default_pur_price: number;
+  default_sale_price: number;
+  status: string;
   variants: ProductVariant[];
   total_stock: number;
 }
@@ -93,9 +98,14 @@ const ProductDashboard = () => {
           product_name,
           category,
           brand,
+          style,
+          color,
           hsn_code,
           image_url,
           gst_per,
+          default_pur_price,
+          default_sale_price,
+          status,
           product_variants (
             id,
             size,
@@ -126,9 +136,14 @@ const ProductDashboard = () => {
           product_name: product.product_name,
           category: product.category || "",
           brand: product.brand || "",
+          style: product.style || "",
+          color: product.color || "",
           image_url: product.image_url,
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per || 0,
+          default_pur_price: product.default_pur_price || 0,
+          default_sale_price: product.default_sale_price || 0,
+          status: product.status || "active",
           variants,
           total_stock,
         };
@@ -300,8 +315,13 @@ const ProductDashboard = () => {
           "Product Name": product.product_name,
           "Category": product.category,
           "Brand": product.brand,
+          "Style": product.style,
+          "Color": product.color,
           "HSN Code": product.hsn_code,
           "GST %": product.gst_per,
+          "Default Pur Price": product.default_pur_price,
+          "Default Sale Price": product.default_sale_price,
+          "Status": product.status,
           "Size": variant.size,
           "Barcode": variant.barcode,
           "Purchase Price": variant.pur_price,
@@ -318,8 +338,13 @@ const ProductDashboard = () => {
         { wch: 30 }, // Product Name
         { wch: 15 }, // Category
         { wch: 15 }, // Brand
+        { wch: 12 }, // Style
+        { wch: 12 }, // Color
         { wch: 12 }, // HSN Code
         { wch: 8 },  // GST %
+        { wch: 15 }, // Default Pur Price
+        { wch: 15 }, // Default Sale Price
+        { wch: 10 }, // Status
         { wch: 10 }, // Size
         { wch: 15 }, // Barcode
         { wch: 15 }, // Purchase Price
@@ -694,10 +719,16 @@ const ProductDashboard = () => {
                       </TableHead>
                       <TableHead className="w-16 text-center">Sr. No.</TableHead>
                       <TableHead className="w-20">Image</TableHead>
+                      <TableHead>Product Name</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Brand</TableHead>
-                      <TableHead>Product Name</TableHead>
+                      <TableHead>Style</TableHead>
+                      <TableHead>Color</TableHead>
                       <TableHead>HSN</TableHead>
+                      <TableHead className="text-right">GST%</TableHead>
+                      <TableHead className="text-right">Def. Pur Price</TableHead>
+                      <TableHead className="text-right">Def. Sale Price</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Total Qty</TableHead>
                       <TableHead className="text-center">Variants</TableHead>
                       <TableHead className="w-16">Actions</TableHead>
@@ -739,10 +770,20 @@ const ProductDashboard = () => {
                               </AvatarFallback>
                             </Avatar>
                           </TableCell>
+                          <TableCell className="font-medium">{row.product_name}</TableCell>
                           <TableCell>{row.category || "—"}</TableCell>
                           <TableCell>{row.brand || "—"}</TableCell>
-                          <TableCell className="font-medium">{row.product_name}</TableCell>
+                          <TableCell>{row.style || "—"}</TableCell>
+                          <TableCell>{row.color || "—"}</TableCell>
                           <TableCell className="text-xs">{row.hsn_code || "—"}</TableCell>
+                          <TableCell className="text-right">{row.gst_per}%</TableCell>
+                          <TableCell className="text-right">₹{row.default_pur_price.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">₹{row.default_sale_price.toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Badge variant={row.status === "active" ? "default" : "secondary"}>
+                              {row.status}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right font-medium">
                             {row.total_stock}
                           </TableCell>
@@ -781,7 +822,7 @@ const ProductDashboard = () => {
                         {/* Expanded Variants Row */}
                         {expandedProduct === row.product_id && row.variants.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={11} className="bg-muted/20 p-0">
+                            <TableCell colSpan={17} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
                                 <div className="border rounded-lg overflow-hidden">
