@@ -1387,35 +1387,108 @@ export default function BarcodePrinting() {
 
     // Use custom dimensions if custom sheet type, otherwise use preset
     const dimensions = sheetType === "custom"
-      ? { cols: customCols, width: `${customWidth}mm`, height: `${customHeight}mm`, gap: `${customGap}mm` }
-      : sheetPresets[sheetType];
+      ? { 
+          cols: customCols, 
+          width: customWidth, 
+          height: customHeight, 
+          gap: customGap 
+        }
+      : {
+          cols: sheetPresets[sheetType].cols,
+          width: parseInt(sheetPresets[sheetType].width),
+          height: parseInt(sheetPresets[sheetType].height),
+          gap: parseInt(sheetPresets[sheetType].gap)
+        };
     
     printArea.innerHTML = "";
 
-    const gridDiv = document.createElement("div");
-    gridDiv.className = "label-grid";
-    gridDiv.style.cssText = `
-      display: grid;
-      grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width});
-      grid-auto-rows: ${dimensions.height};
-      gap: ${dimensions.gap};
-      padding-top: ${topOffset}mm;
-      padding-left: ${leftOffset}mm;
-    `;
+    // Calculate total labels
+    const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+    
+    // Calculate labels per page
+    const availableHeight = 297 - topOffset - 10;
+    const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+    const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+    
+    // Calculate number of pages
+    const numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
 
+    // Generate all labels as an array
+    const allLabels: { html: string; item: LabelItem }[] = [];
     labelItems.forEach((item) => {
       const qty = Number(item.qty) || 0;
       for (let i = 0; i < qty; i++) {
-        const cell = document.createElement("div");
-        cell.className = "label-cell";
-        cell.style.width = dimensions.width;
-        cell.style.height = dimensions.height;
-        cell.innerHTML = getLabelHTML(item, designFormat);
-        gridDiv.appendChild(cell);
+        allLabels.push({ html: getLabelHTML(item, designFormat), item });
       }
     });
 
-    printArea.appendChild(gridDiv);
+    // Create pages with page numbers
+    for (let page = 0; page < numPages; page++) {
+      // Add page counter
+      if (page > 0) {
+        const pageSeparator = document.createElement("div");
+        pageSeparator.className = "page-separator";
+        pageSeparator.style.cssText = `
+          margin: 20px 0;
+          padding: 10px;
+          background: hsl(var(--muted));
+          border-radius: 6px;
+          text-align: center;
+          font-weight: 600;
+          font-size: 14px;
+          color: hsl(var(--muted-foreground));
+        `;
+        pageSeparator.textContent = `Page ${page + 1} of ${numPages}`;
+        printArea.appendChild(pageSeparator);
+      }
+
+      // Create grid for this page
+      const gridDiv = document.createElement("div");
+      gridDiv.className = "label-grid";
+      gridDiv.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+        grid-auto-rows: ${dimensions.height}mm;
+        gap: ${dimensions.gap}mm;
+        padding-top: ${topOffset}mm;
+        padding-left: ${leftOffset}mm;
+        margin-bottom: ${page < numPages - 1 ? '20px' : '0'};
+      `;
+
+      // Add labels for this page
+      const startIdx = page * labelsPerPage;
+      const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
+      
+      for (let i = startIdx; i < endIdx; i++) {
+        const cell = document.createElement("div");
+        cell.className = "label-cell";
+        cell.style.width = `${dimensions.width}mm`;
+        cell.style.height = `${dimensions.height}mm`;
+        cell.innerHTML = allLabels[i].html;
+        gridDiv.appendChild(cell);
+      }
+
+      printArea.appendChild(gridDiv);
+    }
+
+    // Add total count at the top
+    if (numPages > 0) {
+      const totalCounter = document.createElement("div");
+      totalCounter.className = "total-page-counter";
+      totalCounter.style.cssText = `
+        margin-bottom: 15px;
+        padding: 12px;
+        background: hsl(var(--primary) / 0.1);
+        border: 1px solid hsl(var(--primary) / 0.2);
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 16px;
+        color: hsl(var(--primary));
+      `;
+      totalCounter.textContent = `Total: ${totalLabels} labels across ${numPages} page${numPages > 1 ? 's' : ''}`;
+      printArea.insertBefore(totalCounter, printArea.firstChild);
+    }
 
     // Render barcodes
     setTimeout(() => {
@@ -1424,7 +1497,6 @@ export default function BarcodePrinting() {
         const code = (svg as HTMLElement).dataset.code;
         if (code) {
           try {
-            // Use CODE128 format which is more flexible and doesn't require specific checksums
             JsBarcode(svg, code, {
               format: "CODE128",
               fontSize: 8,
@@ -1436,7 +1508,6 @@ export default function BarcodePrinting() {
             });
           } catch (error) {
             console.error("Barcode generation failed for code:", code, error);
-            // Fallback: display the code as text if barcode generation fails
             const textEl = document.createElement("div");
             textEl.textContent = code;
             textEl.style.cssText = "font-size: 10px; font-weight: bold;";
