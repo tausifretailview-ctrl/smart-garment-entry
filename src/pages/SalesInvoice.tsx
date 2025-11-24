@@ -1375,6 +1375,32 @@ Thank you for choosing us!`;
             </Button>
             <Button variant="outline" type="button">Save as Draft</Button>
             <Button 
+              onClick={() => {
+                if (lineItems.filter(item => item.productId).length === 0) {
+                  toast({
+                    title: "No Items",
+                    description: "Please add items to the invoice before printing",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (!selectedCustomerId) {
+                  toast({
+                    title: "No Customer",
+                    description: "Please select a customer before printing",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                handlePrint();
+              }}
+              variant="outline"
+              type="button"
+              disabled={isSaving}
+            >
+              Print Invoice
+            </Button>
+            <Button 
               className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
               onClick={handleSaveInvoice}
               disabled={isSaving}
@@ -1547,17 +1573,16 @@ Thank you for choosing us!`;
       </AlertDialog>
 
       {/* Hidden Invoice for Printing */}
-      {savedInvoiceData && (
-        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <InvoiceWrapper
-            ref={printRef}
-            billNo={savedInvoiceData.invoiceNumber}
-            date={invoiceDate}
-            customerName={savedInvoiceData.customer.customer_name}
-            customerAddress={savedInvoiceData.customer.address || ""}
-            customerMobile={savedInvoiceData.customer.phone || ""}
-            customerGSTIN={savedInvoiceData.customer.gst_number || ""}
-            items={savedInvoiceData.filledItems.map((item: any, index: number) => ({
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <InvoiceWrapper
+          ref={printRef}
+          billNo={savedInvoiceData?.invoiceNumber || `DRAFT-${Date.now()}`}
+          date={invoiceDate}
+          customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}
+          customerAddress={savedInvoiceData?.customer.address || selectedCustomer?.address || ""}
+          customerMobile={savedInvoiceData?.customer.phone || selectedCustomer?.phone || ""}
+          customerGSTIN={savedInvoiceData?.customer.gst_number || selectedCustomer?.gst_number || ""}
+          items={(savedInvoiceData?.filledItems || lineItems.filter(item => item.productId)).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
               size: item.size,
@@ -1571,10 +1596,9 @@ Thank you for choosing us!`;
             subTotal={grossAmount}
             discount={totalDiscount}
             grandTotal={netAmount}
-            paymentMethod="Pending"
+            paymentMethod="Cash"
           />
         </div>
-      )}
     </div>
   );
 }
