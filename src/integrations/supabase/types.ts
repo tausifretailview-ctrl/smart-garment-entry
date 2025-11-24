@@ -513,6 +513,8 @@ export type Database = {
           net_amount: number
           notes: string | null
           organization_id: string | null
+          paid_amount: number | null
+          payment_status: string | null
           software_bill_no: string | null
           supplier_id: string | null
           supplier_invoice_no: string | null
@@ -528,6 +530,8 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          paid_amount?: number | null
+          payment_status?: string | null
           software_bill_no?: string | null
           supplier_id?: string | null
           supplier_invoice_no?: string | null
@@ -543,6 +547,8 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          paid_amount?: number | null
+          payment_status?: string | null
           software_bill_no?: string | null
           supplier_id?: string | null
           supplier_invoice_no?: string | null
