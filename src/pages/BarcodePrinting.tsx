@@ -1505,12 +1505,19 @@ export default function BarcodePrinting() {
             gap: parseInt(sheetPresets[sheetType].gap)
           };
       
-      // Calculate labels per page
-      const labelsPerPage = dimensions.cols * 
-        Math.floor((297 - topOffset - 20) / (dimensions.height + dimensions.gap)); // A4 height is 297mm
+      // Calculate how many rows fit on one page
+      const availableHeight = 297 - topOffset - 10; // A4 height with margins
+      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
       
-      // Calculate number of pages needed
-      const numPages = Math.ceil(totalLabels / labelsPerPage);
+      // Calculate number of pages needed (only create pages with actual labels)
+      const numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
+      
+      // Don't create PDF if no labels
+      if (numPages === 0) {
+        toast.error("No labels to print");
+        return;
+      }
       
       // Create PDF
       const pdf = new jsPDF({
