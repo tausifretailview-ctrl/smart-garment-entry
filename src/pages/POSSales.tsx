@@ -43,7 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { InvoicePrint } from "@/components/InvoicePrint";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 
@@ -1721,31 +1721,30 @@ export default function POSSales() {
               <DialogTitle>Invoice Preview</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <InvoicePrint
+              <InvoiceWrapper
                 ref={printRef}
                 billNo={currentInvoiceNumber || "DRAFT"}
                 date={new Date()}
                 customerName={customerName}
-                customerAddress=""
-                customerMobile=""
+                customerAddress={customers.find(c => c.id === customerId)?.address || ""}
+                customerMobile={customerPhone}
+                customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
                 items={items.map((item, index) => ({
                   sr: index + 1,
                   particulars: item.productName,
                   size: item.size,
                   barcode: item.barcode,
                   hsn: "",
-                  sp: item.size ? parseInt(item.size) || 1 : 1,
+                  sp: item.mrp,
                   qty: item.quantity,
-                  rate: item.mrp,
+                  rate: item.unitCost,
                   total: item.netAmount,
                 }))}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
                 grandTotal={finalAmount}
-                tenderAmount={finalAmount}
-                cashPaid={0}
-                refundCash={0}
-                upiPaid={0}
+                cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
+                upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={paymentMethod}
               />
               <div className="flex justify-end gap-2">
