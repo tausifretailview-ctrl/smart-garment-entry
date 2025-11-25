@@ -11,22 +11,22 @@ export const Footer = () => {
 
   const footerLinks = {
     product: [
-      { label: "Dashboard", path: "/" },
-      { label: "Products", path: "/product-entry" },
-      { label: "Sales", path: "/pos-sales" },
-      { label: "Reports", path: "/stock-report" },
+      { label: "Dashboard", path: "/", id: "dash" },
+      { label: "Products", path: "/product-entry", id: "prod" },
+      { label: "Sales", path: "/pos-sales", id: "sales" },
+      { label: "Reports", path: "/stock-report", id: "reports" },
     ],
     resources: [
-      { label: "Help Center", path: "#" },
-      { label: "Documentation", path: "#" },
-      { label: "Tutorials", path: "#" },
-      { label: "API Reference", path: "#" },
+      { label: "Help Center", path: "#", id: "help" },
+      { label: "Documentation", path: "#", id: "docs" },
+      { label: "Tutorials", path: "#", id: "tutorials" },
+      { label: "API Reference", path: "#", id: "api" },
     ],
     company: [
-      { label: "About Us", path: "#" },
-      { label: "Contact", path: "#" },
-      { label: "Privacy Policy", path: "#" },
-      { label: "Terms of Service", path: "#" },
+      { label: "About Us", path: "#", id: "about" },
+      { label: "Contact", path: "#", id: "contact" },
+      { label: "Privacy Policy", path: "#", id: "privacy" },
+      { label: "Terms of Service", path: "#", id: "terms" },
     ],
   };
 
@@ -68,7 +68,7 @@ export const Footer = () => {
             <h3 className="font-semibold mb-4">Quick Links</h3>
             <ul className="space-y-2">
               {footerLinks.product.map((link) => (
-                <li key={link.path}>
+                <li key={link.id}>
                   <button
                     onClick={() => navigate(link.path)}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -85,7 +85,7 @@ export const Footer = () => {
             <h3 className="font-semibold mb-4">Resources</h3>
             <ul className="space-y-2">
               {footerLinks.resources.map((link) => (
-                <li key={link.path}>
+                <li key={link.id}>
                   <a
                     href={link.path}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -102,7 +102,7 @@ export const Footer = () => {
             <h3 className="font-semibold mb-4">Company</h3>
             <ul className="space-y-2">
               {footerLinks.company.map((link) => (
-                <li key={link.path}>
+                <li key={link.id}>
                   <a
                     href={link.path}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors"

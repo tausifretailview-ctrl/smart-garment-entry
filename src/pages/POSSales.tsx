@@ -676,6 +676,7 @@ export default function POSSales() {
   // Setup print handler using react-to-print
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
+    documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     onAfterPrint: () => {
       toast({
         title: "Success",
@@ -688,6 +689,9 @@ export default function POSSales() {
     if (!savedInvoiceData) return;
 
     try {
+      // Small delay to ensure InvoiceWrapper is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Trigger print using react-to-print
       handlePrint();
       handleClosePrintConfirmDialog();
@@ -1718,40 +1722,42 @@ export default function POSSales() {
         </AlertDialog>
 
         {/* Hidden Invoice for Printing */}
-        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
-          <InvoiceWrapper
-            ref={invoicePrintRef}
-            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || `DRAFT-${Date.now()}`}
-            date={new Date()}
-            customerName={customerName || savedInvoiceData?.customerName || "Walk-in Customer"}
-            customerAddress=""
-            customerMobile={customerPhone || savedInvoiceData?.customerPhone || ""}
-            items={savedInvoiceData?.items?.map((item: any, index: number) => ({
-              sr: index + 1,
-              particulars: item.productName,
-              size: item.size,
-              barcode: item.barcode || "",
-              hsn: "",
-              sp: item.mrp,
-              qty: item.quantity,
-              rate: item.unitCost,
-              total: item.netAmount,
-            })) || items.map((item, index) => ({
-              sr: index + 1,
-              particulars: item.productName,
-              size: item.size,
-              barcode: item.barcode,
-              hsn: "",
-              sp: item.mrp,
-              qty: item.quantity,
-              rate: item.unitCost,
-              total: item.netAmount,
-            }))}
-            subTotal={savedInvoiceData?.totals?.subtotal || totals.subtotal}
-            discount={(savedInvoiceData?.totals?.discount || totals.discount) + (savedInvoiceData?.flatDiscountAmount || flatDiscountAmount)}
-            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-            paymentMethod={paymentMethod}
-          />
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0,
+          width: '210mm',
+          opacity: 0, 
+          pointerEvents: 'none',
+          zIndex: -1 
+        }}>
+          {savedInvoiceData && (
+            <InvoiceWrapper
+              ref={invoicePrintRef}
+              billNo={savedInvoiceData.invoiceNumber}
+              date={new Date()}
+              customerName={savedInvoiceData.customerName || "Walk-in Customer"}
+              customerAddress=""
+              customerMobile={savedInvoiceData.customerPhone || ""}
+              items={savedInvoiceData.items.map((item: any, index: number) => ({
+                sr: index + 1,
+                particulars: item.productName,
+                size: item.size,
+                barcode: item.barcode || "",
+                hsn: "",
+                sp: item.mrp,
+                qty: item.quantity,
+                rate: item.unitCost,
+                total: item.netAmount,
+              }))}
+              subTotal={savedInvoiceData.totals.subtotal}
+              discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
+              grandTotal={savedInvoiceData.finalAmount}
+              cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
+              upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
+              paymentMethod={savedInvoiceData.method}
+            />
+          )}
         </div>
       </div>
     </div>

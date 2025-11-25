@@ -270,6 +270,12 @@ const POSDashboard = () => {
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: printData?.billNo || "Invoice",
+    onAfterPrint: () => {
+      toast({
+        title: "Success",
+        description: "Invoice printed successfully",
+      });
+    },
   });
 
   const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
@@ -307,10 +313,9 @@ const POSDashboard = () => {
 
       setPrintData(invoiceData);
       
-      // Small delay to ensure state is updated before printing
-      setTimeout(() => {
-        handlePrint();
-      }, 100);
+      // Small delay to ensure InvoiceWrapper is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 300));
+      handlePrint();
       
       toast({
         title: "Printing Invoice",
@@ -756,7 +761,15 @@ const POSDashboard = () => {
       </AlertDialog>
 
       {/* Hidden invoice for printing */}
-      <div className="hidden">
+      <div style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0,
+        width: '210mm',
+        opacity: 0, 
+        pointerEvents: 'none',
+        zIndex: -1 
+      }}>
         {printData && (
           <InvoiceWrapper
             ref={invoicePrintRef}
