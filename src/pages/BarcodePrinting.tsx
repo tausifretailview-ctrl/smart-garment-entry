@@ -87,6 +87,7 @@ interface LabelFieldConfig {
   show: boolean;
   fontSize: number;
   bold: boolean;
+  fontFamily?: string;
 }
 
 interface LabelDesignConfig {
@@ -211,7 +212,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
       </div>
       
       {field.show && fieldKey !== 'barcode' && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Input
             type="number"
             min="6"
@@ -242,6 +243,32 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
           >
             B
           </Button>
+
+          {fieldKey === 'barcodeText' && (
+            <Select
+              value={field.fontFamily || 'Arial'}
+              onValueChange={(value) => {
+                setLabelConfig(prev => ({
+                  ...prev,
+                  [fieldKey]: { ...prev[fieldKey], fontFamily: value }
+                }));
+              }}
+            >
+              <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectValue placeholder="Font" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Arial">Arial</SelectItem>
+                <SelectItem value="Courier New">Courier New</SelectItem>
+                <SelectItem value="Georgia">Georgia</SelectItem>
+                <SelectItem value="Times New Roman">Times New Roman</SelectItem>
+                <SelectItem value="Verdana">Verdana</SelectItem>
+                <SelectItem value="Tahoma">Tahoma</SelectItem>
+                <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
+                <SelectItem value="Comic Sans MS">Comic Sans MS</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
       )}
     </div>
@@ -1469,7 +1496,7 @@ export default function BarcodePrinting() {
 
     // Helper to build style string
     const getStyle = (field: LabelFieldConfig) => {
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};`;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''}`;
     };
 
     // Build label HTML based on field order
