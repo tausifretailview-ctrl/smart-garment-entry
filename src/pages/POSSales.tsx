@@ -806,6 +806,24 @@ export default function POSSales() {
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
 
+    // Set saved invoice data to enable print button
+    setSavedInvoiceData({
+      invoiceNumber: sale.sale_number,
+      saleId: sale.id,
+      items: loadedItems,
+      totals: {
+        quantity: loadedItems.reduce((sum, item) => sum + item.quantity, 0),
+        mrp: Number(sale.gross_amount),
+        discount: Number(sale.discount_amount),
+        subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
+      },
+      flatDiscountAmount: (Number(sale.flat_discount_percent) / 100) * Number(sale.gross_amount),
+      finalAmount: Number(sale.net_amount),
+      method: sale.payment_method,
+      customerName: sale.customer_name,
+      customerPhone: sale.customer_phone,
+    });
+
     toast({
       title: "Invoice Loaded",
       description: `Invoice #${sale.sale_number} loaded successfully`,
@@ -848,6 +866,7 @@ export default function POSSales() {
         description: "Invoice deleted successfully",
       });
 
+      setSavedInvoiceData(null);
       queryClient.invalidateQueries({ queryKey: ["today-sales"] });
       handleNewInvoice();
     } catch (error: any) {
