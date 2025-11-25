@@ -24,17 +24,38 @@ const MetricCard = ({
   icon: any;
   bgColor: string;
 }) => (
-  <Card className={`${bgColor} hover:shadow-lg transition-shadow duration-300 animate-fade-in`}>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <div className="p-2 rounded-lg bg-white/50 dark:bg-black/20">
-        <Icon className="h-5 w-5 text-primary" />
-      </div>
-    </CardHeader>
-    <CardContent>
-      <div className="text-2xl font-bold">{value}</div>
-    </CardContent>
-  </Card>
+  <div className="group relative animate-fade-in">
+    {/* Gradient Border Effect */}
+    <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
+    
+    <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
+      {/* Shimmer Effect on Hover */}
+      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-display font-semibold tracking-wide group-hover:text-primary transition-colors duration-300">
+          {title}
+        </CardTitle>
+        <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+          {/* Icon Glow Effect */}
+          <div className="absolute inset-0 rounded-xl bg-primary/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <Icon className="h-5 w-5 text-primary relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
+        </div>
+      </CardHeader>
+      
+      <CardContent>
+        <div className="text-3xl font-display font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent group-hover:from-primary group-hover:to-secondary transition-all duration-500">
+          {value}
+        </div>
+        
+        {/* Animated Bottom Bar */}
+        <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary via-secondary to-accent rounded-full transition-all duration-500 shadow-glow" />
+      </CardContent>
+      
+      {/* Corner Accent */}
+      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+    </Card>
+  </div>
 );
 
 const DashboardContent = () => {
@@ -139,10 +160,10 @@ const DashboardContent = () => {
     <div className="space-y-8">
       <div className="flex items-center justify-between animate-fade-in">
         <div>
-          <h1 className="text-4xl font-display font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          <h1 className="text-5xl font-display font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent animate-gradient-shift bg-[length:200%_auto]">
             Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">
+          <p className="text-muted-foreground mt-2 text-lg font-medium">
             Welcome to Smart Inventory Management System
           </p>
         </div>
@@ -150,8 +171,11 @@ const DashboardContent = () => {
 
       {/* Sales Metrics */}
       <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-        <h2 className="text-xl font-semibold mb-4 text-foreground">Sales Overview</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
+          <div className="h-1 w-12 bg-gradient-to-r from-primary to-transparent rounded-full" />
+          Sales Overview
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Sales"
             value="₹0"
@@ -181,8 +205,11 @@ const DashboardContent = () => {
 
       {/* Purchase Metrics */}
       <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-        <h2 className="text-xl font-semibold mb-4 text-foreground">Purchase Overview</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
+          <div className="h-1 w-12 bg-gradient-to-r from-secondary to-transparent rounded-full" />
+          Purchase Overview
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Purchase"
             value={formatCurrency(purchaseTotal || 0)}
@@ -212,8 +239,11 @@ const DashboardContent = () => {
 
       {/* Inventory & Financial Metrics */}
       <div className="animate-fade-in" style={{ animationDelay: "0.3s" }}>
-        <h2 className="text-xl font-semibold mb-4 text-foreground">Inventory & Financial</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
+          <div className="h-1 w-12 bg-gradient-to-r from-accent to-transparent rounded-full" />
+          Inventory & Financial
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Total Products"
             value={productsCount || 0}
@@ -237,8 +267,11 @@ const DashboardContent = () => {
 
       {/* Additional Metrics */}
       <div className="animate-fade-in" style={{ animationDelay: "0.4s" }}>
-        <h2 className="text-xl font-semibold mb-4 text-foreground">Performance Metrics</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
+          <div className="h-1 w-12 bg-gradient-to-r from-success to-transparent rounded-full" />
+          Performance Metrics
+        </h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Total Profit"
             value="₹0"
