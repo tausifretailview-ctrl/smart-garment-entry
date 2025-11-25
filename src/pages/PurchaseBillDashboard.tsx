@@ -480,23 +480,26 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
-      // Fetch bill details including supplier
+      // Fetch bill details
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
-        .select(`
-          id,
-          software_bill_no,
-          supplier_id,
-          suppliers!supplier_id (
-            supplier_code
-          )
-        `)
+        .select("id, software_bill_no, supplier_id")
         .eq("id", billId)
         .single();
 
       if (billError) throw billError;
 
-      const supplierCode = (billData?.suppliers as any)?.supplier_code || "";
+      // Fetch supplier code separately
+      let supplierCode = "";
+      if (billData?.supplier_id) {
+        const { data: supplierData } = await supabase
+          .from("suppliers")
+          .select("supplier_code")
+          .eq("id", billData.supplier_id)
+          .single();
+        
+        supplierCode = supplierData?.supplier_code || "";
+      }
 
       // Fetch bill items with product details directly from purchase_items
       const { data: items, error } = await supabase
