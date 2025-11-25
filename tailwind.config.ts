@@ -15,7 +15,8 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
-        display: ["Plus Jakarta Sans", "Inter", "sans-serif"],
+        display: ["Sora", "Outfit", "Inter", "sans-serif"],
+        heading: ["Outfit", "Inter", "sans-serif"],
         mono: ["Roboto Mono", "monospace"],
       },
       colors: {
@@ -114,6 +115,23 @@ export default {
           "0%": { backgroundPosition: "-1000px 0" },
           "100%": { backgroundPosition: "1000px 0" },
         },
+        "icon-bounce": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-4px)" },
+        },
+        "icon-spin-slow": {
+          "0%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(360deg)" },
+        },
+        "icon-pulse": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.8", transform: "scale(1.05)" },
+        },
+        "icon-wiggle": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "25%": { transform: "rotate(-5deg)" },
+          "75%": { transform: "rotate(5deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -124,6 +142,10 @@ export default {
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "gradient-shift": "gradient-shift 8s ease infinite",
         shimmer: "shimmer 2s linear infinite",
+        "icon-bounce": "icon-bounce 0.6s ease-in-out",
+        "icon-spin-slow": "icon-spin-slow 3s linear infinite",
+        "icon-pulse": "icon-pulse 2s ease-in-out infinite",
+        "icon-wiggle": "icon-wiggle 0.5s ease-in-out",
       },
       gridTemplateColumns: {
         '13': 'repeat(13, minmax(0, 1fr))',

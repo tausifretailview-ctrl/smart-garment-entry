@@ -54,20 +54,20 @@ export function AppSidebar() {
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
-    <Sidebar collapsible="icon" className="border-r bg-card/50">
-      <SidebarContent>
+    <Sidebar collapsible="icon" className="border-r bg-gradient-to-b from-sidebar/95 to-sidebar/98 backdrop-blur-sm">
+      <SidebarContent className="font-display">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
           <SidebarGroup>
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/platform-admin")}>
-                  <NavLink to="/platform-admin" className="flex items-center gap-3">
-                    <Shield className="h-5 w-5 text-primary" />
+                  <NavLink to="/platform-admin" className="flex items-center gap-3 group">
+                    <Shield className="h-5 w-5 text-primary sidebar-icon group-hover:animate-icon-pulse" />
                     {open && (
                       <div className="flex items-center gap-2">
-                        <span>Platform Admin</span>
-                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Super</span>
+                        <span className="font-semibold">Platform Admin</span>
+                        <span className="text-xs bg-gradient-to-r from-primary to-secondary text-white px-2.5 py-0.5 rounded-full font-medium shadow-sm">Super</span>
                       </div>
                     )}
                   </NavLink>
@@ -82,9 +82,9 @@ export function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/")}>
-                <NavLink to="/" className="flex items-center gap-3">
-                  <LayoutDashboard className="h-5 w-5" />
-                  {open && <span>Dashboard</span>}
+                <NavLink to="/" className="flex items-center gap-3 group">
+                  <LayoutDashboard className="h-5 w-5 sidebar-icon" />
+                  {open && <span className="font-medium">Dashboard</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -96,12 +96,12 @@ export function AppSidebar() {
           <SidebarGroup>
             <Collapsible defaultOpen={isGroupActive(masterPaths)} className="group/collapsible">
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2">
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    {open && <span>Master</span>}
+                    <Users className="h-4 w-4 sidebar-icon" />
+                    {open && <span className="font-semibold">Master</span>}
                   </div>
-                  {open && <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
               <CollapsibleContent>
@@ -111,24 +111,24 @@ export function AppSidebar() {
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/customers")}>
-                            <NavLink to="/customers" className="flex items-center gap-3">
-                              <UserCircle className="h-4 w-4" />
+                            <NavLink to="/customers" className="flex items-center gap-3 group">
+                              <UserCircle className="h-4 w-4 sidebar-icon" />
                               <span>Customer</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/suppliers")}>
-                            <NavLink to="/suppliers" className="flex items-center gap-3">
-                              <Truck className="h-4 w-4" />
+                            <NavLink to="/suppliers" className="flex items-center gap-3 group">
+                              <Truck className="h-4 w-4 sidebar-icon" />
                               <span>Supplier</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/employees")}>
-                            <NavLink to="/employees" className="flex items-center gap-3">
-                              <Users className="h-4 w-4" />
+                            <NavLink to="/employees" className="flex items-center gap-3 group">
+                              <Users className="h-4 w-4 sidebar-icon" />
                               <span>Employee Master</span>
                             </NavLink>
                           </SidebarMenuSubButton>
@@ -146,12 +146,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(inventoryPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  {open && <span>Inventory</span>}
+                  <Package className="h-4 w-4 sidebar-icon" />
+                  {open && <span className="font-semibold">Inventory</span>}
                 </div>
-                {open && <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
@@ -163,32 +163,32 @@ export function AppSidebar() {
                         <>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-bills")}>
-                              <NavLink to="/purchase-bills" className="flex items-center gap-3">
-                                <FileText className="h-4 w-4" />
+                              <NavLink to="/purchase-bills" className="flex items-center gap-3 group">
+                                <FileText className="h-4 w-4 sidebar-icon" />
                                 <span>Purchase Dashboard</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-returns")}>
-                              <NavLink to="/purchase-returns" className="flex items-center gap-3">
-                                <TrendingDown className="h-4 w-4" />
+                              <NavLink to="/purchase-returns" className="flex items-center gap-3 group">
+                                <TrendingDown className="h-4 w-4 sidebar-icon" />
                                 <span>Purchase Returns</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")}>
-                            <NavLink to="/purchase-return-entry" className="flex items-center gap-3">
-                              <Plus className="h-4 w-4" />
+                            <NavLink to="/purchase-return-entry" className="flex items-center gap-3 group">
+                              <Plus className="h-4 w-4 sidebar-icon" />
                               <span>Purchase Return</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-entry")}>
-                              <NavLink to="/purchase-entry" className="flex items-center gap-3">
-                                <ShoppingBag className="h-4 w-4" />
+                              <NavLink to="/purchase-entry" className="flex items-center gap-3 group">
+                                <ShoppingBag className="h-4 w-4 sidebar-icon" />
                                 <span>Purchase Bill</span>
                               </NavLink>
                             </SidebarMenuSubButton>
@@ -197,16 +197,16 @@ export function AppSidebar() {
                       )}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/product-entry")}>
-                          <NavLink to="/product-entry" className="flex items-center gap-3">
-                            <Package className="h-4 w-4" />
+                          <NavLink to="/product-entry" className="flex items-center gap-3 group">
+                            <Package className="h-4 w-4 sidebar-icon" />
                             <span>Product Entry</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/products")}>
-                          <NavLink to="/products" className="flex items-center gap-3">
-                            <Package className="h-4 w-4" />
+                          <NavLink to="/products" className="flex items-center gap-3 group">
+                            <Package className="h-4 w-4 sidebar-icon" />
                             <span>Product Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
@@ -223,12 +223,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(salesPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4" />
-                  {open && <span>Sales</span>}
+                  <ShoppingCart className="h-4 w-4 sidebar-icon" />
+                  {open && <span className="font-semibold">Sales</span>}
                 </div>
-                {open && <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
@@ -238,48 +238,48 @@ export function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/pos-sales")}>
-                          <NavLink to="/pos-sales" className="flex items-center gap-3">
-                            <ShoppingCart className="h-4 w-4" />
+                          <NavLink to="/pos-sales" className="flex items-center gap-3 group">
+                            <ShoppingCart className="h-4 w-4 sidebar-icon" />
                             <span>POS</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/pos-dashboard")}>
-                          <NavLink to="/pos-dashboard" className="flex items-center gap-3">
-                            <ShoppingBag className="h-4 w-4" />
+                          <NavLink to="/pos-dashboard" className="flex items-center gap-3 group">
+                            <ShoppingBag className="h-4 w-4 sidebar-icon" />
                             <span>POS Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice")}>
-                          <NavLink to="/sales-invoice" className="flex items-center gap-3">
-                            <FileText className="h-4 w-4" />
+                          <NavLink to="/sales-invoice" className="flex items-center gap-3 group">
+                            <FileText className="h-4 w-4 sidebar-icon" />
                             <span>Sales Bill</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice-dashboard")}>
-                          <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-3">
-                            <BarChart3 className="h-4 w-4" />
+                          <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-3 group">
+                            <BarChart3 className="h-4 w-4 sidebar-icon" />
                             <span>Invoice Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/sale-return-entry")}>
-                          <NavLink to="/sale-return-entry" className="flex items-center gap-3">
-                            <TrendingDown className="h-4 w-4" />
+                          <NavLink to="/sale-return-entry" className="flex items-center gap-3 group">
+                            <TrendingDown className="h-4 w-4 sidebar-icon" />
                             <span>Sale Return</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/sale-returns")}>
-                          <NavLink to="/sale-returns" className="flex items-center gap-3">
-                            <BarChart3 className="h-4 w-4" />
+                          <NavLink to="/sale-returns" className="flex items-center gap-3 group">
+                            <BarChart3 className="h-4 w-4 sidebar-icon" />
                             <span>Return Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
@@ -296,12 +296,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(reportsPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  {open && <span>Reports</span>}
+                  <BarChart3 className="h-4 w-4 sidebar-icon" />
+                  {open && <span className="font-semibold">Reports</span>}
                 </div>
-                {open && <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
@@ -311,16 +311,16 @@ export function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/stock-report")}>
-                          <NavLink to="/stock-report" className="flex items-center gap-3">
-                            <Package className="h-4 w-4" />
+                          <NavLink to="/stock-report" className="flex items-center gap-3 group">
+                            <Package className="h-4 w-4 sidebar-icon" />
                             <span>Stock Report</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/sales-report")}>
-                          <NavLink to="/sales-report" className="flex items-center gap-3">
-                            <TrendingUp className="h-4 w-4" />
+                          <NavLink to="/sales-report" className="flex items-center gap-3 group">
+                            <TrendingUp className="h-4 w-4 sidebar-icon" />
                             <span>Sales</span>
                           </NavLink>
                         </SidebarMenuSubButton>
@@ -328,8 +328,8 @@ export function AppSidebar() {
                       {canAccessPurchases && (
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/purchase-report")}>
-                            <NavLink to="/purchase-report" className="flex items-center gap-3">
-                              <BarChart3 className="h-4 w-4" />
+                            <NavLink to="/purchase-report" className="flex items-center gap-3 group">
+                              <BarChart3 className="h-4 w-4 sidebar-icon" />
                               <span>Purchase</span>
                             </NavLink>
                           </SidebarMenuSubButton>
@@ -337,8 +337,8 @@ export function AppSidebar() {
                       )}
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/product-tracking")}>
-                          <NavLink to="/product-tracking" className="flex items-center gap-3">
-                            <Barcode className="h-4 w-4" />
+                          <NavLink to="/product-tracking" className="flex items-center gap-3 group">
+                            <Barcode className="h-4 w-4 sidebar-icon" />
                             <span>Product Tracking</span>
                           </NavLink>
                         </SidebarMenuSubButton>
@@ -357,9 +357,9 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/accounts")}>
-                  <NavLink to="/accounts" className="flex items-center gap-3">
-                    <Wallet className="h-5 w-5" />
-                    {open && <span>Accounts</span>}
+                  <NavLink to="/accounts" className="flex items-center gap-3 group">
+                    <Wallet className="h-5 w-5 sidebar-icon" />
+                    {open && <span className="font-medium">Accounts</span>}
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -371,12 +371,12 @@ export function AppSidebar() {
         <SidebarGroup>
           <Collapsible defaultOpen={isGroupActive(settingsPaths)} className="group/collapsible">
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2">
+              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  {open && <span>Settings</span>}
+                  <Settings className="h-4 w-4 sidebar-icon group-hover:animate-icon-spin-slow" />
+                  {open && <span className="font-semibold">Settings</span>}
                 </div>
-                {open && <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />}
+                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
@@ -386,8 +386,8 @@ export function AppSidebar() {
                     <SidebarMenuSub>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/profile")}>
-                          <NavLink to="/profile" className="flex items-center gap-3">
-                            <User className="h-4 w-4" />
+                          <NavLink to="/profile" className="flex items-center gap-3 group">
+                            <User className="h-4 w-4 sidebar-icon" />
                             <span>Profile</span>
                           </NavLink>
                         </SidebarMenuSubButton>
@@ -396,30 +396,30 @@ export function AppSidebar() {
                         <>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/settings")}>
-                              <NavLink to="/settings" className="flex items-center gap-3">
-                                <Settings className="h-4 w-4" />
-                                <span>Setting Page</span>
+                              <NavLink to="/settings" className="flex items-center gap-3 group">
+                                <Settings className="h-4 w-4 sidebar-icon" />
+                                <span>Settings</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/organization-management")}>
-                              <NavLink to="/organization-management" className="flex items-center gap-3">
-                                <Building2 className="h-4 w-4" />
-                                <span>Organizations</span>
+                              <NavLink to="/organization-management" className="flex items-center gap-3 group">
+                                <Building2 className="h-4 w-4 sidebar-icon" />
+                                <span>Organization</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")}>
+                              <NavLink to="/barcode-printing" className="flex items-center gap-3 group">
+                                <Barcode className="h-4 w-4 sidebar-icon" />
+                                <span>Barcode Printing</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         </>
                       )}
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/barcode-printing")}>
-                          <NavLink to="/barcode-printing" className="flex items-center gap-3">
-                            <Barcode className="h-4 w-4" />
-                            <span>Barcode Printing</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
