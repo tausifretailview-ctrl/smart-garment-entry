@@ -37,8 +37,8 @@ interface ProductForm {
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
-  default_pur_price: number;
-  default_sale_price: number;
+  default_pur_price: number | undefined;
+  default_sale_price: number | undefined;
   status: string;
   image_url?: string;
 }
@@ -68,8 +68,8 @@ const ProductEntry = () => {
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
-    default_pur_price: 0,
-    default_sale_price: 0,
+    default_pur_price: undefined,
+    default_sale_price: undefined,
     status: "active",
   });
 
@@ -325,8 +325,8 @@ const ProductEntry = () => {
 
     const newVariants: ProductVariant[] = selectedGroup.sizes.map((size) => ({
       size,
-      pur_price: formData.default_pur_price,
-      sale_price: formData.default_sale_price,
+      pur_price: formData.default_pur_price ?? 0,
+      sale_price: formData.default_sale_price ?? 0,
       barcode: "",
       active: true,
       opening_qty: 0,
@@ -383,7 +383,8 @@ const ProductEntry = () => {
       return false;
     }
 
-    if (formData.default_pur_price < 0 || formData.default_sale_price < 0) {
+    if ((formData.default_pur_price !== undefined && formData.default_pur_price < 0) || 
+        (formData.default_sale_price !== undefined && formData.default_sale_price < 0)) {
       toast({
         title: "Validation Error",
         description: "Prices cannot be negative",
@@ -893,11 +894,11 @@ const ProductEntry = () => {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.default_pur_price}
+                  value={formData.default_pur_price ?? ""}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      default_pur_price: parseFloat(e.target.value) || 0,
+                      default_pur_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
                 />
@@ -910,11 +911,11 @@ const ProductEntry = () => {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.default_sale_price}
+                  value={formData.default_sale_price ?? ""}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      default_sale_price: parseFloat(e.target.value) || 0,
+                      default_sale_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
                 />
