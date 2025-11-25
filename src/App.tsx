@@ -37,6 +37,7 @@ import ProductTrackingReport from "./pages/ProductTrackingReport";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import Auth from "./pages/Auth";
+import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
 
@@ -352,6 +353,8 @@ const App = () => {
               }
             />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            {/* Organization-specific login route - must be last before catch-all */}
+            <Route path="/:orgSlug" element={<OrgAuth />} />
             <Route path="*" element={<NotFound />} />
             </Routes>
           </OrganizationProvider>
