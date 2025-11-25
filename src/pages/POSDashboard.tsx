@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -23,7 +23,8 @@ import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edi
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
+import { useReactToPrint } from "react-to-print";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 
 interface SaleItem {
   id: string;
@@ -74,6 +75,8 @@ const POSDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [printData, setPrintData] = useState<any>(null);
+  const invoicePrintRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchSales();
@@ -264,22 +267,18 @@ const POSDashboard = () => {
     navigate(`/pos-sales?saleId=${saleId}`);
   };
 
+  const handlePrint = useReactToPrint({
+    contentRef: invoicePrintRef,
+    documentTitle: printData?.billNo || "Invoice",
+  });
+
   const handlePrintClick = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
     
     const items = await fetchSaleItems(sale.id);
     
     try {
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      const saleSettings = settings?.sale_settings as any;
       const saleDate = new Date(sale.sale_date);
-      const currentTime = saleDate.toLocaleTimeString('en-US');
-      const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
 
       const invoiceData = {
         billNo: sale.sale_number,
@@ -301,26 +300,17 @@ const POSDashboard = () => {
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
         grandTotal: sale.net_amount,
-        tenderAmount: sale.net_amount,
         cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
-        refundCash: 0,
         upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
         paymentMethod: sale.payment_method,
-        businessName: settings?.business_name || 'BUSINESS NAME',
-        businessAddress: settings?.address || '',
-        businessContact: settings?.mobile_number || '',
-        businessEmail: settings?.email_id || '',
-        gstNumber: settings?.gst_number || '',
-        logo: (settings?.bill_barcode_settings as any)?.logo_url,
-        time: currentTime,
-        mrpTotal: mrpTotal,
-        cardPaid: sale.payment_method === 'card' ? sale.net_amount : 0,
-        declarationText: saleSettings?.declaration_text,
-        termsList: saleSettings?.terms_list,
-        upiId: (settings?.bill_barcode_settings as any)?.upi_id,
       };
 
-      await printA5BillFormat(invoiceData);
+      setPrintData(invoiceData);
+      
+      // Small delay to ensure state is updated before printing
+      setTimeout(() => {
+        handlePrint();
+      }, 100);
       
       toast({
         title: "Printing Invoice",
@@ -764,6 +754,27 @@ const POSDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Hidden invoice for printing */}
+      <div className="hidden">
+        {printData && (
+          <InvoiceWrapper
+            ref={invoicePrintRef}
+            billNo={printData.billNo}
+            date={printData.date}
+            customerName={printData.customerName}
+            customerAddress={printData.customerAddress}
+            customerMobile={printData.customerMobile}
+            items={printData.items}
+            subTotal={printData.subTotal}
+            discount={printData.discount}
+            grandTotal={printData.grandTotal}
+            cashPaid={printData.cashPaid}
+            upiPaid={printData.upiPaid}
+            paymentMethod={printData.paymentMethod}
+          />
+        )}
+      </div>
     </div>
   );
 };
