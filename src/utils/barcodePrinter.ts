@@ -37,6 +37,8 @@ interface LabelConfig {
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
   fieldOrder: string[];
+  barcodeHeight?: number;
+  barcodeWidth?: number;
 }
 
 interface PrintOptions {
@@ -243,8 +245,8 @@ export const printBarcodesDirectly = async (
                 (printWindow as any).JsBarcode(svg, code, {
                   format: 'CODE128',
                   fontSize: 10,
-                  height: 28,
-                  width: 1.8,
+                  height: labelConfig?.barcodeHeight || 28,
+                  width: labelConfig?.barcodeWidth || 1.8,
                   textMargin: 0,
                   margin: 0,
                   displayValue: false,

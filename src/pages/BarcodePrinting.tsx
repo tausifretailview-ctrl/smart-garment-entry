@@ -102,7 +102,9 @@ interface LabelDesignConfig {
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>>;
+  barcodeHeight?: number;
+  barcodeWidth?: number;
 }
 
 interface DesignFormatPreset {
@@ -142,7 +144,7 @@ const sheetPresets = {
 };
 
 interface SortableFieldItemProps {
-  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder'>;
+  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
   labelConfig: LabelDesignConfig;
   setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
 }
@@ -163,7 +165,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder'>, string> = {
+  const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>, string> = {
     brand: 'Brand Name',
     productName: 'Product Name',
     color: 'Color',
@@ -177,7 +179,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
     purchaseCode: 'Purchase Code',
   };
 
-  const field = labelConfig[fieldKey];
+  const field = labelConfig[fieldKey] as LabelFieldConfig;
 
   return (
     <div
@@ -269,6 +271,48 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
               </SelectContent>
             </Select>
           )}
+        </div>
+      )}
+      
+      {field.show && fieldKey === 'barcode' && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1">
+            <Label className="text-xs text-muted-foreground">Height:</Label>
+            <Input
+              type="number"
+              min="15"
+              max="80"
+              value={labelConfig.barcodeHeight || 28}
+              onChange={(e) => {
+                setLabelConfig(prev => ({
+                  ...prev,
+                  barcodeHeight: parseInt(e.target.value) || 28
+                }));
+              }}
+              className="w-16 h-8 text-xs"
+              title="Barcode height"
+            />
+            <span className="text-xs text-muted-foreground">px</span>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <Label className="text-xs text-muted-foreground">Width:</Label>
+            <Input
+              type="number"
+              min="1"
+              max="3"
+              step="0.1"
+              value={labelConfig.barcodeWidth || 1.8}
+              onChange={(e) => {
+                setLabelConfig(prev => ({
+                  ...prev,
+                  barcodeWidth: parseFloat(e.target.value) || 1.8
+                }));
+              }}
+              className="w-16 h-8 text-xs"
+              title="Barcode line width"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -1561,8 +1605,8 @@ export default function BarcodePrinting() {
 
     if (over && active.id !== over.id) {
       setLabelConfig((prev) => {
-        const oldIndex = prev.fieldOrder.indexOf(active.id as keyof Omit<LabelDesignConfig, 'fieldOrder'>);
-        const newIndex = prev.fieldOrder.indexOf(over.id as keyof Omit<LabelDesignConfig, 'fieldOrder'>);
+        const oldIndex = prev.fieldOrder.indexOf(active.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>);
+        const newIndex = prev.fieldOrder.indexOf(over.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>);
 
         return {
           ...prev,
@@ -1759,8 +1803,8 @@ export default function BarcodePrinting() {
             JsBarcode(svg, code, {
               format: "CODE128",
               fontSize: 8,
-              height: 20,
-              width: 1.2,
+              height: labelConfig.barcodeHeight || 28,
+              width: labelConfig.barcodeWidth || 1.8,
               textMargin: 0,
               margin: 0,
               displayValue: false,
