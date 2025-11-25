@@ -5,6 +5,7 @@ import { useAuth } from "./AuthContext";
 interface Organization {
   id: string;
   name: string;
+  slug: string;
   subscription_tier: "free" | "basic" | "professional" | "enterprise";
   enabled_features: string[];
   settings: Record<string, any>;
@@ -52,6 +53,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setOrganizations([]);
       setOrganizationRole(null);
       setLoading(false);
+      // Clear stored org slug when user logs out
+      localStorage.removeItem("selectedOrgSlug");
       return;
     }
 
@@ -73,6 +76,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           organizations (
             id,
             name,
+            slug,
             subscription_tier,
             enabled_features,
             settings
@@ -88,18 +92,31 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
 
       setOrganizations(orgs || []);
 
-      // Get stored organization ID from localStorage
-      const storedOrgId = localStorage.getItem(`currentOrgId_${user.id}`);
+      // Check if there's a pre-selected organization slug from login (highest priority)
+      const selectedOrgSlug = localStorage.getItem("selectedOrgSlug");
       
       let selectedOrg = orgs?.[0];
       let selectedMembership = memberships?.[0];
 
-      if (storedOrgId) {
-        const foundOrg = orgs?.find((o) => o.id === storedOrgId);
-        const foundMembership = memberships?.find((m: any) => m.organization_id === storedOrgId);
+      if (selectedOrgSlug) {
+        const foundOrg = orgs?.find((o) => o.slug === selectedOrgSlug);
+        const foundMembership = memberships?.find((m: any) => m.organizations?.slug === selectedOrgSlug);
         if (foundOrg && foundMembership) {
           selectedOrg = foundOrg;
           selectedMembership = foundMembership;
+          // Clear the stored slug after using it
+          localStorage.removeItem("selectedOrgSlug");
+        }
+      } else {
+        // Fall back to stored organization ID
+        const storedOrgId = localStorage.getItem(`currentOrgId_${user.id}`);
+        if (storedOrgId) {
+          const foundOrg = orgs?.find((o) => o.id === storedOrgId);
+          const foundMembership = memberships?.find((m: any) => m.organization_id === storedOrgId);
+          if (foundOrg && foundMembership) {
+            selectedOrg = foundOrg;
+            selectedMembership = foundMembership;
+          }
         }
       }
 
