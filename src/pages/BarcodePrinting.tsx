@@ -88,6 +88,7 @@ interface LabelFieldConfig {
   fontSize: number;
   bold: boolean;
   fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 interface LabelDesignConfig {
@@ -271,6 +272,25 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
               </SelectContent>
             </Select>
           )}
+          
+          <Select
+            value={field.textAlign || 'center'}
+            onValueChange={(value: 'left' | 'center' | 'right') => {
+              setLabelConfig(prev => ({
+                ...prev,
+                [fieldKey]: { ...prev[fieldKey], textAlign: value }
+              }));
+            }}
+          >
+            <SelectTrigger className="w-24 h-8 text-xs">
+              <SelectValue placeholder="Align" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="left">Left</SelectItem>
+              <SelectItem value="center">Center</SelectItem>
+              <SelectItem value="right">Right</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       )}
       
@@ -1540,7 +1560,7 @@ export default function BarcodePrinting() {
 
     // Helper to build style string
     const getStyle = (field: LabelFieldConfig) => {
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''}`;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'};`;
     };
 
     // Build label HTML based on field order
