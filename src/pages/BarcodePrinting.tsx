@@ -2082,6 +2082,12 @@ export default function BarcodePrinting() {
       {/* Results Table */}
       {labelItems.length > 0 && (
         <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted p-3 border-b">
+            <p className="text-sm font-medium">
+              Total Products: <span className="font-bold">{labelItems.length}</span> | 
+              Total Labels: <span className="font-bold text-primary">{labelItems.reduce((sum, item) => sum + item.qty, 0)}</span>
+            </p>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -2093,6 +2099,7 @@ export default function BarcodePrinting() {
                 <TableHead>Barcode</TableHead>
                 <TableHead>Supplier Code</TableHead>
                 <TableHead>Label Qty</TableHead>
+                <TableHead className="w-[80px]">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -2115,6 +2122,19 @@ export default function BarcodePrinting() {
                       onChange={(e) => handleQtyChange(item.sku_id, parseInt(e.target.value) || 0)}
                       className="w-20"
                     />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setLabelItems(prev => prev.filter(i => i.sku_id !== item.sku_id));
+                        toast.success("Product removed");
+                      }}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
