@@ -22,6 +22,7 @@ interface LabelFieldConfig {
   show: boolean;
   fontSize: number;
   bold: boolean;
+  textAlign?: 'left' | 'center' | 'right';
 }
 
 interface LabelConfig {
@@ -87,12 +88,12 @@ const getLabelHTML = (
   
   // Add business name at the top if provided
   if (item.business_name) {
-    html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: center;">${item.business_name}</div>`;
+    html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: ${config.supplierCode.textAlign || 'center'};">${item.business_name}</div>`;
   }
   
   // Supplier Code
   if (config.supplierCode.show && item.supplier_code) {
-    html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: center; color: #666;">Supplier: ${item.supplier_code}</div>`;
+    html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: ${config.supplierCode.textAlign || 'center'}; color: #666;">Supplier: ${item.supplier_code}</div>`;
   }
   
   // Product Description: ProductName - Category - Brand - Style - Color - Size
@@ -105,24 +106,24 @@ const getLabelHTML = (
     descParts.push(item.size);
     
     const productDesc = descParts.join(' - ');
-    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">${productDesc}</div>`;
+    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; text-align: ${config.productName.textAlign || 'center'}; margin-bottom: 3mm;">${productDesc}</div>`;
   }
   if (config.price.show) {
-    html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;
+    html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; text-align: ${config.price.textAlign || 'center'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;
   }
   if (config.barcode.show) {
     html += `<svg class="barcode" data-code="${barcode}" style="margin-bottom: 2mm;"></svg>`;
   }
   // Always show barcode text (number)
-  html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; margin-bottom: 1mm;">${barcode}</div>`;
+  html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; text-align: ${config.barcodeText.textAlign || 'center'}; margin-bottom: 1mm;">${barcode}</div>`;
   
   // Purchase Code
   if (config.purchaseCode.show && item.purchase_code) {
-    html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: center; color: #666;">Code: ${item.purchase_code}</div>`;
+    html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; text-align: ${config.purchaseCode.textAlign || 'center'}; margin-bottom: 1mm; color: #666;">Code: ${item.purchase_code}</div>`;
   }
   
   if (config.billNumber.show && item.bill_number) {
-    html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; margin-top: 1.5mm;">Bill: ${item.bill_number}</div>`;
+    html += `<div class="bill" style="font-size: ${config.billNumber.fontSize}px; font-weight: ${config.billNumber.bold ? 'bold' : 'normal'}; text-align: ${config.billNumber.textAlign || 'center'}; margin-top: 1.5mm;">Bill: ${item.bill_number}</div>`;
   }
   
   return html;
