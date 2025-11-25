@@ -64,6 +64,7 @@ interface SearchResult {
   sale_price: number;
   barcode: string;
   stock_qty: number;
+  supplier_code?: string;
 }
 
 interface RecentBill {
@@ -602,7 +603,8 @@ export default function BarcodePrinting() {
               product_name,
               brand,
               color,
-              style
+              style,
+              category
             )
           `
           )
@@ -620,6 +622,64 @@ export default function BarcodePrinting() {
 
         if (error) throw error;
 
+        // Get variant IDs to fetch supplier codes
+        const variantIds = (data || []).map((v: any) => v.id);
+        
+        // Fetch the most recent supplier code for each variant from purchase_items
+        const supplierCodeMap = new Map<string, string>();
+        if (variantIds.length > 0) {
+          const { data: purchaseData } = await supabase
+            .from("purchase_items")
+            .select("sku_id, bill_id, created_at")
+            .in("sku_id", variantIds)
+            .order("created_at", { ascending: false });
+
+          if (purchaseData) {
+            // Get unique bill IDs
+            const billIds = [...new Set(purchaseData.map((item: any) => item.bill_id))];
+            
+            // Fetch supplier info for these bills
+            const { data: billData } = await supabase
+              .from("purchase_bills")
+              .select("id, supplier_id")
+              .in("id", billIds);
+
+            if (billData) {
+              // Get supplier IDs
+              const supplierIds = [...new Set(billData.map((bill: any) => bill.supplier_id).filter(Boolean))];
+              
+              // Fetch supplier codes
+              const { data: supplierData } = await supabase
+                .from("suppliers")
+                .select("id, supplier_code")
+                .in("id", supplierIds);
+
+              // Build a map of bill_id -> supplier_code
+              const billSupplierMap = new Map<string, string>();
+              if (supplierData) {
+                billData.forEach((bill: any) => {
+                  const supplier = supplierData.find((s: any) => s.id === bill.supplier_id);
+                  if (supplier?.supplier_code) {
+                    billSupplierMap.set(bill.id, supplier.supplier_code);
+                  }
+                });
+              }
+
+              // Map sku_id to supplier_code (most recent purchase)
+              const processedSkus = new Set<string>();
+              purchaseData.forEach((item: any) => {
+                if (!processedSkus.has(item.sku_id)) {
+                  const supplierCode = billSupplierMap.get(item.bill_id);
+                  if (supplierCode) {
+                    supplierCodeMap.set(item.sku_id, supplierCode);
+                  }
+                  processedSkus.add(item.sku_id);
+                }
+              });
+            }
+          }
+        }
+
         const results: SearchResult[] = (data || []).map((v: any) => ({
           id: v.id,
           product_name: v.products?.product_name || "",
@@ -631,6 +691,7 @@ export default function BarcodePrinting() {
           sale_price: v.sale_price || 0,
           barcode: v.barcode || "",
           stock_qty: v.stock_qty || 0,
+          supplier_code: supplierCodeMap.get(v.id) || "",
         }));
 
         setSearchResults(results);
@@ -670,6 +731,7 @@ export default function BarcodePrinting() {
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
+      supplier_code: result.supplier_code || '',
     };
 
     setLabelItems([...labelItems, newItem]);
@@ -1920,11 +1982,12 @@ export default function BarcodePrinting() {
                             : "opacity-0"
                         )}
                       />
-                      <div className="flex-1 grid grid-cols-5 gap-2 text-sm">
+                      <div className="flex-1 grid grid-cols-6 gap-2 text-sm">
                         <div className="font-semibold truncate">{result.product_name}</div>
                         <div className="text-muted-foreground truncate">{result.brand || "-"}</div>
                         <div className="text-muted-foreground truncate">{result.color || "-"} / {result.style || "-"}</div>
                         <div className="font-medium">Size: {result.size}</div>
+                        <div className="text-muted-foreground text-xs">Sup: {result.supplier_code || "-"}</div>
                         <div className="text-right">
                           <span className="font-semibold">₹{result.sale_price}</span>
                           <span className="text-xs text-muted-foreground ml-2">Stock: {result.stock_qty}</span>
