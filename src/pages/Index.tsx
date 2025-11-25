@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 
 const MetricCard = ({
   title,
@@ -292,6 +293,9 @@ const DashboardContent = () => {
           />
         </div>
       </div>
+
+      {/* Charts Section */}
+      <StatsChartsSection />
     </div>
   );
 };
