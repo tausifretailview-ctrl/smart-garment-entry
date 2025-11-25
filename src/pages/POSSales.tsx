@@ -46,6 +46,7 @@ import {
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
+import { useReactToPrint } from "react-to-print";
 
 interface CartItem {
   id: string;
@@ -88,6 +89,7 @@ export default function POSSales() {
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const printRef = useRef<HTMLDivElement>(null);
+  const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
@@ -671,71 +673,23 @@ export default function POSSales() {
     }
   };
 
+  // Setup print handler using react-to-print
+  const handlePrint = useReactToPrint({
+    contentRef: invoicePrintRef,
+    onAfterPrint: () => {
+      toast({
+        title: "Success",
+        description: "Invoice printed successfully",
+      });
+    },
+  });
+
   const handlePrintFromDialog = async () => {
     if (!savedInvoiceData) return;
 
     try {
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      const saleSettings = settings?.sale_settings as any;
-      const currentTime = new Date().toLocaleTimeString('en-US');
-      const mrpTotal = savedInvoiceData.items.reduce((sum: number, item: any) => sum + (item.mrp * item.quantity), 0);
-      const cardPaid = savedInvoiceData.method === 'card' ? savedInvoiceData.finalAmount : 0;
-      const cashPaid = savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0;
-      const upiPaid = savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0;
-      
-      const invoiceItems = savedInvoiceData.items.map((item: any, index: number) => ({
-        sr: index + 1,
-        particulars: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        hsn: '',
-        sp: item.mrp,
-        qty: item.quantity,
-        rate: item.unitCost,
-        total: item.netAmount
-      }));
-
-      const invoiceData = {
-        billNo: savedInvoiceData.invoiceNumber,
-        date: new Date(savedInvoiceData.date || new Date()),
-        customerName: savedInvoiceData.customerName,
-        customerAddress: "",
-        customerMobile: savedInvoiceData.customerPhone || "",
-        items: invoiceItems,
-        subTotal: savedInvoiceData.grossAmount,
-        discount: savedInvoiceData.discountAmount,
-        grandTotal: savedInvoiceData.netAmount,
-        tenderAmount: 0,
-        cashPaid: cashPaid,
-        refundCash: 0,
-        upiPaid: upiPaid,
-        paymentMethod: savedInvoiceData.method,
-        businessName: settings?.business_name || 'BUSINESS NAME',
-        businessAddress: settings?.address || '',
-        businessContact: settings?.mobile_number || '',
-        businessEmail: settings?.email_id || '',
-        gstNumber: settings?.gst_number || '',
-        logo: (settings?.bill_barcode_settings as any)?.logo_url,
-        time: currentTime,
-        mrpTotal: mrpTotal,
-        cardPaid: cardPaid,
-        declarationText: saleSettings?.declaration_text,
-        termsList: saleSettings?.terms_list,
-        upiId: (settings?.bill_barcode_settings as any)?.upi_id,
-      };
-
-      await printA5BillFormat(invoiceData);
-      
-      toast({
-        title: "Printing Invoice",
-        description: `Invoice ${savedInvoiceData.invoiceNumber} sent to printer`,
-      });
-
+      // Trigger print using react-to-print
+      handlePrint();
       handleClosePrintConfirmDialog();
     } catch (error: any) {
       console.error('Error printing invoice:', error);
@@ -761,48 +715,6 @@ export default function POSSales() {
     setCurrentInvoiceIndex(0);
     
     setSavedInvoiceData(null);
-  };
-
-  const handlePrint = async () => {
-    if (!savedInvoiceData) {
-      toast({
-        title: "Save Invoice First",
-        description: "Please save the invoice before printing",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization?.id)
-        .single();
-
-      if (!settings) {
-        toast({
-          title: "Error",
-          description: "Could not load business settings",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      await printInvoiceDirectly(savedInvoiceData);
-      
-      toast({
-        title: "Success",
-        description: "Invoice sent to printer",
-      });
-    } catch (error: any) {
-      console.error('Error printing invoice:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to print invoice",
-        variant: "destructive",
-      });
-    }
   };
 
   const handleWhatsAppShare = () => {
@@ -848,80 +760,16 @@ export default function POSSales() {
     }
 
     try {
-      console.log('Fetching settings...');
-      // Fetch business settings
-      const { data: settings } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', currentOrganization?.id)
-        .maybeSingle();
-
-      console.log('Settings fetched:', settings);
-
-      const saleSettings = settings?.sale_settings as any;
-      const invoiceTemplate = saleSettings?.invoice_template || 'classic';
-      const currentTime = new Date().toLocaleTimeString('en-US');
-      const mrpTotal = items.reduce((sum, item) => sum + (item.mrp * item.quantity), 0);
-      const cardPaid = paymentMethod === 'card' ? finalAmount : 0;
-
-      const invoiceData = {
-        billNo: currentInvoiceNumber || "DRAFT",
-        date: new Date(),
-        customerName: customerName,
-        customerAddress: "",
-        customerMobile: customerPhone,
-        items: items.map((item, index) => ({
-          sr: index + 1,
-          particulars: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          hsn: "",
-          sp: item.mrp, // MRP (original price before discount)
-          qty: item.quantity,
-          rate: item.unitCost, // Actual selling price after discount
-          total: item.netAmount,
-        })),
-        subTotal: totals.subtotal,
-        discount: totals.discount + flatDiscountAmount,
-        grandTotal: finalAmount,
-        tenderAmount: finalAmount,
-        cashPaid: paymentMethod === 'cash' ? finalAmount : 0,
-        refundCash: 0,
-        upiPaid: paymentMethod === 'upi' ? finalAmount : 0,
-        paymentMethod: paymentMethod,
-        businessName: settings?.business_name || 'BUSINESS NAME',
-        businessAddress: settings?.address || '',
-        businessContact: settings?.mobile_number || '',
-        businessEmail: settings?.email_id || '',
-        gstNumber: settings?.gst_number || '',
-        logo: (settings?.bill_barcode_settings as any)?.logo_url,
-        time: currentTime,
-        mrpTotal: mrpTotal,
-        cardPaid: cardPaid,
-        declarationText: saleSettings?.declaration_text,
-        termsList: saleSettings?.terms_list,
-      };
-
-      console.log('Generating invoice PDF with template:', invoiceTemplate);
+      // Trigger print using react-to-print
+      handlePrint();
       
-      if (invoiceTemplate === 'html-classic') {
-        await printInvoiceDirectly(invoiceData);
-      } else {
-        await printInvoicePDF(invoiceData);
-      }
-      
-      toast({
-        title: "Success",
-        description: "Invoice sent to printer",
-      });
-      
-      // Close dialog after initiating download
+      // Close dialog after initiating print
       setShowPrintDialog(false);
     } catch (error: any) {
-      console.error('Error generating PDF:', error);
+      console.error('Error printing invoice:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to generate PDF invoice",
+        description: error.message || "Failed to print invoice",
         variant: "destructive",
       });
     }
@@ -1849,6 +1697,43 @@ export default function POSSales() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Hidden Invoice for Printing */}
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          <InvoiceWrapper
+            ref={invoicePrintRef}
+            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || `DRAFT-${Date.now()}`}
+            date={new Date()}
+            customerName={customerName || savedInvoiceData?.customerName || "Walk-in Customer"}
+            customerAddress=""
+            customerMobile={customerPhone || savedInvoiceData?.customerPhone || ""}
+            items={savedInvoiceData?.items?.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.productName,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: "",
+              sp: item.mrp,
+              qty: item.quantity,
+              rate: item.unitCost,
+              total: item.netAmount,
+            })) || items.map((item, index) => ({
+              sr: index + 1,
+              particulars: item.productName,
+              size: item.size,
+              barcode: item.barcode,
+              hsn: "",
+              sp: item.mrp,
+              qty: item.quantity,
+              rate: item.unitCost,
+              total: item.netAmount,
+            }))}
+            subTotal={savedInvoiceData?.totals?.subtotal || totals.subtotal}
+            discount={(savedInvoiceData?.totals?.discount || totals.discount) + (savedInvoiceData?.flatDiscountAmount || flatDiscountAmount)}
+            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            paymentMethod={paymentMethod}
+          />
+        </div>
       </div>
     </div>
   );
