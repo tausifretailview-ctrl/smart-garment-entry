@@ -17,6 +17,15 @@ interface Organization {
   settings: any;
 }
 
+interface OrgSettings {
+  business_name?: string;
+  bill_barcode_settings?: {
+    logo_url?: string;
+    brand_color?: string;
+    login_display_name?: string;
+  };
+}
+
 export default function OrgAuth() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
@@ -26,6 +35,7 @@ export default function OrgAuth() {
   const [loading, setLoading] = useState(false);
   const [orgLoading, setOrgLoading] = useState(true);
   const [organization, setOrganization] = useState<Organization | null>(null);
+  const [orgSettings, setOrgSettings] = useState<OrgSettings | null>(null);
   const [error, setError] = useState<string>("");
 
   useEffect(() => {
@@ -50,6 +60,17 @@ export default function OrgAuth() {
         }
 
         setOrganization(data);
+
+        // Fetch organization branding settings
+        const { data: settingsData } = await supabase
+          .from("settings")
+          .select("business_name, bill_barcode_settings")
+          .eq("organization_id", data.id)
+          .single();
+
+        if (settingsData) {
+          setOrgSettings(settingsData as OrgSettings);
+        }
       } catch (err) {
         console.error("Error fetching organization:", err);
         setError("Failed to load organization");
@@ -185,17 +206,39 @@ export default function OrgAuth() {
     );
   }
 
-  const displayName = organization.settings?.business_name || organization.name;
+  const displayName = orgSettings?.bill_barcode_settings?.login_display_name 
+    || orgSettings?.business_name 
+    || organization.name;
+  const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
+  const brandColor = orgSettings?.bill_barcode_settings?.brand_color || "#3b82f6";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-            <Building2 className="h-8 w-8 text-primary" />
-          </div>
+          {logoUrl ? (
+            <div className="mx-auto mb-2">
+              <img 
+                src={logoUrl} 
+                alt={displayName} 
+                className="h-20 w-auto mx-auto object-contain"
+              />
+            </div>
+          ) : (
+            <div 
+              className="mx-auto w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: `${brandColor}20` }}
+            >
+              <Building2 className="h-8 w-8" style={{ color: brandColor }} />
+            </div>
+          )}
           <div>
-            <CardTitle className="text-2xl">{displayName}</CardTitle>
+            <CardTitle 
+              className="text-2xl"
+              style={{ color: brandColor }}
+            >
+              {displayName}
+            </CardTitle>
             <CardDescription className="mt-2">
               Sign in to access your account
             </CardDescription>
@@ -240,6 +283,7 @@ export default function OrgAuth() {
               type="submit" 
               className="w-full" 
               disabled={loading}
+              style={{ backgroundColor: brandColor }}
             >
               {loading ? (
                 <>

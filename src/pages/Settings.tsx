@@ -111,6 +111,8 @@ interface BillBarcodeSettings {
   invoice_format?: string;
   show_product_details?: boolean;
   barcode_format?: string;
+  brand_color?: string;
+  login_display_name?: string;
 }
 
 interface ReportSettings {
@@ -619,8 +621,9 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
             <TabsTrigger value="company">Company</TabsTrigger>
+            <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
             <TabsTrigger value="purchase">Purchase</TabsTrigger>
             <TabsTrigger value="sale">Sale</TabsTrigger>
@@ -690,6 +693,131 @@ export default function Settings() {
                       setSettings({ ...settings, gst_number: e.target.value })
                     }
                   />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="branding">
+            <Card>
+              <CardHeader>
+                <CardTitle>Organization Branding</CardTitle>
+                <CardDescription>
+                  Customize your organization's login page and brand identity
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="org_logo">Organization Logo</Label>
+                    <div className="flex items-center gap-4">
+                      {settings.bill_barcode_settings?.logo_url && (
+                        <img
+                          src={settings.bill_barcode_settings.logo_url}
+                          alt="Organization logo"
+                          className="h-20 w-20 object-contain rounded-md border"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <Input
+                          id="org_logo"
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          disabled={uploadingLogo}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Upload your organization logo (max 2MB, JPG/PNG)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="brand_color">Primary Brand Color</Label>
+                    <div className="flex items-center gap-4">
+                      <Input
+                        id="brand_color"
+                        type="color"
+                        value={settings.bill_barcode_settings?.brand_color || "#3b82f6"}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              brand_color: e.target.value,
+                            },
+                          })
+                        }
+                        className="w-24 h-10"
+                      />
+                      <Input
+                        type="text"
+                        value={settings.bill_barcode_settings?.brand_color || "#3b82f6"}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              brand_color: e.target.value,
+                            },
+                          })
+                        }
+                        placeholder="#3b82f6"
+                        className="font-mono"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This color will be used on your organization's login page
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="login_display_name">Login Page Display Name</Label>
+                    <Input
+                      id="login_display_name"
+                      value={settings.bill_barcode_settings?.login_display_name || settings.business_name || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            login_display_name: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="Enter the name to show on login page"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to use the business name
+                    </p>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <h3 className="text-sm font-semibold mb-2">Preview</h3>
+                  <div className="p-6 rounded-lg border bg-muted/50">
+                    <div className="max-w-sm mx-auto bg-background rounded-lg shadow-lg p-6">
+                      {settings.bill_barcode_settings?.logo_url && (
+                        <div className="flex justify-center mb-4">
+                          <img
+                            src={settings.bill_barcode_settings.logo_url}
+                            alt="Logo preview"
+                            className="h-16 w-auto object-contain"
+                          />
+                        </div>
+                      )}
+                      <h2 
+                        className="text-xl font-bold text-center mb-2"
+                        style={{ color: settings.bill_barcode_settings?.brand_color || "#3b82f6" }}
+                      >
+                        {settings.bill_barcode_settings?.login_display_name || settings.business_name || "Your Organization"}
+                      </h2>
+                      <p className="text-sm text-center text-muted-foreground">
+                        Sign in to access your account
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
