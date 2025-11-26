@@ -384,8 +384,13 @@ const POSDashboard = () => {
     const phoneNumber = sale.customer_phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    // Directly open WhatsApp app
-    window.location.href = whatsappUrl;
+    // Open WhatsApp in new window
+    window.open(whatsappUrl, '_blank');
+    
+    toast({
+      title: "WhatsApp Opened",
+      description: "Opening WhatsApp to send invoice details",
+    });
   };
 
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
