@@ -165,8 +165,8 @@ export const useSaveSale = () => {
       let saleNumber: string;
       
       // Always use custom format if available, otherwise use default
-      if (settings?.sale_settings?.invoice_format) {
-        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_format);
+      if (settings?.sale_settings?.invoice_numbering_format) {
+        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
       } else {
         const { data: defaultNumber, error: numberError } = await (supabase as any)
           .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });

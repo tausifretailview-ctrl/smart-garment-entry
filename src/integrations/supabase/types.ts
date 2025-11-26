@@ -904,6 +904,7 @@ export type Database = {
           organization_id: string
           original_sale_number: string | null
           return_date: string
+          return_number: string | null
           updated_at: string
         }
         Insert: {
@@ -918,6 +919,7 @@ export type Database = {
           organization_id: string
           original_sale_number?: string | null
           return_date?: string
+          return_number?: string | null
           updated_at?: string
         }
         Update: {
@@ -932,6 +934,7 @@ export type Database = {
           organization_id?: string
           original_sale_number?: string | null
           return_date?: string
+          return_number?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1364,11 +1367,19 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      generate_pos_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_purchase_bill_number: {
         Args: { p_date?: string; p_organization_id?: string }
         Returns: string
       }
       generate_sale_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      generate_sale_return_number: {
         Args: { p_organization_id: string }
         Returns: string
       }

@@ -405,7 +405,7 @@ export default function Accounts() {
           <TabsContent value="customer-payment" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Customer Payment Receipt</CardTitle>
+                <CardTitle>Customer Payment Receipt (RCP)</CardTitle>
                 <CardDescription>Record payment received from customers</CardDescription>
               </CardHeader>
               <CardContent>
@@ -534,7 +534,7 @@ export default function Accounts() {
           <TabsContent value="supplier-payment" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Supplier Payment</CardTitle>
+                <CardTitle>Supplier Payment (PAY)</CardTitle>
                 <CardDescription>Record payment made to suppliers</CardDescription>
               </CardHeader>
               <CardContent>
@@ -785,7 +785,7 @@ export default function Accounts() {
           <TabsContent value="expenses" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Business Expenses</CardTitle>
+                <CardTitle>Business Expenses (EXP)</CardTitle>
                 <CardDescription>Record business expenses and costs</CardDescription>
               </CardHeader>
               <CardContent>
@@ -825,7 +825,7 @@ export default function Accounts() {
                         onChange={(e) => {
                           setDescription(e.target.value);
                           setReferenceType("expense");
-                          setVoucherType("payment");
+                          setVoucherType("expense");
                         }}
                       />
                     </div>
