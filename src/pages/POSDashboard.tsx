@@ -67,6 +67,7 @@ const POSDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
@@ -367,7 +368,10 @@ const POSDashboard = () => {
       (!startDate || new Date(sale.sale_date) >= new Date(startDate)) &&
       (!endDate || new Date(sale.sale_date) <= new Date(endDate));
 
-    return matchesSearch && matchesDateRange;
+    const matchesPaymentMethod =
+      paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
+
+    return matchesSearch && matchesDateRange && matchesPaymentMethod;
   });
 
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -389,7 +393,7 @@ const POSDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage]);
+  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -502,6 +506,18 @@ const POSDashboard = () => {
                 className="w-40"
                 placeholder="End Date"
               />
+              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Payment Method" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Methods</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="credit">Credit</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {loading ? (
