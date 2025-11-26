@@ -307,10 +307,17 @@ export default function SaleReturnEntry() {
       const customer = customers.find((c) => c.id === selectedCustomer);
       const totals = calculateTotals();
 
+      // Generate sale return number
+      const { data: returnNumber, error: returnNumberError } = await supabase
+        .rpc('generate_sale_return_number', { p_organization_id: currentOrganization?.id });
+
+      if (returnNumberError) throw returnNumberError;
+
       // Insert sale return
       const { data: returnData, error: returnError } = await supabase
         .from("sale_returns")
         .insert({
+          return_number: returnNumber,
           organization_id: currentOrganization?.id,
           customer_id: selectedCustomer,
           customer_name: customer?.customer_name || "",
@@ -346,7 +353,7 @@ export default function SaleReturnEntry() {
 
       if (itemsError) throw itemsError;
 
-      toast({ title: "Success", description: "Sale return saved successfully" });
+      toast({ title: "Success", description: `Sale return ${returnData.return_number} saved successfully` });
       navigate("/sale-returns");
     } catch (error) {
       console.error("Error saving sale return:", error);

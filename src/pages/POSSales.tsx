@@ -284,7 +284,7 @@ export default function POSSales() {
       
       try {
         // Use the database function to get the next invoice number
-        const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
+        const { data: nextNumber, error } = await supabase.rpc('generate_pos_number', {
           p_organization_id: currentOrganization.id
         });
         
