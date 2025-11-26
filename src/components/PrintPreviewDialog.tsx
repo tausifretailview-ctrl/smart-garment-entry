@@ -46,6 +46,20 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: 'Invoice',
+    pageStyle: `
+      @page {
+        size: ${selectedFormat === 'a5' ? 'A5 portrait' : selectedFormat === 'thermal' ? '80mm auto' : 'A4 portrait'};
+        margin: ${selectedFormat === 'thermal' ? '5mm' : '10mm'};
+      }
+      @media print {
+        body {
+          margin: 0;
+          padding: 0;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `,
     onAfterPrint: () => {
       onOpenChange(false);
       onPrint?.();
@@ -125,6 +139,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
               <div
                 ref={printRef}
                 className="bg-white shadow-lg print-invoice-container"
+                data-print-format={selectedFormat}
                 style={{
                   ...getPreviewStyles(),
                   transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
