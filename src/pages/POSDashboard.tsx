@@ -19,12 +19,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 
 interface SaleItem {
   id: string;
@@ -78,10 +79,38 @@ const POSDashboard = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [previewSale, setPreviewSale] = useState<Sale | null>(null);
+  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'thermal'>('thermal');
+  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
   useEffect(() => {
     fetchSales();
+    fetchPosBillFormat();
   }, [currentOrganization]);
+
+  const fetchPosBillFormat = async () => {
+    if (!currentOrganization?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+
+      if (!error && data?.sale_settings) {
+        const settings = data.sale_settings as any;
+        if (settings.pos_bill_format) {
+          setPosBillFormat(settings.pos_bill_format);
+        }
+        if (settings.invoice_template) {
+          setPosInvoiceTemplate(settings.invoice_template);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching POS bill format:', error);
+    }
+  };
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -359,6 +388,13 @@ const POSDashboard = () => {
     window.location.href = whatsappUrl;
   };
 
+  const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
+    event.stopPropagation();
+    await fetchSaleItems(sale.id);
+    setPreviewSale(sale);
+    setShowPreviewDialog(true);
+  };
+
   const filteredSales = sales.filter((sale) => {
     const matchesSearch =
       sale.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -603,6 +639,14 @@ const POSDashboard = () => {
                                 <Button
                                   variant="ghost"
                                   size="icon"
+                                  onClick={(e) => handlePreviewClick(sale, e)}
+                                  title="Preview Invoice"
+                                >
+                                  <Eye className="h-4 w-4 text-primary" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
                                   onClick={(e) => handleWhatsAppShare(sale, e)}
                                   title="Share on WhatsApp"
                                   disabled={!sale.customer_phone}
@@ -733,6 +777,43 @@ const POSDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Print Preview Dialog */}
+      {previewSale && (
+        <PrintPreviewDialog
+          open={showPreviewDialog}
+          onOpenChange={setShowPreviewDialog}
+          defaultFormat={posBillFormat}
+          renderInvoice={(format) => (
+            <InvoiceWrapper
+              format={format}
+              billNo={previewSale.sale_number}
+              date={new Date(previewSale.sale_date)}
+              customerName={previewSale.customer_name}
+              customerAddress={previewSale.customer_address || ''}
+              customerMobile={previewSale.customer_phone || ''}
+              template={posInvoiceTemplate}
+              items={(saleItems[previewSale.id] || []).map((item, index) => ({
+                sr: index + 1,
+                particulars: item.product_name,
+                size: item.size,
+                barcode: item.barcode || '',
+                hsn: '',
+                sp: item.mrp,
+                qty: item.quantity,
+                rate: item.unit_price,
+                total: item.line_total,
+              }))}
+              subTotal={previewSale.gross_amount}
+              discount={previewSale.discount_amount + previewSale.flat_discount_amount}
+              grandTotal={previewSale.net_amount}
+              cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
+              upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
+              paymentMethod={previewSale.payment_method}
+            />
+          )}
+        />
+      )}
 
       <AlertDialog open={!!saleToDelete} onOpenChange={() => setSaleToDelete(null)}>
         <AlertDialogContent>
