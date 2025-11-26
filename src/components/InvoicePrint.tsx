@@ -35,6 +35,18 @@ interface InvoicePrintProps {
   template?: string;
   colorScheme?: string;
   paymentMethod?: string;
+  showHSN?: boolean;
+  showBarcode?: boolean;
+  showGSTBreakdown?: boolean;
+  showBankDetails?: boolean;
+  bankDetails?: {
+    bank_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_holder?: string;
+  };
+  declarationText?: string;
+  termsConditions?: string[];
 }
 
 export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
@@ -56,7 +68,14 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       gstin,
       template: propTemplate,
       colorScheme: propColorScheme,
-      paymentMethod
+      paymentMethod,
+      showHSN,
+      showBarcode,
+      showGSTBreakdown,
+      showBankDetails,
+      bankDetails: propBankDetails,
+      declarationText: propDeclarationText,
+      termsConditions: propTermsConditions
     } = props;
 
   const { currentOrganization } = useOrganization();
@@ -118,6 +137,16 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
     const template = propTemplate || settings?.sale_settings?.invoice_template || 'classic';
     const colorScheme = propColorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
     const invoiceFormat = settings?.bill_barcode_settings?.invoice_format || 'a5-vertical';
+    
+    // Use prop values if provided, otherwise fall back to settings
+    const displayShowHSN = showHSN ?? settings?.sale_settings?.show_hsn_code ?? true;
+    const displayShowBarcode = showBarcode ?? settings?.sale_settings?.show_barcode ?? true;
+    const displayShowGSTBreakdown = showGSTBreakdown ?? settings?.sale_settings?.show_gst_breakdown ?? true;
+    const displayShowBankDetails = showBankDetails ?? settings?.sale_settings?.show_bank_details ?? false;
+    const bankDetails = propBankDetails || settings?.sale_settings?.bank_details;
+    const declarationText = propDeclarationText || settings?.sale_settings?.declaration_text || 'Declaration: Composition taxable person, not eligible to collect tax on supplies.';
+    const termsConditions = propTermsConditions || settings?.sale_settings?.terms_list;
+    
     const showProductDetails = settings?.bill_barcode_settings?.show_product_details ?? true;
     const headerText = settings?.bill_barcode_settings?.header_text || '';
     const footerText = settings?.bill_barcode_settings?.footer_text || '';
@@ -194,7 +223,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
               {showProductDetails && (
                 <>
                   <th style={{ width: '12%' }}>SIZE</th>
-                  <th style={{ width: '15%' }}>HSN</th>
+                  {displayShowHSN && <th style={{ width: '15%' }}>HSN</th>}
                 </>
               )}
               <th style={{ width: '8%' }}>QTY</th>
@@ -208,12 +237,12 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <td>{item.sr}</td>
                 <td>
                   <div>{item.particulars}</div>
-                  {showProductDetails && <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>}
+                  {showProductDetails && displayShowBarcode && <div className="barcode-text"><strong>BC:{item.barcode}</strong></div>}
                 </td>
                 {showProductDetails && (
                   <>
                     <td>{item.size}</td>
-                    <td>{item.hsn}</td>
+                    {displayShowHSN && <td>{item.hsn}</td>}
                   </>
                 )}
                 <td>{item.qty}</td>
@@ -227,8 +256,14 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
         {/* Footer Section */}
         <div className="footer-section">
           <div className="declaration">
-            <p><strong>Declaration :</strong> Composition taxable person,</p>
-            <p>not eligible to collect tax on supplies.</p>
+            <p style={{ whiteSpace: 'pre-line' }}>{declarationText}</p>
+            {displayShowGSTBreakdown && (
+              <div style={{ marginTop: '8px' }}>
+                <p><strong>Tax Breakdown:</strong></p>
+                <p>CGST: ₹{((grandTotal - subTotal + discount) / 2).toFixed(2)}</p>
+                <p>SGST: ₹{((grandTotal - subTotal + discount) / 2).toFixed(2)}</p>
+              </div>
+            )}
           </div>
           <div className="totals-right">
             <p><strong>SUB TOTAL:</strong> {subTotal.toFixed(2)}</p>
@@ -255,7 +290,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
         {/* Terms / Footer */}
         <div className="terms-section">
           <div className="terms-left">
-            {footerText ? (
+            {termsConditions && termsConditions.length > 0 ? (
+              termsConditions.map((term, idx) => (
+                <p key={idx}>{idx + 1}. {term}</p>
+              ))
+            ) : footerText ? (
               <p style={{ whiteSpace: 'pre-line' }}>{footerText}</p>
             ) : (
               <>
@@ -264,6 +303,15 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
                 <p>3. EXCHANGE TIME : 01:00 TO 04:00 PM.</p>
                 <p>4. THANK YOU !!! VISIT AGAIN . . .</p>
               </>
+            )}
+            {displayShowBankDetails && bankDetails && (
+              <div style={{ marginTop: '12px', fontSize: '10px', borderTop: '1px solid #ccc', paddingTop: '8px' }}>
+                <p><strong>Bank Details:</strong></p>
+                <p>Bank: {bankDetails.bank_name}</p>
+                <p>A/c Holder: {bankDetails.account_holder}</p>
+                <p>A/c No: {bankDetails.account_number}</p>
+                <p>IFSC: {bankDetails.ifsc_code}</p>
+              </div>
             )}
           </div>
           <div className="terms-right">

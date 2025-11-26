@@ -1633,7 +1633,7 @@ export default function Settings() {
                 <div className="space-y-4 pt-6 border-t">
                   <h3 className="text-lg font-semibold">Invoice Preview</h3>
                   <p className="text-sm text-muted-foreground">
-                    Preview how your invoice will look with the selected template and color scheme
+                    Preview how your invoice will look with the selected template and color scheme (updates live as you change settings)
                   </p>
                   <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[600px]">
                     <div className="flex justify-center">
@@ -1641,6 +1641,13 @@ export default function Settings() {
                         {...sampleInvoiceData}
                         template={settings.sale_settings?.invoice_template}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
+                        showHSN={settings.sale_settings?.show_hsn_code ?? true}
+                        showBarcode={settings.sale_settings?.show_barcode ?? true}
+                        showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
+                        showBankDetails={settings.sale_settings?.show_bank_details ?? false}
+                        bankDetails={settings.sale_settings?.bank_details}
+                        declarationText={settings.sale_settings?.declaration_text}
+                        termsConditions={settings.sale_settings?.terms_list}
                       />
                     </div>
                   </div>
