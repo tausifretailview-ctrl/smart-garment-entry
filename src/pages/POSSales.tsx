@@ -1727,9 +1727,11 @@ export default function POSSales() {
           top: 0, 
           left: 0,
           width: '210mm',
+          minHeight: '297mm',
           opacity: 0, 
           pointerEvents: 'none',
-          zIndex: -1 
+          zIndex: -9999,
+          overflow: 'visible'
         }}>
           {savedInvoiceData && (
             <InvoiceWrapper
