@@ -1749,8 +1749,9 @@ export default function POSSales() {
               }
             }}
             defaultFormat={posBillFormat}
-            invoiceComponent={
+            renderInvoice={(format) => (
               <InvoiceWrapper
+                format={format}
                 billNo={savedInvoiceData.invoiceNumber}
                 date={new Date()}
                 customerName={savedInvoiceData.customerName || "Walk-in Customer"}
@@ -1775,7 +1776,7 @@ export default function POSSales() {
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
               />
-            }
+            )}
             onPrint={handleClosePrintConfirmDialog}
           />
         )}

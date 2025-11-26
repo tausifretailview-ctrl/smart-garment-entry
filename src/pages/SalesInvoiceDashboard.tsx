@@ -551,8 +551,10 @@ export default function SalesInvoiceDashboard() {
             open={showPrintPreview}
             onOpenChange={setShowPrintPreview}
             defaultFormat={billFormat}
-            invoiceComponent={
-              <InvoiceWrapper
+            renderInvoice={(format) => 
+              invoiceToPrint ? (
+                <InvoiceWrapper
+                format={format}
                 billNo={invoiceToPrint.sale_number}
                 date={new Date(invoiceToPrint.sale_date)}
                 customerName={invoiceToPrint.customer_name}
@@ -577,6 +579,7 @@ export default function SalesInvoiceDashboard() {
                 upiPaid={invoiceToPrint.payment_method === 'upi' ? invoiceToPrint.net_amount : 0}
                 paymentMethod={invoiceToPrint.payment_method}
               />
+              ) : null
             }
           />
         )}
