@@ -524,6 +524,7 @@ const POSDashboard = () => {
                       <TableHead>Customer</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead>Qty</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Payment</TableHead>
                       <TableHead>Status</TableHead>
@@ -533,7 +534,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -566,6 +567,9 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {format(new Date(sale.sale_date), "dd/MM/yyyy")}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>₹{sale.net_amount.toFixed(2)}</TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
@@ -619,7 +623,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={9} className="bg-muted/50 p-4">
+                              <TableCell colSpan={10} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold text-sm">Sale Items:</h4>
                                   <div className="rounded-md border">
