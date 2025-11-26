@@ -1116,7 +1116,7 @@ export default function POSSales() {
 
         <Button
           onClick={handlePrint}
-          disabled={!savedInvoiceData}
+          disabled={items.length === 0}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50"
           title="Print"
         >
@@ -1137,9 +1137,9 @@ export default function POSSales() {
         {/* WhatsApp Share Button */}
         <Button
           onClick={handleWhatsAppShare}
-          disabled={!currentSaleId || !customerPhone}
+          disabled={!customerPhone || items.length === 0}
           className="h-16 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-          title="Share on WhatsApp (after saving)"
+          title="Share on WhatsApp"
         >
           <MessageCircle className="h-5 w-5" />
           <span>WhatsApp</span>
