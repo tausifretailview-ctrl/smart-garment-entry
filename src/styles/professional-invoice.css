@@ -8,6 +8,23 @@
     padding: 0;
   }
 
+  /* Hide dialog and non-printable elements */
+  .no-print,
+  button,
+  .MuiButton-root,
+  [role="dialog"],
+  .DialogOverlay,
+  .DialogContent {
+    display: none !important;
+  }
+
+  /* Only show the print container */
+  .print-invoice-container {
+    display: block !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+
   .professional-invoice-template {
     box-shadow: none !important;
     margin: 0 !important;
@@ -27,13 +44,6 @@
   .professional-invoice-template.format-a4 {
     width: 210mm;
     min-height: 297mm;
-  }
-
-  /* Hide non-printable elements */
-  .no-print,
-  button,
-  .MuiButton-root {
-    display: none !important;
   }
 
   /* Ensure elements don't break across pages */

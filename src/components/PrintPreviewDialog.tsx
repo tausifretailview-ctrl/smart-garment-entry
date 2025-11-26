@@ -15,7 +15,7 @@ import { Printer, X } from 'lucide-react';
 interface PrintPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  invoiceComponent: React.ReactNode;
+  renderInvoice: (format: 'a4' | 'a5' | 'thermal') => React.ReactNode;
   defaultFormat?: 'a4' | 'a5' | 'thermal';
   onPrint?: () => void;
 }
@@ -23,12 +23,25 @@ interface PrintPreviewDialogProps {
 export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   open,
   onOpenChange,
-  invoiceComponent,
+  renderInvoice,
   defaultFormat = 'a4',
   onPrint,
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'thermal'>(defaultFormat);
+  const [isLoading, setIsLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Reset loading state when dialog opens or format changes
+  React.useEffect(() => {
+    if (open) {
+      setIsLoading(true);
+      // Give time for invoice to render
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [open, selectedFormat]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -57,6 +70,17 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           width: '210mm',
           minHeight: '297mm',
         };
+    }
+  };
+
+  const getFormatForInvoice = () => {
+    switch (selectedFormat) {
+      case 'a5':
+        return 'a5-vertical';
+      case 'thermal':
+        return 'thermal';
+      default:
+        return 'a4';
     }
   };
 
@@ -93,17 +117,23 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 
           {/* Preview Container */}
           <div className="flex justify-center">
-            <div
-              ref={printRef}
-              className="bg-white shadow-lg"
-              style={{
-                ...getPreviewStyles(),
-                transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
-                transformOrigin: 'top center',
-              }}
-            >
-              {invoiceComponent}
-            </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="text-muted-foreground">Loading preview...</div>
+              </div>
+            ) : (
+              <div
+                ref={printRef}
+                className="bg-white shadow-lg print-invoice-container"
+                style={{
+                  ...getPreviewStyles(),
+                  transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
+                  transformOrigin: 'top center',
+                }}
+              >
+                {renderInvoice(getFormatForInvoice() as any)}
+              </div>
+            )}
           </div>
         </div>
 
@@ -112,9 +142,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
             <X className="mr-2 h-4 w-4" />
             Cancel
           </Button>
-          <Button onClick={handlePrint}>
+          <Button onClick={handlePrint} disabled={isLoading}>
             <Printer className="mr-2 h-4 w-4" />
-            Print
+            {isLoading ? 'Loading...' : 'Print'}
           </Button>
         </DialogFooter>
       </DialogContent>
