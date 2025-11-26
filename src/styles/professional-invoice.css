@@ -8,21 +8,52 @@
     padding: 0;
   }
 
-  /* Hide dialog and non-printable elements */
+  /* Hide non-printable UI elements but keep invoice container visible */
   .no-print,
-  button,
+  button:not(.print-invoice-container button),
   .MuiButton-root,
-  [role="dialog"],
-  .DialogOverlay,
-  .DialogContent {
+  header,
+  nav,
+  footer:not(.print-invoice-container footer) {
     display: none !important;
   }
 
-  /* Only show the print container */
+  /* Hide dialog overlay and header/footer, but keep content visible */
+  [role="dialog"] > [class*="Overlay"],
+  [role="dialog"] > [class*="Content"] > [class*="Header"],
+  [role="dialog"] > [class*="Content"] > [class*="Footer"] {
+    display: none !important;
+  }
+
+  /* Make dialog content transparent and remove padding */
+  [role="dialog"] {
+    position: static !important;
+    pointer-events: none !important;
+  }
+
+  [role="dialog"] > [class*="Content"] {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    overflow: visible !important;
+  }
+
+  /* Ensure print container is visible and properly sized */
   .print-invoice-container {
     display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: static !important;
     box-shadow: none !important;
     margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    background: white !important;
   }
 
   .professional-invoice-template {
