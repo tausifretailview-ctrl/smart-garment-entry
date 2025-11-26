@@ -739,15 +739,6 @@ export default function POSSales() {
   };
 
   const handleWhatsAppShare = () => {
-    if (!currentSaleId) {
-      toast({
-        title: "Save Invoice First",
-        description: "Please save the invoice before sharing on WhatsApp",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!customerPhone) {
       toast({
         title: "No Phone Number",
@@ -757,7 +748,7 @@ export default function POSSales() {
       return;
     }
 
-    const itemsList = items.map((item, index) => 
+    const itemsList = items.map((item, index) =>
       `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount.toFixed(2)}`
     ).join('\n');
 
@@ -1793,16 +1784,26 @@ export default function POSSales() {
           zIndex: -9999,
           overflow: 'visible'
         }}>
-          {savedInvoiceData && (
+          {(items.length > 0 || savedInvoiceData) && (
             <InvoiceWrapper
               ref={invoicePrintRef}
-              billNo={savedInvoiceData.invoiceNumber}
+              billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
               date={new Date()}
-              customerName={savedInvoiceData.customerName || "Walk-in Customer"}
+              customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}
               customerAddress=""
-              customerMobile={savedInvoiceData.customerPhone || ""}
+              customerMobile={savedInvoiceData?.customerPhone || customerPhone || ""}
               template={posInvoiceTemplate}
-              items={savedInvoiceData.items.map((item: any, index: number) => ({
+              items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
+                sr: index + 1,
+                particulars: item.productName,
+                size: item.size,
+                barcode: item.barcode || "",
+                hsn: "",
+                sp: item.mrp,
+                qty: item.quantity,
+                rate: item.unitCost,
+                total: item.netAmount,
+              })) : items.map((item, index) => ({
                 sr: index + 1,
                 particulars: item.productName,
                 size: item.size,
@@ -1813,12 +1814,12 @@ export default function POSSales() {
                 rate: item.unitCost,
                 total: item.netAmount,
               }))}
-              subTotal={savedInvoiceData.totals.subtotal}
-              discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
-              grandTotal={savedInvoiceData.finalAmount}
-              cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
-              upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
-              paymentMethod={savedInvoiceData.method}
+              subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
+              discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
+              grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+              cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
+              upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
+              paymentMethod={savedInvoiceData?.method || paymentMethod}
             />
           )}
         </div>
