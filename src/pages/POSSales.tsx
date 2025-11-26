@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
@@ -88,6 +89,8 @@ export default function POSSales() {
   const [currentInvoiceNumber, setCurrentInvoiceNumber] = useState("");
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'thermal'>('thermal');
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -109,6 +112,31 @@ export default function POSSales() {
       loadSaleForEdit(saleId);
     }
   }, [searchParams, currentOrganization?.id]);
+
+  // Fetch POS bill format from settings
+  useEffect(() => {
+    if (currentOrganization?.id) {
+      fetchPosBillFormat();
+    }
+  }, [currentOrganization?.id]);
+
+  const fetchPosBillFormat = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data?.sale_settings) {
+        const settings = data.sale_settings as any;
+        setPosBillFormat(settings.pos_bill_format || 'thermal');
+      }
+    } catch (error) {
+      console.error('Error fetching POS bill format:', error);
+    }
+  };
 
   const loadSaleForEdit = async (saleId: string) => {
     try {
@@ -688,21 +716,8 @@ export default function POSSales() {
   const handlePrintFromDialog = async () => {
     if (!savedInvoiceData) return;
 
-    try {
-      // Small delay to ensure InvoiceWrapper is fully rendered
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Trigger print using react-to-print
-      handlePrint();
-      handleClosePrintConfirmDialog();
-    } catch (error: any) {
-      console.error('Error printing invoice:', error);
-      toast({
-        title: "Print Error",
-        description: "Failed to print invoice",
-        variant: "destructive",
-      });
-    }
+    setShowPrintConfirmDialog(false);
+    setShowPrintPreview(true);
   };
 
   const handleClosePrintConfirmDialog = () => {
@@ -1720,6 +1735,47 @@ export default function POSSales() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Print Preview Dialog */}
+        {savedInvoiceData && (
+          <PrintPreviewDialog
+            open={showPrintPreview}
+            onOpenChange={(open) => {
+              setShowPrintPreview(open);
+              if (!open) {
+                handleClosePrintConfirmDialog();
+              }
+            }}
+            defaultFormat={posBillFormat}
+            invoiceComponent={
+              <InvoiceWrapper
+                billNo={savedInvoiceData.invoiceNumber}
+                date={new Date()}
+                customerName={savedInvoiceData.customerName || "Walk-in Customer"}
+                customerAddress=""
+                customerMobile={savedInvoiceData.customerPhone || ""}
+                items={savedInvoiceData.items.map((item: any, index: number) => ({
+                  sr: index + 1,
+                  particulars: item.productName,
+                  size: item.size,
+                  barcode: item.barcode || "",
+                  hsn: "",
+                  sp: item.mrp,
+                  qty: item.quantity,
+                  rate: item.unitCost,
+                  total: item.netAmount,
+                }))}
+                subTotal={savedInvoiceData.totals.subtotal}
+                discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
+                grandTotal={savedInvoiceData.finalAmount}
+                cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
+                upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
+                paymentMethod={savedInvoiceData.method}
+              />
+            }
+            onPrint={handleClosePrintConfirmDialog}
+          />
+        )}
 
         {/* Hidden Invoice for Printing */}
         <div style={{ 
