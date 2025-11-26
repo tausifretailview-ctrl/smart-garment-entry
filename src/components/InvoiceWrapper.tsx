@@ -50,6 +50,21 @@ interface InvoiceWrapperProps {
   template?: string;
   colorScheme?: string;
   format?: string;
+  
+  // Display option overrides (for live preview)
+  showHSN?: boolean;
+  showBarcode?: boolean;
+  showGSTBreakdown?: boolean;
+  showBankDetails?: boolean;
+  minItemRows?: number;
+  showTotalQuantity?: boolean;
+  amountWithDecimal?: boolean;
+  showReceivedAmount?: boolean;
+  showBalanceAmount?: boolean;
+  showPartyBalance?: boolean;
+  showTaxDetails?: boolean;
+  showYouSaved?: boolean;
+  amountWithGrouping?: boolean;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -113,25 +128,25 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       return <div ref={ref}>Loading...</div>;
     }
 
-    // Get settings
+    // Get settings - use prop overrides if provided, otherwise use database settings
     const template = props.template || settings?.sale_settings?.invoice_template || 'professional';
     const colorScheme = props.colorScheme || settings?.sale_settings?.invoice_color_scheme || 'blue';
     const format = props.format || settings?.sale_settings?.invoice_paper_format || 'a5-vertical';
     
-    // Get display settings
-    const showHSN = settings?.sale_settings?.show_hsn_code ?? true;
-    const showBarcode = settings?.sale_settings?.show_barcode ?? true;
-    const showGSTBreakdown = settings?.sale_settings?.show_gst_breakdown ?? true;
-    const showBankDetails = settings?.sale_settings?.show_bank_details ?? false;
-    const minItemRows = (settings?.sale_settings as any)?.min_item_rows || 12;
-    const showTotalQuantity = (settings?.sale_settings as any)?.show_total_quantity ?? true;
-    const amountWithDecimal = (settings?.sale_settings as any)?.amount_with_decimal ?? true;
-    const showReceivedAmount = (settings?.sale_settings as any)?.show_received_amount ?? false;
-    const showBalanceAmount = (settings?.sale_settings as any)?.show_balance_amount ?? false;
-    const showPartyBalance = (settings?.sale_settings as any)?.show_party_balance ?? false;
-    const showTaxDetails = (settings?.sale_settings as any)?.show_tax_details ?? true;
-    const showYouSaved = (settings?.sale_settings as any)?.show_you_saved ?? false;
-    const amountWithGrouping = (settings?.sale_settings as any)?.amount_with_grouping ?? true;
+    // Get display settings - use prop overrides if provided for live preview
+    const showHSN = props.showHSN ?? settings?.sale_settings?.show_hsn_code ?? true;
+    const showBarcode = props.showBarcode ?? settings?.sale_settings?.show_barcode ?? true;
+    const showGSTBreakdown = props.showGSTBreakdown ?? settings?.sale_settings?.show_gst_breakdown ?? true;
+    const showBankDetails = props.showBankDetails ?? settings?.sale_settings?.show_bank_details ?? false;
+    const minItemRows = props.minItemRows ?? (settings?.sale_settings as any)?.min_item_rows ?? 12;
+    const showTotalQuantity = props.showTotalQuantity ?? (settings?.sale_settings as any)?.show_total_quantity ?? true;
+    const amountWithDecimal = props.amountWithDecimal ?? (settings?.sale_settings as any)?.amount_with_decimal ?? true;
+    const showReceivedAmount = props.showReceivedAmount ?? (settings?.sale_settings as any)?.show_received_amount ?? false;
+    const showBalanceAmount = props.showBalanceAmount ?? (settings?.sale_settings as any)?.show_balance_amount ?? false;
+    const showPartyBalance = props.showPartyBalance ?? (settings?.sale_settings as any)?.show_party_balance ?? false;
+    const showTaxDetails = props.showTaxDetails ?? (settings?.sale_settings as any)?.show_tax_details ?? true;
+    const showYouSaved = props.showYouSaved ?? (settings?.sale_settings as any)?.show_you_saved ?? false;
+    const amountWithGrouping = props.amountWithGrouping ?? (settings?.sale_settings as any)?.amount_with_grouping ?? true;
     
     // Calculate tax amounts (simplified - you may need more complex logic)
     const taxableAmount = props.subTotal - props.discount;

@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { InvoicePrint } from "@/components/InvoicePrint";
+import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
@@ -1763,17 +1763,38 @@ export default function Settings() {
                   </p>
                   <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[600px]">
                     <div className="flex justify-center">
-                      <InvoicePrint
-                        {...sampleInvoiceData}
+                      <InvoiceWrapper
+                        billNo={sampleInvoiceData.billNo}
+                        date={sampleInvoiceData.date}
+                        customerName={sampleInvoiceData.customerName}
+                        customerAddress={sampleInvoiceData.customerAddress}
+                        customerMobile={sampleInvoiceData.customerMobile}
+                        customerGSTIN={sampleInvoiceData.gstin}
+                        items={sampleInvoiceData.items}
+                        subTotal={sampleInvoiceData.subTotal}
+                        discount={sampleInvoiceData.discount}
+                        grandTotal={sampleInvoiceData.grandTotal}
+                        tenderAmount={sampleInvoiceData.tenderAmount}
+                        cashPaid={sampleInvoiceData.cashPaid}
+                        refundCash={sampleInvoiceData.refundCash}
+                        upiPaid={sampleInvoiceData.upiPaid}
+                        paymentMethod="cash"
                         template={settings.sale_settings?.invoice_template}
                         colorScheme={settings.sale_settings?.invoice_color_scheme}
+                        format={settings.sale_settings?.invoice_paper_format}
                         showHSN={settings.sale_settings?.show_hsn_code ?? true}
                         showBarcode={settings.sale_settings?.show_barcode ?? true}
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
                         showBankDetails={settings.sale_settings?.show_bank_details ?? false}
-                        bankDetails={settings.sale_settings?.bank_details}
-                        declarationText={settings.sale_settings?.declaration_text}
-                        termsConditions={settings.sale_settings?.terms_list}
+                        minItemRows={(settings.sale_settings as any)?.min_item_rows}
+                        showTotalQuantity={(settings.sale_settings as any)?.show_total_quantity}
+                        amountWithDecimal={(settings.sale_settings as any)?.amount_with_decimal}
+                        showReceivedAmount={(settings.sale_settings as any)?.show_received_amount}
+                        showBalanceAmount={(settings.sale_settings as any)?.show_balance_amount}
+                        showPartyBalance={(settings.sale_settings as any)?.show_party_balance}
+                        showTaxDetails={(settings.sale_settings as any)?.show_tax_details}
+                        showYouSaved={(settings.sale_settings as any)?.show_you_saved}
+                        amountWithGrouping={(settings.sale_settings as any)?.amount_with_grouping}
                       />
                     </div>
                   </div>
