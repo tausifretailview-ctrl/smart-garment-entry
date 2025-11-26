@@ -43,6 +43,7 @@ export default function SalesInvoiceDashboard() {
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'thermal'>('a4');
+  const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function SalesInvoiceDashboard() {
       if (data?.sale_settings) {
         const settings = data.sale_settings as any;
         setBillFormat(settings.sales_bill_format || 'a4');
+        setInvoiceTemplate(settings.invoice_template || 'professional');
       }
     } catch (error) {
       console.error('Error fetching bill format:', error);
@@ -556,6 +558,7 @@ export default function SalesInvoiceDashboard() {
                 customerName={invoiceToPrint.customer_name}
                 customerAddress={invoiceToPrint.customer_address || ""}
                 customerMobile={invoiceToPrint.customer_phone || ""}
+                template={invoiceTemplate}
                 items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
                   sr: index + 1,
                   particulars: item.product_name,
@@ -599,6 +602,7 @@ export default function SalesInvoiceDashboard() {
             customerAddress={invoiceToPrint.customer_address || ""}
             customerMobile={invoiceToPrint.customer_phone || ""}
             customerGSTIN=""
+            template={invoiceTemplate}
             items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.product_name,

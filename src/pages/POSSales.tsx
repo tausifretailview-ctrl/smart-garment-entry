@@ -91,6 +91,7 @@ export default function POSSales() {
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'thermal'>('thermal');
+  const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +133,7 @@ export default function POSSales() {
       if (data?.sale_settings) {
         const settings = data.sale_settings as any;
         setPosBillFormat(settings.pos_bill_format || 'thermal');
+        setPosInvoiceTemplate(settings.invoice_template || 'professional');
       }
     } catch (error) {
       console.error('Error fetching POS bill format:', error);
@@ -1754,6 +1756,7 @@ export default function POSSales() {
                 customerName={savedInvoiceData.customerName || "Walk-in Customer"}
                 customerAddress=""
                 customerMobile={savedInvoiceData.customerPhone || ""}
+                template={posInvoiceTemplate}
                 items={savedInvoiceData.items.map((item: any, index: number) => ({
                   sr: index + 1,
                   particulars: item.productName,
@@ -1797,6 +1800,7 @@ export default function POSSales() {
               customerName={savedInvoiceData.customerName || "Walk-in Customer"}
               customerAddress=""
               customerMobile={savedInvoiceData.customerPhone || ""}
+              template={posInvoiceTemplate}
               items={savedInvoiceData.items.map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.productName,
