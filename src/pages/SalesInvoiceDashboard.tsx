@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { useReactToPrint } from "react-to-print";
 import {
   AlertDialog,
@@ -40,7 +41,33 @@ export default function SalesInvoiceDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'thermal'>('a4');
   const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentOrganization?.id) {
+      fetchBillFormat();
+    }
+  }, [currentOrganization?.id]);
+
+  const fetchBillFormat = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('sale_settings')
+        .eq('organization_id', currentOrganization?.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data?.sale_settings) {
+        const settings = data.sale_settings as any;
+        setBillFormat(settings.sales_bill_format || 'a4');
+      }
+    } catch (error) {
+      console.error('Error fetching bill format:', error);
+    }
+  };
 
   const { data: invoicesData, isLoading, refetch } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, searchQuery],
@@ -217,10 +244,7 @@ export default function SalesInvoiceDashboard() {
 
   const handlePrintInvoice = (invoice: any) => {
     setInvoiceToPrint(invoice);
-    // Trigger print after state update
-    setTimeout(() => {
-      handlePrint();
-    }, 100);
+    setShowPrintPreview(true);
   };
 
   const handleWhatsAppShare = (invoice: any) => {
@@ -517,9 +541,44 @@ export default function SalesInvoiceDashboard() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+        </AlertDialog>
+        
+        {/* Print Preview Dialog */}
+        {invoiceToPrint && (
+          <PrintPreviewDialog
+            open={showPrintPreview}
+            onOpenChange={setShowPrintPreview}
+            defaultFormat={billFormat}
+            invoiceComponent={
+              <InvoiceWrapper
+                billNo={invoiceToPrint.sale_number}
+                date={new Date(invoiceToPrint.sale_date)}
+                customerName={invoiceToPrint.customer_name}
+                customerAddress={invoiceToPrint.customer_address || ""}
+                customerMobile={invoiceToPrint.customer_phone || ""}
+                items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+                  sr: index + 1,
+                  particulars: item.product_name,
+                  size: item.size,
+                  barcode: item.barcode || "",
+                  hsn: "",
+                  sp: item.mrp,
+                  qty: item.quantity,
+                  rate: item.unit_price,
+                  total: item.line_total,
+                })) || []}
+                subTotal={invoiceToPrint.gross_amount}
+                discount={invoiceToPrint.discount_amount}
+                grandTotal={invoiceToPrint.net_amount}
+                cashPaid={invoiceToPrint.payment_method === 'cash' ? invoiceToPrint.net_amount : 0}
+                upiPaid={invoiceToPrint.payment_method === 'upi' ? invoiceToPrint.net_amount : 0}
+                paymentMethod={invoiceToPrint.payment_method}
+              />
+            }
+          />
+        )}
 
-      {/* Hidden Invoice for Printing */}
+        {/* Hidden Invoice for Printing */}
       {invoiceToPrint && (
         <div style={{ 
           position: 'fixed',
