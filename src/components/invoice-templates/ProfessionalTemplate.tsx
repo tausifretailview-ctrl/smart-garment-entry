@@ -71,6 +71,15 @@ interface ProfessionalTemplateProps {
   showBarcode?: boolean;
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
+  minItemRows?: number;
+  showTotalQuantity?: boolean;
+  amountWithDecimal?: boolean;
+  showReceivedAmount?: boolean;
+  showBalanceAmount?: boolean;
+  showPartyBalance?: boolean;
+  showTaxDetails?: boolean;
+  showYouSaved?: boolean;
+  amountWithGrouping?: boolean;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
 }
@@ -111,6 +120,15 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   showBarcode = true,
   showGSTBreakdown = true,
   showBankDetails = false,
+  minItemRows = 12,
+  showTotalQuantity = true,
+  amountWithDecimal = true,
+  showReceivedAmount = false,
+  showBalanceAmount = false,
+  showPartyBalance = false,
+  showTaxDetails = true,
+  showYouSaved = false,
+  amountWithGrouping = true,
   format = 'a5-vertical',
   colorScheme = 'blue'
 }) => {
@@ -119,8 +137,19 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   };
 
   const formatCurrency = (amount: number) => {
+    if (!amountWithDecimal) {
+      if (amountWithGrouping) {
+        return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+      }
+      return `₹${Math.round(amount)}`;
+    }
+    if (amountWithGrouping) {
+      return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
     return `₹${amount.toFixed(2)}`;
   };
+
+  const totalQuantity = items.reduce((sum, item) => sum + item.qty, 0);
 
   const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
     blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#dbeafe' },
@@ -307,6 +336,26 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
             </tr>
           ))}
+          {/* Add empty rows to reach minimum */}
+          {Array.from({ length: Math.max(0, minItemRows - items.length) }).map((_, index) => (
+            <tr key={`empty-${index}`}>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center', height: isA4 ? '20px' : '16px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+            </tr>
+          ))}
+          {/* Total quantity row */}
+          {showTotalQuantity && (
+            <tr style={{ backgroundColor: colors.accent, fontWeight: 'bold' }}>
+              <td colSpan={showHSN ? 4 : 3} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>Total Quantity:</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{totalQuantity}</td>
+              <td colSpan={2} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -359,14 +408,18 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <span>-{formatCurrency(discount)}</span>
             </div>
           )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
-            <span>Taxable Amount:</span>
-            <span>{formatCurrency(taxableAmount)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
-            <span>Total Tax:</span>
-            <span>{formatCurrency(totalTax)}</span>
-          </div>
+          {showTaxDetails && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                <span>Taxable Amount:</span>
+                <span>{formatCurrency(taxableAmount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
+                <span>Total Tax:</span>
+                <span>{formatCurrency(totalTax)}</span>
+              </div>
+            </>
+          )}
           {roundOff !== 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
               <span>Round Off:</span>
@@ -386,16 +439,22 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             <span>Grand Total:</span>
             <span>{formatCurrency(grandTotal)}</span>
           </div>
-          {amountPaid !== undefined && (
+          {showReceivedAmount && amountPaid !== undefined && (
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt' }}>
-              <span>Paid:</span>
+              <span>Received Amount:</span>
               <span>{formatCurrency(amountPaid)}</span>
             </div>
           )}
-          {balanceDue !== undefined && balanceDue > 0 && (
+          {showBalanceAmount && balanceDue !== undefined && balanceDue > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt', color: '#b91c1c', fontWeight: 'bold' }}>
-              <span>Balance Due:</span>
+              <span>Balance Amount:</span>
               <span>{formatCurrency(balanceDue)}</span>
+            </div>
+          )}
+          {showYouSaved && discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt', color: '#15803d', fontWeight: 'bold' }}>
+              <span>You Saved:</span>
+              <span>{formatCurrency(discount)}</span>
             </div>
           )}
         </div>

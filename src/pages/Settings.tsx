@@ -1241,6 +1241,185 @@ export default function Settings() {
                   </p>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="min_rows">Min No. of Rows in Item Table</Label>
+                  <Input
+                    id="min_rows"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={(settings.sale_settings as any)?.min_item_rows || 12}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          min_item_rows: parseInt(e.target.value) || 12,
+                        } as any,
+                      })
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Minimum number of rows to display in the item table
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-base font-semibold">Totals & Taxes</Label>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_total_quantity"
+                      checked={(settings.sale_settings as any)?.show_total_quantity ?? true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_total_quantity: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_total_quantity" className="font-normal cursor-pointer">
+                      Total Item Quantity
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="amount_with_decimal"
+                      checked={(settings.sale_settings as any)?.amount_with_decimal ?? true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            amount_with_decimal: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="amount_with_decimal" className="font-normal cursor-pointer">
+                      Amount with Decimal (e.g. 0.00)
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_received_amount"
+                      checked={(settings.sale_settings as any)?.show_received_amount ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_received_amount: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_received_amount" className="font-normal cursor-pointer">
+                      Received Amount
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_balance_amount"
+                      checked={(settings.sale_settings as any)?.show_balance_amount ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_balance_amount: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_balance_amount" className="font-normal cursor-pointer">
+                      Balance Amount
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_party_balance"
+                      checked={(settings.sale_settings as any)?.show_party_balance ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_party_balance: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_party_balance" className="font-normal cursor-pointer">
+                      Current Balance of Party
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_tax_details"
+                      checked={(settings.sale_settings as any)?.show_tax_details ?? true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_tax_details: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_tax_details" className="font-normal cursor-pointer">
+                      Tax Details
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_you_saved"
+                      checked={(settings.sale_settings as any)?.show_you_saved ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_you_saved: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="show_you_saved" className="font-normal cursor-pointer">
+                      You Saved
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="amount_with_grouping"
+                      checked={(settings.sale_settings as any)?.amount_with_grouping ?? true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            amount_with_grouping: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <Label htmlFor="amount_with_grouping" className="font-normal cursor-pointer">
+                      Print Amount with Grouping
+                    </Label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="invoice_paper_format">Invoice Paper Format</Label>
                   <Select
                     value={settings.sale_settings?.invoice_paper_format || "a5-vertical"}

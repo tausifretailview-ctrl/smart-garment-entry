@@ -123,6 +123,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const showBarcode = settings?.sale_settings?.show_barcode ?? true;
     const showGSTBreakdown = settings?.sale_settings?.show_gst_breakdown ?? true;
     const showBankDetails = settings?.sale_settings?.show_bank_details ?? false;
+    const minItemRows = (settings?.sale_settings as any)?.min_item_rows || 12;
+    const showTotalQuantity = (settings?.sale_settings as any)?.show_total_quantity ?? true;
+    const amountWithDecimal = (settings?.sale_settings as any)?.amount_with_decimal ?? true;
+    const showReceivedAmount = (settings?.sale_settings as any)?.show_received_amount ?? false;
+    const showBalanceAmount = (settings?.sale_settings as any)?.show_balance_amount ?? false;
+    const showPartyBalance = (settings?.sale_settings as any)?.show_party_balance ?? false;
+    const showTaxDetails = (settings?.sale_settings as any)?.show_tax_details ?? true;
+    const showYouSaved = (settings?.sale_settings as any)?.show_you_saved ?? false;
+    const amountWithGrouping = (settings?.sale_settings as any)?.amount_with_grouping ?? true;
     
     // Calculate tax amounts (simplified - you may need more complex logic)
     const taxableAmount = props.subTotal - props.discount;
@@ -180,6 +189,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       showBarcode,
       showGSTBreakdown,
       showBankDetails,
+      minItemRows,
+      showTotalQuantity,
+      amountWithDecimal,
+      showReceivedAmount,
+      showBalanceAmount,
+      showPartyBalance,
+      showTaxDetails,
+      showYouSaved,
+      amountWithGrouping,
       format: format as 'a5-vertical' | 'a5-horizontal' | 'a4',
       colorScheme
     };
