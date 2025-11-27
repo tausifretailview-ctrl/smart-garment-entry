@@ -35,6 +35,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
 
 interface LabelItem {
   sku_id: string;
@@ -402,6 +403,22 @@ export default function BarcodePrinting() {
   const [newMarginPresetName, setNewMarginPresetName] = useState("");
   const [newMarginPresetDescription, setNewMarginPresetDescription] = useState("");
   const [isEditingMarginPreset, setIsEditingMarginPreset] = useState(false);
+
+  // Use the database hook for settings
+  const {
+    labelTemplates: dbLabelTemplates,
+    marginPresets: dbMarginPresets,
+    customPresets: dbCustomPresets,
+    defaultFormat: dbDefaultFormat,
+    isLoading: isLoadingSettings,
+    saveLabelTemplate: saveTemplateToDb,
+    deleteLabelTemplate: deleteTemplateFromDb,
+    saveMarginPreset: saveMarginToDb,
+    deleteMarginPreset: deleteMarginFromDb,
+    saveCustomPreset: saveCustomToDb,
+    deleteCustomPreset: deleteCustomFromDb,
+    saveDefaultFormat: saveDefaultToDb,
+  } = useBarcodeLabelSettings();
   
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
@@ -456,80 +473,38 @@ export default function BarcodePrinting() {
     })
   );
 
-  // Load saved presets from localStorage on mount
+  // Sync database settings with local state
   useEffect(() => {
-    const stored = localStorage.getItem("barcode_custom_presets");
-    if (stored) {
-      try {
-        setSavedPresets(JSON.parse(stored));
-      } catch (error) {
-        console.error("Failed to load presets:", error);
-      }
-    }
+    if (isLoadingSettings) return;
     
-    const storedDesignPresets = localStorage.getItem("barcode_design_presets");
-    if (storedDesignPresets) {
-      try {
-        setSavedDesignPresets(JSON.parse(storedDesignPresets));
-      } catch (error) {
-        console.error("Failed to load design presets:", error);
-      }
-    }
-
-    const storedLabelTemplates = localStorage.getItem("barcode_label_templates");
-    if (storedLabelTemplates) {
-      try {
-        setSavedLabelTemplates(JSON.parse(storedLabelTemplates));
-      } catch (error) {
-        console.error("Failed to load label templates:", error);
-      }
-    }
-
-    const storedMarginPresets = localStorage.getItem("barcode_margin_presets");
-    if (storedMarginPresets) {
-      try {
-        setSavedMarginPresets(JSON.parse(storedMarginPresets));
-      } catch (error) {
-        console.error("Failed to load margin presets:", error);
-      }
-    }
-
+    // Sync label templates
+    setSavedLabelTemplates(dbLabelTemplates);
+    
+    // Sync margin presets
+    setSavedMarginPresets(dbMarginPresets);
+    
+    // Sync custom presets
+    setSavedPresets(dbCustomPresets);
+    
     // Load default format if available
-    const storedDefaultFormat = localStorage.getItem("barcode_default_format");
-    if (storedDefaultFormat) {
-      try {
-        const defaultFormat = JSON.parse(storedDefaultFormat);
+    if (dbDefaultFormat) {
+      const defaultFormat = dbDefaultFormat;
+      
+      // Check if default references a template
+      if (defaultFormat.defaultTemplate) {
+        const template = dbLabelTemplates.find((t: LabelTemplate) => t.name === defaultFormat.defaultTemplate);
         
-        // Check if default references a template
-        if (defaultFormat.defaultTemplate) {
-          const storedTemplates = localStorage.getItem("barcode_label_templates");
-          if (storedTemplates) {
-            const templates = JSON.parse(storedTemplates);
-            const template = templates.find((t: LabelTemplate) => t.name === defaultFormat.defaultTemplate);
-            
-            if (template) {
-              // Load template config
-              const configWithBarcode = {
-                ...template.config,
-                barcode: { ...template.config.barcode, show: true },
-                barcodeText: { ...template.config.barcodeText, show: true },
-              };
-              setLabelConfig(configWithBarcode);
-              setSelectedLabelTemplate(template.name);
-            } else {
-              // Template was deleted, fall back to inline config if available
-              if (defaultFormat.labelConfig) {
-                const configWithBarcode = {
-                  ...defaultFormat.labelConfig,
-                  barcode: { ...defaultFormat.labelConfig.barcode, show: true },
-                  barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
-                };
-                setLabelConfig(configWithBarcode);
-              }
-            }
-          }
+        if (template) {
+          // Load template config
+          const configWithBarcode = {
+            ...template.config,
+            barcode: { ...template.config.barcode, show: true },
+            barcodeText: { ...template.config.barcodeText, show: true },
+          };
+          setLabelConfig(configWithBarcode);
+          setSelectedLabelTemplate(template.name);
         } else if (defaultFormat.labelConfig) {
-          // No template reference, load inline config
+          // Template was deleted, fall back to inline config
           const configWithBarcode = {
             ...defaultFormat.labelConfig,
             barcode: { ...defaultFormat.labelConfig.barcode, show: true },
@@ -537,37 +512,43 @@ export default function BarcodePrinting() {
           };
           setLabelConfig(configWithBarcode);
         }
-        
-        // Always load sheet settings
-        if (defaultFormat.sheetType) {
-          setSheetType(defaultFormat.sheetType);
-        }
-        if (defaultFormat.topOffset !== undefined) {
-          setTopOffset(defaultFormat.topOffset);
-        }
-        if (defaultFormat.leftOffset !== undefined) {
-          setLeftOffset(defaultFormat.leftOffset);
-        }
-        if (defaultFormat.bottomOffset !== undefined) {
-          setBottomOffset(defaultFormat.bottomOffset);
-        }
-        if (defaultFormat.rightOffset !== undefined) {
-          setRightOffset(defaultFormat.rightOffset);
-        }
-        if (defaultFormat.printScale !== undefined) {
-          setPrintScale(defaultFormat.printScale);
-        }
-        if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
-          setCustomWidth(defaultFormat.customDimensions.width);
-          setCustomHeight(defaultFormat.customDimensions.height);
-          setCustomCols(defaultFormat.customDimensions.cols);
-          setCustomGap(defaultFormat.customDimensions.gap);
-        }
-      } catch (error) {
-        console.error("Failed to load default format:", error);
+      } else if (defaultFormat.labelConfig) {
+        // No template reference, load inline config
+        const configWithBarcode = {
+          ...defaultFormat.labelConfig,
+          barcode: { ...defaultFormat.labelConfig.barcode, show: true },
+          barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+        };
+        setLabelConfig(configWithBarcode);
+      }
+      
+      // Always load sheet settings
+      if (defaultFormat.sheetType) {
+        setSheetType(defaultFormat.sheetType as SheetType);
+      }
+      if (defaultFormat.topOffset !== undefined) {
+        setTopOffset(defaultFormat.topOffset);
+      }
+      if (defaultFormat.leftOffset !== undefined) {
+        setLeftOffset(defaultFormat.leftOffset);
+      }
+      if (defaultFormat.bottomOffset !== undefined) {
+        setBottomOffset(defaultFormat.bottomOffset);
+      }
+      if (defaultFormat.rightOffset !== undefined) {
+        setRightOffset(defaultFormat.rightOffset);
+      }
+      if (defaultFormat.printScale !== undefined) {
+        setPrintScale(defaultFormat.printScale);
+      }
+      if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
+        setCustomWidth(defaultFormat.customDimensions.width);
+        setCustomHeight(defaultFormat.customDimensions.height);
+        setCustomCols(defaultFormat.customDimensions.cols);
+        setCustomGap(defaultFormat.customDimensions.gap);
       }
     }
-  }, []);
+  }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]);
 
   // Fetch business name from settings
   useEffect(() => {
@@ -1074,7 +1055,7 @@ export default function BarcodePrinting() {
   };
 
   // Preset management functions
-  const handleSavePreset = () => {
+  const handleSavePreset = async () => {
     const trimmedName = newPresetName.trim();
     
     if (!trimmedName) {
@@ -1108,26 +1089,18 @@ export default function BarcodePrinting() {
       gap: customGap,
     };
 
-    let updatedPresets;
-    if (isEditingPreset) {
-      // Update existing preset
-      updatedPresets = savedPresets.map(p => 
-        p.name === selectedPreset ? newPreset : p
-      );
-      toast.success(`Preset "${trimmedName}" updated successfully`);
-    } else {
-      // Add new preset
-      updatedPresets = [...savedPresets, newPreset];
-      toast.success(`Preset "${trimmedName}" saved successfully`);
+    const success = await saveCustomToDb(newPreset);
+    if (success) {
+      if (isEditingPreset) {
+        toast.success(`Preset "${trimmedName}" updated successfully`);
+      } else {
+        toast.success(`Preset "${trimmedName}" saved successfully`);
+      }
+      setNewPresetName("");
+      setIsSaveDialogOpen(false);
+      setIsEditingPreset(false);
+      setSelectedPreset(trimmedName);
     }
-
-    setSavedPresets(updatedPresets);
-    localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
-    
-    setNewPresetName("");
-    setIsSaveDialogOpen(false);
-    setIsEditingPreset(false);
-    setSelectedPreset(trimmedName);
   };
 
   const handleEditPreset = () => {
@@ -1162,17 +1135,17 @@ export default function BarcodePrinting() {
     }
   };
 
-  const handleDeletePreset = () => {
+  const handleDeletePreset = async () => {
     if (!selectedPreset) {
       toast.error("Please select a preset to delete");
       return;
     }
 
-    const updatedPresets = savedPresets.filter(p => p.name !== selectedPreset);
-    setSavedPresets(updatedPresets);
-    localStorage.setItem("barcode_custom_presets", JSON.stringify(updatedPresets));
-    setSelectedPreset("");
-    toast.success(`Preset "${selectedPreset}" deleted`);
+    const success = await deleteCustomFromDb(selectedPreset);
+    if (success) {
+      setSelectedPreset("");
+      toast.success(`Preset "${selectedPreset}" deleted`);
+    }
   };
 
   const handleCopyPresetToCustom = () => {
@@ -1318,7 +1291,7 @@ export default function BarcodePrinting() {
   };
 
   // Margin preset management functions
-  const handleSaveMarginPreset = () => {
+  const handleSaveMarginPreset = async () => {
     const trimmedName = newMarginPresetName.trim();
     
     if (!trimmedName) {
@@ -1347,23 +1320,19 @@ export default function BarcodePrinting() {
       description: newMarginPresetDescription.trim() || undefined,
     };
 
-    let updatedPresets: MarginPreset[];
-    if (isEditingMarginPreset && existingIndex !== -1) {
-      updatedPresets = [...savedMarginPresets];
-      updatedPresets[existingIndex] = newPreset;
-      toast.success(`Margin preset "${trimmedName}" updated`);
-    } else {
-      updatedPresets = [...savedMarginPresets, newPreset];
-      toast.success(`Margin preset "${trimmedName}" saved`);
+    const success = await saveMarginToDb(newPreset);
+    if (success) {
+      if (isEditingMarginPreset) {
+        toast.success(`Margin preset "${trimmedName}" updated`);
+      } else {
+        toast.success(`Margin preset "${trimmedName}" saved`);
+      }
+      setSelectedMarginPreset(trimmedName);
+      setIsMarginSaveDialogOpen(false);
+      setIsEditingMarginPreset(false);
+      setNewMarginPresetName("");
+      setNewMarginPresetDescription("");
     }
-
-    setSavedMarginPresets(updatedPresets);
-    localStorage.setItem("barcode_margin_presets", JSON.stringify(updatedPresets));
-    setSelectedMarginPreset(trimmedName);
-    setIsMarginSaveDialogOpen(false);
-    setIsEditingMarginPreset(false);
-    setNewMarginPresetName("");
-    setNewMarginPresetDescription("");
   };
 
   const handleEditMarginPreset = () => {
@@ -1397,21 +1366,21 @@ export default function BarcodePrinting() {
     }
   };
 
-  const handleDeleteMarginPreset = () => {
+  const handleDeleteMarginPreset = async () => {
     if (!selectedMarginPreset) {
       toast.error("Please select a margin preset to delete");
       return;
     }
 
-    const updatedPresets = savedMarginPresets.filter(p => p.name !== selectedMarginPreset);
-    setSavedMarginPresets(updatedPresets);
-    localStorage.setItem("barcode_margin_presets", JSON.stringify(updatedPresets));
-    setSelectedMarginPreset("");
-    toast.success(`Margin preset "${selectedMarginPreset}" deleted`);
+    const success = await deleteMarginFromDb(selectedMarginPreset);
+    if (success) {
+      setSelectedMarginPreset("");
+      toast.success(`Margin preset "${selectedMarginPreset}" deleted`);
+    }
   };
 
   // Label template management functions
-  const handleSaveLabelTemplate = () => {
+  const handleSaveLabelTemplate = async () => {
     const trimmedName = newLabelTemplateName.trim();
     
     if (!trimmedName) {
@@ -1440,24 +1409,19 @@ export default function BarcodePrinting() {
       config: { ...labelConfig }
     };
 
-    let updatedTemplates;
-    if (isEditingLabelTemplate) {
-      updatedTemplates = savedLabelTemplates.map(t => 
-        t.name === selectedLabelTemplate ? newTemplate : t
-      );
-      toast.success(`Template "${trimmedName}" updated successfully`);
-    } else {
-      updatedTemplates = [...savedLabelTemplates, newTemplate];
-      toast.success(`Template "${trimmedName}" saved successfully`);
+    // Save to database
+    const success = await saveTemplateToDb(newTemplate);
+    if (success) {
+      if (isEditingLabelTemplate) {
+        toast.success(`Template "${trimmedName}" updated successfully`);
+      } else {
+        toast.success(`Template "${trimmedName}" saved successfully`);
+      }
+      setNewLabelTemplateName("");
+      setIsLabelTemplateSaveDialogOpen(false);
+      setIsEditingLabelTemplate(false);
+      setSelectedLabelTemplate(trimmedName);
     }
-
-    setSavedLabelTemplates(updatedTemplates);
-    localStorage.setItem("barcode_label_templates", JSON.stringify(updatedTemplates));
-    
-    setNewLabelTemplateName("");
-    setIsLabelTemplateSaveDialogOpen(false);
-    setIsEditingLabelTemplate(false);
-    setSelectedLabelTemplate(trimmedName);
   };
 
   const handleEditLabelTemplate = () => {
@@ -1515,20 +1479,20 @@ export default function BarcodePrinting() {
     }
   };
 
-  const handleDeleteLabelTemplate = () => {
+  const handleDeleteLabelTemplate = async () => {
     if (!selectedLabelTemplate) {
       toast.error("Please select a template to delete");
       return;
     }
 
-    const updatedTemplates = savedLabelTemplates.filter(t => t.name !== selectedLabelTemplate);
-    setSavedLabelTemplates(updatedTemplates);
-    localStorage.setItem("barcode_label_templates", JSON.stringify(updatedTemplates));
-    setSelectedLabelTemplate("");
-    toast.success(`Template "${selectedLabelTemplate}" deleted`);
+    const success = await deleteTemplateFromDb(selectedLabelTemplate);
+    if (success) {
+      setSelectedLabelTemplate("");
+      toast.success(`Template "${selectedLabelTemplate}" deleted`);
+    }
   };
 
-  const handleSaveAsDefault = () => {
+  const handleSaveAsDefault = async () => {
     // Ensure barcode and barcode text are always enabled
     const configToSave = {
       ...labelConfig,
@@ -1554,12 +1518,13 @@ export default function BarcodePrinting() {
       } : undefined,
     };
 
-    localStorage.setItem("barcode_default_format", JSON.stringify(defaultFormat));
-    
-    if (selectedLabelTemplate) {
-      toast.success(`Template "${selectedLabelTemplate}" set as default format`);
-    } else {
-      toast.success("Current layout saved as default format");
+    const success = await saveDefaultToDb(defaultFormat);
+    if (success) {
+      if (selectedLabelTemplate) {
+        toast.success(`Template "${selectedLabelTemplate}" set as default format`);
+      } else {
+        toast.success("Current layout saved as default format");
+      }
     }
   };
 
