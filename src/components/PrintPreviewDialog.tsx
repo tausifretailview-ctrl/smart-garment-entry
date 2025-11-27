@@ -15,8 +15,8 @@ import { Printer, X } from 'lucide-react';
 interface PrintPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  renderInvoice: (format: 'a4' | 'a5' | 'thermal') => React.ReactNode;
-  defaultFormat?: 'a4' | 'a5' | 'thermal';
+  renderInvoice: (format: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => React.ReactNode;
+  defaultFormat?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
   onPrint?: () => void;
 }
 
@@ -27,7 +27,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   defaultFormat = 'a4',
   onPrint,
 }) => {
-  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'thermal'>(defaultFormat);
+  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(defaultFormat);
   const [isLoading, setIsLoading] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -43,12 +43,25 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     }
   }, [open, selectedFormat]);
 
+  const getPageSize = () => {
+    switch (selectedFormat) {
+      case 'a5':
+        return 'A5 portrait';
+      case 'a5-horizontal':
+        return 'A5 landscape';
+      case 'thermal':
+        return '80mm auto';
+      default:
+        return 'A4 portrait';
+    }
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: 'Invoice',
     pageStyle: `
       @page {
-        size: ${selectedFormat === 'a5' ? 'A5 portrait' : selectedFormat === 'thermal' ? '80mm auto' : 'A4 portrait'};
+        size: ${getPageSize()};
         margin: ${selectedFormat === 'thermal' ? '5mm' : '10mm'};
       }
       @media print {
@@ -74,6 +87,12 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           minHeight: '210mm',
           maxHeight: '210mm',
         };
+      case 'a5-horizontal':
+        return {
+          width: '210mm',
+          minHeight: '148mm',
+          maxHeight: '148mm',
+        };
       case 'thermal':
         return {
           width: '80mm',
@@ -91,6 +110,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     switch (selectedFormat) {
       case 'a5':
         return 'a5-vertical';
+      case 'a5-horizontal':
+        return 'a5-horizontal';
       case 'thermal':
         return 'thermal';
       default:
@@ -111,8 +132,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
             <Label className="text-base font-semibold mb-3 block">Bill Format</Label>
             <RadioGroup
               value={selectedFormat}
-              onValueChange={(value) => setSelectedFormat(value as 'a4' | 'a5' | 'thermal')}
-              className="flex gap-4"
+              onValueChange={(value) => setSelectedFormat(value as 'a4' | 'a5' | 'a5-horizontal' | 'thermal')}
+              className="flex flex-wrap gap-4"
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="a4" id="a4" />
@@ -120,7 +141,11 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="a5" id="a5" />
-                <Label htmlFor="a5" className="cursor-pointer">A5 (148mm × 210mm)</Label>
+                <Label htmlFor="a5" className="cursor-pointer">A5 Vertical (148mm × 210mm)</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="a5-horizontal" id="a5-horizontal" />
+                <Label htmlFor="a5-horizontal" className="cursor-pointer">A5 Horizontal (210mm × 148mm)</Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="thermal" id="thermal" />

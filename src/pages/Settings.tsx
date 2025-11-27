@@ -79,7 +79,7 @@ interface SaleSettings {
   invoice_numbering_format?: string;  // For INV-{YYYY}-{####}
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
-  pos_bill_format?: 'a4' | 'a5' | 'thermal';  // POS bill format
+  pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   sales_tax_rate?: number;
   invoice_template?: 'professional' | 'modern' | 'classic' | 'compact';
   invoice_color_scheme?: string;
@@ -1432,7 +1432,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            pos_bill_format: value as 'a4' | 'a5' | 'thermal',
+                            pos_bill_format: value as 'a4' | 'a5' | 'a5-horizontal' | 'thermal',
                           },
                         })
                       }
@@ -1442,7 +1442,8 @@ export default function Settings() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="thermal">Thermal (80mm) - Most common</SelectItem>
-                        <SelectItem value="a5">A5 (148mm × 210mm)</SelectItem>
+                        <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
+                        <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
                         <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
                       </SelectContent>
                     </Select>

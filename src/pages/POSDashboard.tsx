@@ -81,7 +81,7 @@ const POSDashboard = () => {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'thermal'>('thermal');
+  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
   useEffect(() => {
