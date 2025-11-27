@@ -355,17 +355,22 @@ export default function BarcodePrinting() {
   const [bottomOffset, setBottomOffset] = useState(0);
   const [rightOffset, setRightOffset] = useState(0);
   const [businessName, setBusinessName] = useState("SMART INVENTORY");
+  const [printScale, setPrintScale] = useState(100);
   
-  // Auto-load default offsets when novajet40 is selected
+  // Auto-load default offsets and scale when novajet40 is selected
   useEffect(() => {
-    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number }> = {
-      novajet40: { defaultTop: 2, defaultLeft: 1 },
+    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number; defaultScale?: number }> = {
+      novajet40: { defaultTop: 2, defaultLeft: 1, defaultScale: 150 },
     };
     
     const preset = sheetPresets[sheetType];
-    if (preset && preset.defaultTop !== undefined && preset.defaultLeft !== undefined) {
-      setTopOffset(preset.defaultTop);
-      setLeftOffset(preset.defaultLeft);
+    if (preset) {
+      if (preset.defaultTop !== undefined) setTopOffset(preset.defaultTop);
+      if (preset.defaultLeft !== undefined) setLeftOffset(preset.defaultLeft);
+      if (preset.defaultScale !== undefined) setPrintScale(preset.defaultScale);
+    } else {
+      // Reset to 100% for other sheet types
+      setPrintScale(100);
     }
   }, [sheetType]);
   
@@ -548,6 +553,9 @@ export default function BarcodePrinting() {
         }
         if (defaultFormat.rightOffset !== undefined) {
           setRightOffset(defaultFormat.rightOffset);
+        }
+        if (defaultFormat.printScale !== undefined) {
+          setPrintScale(defaultFormat.printScale);
         }
         if (defaultFormat.customDimensions && defaultFormat.sheetType === "custom") {
           setCustomWidth(defaultFormat.customDimensions.width);
@@ -1537,6 +1545,7 @@ export default function BarcodePrinting() {
       leftOffset,
       bottomOffset,
       rightOffset,
+      printScale,
       customDimensions: sheetType === "custom" ? {
         width: customWidth,
         height: customHeight,
@@ -1888,8 +1897,9 @@ export default function BarcodePrinting() {
       // Calculate total labels needed
       const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       
-      // Get dimensions based on sheet type
-      const dimensions = sheetType === "custom"
+      // Get dimensions based on sheet type and apply scale
+      const scaleFactor = printScale / 100;
+      const baseDimensions = sheetType === "custom"
         ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
         : {
             cols: sheetPresets[sheetType].cols,
@@ -1898,6 +1908,14 @@ export default function BarcodePrinting() {
             height: parseInt(sheetPresets[sheetType].height),
             gap: parseInt(sheetPresets[sheetType].gap)
           };
+      
+      // Apply scale to dimensions for PDF
+      const dimensions = {
+        ...baseDimensions,
+        width: baseDimensions.width * scaleFactor,
+        height: baseDimensions.height * scaleFactor,
+        gap: baseDimensions.gap * scaleFactor
+      };
       
       // Calculate how many rows fit on one page
       const availableHeight = 297 - topOffset - bottomOffset - 10; // A4 height with margins
@@ -1984,8 +2002,8 @@ export default function BarcodePrinting() {
               JsBarcode(svg, code, {
                 format: "CODE128",
                 fontSize: 8,
-                height: 20,
-                width: 1.2,
+                height: labelConfig.barcodeHeight || 28,
+                width: labelConfig.barcodeWidth || 1.8,
                 textMargin: 0,
                 margin: 0,
                 displayValue: false,
@@ -1999,9 +2017,9 @@ export default function BarcodePrinting() {
         // Wait a bit for barcodes to render
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Capture this page
+        // Capture this page with high quality
         const canvas = await html2canvas(tempContainer, {
-          scale: 2,
+          scale: 3, // Higher scale for better quality
           backgroundColor: "#ffffff",
           logging: false,
           width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
@@ -2291,7 +2309,7 @@ export default function BarcodePrinting() {
             </div>
             {sheetType === "novajet40" && (
               <p className="text-xs text-muted-foreground mt-2 p-2 bg-muted/30 rounded border">
-                <strong>Recommended Print Settings:</strong> Scale 100%, Margins: None, Headers/Footers: Off<br />
+                <strong>Recommended Print Settings:</strong> Scale 150% (auto-applied), Margins: None, Headers/Footers: Off<br />
                 <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
               </p>
             )}
@@ -3114,6 +3132,8 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
+            transform: scale(${printScale / 100});
+            transform-origin: top left;
           }
           
           .label-grid {
