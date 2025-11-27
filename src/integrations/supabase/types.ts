@@ -110,6 +110,50 @@ export type Database = {
         }
         Relationships: []
       }
+      barcode_label_settings: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_default: boolean | null
+          organization_id: string
+          setting_data: Json
+          setting_name: string
+          setting_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id: string
+          setting_data?: Json
+          setting_name: string
+          setting_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id?: string
+          setting_data?: Json
+          setting_name?: string
+          setting_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barcode_label_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       barcode_sequence: {
         Row: {
           id: number
