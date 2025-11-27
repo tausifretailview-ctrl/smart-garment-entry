@@ -90,6 +90,10 @@ interface LabelFieldConfig {
   bold: boolean;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
+  paddingTop?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
 }
 
 interface LabelDesignConfig {
@@ -292,6 +296,86 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
               <SelectItem value="right">Right</SelectItem>
             </SelectContent>
           </Select>
+          
+          {/* Padding controls */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
+                Spacing
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Field Spacing (px)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Top:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingTop ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          [fieldKey]: { ...prev[fieldKey], paddingTop: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Bot:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingBottom ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          [fieldKey]: { ...prev[fieldKey], paddingBottom: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Left:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingLeft ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          [fieldKey]: { ...prev[fieldKey], paddingLeft: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Right:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingRight ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          [fieldKey]: { ...prev[fieldKey], paddingRight: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
       
@@ -334,6 +418,86 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
               title="Barcode line width"
             />
           </div>
+          
+          {/* Spacing controls for barcode */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 px-2 text-xs">
+                Spacing
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium">Barcode Spacing (px)</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Top:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingTop ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          barcode: { ...prev.barcode, paddingTop: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Bot:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingBottom ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          barcode: { ...prev.barcode, paddingBottom: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Left:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingLeft ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          barcode: { ...prev.barcode, paddingLeft: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Label className="text-xs w-8">Right:</Label>
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="20"
+                      value={field.paddingRight ?? 0}
+                      onChange={(e) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          barcode: { ...prev.barcode, paddingRight: parseInt(e.target.value) || 0 }
+                        }));
+                      }}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
       )}
     </div>
@@ -1532,9 +1696,13 @@ export default function BarcodePrinting() {
     const barcode = item.barcode || genEAN8();
     const config = labelConfig;
 
-    // Helper to build style string
+    // Helper to build style string with padding
     const getStyle = (field: LabelFieldConfig) => {
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'};`;
+      const paddingTop = field.paddingTop ?? 0;
+      const paddingBottom = field.paddingBottom ?? 0;
+      const paddingLeft = field.paddingLeft ?? 0;
+      const paddingRight = field.paddingRight ?? 0;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; margin: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px;`;
     };
 
     // Build label HTML based on field order
@@ -1568,7 +1736,12 @@ export default function BarcodePrinting() {
           html += `<div class="mrp" style="${getStyle(field)}">MRP: ₹${item.sale_price}</div>`;
           break;
         case 'barcode':
-          html += `<svg class="barcode" data-code="${barcode}"></svg>`;
+          const barcodeField = config.barcode;
+          const bcPaddingTop = barcodeField.paddingTop ?? 0;
+          const bcPaddingBottom = barcodeField.paddingBottom ?? 0;
+          const bcPaddingLeft = barcodeField.paddingLeft ?? 0;
+          const bcPaddingRight = barcodeField.paddingRight ?? 0;
+          html += `<svg class="barcode" data-code="${barcode}" style="margin: ${bcPaddingTop}px ${bcPaddingRight}px ${bcPaddingBottom}px ${bcPaddingLeft}px;"></svg>`;
           break;
         case 'barcodeText':
           html += `<div class="meta barcode-text" style="${getStyle(field)}">${barcode}</div>`;
