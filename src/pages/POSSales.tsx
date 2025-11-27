@@ -90,7 +90,7 @@ export default function POSSales() {
   const [nextInvoicePreview, setNextInvoicePreview] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'>('cash');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'thermal'>('thermal');
+  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
