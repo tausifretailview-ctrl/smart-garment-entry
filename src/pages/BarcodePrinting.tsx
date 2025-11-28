@@ -2877,27 +2877,150 @@ export default function BarcodePrinting() {
                   <h4 className="font-medium text-sm mb-1">Customize Label Fields</h4>
                   <p className="text-xs text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
                 </div>
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                >
-                  <SortableContext
-                    items={labelConfig.fieldOrder}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {labelConfig.fieldOrder.map((fieldKey) => (
-                        <SortableFieldItem
-                          key={fieldKey}
-                          fieldKey={fieldKey}
-                          labelConfig={labelConfig}
-                          setLabelConfig={setLabelConfig}
-                        />
-                      ))}
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Live Preview Panel */}
+                  <div className="lg:col-span-1 order-first lg:order-last">
+                    <div className="sticky top-4">
+                      <div className="border rounded-lg p-4 bg-card">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Eye className="h-4 w-4 text-primary" />
+                          <h5 className="font-medium text-sm">Live Preview</h5>
+                        </div>
+                        <div className="flex justify-center">
+                          <div 
+                            className="border-2 border-dashed border-primary/30 rounded bg-white p-2"
+                            style={{ 
+                              width: sheetType === 'custom' ? `${Math.min(customWidth * 2.5, 150)}px` : '120px',
+                              minHeight: sheetType === 'custom' ? `${Math.min(customHeight * 2.5, 200)}px` : '80px'
+                            }}
+                          >
+                            <div 
+                              ref={(el) => {
+                                if (el) {
+                                  // Render live preview
+                                  const sampleItem: LabelItem = {
+                                    sku_id: 'preview',
+                                    product_name: 'Sample Product',
+                                    brand: businessName || 'Brand',
+                                    category: 'Category',
+                                    color: 'Blue',
+                                    style: 'Classic',
+                                    size: 'M',
+                                    sale_price: 999,
+                                    pur_price: 500,
+                                    purchase_code: 'PC123',
+                                    barcode: '12345678',
+                                    bill_number: 'BILL001',
+                                    qty: 1,
+                                    supplier_code: 'SUP01'
+                                  };
+                                  
+                                  // Build preview HTML
+                                  let previewHtml = '<div style="font-family: Arial, sans-serif; text-align: center; padding: 2px; font-size: 6px; line-height: 1.2;">';
+                                  
+                                  labelConfig.fieldOrder.forEach((fieldKey) => {
+                                    const field = labelConfig[fieldKey] as LabelFieldConfig;
+                                    if (!field.show) return;
+                                    
+                                    const scale = 0.7;
+                                    const fontSize = Math.max(5, field.fontSize * scale);
+                                    const pt = (field.paddingTop ?? 0) * scale;
+                                    const pb = (field.paddingBottom ?? 0) * scale;
+                                    const pl = (field.paddingLeft ?? 0) * scale;
+                                    const pr = (field.paddingRight ?? 0) * scale;
+                                    const style = `font-size: ${fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'}; text-align: ${field.textAlign || 'center'}; margin: ${pt}px ${pr}px ${pb}px ${pl}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+                                    
+                                    switch (fieldKey) {
+                                      case 'brand':
+                                        previewHtml += `<div style="${style}">${businessName || 'Brand'}</div>`;
+                                        break;
+                                      case 'productName':
+                                        const prodText = 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
+                                        previewHtml += `<div style="${style}">${prodText}</div>`;
+                                        break;
+                                      case 'color':
+                                        previewHtml += `<div style="${style}">Color: Blue</div>`;
+                                        break;
+                                      case 'style':
+                                        previewHtml += `<div style="${style}">Style: Classic</div>`;
+                                        break;
+                                      case 'price':
+                                        previewHtml += `<div style="${style}">MRP: ₹999</div>`;
+                                        break;
+                                      case 'barcode':
+                                        previewHtml += `<div style="margin: ${pt}px ${pr}px ${pb}px ${pl}px; display: flex; justify-content: center;"><svg class="preview-barcode" data-code="12345678" style="height: 20px; width: 60px;"></svg></div>`;
+                                        break;
+                                      case 'barcodeText':
+                                        previewHtml += `<div style="${style}">12345678</div>`;
+                                        break;
+                                      case 'billNumber':
+                                        previewHtml += `<div style="${style}">Bill: BILL001</div>`;
+                                        break;
+                                      case 'supplierCode':
+                                        previewHtml += `<div style="${style}">SUP01</div>`;
+                                        break;
+                                      case 'purchaseCode':
+                                        previewHtml += `<div style="${style}">PC123</div>`;
+                                        break;
+                                    }
+                                  });
+                                  
+                                  previewHtml += '</div>';
+                                  el.innerHTML = previewHtml;
+                                  
+                                  // Render barcode in preview
+                                  const svgs = el.querySelectorAll('.preview-barcode');
+                                  svgs.forEach((svg) => {
+                                    try {
+                                      JsBarcode(svg, '12345678', {
+                                        format: 'CODE128',
+                                        width: 1,
+                                        height: 18,
+                                        displayValue: false,
+                                        margin: 0
+                                      });
+                                    } catch (e) {
+                                      console.log('Preview barcode error:', e);
+                                    }
+                                  });
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground text-center mt-3">
+                          Changes update instantly
+                        </p>
+                      </div>
                     </div>
-                  </SortableContext>
-                </DndContext>
+                  </div>
+                  
+                  {/* Field Controls */}
+                  <div className="lg:col-span-2">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={labelConfig.fieldOrder}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {labelConfig.fieldOrder.map((fieldKey) => (
+                            <SortableFieldItem
+                              key={fieldKey}
+                              fieldKey={fieldKey}
+                              labelConfig={labelConfig}
+                              setLabelConfig={setLabelConfig}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  </div>
+                </div>
               </div>
             )}
           </div>
