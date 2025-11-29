@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice } from "@/utils/purchaseCodeEncoder";
@@ -148,6 +148,90 @@ const sheetPresets = {
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
 };
+
+interface LivePreviewLabelProps {
+  labelConfig: LabelDesignConfig;
+  businessName: string;
+}
+
+function LivePreviewLabel({ labelConfig, businessName }: LivePreviewLabelProps) {
+  const previewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!previewRef.current) return;
+    
+    const el = previewRef.current;
+    let previewHtml = '<div style="font-family: Arial, sans-serif; text-align: center; padding: 2px; font-size: 6px; line-height: 1.2;">';
+    
+    labelConfig.fieldOrder.forEach((fieldKey) => {
+      const field = labelConfig[fieldKey] as LabelFieldConfig;
+      if (!field.show) return;
+      
+      const scale = 0.7;
+      const fontSize = Math.max(5, field.fontSize * scale);
+      const pt = (field.paddingTop ?? 0) * scale;
+      const pb = (field.paddingBottom ?? 0) * scale;
+      const pl = (field.paddingLeft ?? 0) * scale;
+      const pr = (field.paddingRight ?? 0) * scale;
+      const style = `font-size: ${fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'}; text-align: ${field.textAlign || 'center'}; margin: ${pt}px ${pr}px ${pb}px ${pl}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
+      
+      switch (fieldKey) {
+        case 'brand':
+          previewHtml += `<div style="${style}">${businessName || 'Brand'}</div>`;
+          break;
+        case 'productName':
+          const prodText = 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
+          previewHtml += `<div style="${style}">${prodText}</div>`;
+          break;
+        case 'color':
+          previewHtml += `<div style="${style}">Color: Blue</div>`;
+          break;
+        case 'style':
+          previewHtml += `<div style="${style}">Style: Classic</div>`;
+          break;
+        case 'price':
+          previewHtml += `<div style="${style}">MRP: ₹999</div>`;
+          break;
+        case 'barcode':
+          previewHtml += `<div style="margin: ${pt}px ${pr}px ${pb}px ${pl}px; display: flex; justify-content: center;"><svg class="preview-barcode" data-code="12345678" style="height: 20px; width: 60px;"></svg></div>`;
+          break;
+        case 'barcodeText':
+          previewHtml += `<div style="${style}">12345678</div>`;
+          break;
+        case 'billNumber':
+          previewHtml += `<div style="${style}">Bill: BILL001</div>`;
+          break;
+        case 'supplierCode':
+          previewHtml += `<div style="${style}">SUP01</div>`;
+          break;
+        case 'purchaseCode':
+          previewHtml += `<div style="${style}">PC123</div>`;
+          break;
+      }
+    });
+    
+    previewHtml += '</div>';
+    el.innerHTML = previewHtml;
+    
+    // Render barcode in preview
+    const svgs = el.querySelectorAll('.preview-barcode');
+    svgs.forEach((svg) => {
+      try {
+        JsBarcode(svg, '12345678', {
+          format: 'CODE128',
+          width: 1,
+          height: 18,
+          displayValue: false,
+          margin: 0
+        });
+      } catch (e) {
+        console.log('Preview barcode error:', e);
+      }
+    });
+  }, [labelConfig, businessName]);
+
+  return <div ref={previewRef} />;
+}
 
 interface SortableFieldItemProps {
   fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
@@ -2873,9 +2957,30 @@ export default function BarcodePrinting() {
             
             {showCustomizeFields && (
               <div className="pt-4 border-t">
-                <div className="mb-3">
-                  <h4 className="font-medium text-sm mb-1">Customize Label Fields</h4>
-                  <p className="text-xs text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h4 className="font-medium text-sm mb-1">Customize Label Fields</h4>
+                    <p className="text-xs text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+                  </div>
+                  {selectedLabelTemplate && (
+                    <Button 
+                      size="sm" 
+                      variant="default"
+                      onClick={async () => {
+                        const newTemplate: LabelTemplate = {
+                          name: selectedLabelTemplate,
+                          config: { ...labelConfig }
+                        };
+                        const success = await saveTemplateToDb(newTemplate);
+                        if (success) {
+                          toast.success(`Template "${selectedLabelTemplate}" updated`);
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Update "{selectedLabelTemplate}"
+                    </Button>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -2895,97 +3000,9 @@ export default function BarcodePrinting() {
                               minHeight: sheetType === 'custom' ? `${Math.min(customHeight * 2.5, 200)}px` : '80px'
                             }}
                           >
-                            <div 
-                              ref={(el) => {
-                                if (el) {
-                                  // Render live preview
-                                  const sampleItem: LabelItem = {
-                                    sku_id: 'preview',
-                                    product_name: 'Sample Product',
-                                    brand: businessName || 'Brand',
-                                    category: 'Category',
-                                    color: 'Blue',
-                                    style: 'Classic',
-                                    size: 'M',
-                                    sale_price: 999,
-                                    pur_price: 500,
-                                    purchase_code: 'PC123',
-                                    barcode: '12345678',
-                                    bill_number: 'BILL001',
-                                    qty: 1,
-                                    supplier_code: 'SUP01'
-                                  };
-                                  
-                                  // Build preview HTML
-                                  let previewHtml = '<div style="font-family: Arial, sans-serif; text-align: center; padding: 2px; font-size: 6px; line-height: 1.2;">';
-                                  
-                                  labelConfig.fieldOrder.forEach((fieldKey) => {
-                                    const field = labelConfig[fieldKey] as LabelFieldConfig;
-                                    if (!field.show) return;
-                                    
-                                    const scale = 0.7;
-                                    const fontSize = Math.max(5, field.fontSize * scale);
-                                    const pt = (field.paddingTop ?? 0) * scale;
-                                    const pb = (field.paddingBottom ?? 0) * scale;
-                                    const pl = (field.paddingLeft ?? 0) * scale;
-                                    const pr = (field.paddingRight ?? 0) * scale;
-                                    const style = `font-size: ${fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'}; text-align: ${field.textAlign || 'center'}; margin: ${pt}px ${pr}px ${pb}px ${pl}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-                                    
-                                    switch (fieldKey) {
-                                      case 'brand':
-                                        previewHtml += `<div style="${style}">${businessName || 'Brand'}</div>`;
-                                        break;
-                                      case 'productName':
-                                        const prodText = 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
-                                        previewHtml += `<div style="${style}">${prodText}</div>`;
-                                        break;
-                                      case 'color':
-                                        previewHtml += `<div style="${style}">Color: Blue</div>`;
-                                        break;
-                                      case 'style':
-                                        previewHtml += `<div style="${style}">Style: Classic</div>`;
-                                        break;
-                                      case 'price':
-                                        previewHtml += `<div style="${style}">MRP: ₹999</div>`;
-                                        break;
-                                      case 'barcode':
-                                        previewHtml += `<div style="margin: ${pt}px ${pr}px ${pb}px ${pl}px; display: flex; justify-content: center;"><svg class="preview-barcode" data-code="12345678" style="height: 20px; width: 60px;"></svg></div>`;
-                                        break;
-                                      case 'barcodeText':
-                                        previewHtml += `<div style="${style}">12345678</div>`;
-                                        break;
-                                      case 'billNumber':
-                                        previewHtml += `<div style="${style}">Bill: BILL001</div>`;
-                                        break;
-                                      case 'supplierCode':
-                                        previewHtml += `<div style="${style}">SUP01</div>`;
-                                        break;
-                                      case 'purchaseCode':
-                                        previewHtml += `<div style="${style}">PC123</div>`;
-                                        break;
-                                    }
-                                  });
-                                  
-                                  previewHtml += '</div>';
-                                  el.innerHTML = previewHtml;
-                                  
-                                  // Render barcode in preview
-                                  const svgs = el.querySelectorAll('.preview-barcode');
-                                  svgs.forEach((svg) => {
-                                    try {
-                                      JsBarcode(svg, '12345678', {
-                                        format: 'CODE128',
-                                        width: 1,
-                                        height: 18,
-                                        displayValue: false,
-                                        margin: 0
-                                      });
-                                    } catch (e) {
-                                      console.log('Preview barcode error:', e);
-                                    }
-                                  });
-                                }
-                              }}
+                            <LivePreviewLabel 
+                              labelConfig={labelConfig}
+                              businessName={businessName}
                             />
                           </div>
                         </div>
