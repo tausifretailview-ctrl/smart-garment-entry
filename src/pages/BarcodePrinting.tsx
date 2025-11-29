@@ -152,69 +152,118 @@ const sheetPresets = {
 interface LivePreviewLabelProps {
   labelConfig: LabelDesignConfig;
   businessName: string;
+  onConfigChange?: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
+  editable?: boolean;
 }
 
-function LivePreviewLabel({ labelConfig, businessName }: LivePreviewLabelProps) {
-  const previewRef = useRef<HTMLDivElement>(null);
+interface DraggablePreviewFieldProps {
+  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+  labelConfig: LabelDesignConfig;
+  businessName: string;
+}
 
+function DraggablePreviewField({ fieldKey, labelConfig, businessName }: DraggablePreviewFieldProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `preview-${fieldKey}` });
+
+  const field = labelConfig[fieldKey] as LabelFieldConfig;
+  if (!field.show) return null;
+
+  const scale = 0.7;
+  const fontSize = Math.max(5, field.fontSize * scale);
+  const pt = (field.paddingTop ?? 0) * scale;
+  const pb = (field.paddingBottom ?? 0) * scale;
+  const pl = (field.paddingLeft ?? 0) * scale;
+  const pr = (field.paddingRight ?? 0) * scale;
+
+  const style: React.CSSProperties = {
+    fontSize: `${fontSize}px`,
+    fontWeight: field.bold ? 'bold' : 'normal',
+    textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
+    margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: 'grab',
+    backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+    borderRadius: '2px',
+  };
+
+  const getContent = () => {
+    switch (fieldKey) {
+      case 'brand':
+        return businessName || 'Brand';
+      case 'productName':
+        return 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
+      case 'color':
+        return 'Color: Blue';
+      case 'style':
+        return 'Style: Classic';
+      case 'price':
+        return 'MRP: ₹999';
+      case 'barcodeText':
+        return '12345678';
+      case 'billNumber':
+        return 'Bill: BILL001';
+      case 'supplierCode':
+        return 'SUP01';
+      case 'purchaseCode':
+        return 'PC123';
+      default:
+        return '';
+    }
+  };
+
+  if (fieldKey === 'barcode') {
+    return (
+      <div
+        ref={setNodeRef}
+        {...attributes}
+        {...listeners}
+        style={{
+          margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+          display: 'flex',
+          justifyContent: 'center',
+          transform: CSS.Transform.toString(transform),
+          transition,
+          opacity: isDragging ? 0.5 : 1,
+          cursor: 'grab',
+          backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+          borderRadius: '2px',
+        }}
+      >
+        <svg className={`preview-barcode-${fieldKey}`} style={{ height: '20px', width: '60px' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners} style={style}>
+      {getContent()}
+    </div>
+  );
+}
+
+function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable = false }: LivePreviewLabelProps) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Render barcodes after component mounts/updates
   useEffect(() => {
     if (!previewRef.current) return;
-    
-    const el = previewRef.current;
-    let previewHtml = '<div style="font-family: Arial, sans-serif; text-align: center; padding: 2px; font-size: 6px; line-height: 1.2;">';
-    
-    labelConfig.fieldOrder.forEach((fieldKey) => {
-      const field = labelConfig[fieldKey] as LabelFieldConfig;
-      if (!field.show) return;
-      
-      const scale = 0.7;
-      const fontSize = Math.max(5, field.fontSize * scale);
-      const pt = (field.paddingTop ?? 0) * scale;
-      const pb = (field.paddingBottom ?? 0) * scale;
-      const pl = (field.paddingLeft ?? 0) * scale;
-      const pr = (field.paddingRight ?? 0) * scale;
-      const style = `font-size: ${fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'}; text-align: ${field.textAlign || 'center'}; margin: ${pt}px ${pr}px ${pb}px ${pl}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
-      
-      switch (fieldKey) {
-        case 'brand':
-          previewHtml += `<div style="${style}">${businessName || 'Brand'}</div>`;
-          break;
-        case 'productName':
-          const prodText = 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
-          previewHtml += `<div style="${style}">${prodText}</div>`;
-          break;
-        case 'color':
-          previewHtml += `<div style="${style}">Color: Blue</div>`;
-          break;
-        case 'style':
-          previewHtml += `<div style="${style}">Style: Classic</div>`;
-          break;
-        case 'price':
-          previewHtml += `<div style="${style}">MRP: ₹999</div>`;
-          break;
-        case 'barcode':
-          previewHtml += `<div style="margin: ${pt}px ${pr}px ${pb}px ${pl}px; display: flex; justify-content: center;"><svg class="preview-barcode" data-code="12345678" style="height: 20px; width: 60px;"></svg></div>`;
-          break;
-        case 'barcodeText':
-          previewHtml += `<div style="${style}">12345678</div>`;
-          break;
-        case 'billNumber':
-          previewHtml += `<div style="${style}">Bill: BILL001</div>`;
-          break;
-        case 'supplierCode':
-          previewHtml += `<div style="${style}">SUP01</div>`;
-          break;
-        case 'purchaseCode':
-          previewHtml += `<div style="${style}">PC123</div>`;
-          break;
-      }
-    });
-    
-    previewHtml += '</div>';
-    el.innerHTML = previewHtml;
-    
-    // Render barcode in preview
-    const svgs = el.querySelectorAll('.preview-barcode');
+    const svgs = previewRef.current.querySelectorAll('[class^="preview-barcode-"]');
     svgs.forEach((svg) => {
       try {
         JsBarcode(svg, '12345678', {
@@ -228,9 +277,124 @@ function LivePreviewLabel({ labelConfig, businessName }: LivePreviewLabelProps) 
         console.log('Preview barcode error:', e);
       }
     });
-  }, [labelConfig, businessName]);
+  }, [labelConfig]);
 
-  return <div ref={previewRef} />;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !onConfigChange) return;
+
+    const activeKey = String(active.id).replace('preview-', '') as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+    const overKey = String(over.id).replace('preview-', '') as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+
+    onConfigChange(prev => {
+      const oldIndex = prev.fieldOrder.indexOf(activeKey);
+      const newIndex = prev.fieldOrder.indexOf(overKey);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      const newOrder = arrayMove(prev.fieldOrder, oldIndex, newIndex);
+      return { ...prev, fieldOrder: newOrder };
+    });
+  };
+
+  const visibleFields = labelConfig.fieldOrder.filter(key => {
+    const field = labelConfig[key] as LabelFieldConfig;
+    return field.show;
+  });
+
+  if (editable && onConfigChange) {
+    return (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={visibleFields.map(k => `preview-${k}`)} strategy={verticalListSortingStrategy}>
+          <div
+            ref={previewRef}
+            style={{
+              fontFamily: 'Arial, sans-serif',
+              textAlign: 'center',
+              padding: '2px',
+              fontSize: '6px',
+              lineHeight: 1.2,
+            }}
+          >
+            {visibleFields.map((fieldKey) => (
+              <DraggablePreviewField
+                key={fieldKey}
+                fieldKey={fieldKey}
+                labelConfig={labelConfig}
+                businessName={businessName}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    );
+  }
+
+  // Non-editable static preview
+  return (
+    <div
+      ref={previewRef}
+      style={{
+        fontFamily: 'Arial, sans-serif',
+        textAlign: 'center',
+        padding: '2px',
+        fontSize: '6px',
+        lineHeight: 1.2,
+      }}
+    >
+      {labelConfig.fieldOrder.map((fieldKey) => {
+        const field = labelConfig[fieldKey] as LabelFieldConfig;
+        if (!field.show) return null;
+
+        const scale = 0.7;
+        const fontSize = Math.max(5, field.fontSize * scale);
+        const pt = (field.paddingTop ?? 0) * scale;
+        const pb = (field.paddingBottom ?? 0) * scale;
+        const pl = (field.paddingLeft ?? 0) * scale;
+        const pr = (field.paddingRight ?? 0) * scale;
+
+        const style: React.CSSProperties = {
+          fontSize: `${fontSize}px`,
+          fontWeight: field.bold ? 'bold' : 'normal',
+          textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
+          margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        };
+
+        const getContent = () => {
+          switch (fieldKey) {
+            case 'brand': return businessName || 'Brand';
+            case 'productName': return 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
+            case 'color': return 'Color: Blue';
+            case 'style': return 'Style: Classic';
+            case 'price': return 'MRP: ₹999';
+            case 'barcodeText': return '12345678';
+            case 'billNumber': return 'Bill: BILL001';
+            case 'supplierCode': return 'SUP01';
+            case 'purchaseCode': return 'PC123';
+            default: return '';
+          }
+        };
+
+        if (fieldKey === 'barcode') {
+          return (
+            <div
+              key={fieldKey}
+              style={{
+                margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+                display: 'flex',
+                justifyContent: 'center',
+              }}
+            >
+              <svg className={`preview-barcode-${fieldKey}`} style={{ height: '20px', width: '60px' }} />
+            </div>
+          );
+        }
+
+        return <div key={fieldKey} style={style}>{getContent()}</div>;
+      })}
+    </div>
+  );
 }
 
 interface SortableFieldItemProps {
@@ -3019,11 +3183,13 @@ export default function BarcodePrinting() {
                             <LivePreviewLabel 
                               labelConfig={labelConfig}
                               businessName={businessName}
+                              onConfigChange={setLabelConfig}
+                              editable={true}
                             />
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground text-center mt-3">
-                          Changes update instantly
+                          Drag fields to reorder • Changes update instantly
                         </p>
                       </div>
                     </div>
