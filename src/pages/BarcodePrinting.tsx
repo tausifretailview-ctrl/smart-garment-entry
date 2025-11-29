@@ -2209,6 +2209,22 @@ export default function BarcodePrinting() {
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
           cell.className = "label-cell";
+          cell.style.cssText = `
+            width: ${dimensions.width}mm;
+            height: ${dimensions.height}mm;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 2px;
+            box-sizing: border-box;
+            border: 1px solid #e5e5e5;
+            background: #fff;
+            line-height: 1.2;
+          `;
           cell.innerHTML = allLabels[i].html;
           gridDiv.appendChild(cell);
         }
