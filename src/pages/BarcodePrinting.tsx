@@ -2002,12 +2002,12 @@ export default function BarcodePrinting() {
     const config = labelConfig;
 
     // Helper to build style string with padding
-    const getStyle = (field: LabelFieldConfig) => {
+    const getStyle = (field: LabelFieldConfig, extraStyles: string = '') => {
       const paddingTop = field.paddingTop ?? 0;
       const paddingBottom = field.paddingBottom ?? 0;
       const paddingLeft = field.paddingLeft ?? 0;
       const paddingRight = field.paddingRight ?? 0;
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; margin: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px;`;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; margin: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px; line-height: 1.1;${extraStyles}`;
     };
 
     // Build label HTML based on field order
@@ -2230,8 +2230,20 @@ export default function BarcodePrinting() {
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
           cell.className = "label-cell";
-          cell.style.width = `${dimensions.width}mm`;
-          cell.style.height = `${dimensions.height}mm`;
+          cell.style.cssText = `
+            width: ${dimensions.width}mm;
+            height: ${dimensions.height}mm;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 2px;
+            box-sizing: border-box;
+            line-height: 1.1;
+          `;
           cell.innerHTML = allLabels[i].html;
           gridDiv.appendChild(cell);
         }
@@ -2256,8 +2268,20 @@ export default function BarcodePrinting() {
       allLabels.forEach((label) => {
         const cell = document.createElement("div");
         cell.className = "label-cell";
-        cell.style.width = `${dimensions.width}mm`;
-        cell.style.height = `${dimensions.height}mm`;
+        cell.style.cssText = `
+          width: ${dimensions.width}mm;
+          height: ${dimensions.height}mm;
+          font-family: Arial, sans-serif;
+          text-align: center;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          padding: 2px;
+          box-sizing: border-box;
+          line-height: 1.1;
+        `;
         cell.innerHTML = label.html;
         gridDiv.appendChild(cell);
       });
@@ -2444,9 +2468,17 @@ export default function BarcodePrinting() {
             box-sizing: border-box;
             border: 1px solid #e5e5e5;
             background: #fff;
-            line-height: 1.2;
+            line-height: 1.1;
           `;
-          cell.innerHTML = allLabels[i].html;
+          // Add style tag for inner elements to remove default spacing
+          const styleTag = document.createElement("style");
+          styleTag.textContent = `
+            .label-cell div { line-height: 1.1; }
+            .label-cell svg.barcode { display: block; margin: 0 auto; }
+            .label-cell .barcode-text { line-height: 1; }
+          `;
+          cell.appendChild(styleTag);
+          cell.innerHTML += allLabels[i].html;
           gridDiv.appendChild(cell);
         }
 
