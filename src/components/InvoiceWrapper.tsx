@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
+import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import QRCode from 'qrcode';
 
 interface InvoiceItem {
@@ -219,8 +220,40 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     // Select template component based on settings
     const renderTemplate = () => {
-      // For now, only use ProfessionalTemplate as it supports all the new features
-      // Classic and Modern templates can be updated later if needed
+      // Use A5HorizontalBillFormat for a5-horizontal format
+      if (format === 'a5-horizontal') {
+        const a5HorizontalData = {
+          invoiceNo: props.billNo,
+          date: props.date.toLocaleDateString('en-IN'),
+          customerName: props.customerName || 'Walk-in Customer',
+          customerPhone: props.customerMobile,
+          items: props.items.map(item => ({
+            name: item.particulars,
+            variant: item.size,
+            barcode: item.barcode,
+            quantity: item.qty,
+            price: item.rate,
+            total: item.total,
+          })),
+          subtotal: props.subTotal,
+          tax: totalTax,
+          discount: props.discount,
+          grandTotal: props.grandTotal,
+          paymentMethod: props.paymentMethod,
+          organization: {
+            name: settings?.business_name || '',
+            address: settings?.address || '',
+            phone: settings?.mobile_number || '',
+            email: settings?.email_id,
+            upiId: settings?.bill_barcode_settings?.upi_id,
+            terms: settings?.sale_settings?.declaration_text,
+            logo: settings?.bill_barcode_settings?.logo_url,
+          },
+        };
+        return <A5HorizontalBillFormat data={a5HorizontalData} />;
+      }
+      
+      // For other formats, use ProfessionalTemplate
       return <ProfessionalTemplate {...commonProps} />;
     };
 
