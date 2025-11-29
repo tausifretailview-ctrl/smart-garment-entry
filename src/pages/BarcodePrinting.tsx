@@ -991,9 +991,14 @@ export default function BarcodePrinting() {
         setLabelConfig(configWithBarcode);
       }
       
-      // Always load sheet settings
+      // Always load sheet settings - only load "custom" if valid customDimensions exist
       if (defaultFormat.sheetType) {
-        setSheetType(defaultFormat.sheetType as SheetType);
+        // Don't load "custom" without valid dimensions, fallback to default preset
+        if (defaultFormat.sheetType === "custom" && !defaultFormat.customDimensions) {
+          setSheetType("novajet48");
+        } else {
+          setSheetType(defaultFormat.sheetType as SheetType);
+        }
       }
       if (defaultFormat.topOffset !== undefined) {
         setTopOffset(defaultFormat.topOffset);
