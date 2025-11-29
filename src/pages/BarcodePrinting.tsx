@@ -154,15 +154,19 @@ interface LivePreviewLabelProps {
   businessName: string;
   onConfigChange?: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
   editable?: boolean;
+  sampleItem?: LabelItem | null;
+  labelWidth?: number;
+  labelHeight?: number;
 }
 
 interface DraggablePreviewFieldProps {
   fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
   labelConfig: LabelDesignConfig;
   businessName: string;
+  sampleItem?: LabelItem | null;
 }
 
-function DraggablePreviewField({ fieldKey, labelConfig, businessName }: DraggablePreviewFieldProps) {
+function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem }: DraggablePreviewFieldProps) {
   const {
     attributes,
     listeners,
@@ -199,11 +203,38 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName }: Draggabl
   };
 
   const getContent = () => {
+    if (sampleItem) {
+      switch (fieldKey) {
+        case 'brand':
+          return sampleItem.brand || businessName || 'Brand';
+        case 'productName':
+          return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
+        case 'color':
+          return sampleItem.color ? `Color: ${sampleItem.color}` : '';
+        case 'style':
+          return sampleItem.style || '';
+        case 'price':
+          return `MRP: ₹${sampleItem.sale_price}`;
+        case 'barcodeText':
+          return sampleItem.barcode || '';
+        case 'billNumber':
+          return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
+        case 'supplierCode':
+          return sampleItem.supplier_code || '';
+        case 'purchaseCode':
+          return sampleItem.purchase_code || '';
+        case 'size':
+          return sampleItem.size || '';
+        default:
+          return '';
+      }
+    }
+    // Fallback to placeholder
     switch (fieldKey) {
       case 'brand':
         return businessName || 'Brand';
       case 'productName':
-        return 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
+        return 'Sample Product';
       case 'color':
         return 'Color: Blue';
       case 'style':
@@ -218,6 +249,8 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName }: Draggabl
         return 'SUP01';
       case 'purchaseCode':
         return 'PC123';
+      case 'size':
+        return 'M';
       default:
         return '';
     }
@@ -253,12 +286,14 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName }: Draggabl
   );
 }
 
-function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable = false }: LivePreviewLabelProps) {
+function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable = false, sampleItem, labelWidth, labelHeight }: LivePreviewLabelProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  const barcodeValue = sampleItem?.barcode || '12345678';
 
   // Render barcodes after component mounts/updates
   useEffect(() => {
@@ -266,7 +301,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
     const svgs = previewRef.current.querySelectorAll('[class^="preview-barcode-"]');
     svgs.forEach((svg) => {
       try {
-        JsBarcode(svg, '12345678', {
+        JsBarcode(svg, barcodeValue, {
           format: 'CODE128',
           width: 1,
           height: 18,
@@ -277,7 +312,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         console.log('Preview barcode error:', e);
       }
     });
-  }, [labelConfig]);
+  }, [labelConfig, barcodeValue]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -300,6 +335,38 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
     return field.show;
   });
 
+  // Helper to get content based on sampleItem or placeholder
+  const getFieldContent = (fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>) => {
+    if (sampleItem) {
+      switch (fieldKey) {
+        case 'brand': return sampleItem.brand || businessName || 'Brand';
+        case 'productName': return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
+        case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
+        case 'style': return sampleItem.style || '';
+        case 'price': return `MRP: ₹${sampleItem.sale_price}`;
+        case 'barcodeText': return sampleItem.barcode || '';
+        case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
+        case 'supplierCode': return sampleItem.supplier_code || '';
+        case 'purchaseCode': return sampleItem.purchase_code || '';
+        case 'size': return sampleItem.size || '';
+        default: return '';
+      }
+    }
+    switch (fieldKey) {
+      case 'brand': return businessName || 'Brand';
+      case 'productName': return 'Sample Product';
+      case 'color': return 'Color: Blue';
+      case 'style': return 'Style: Classic';
+      case 'price': return 'MRP: ₹999';
+      case 'barcodeText': return '12345678';
+      case 'billNumber': return 'Bill: BILL001';
+      case 'supplierCode': return 'SUP01';
+      case 'purchaseCode': return 'PC123';
+      case 'size': return 'M';
+      default: return '';
+    }
+  };
+
   if (editable && onConfigChange) {
     return (
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -312,6 +379,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
               padding: '2px',
               fontSize: '6px',
               lineHeight: 1.2,
+              width: '100%',
+              height: '100%',
             }}
           >
             {visibleFields.map((fieldKey) => (
@@ -320,6 +389,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
                 fieldKey={fieldKey}
                 labelConfig={labelConfig}
                 businessName={businessName}
+                sampleItem={sampleItem}
               />
             ))}
           </div>
@@ -338,6 +408,8 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         padding: '2px',
         fontSize: '6px',
         lineHeight: 1.2,
+        width: '100%',
+        height: '100%',
       }}
     >
       {labelConfig.fieldOrder.map((fieldKey) => {
@@ -361,21 +433,6 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
           textOverflow: 'ellipsis',
         };
 
-        const getContent = () => {
-          switch (fieldKey) {
-            case 'brand': return businessName || 'Brand';
-            case 'productName': return 'Sample Product' + (labelConfig.size.show ? ' (M)' : '');
-            case 'color': return 'Color: Blue';
-            case 'style': return 'Style: Classic';
-            case 'price': return 'MRP: ₹999';
-            case 'barcodeText': return '12345678';
-            case 'billNumber': return 'Bill: BILL001';
-            case 'supplierCode': return 'SUP01';
-            case 'purchaseCode': return 'PC123';
-            default: return '';
-          }
-        };
-
         if (fieldKey === 'barcode') {
           return (
             <div
@@ -391,7 +448,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
           );
         }
 
-        return <div key={fieldKey} style={style}>{getContent()}</div>;
+        return <div key={fieldKey} style={style}>{getFieldContent(fieldKey)}</div>;
       })}
     </div>
   );
@@ -3171,13 +3228,34 @@ export default function BarcodePrinting() {
                         <div className="flex items-center gap-2 mb-3">
                           <Eye className="h-4 w-4 text-primary" />
                           <h5 className="font-medium text-sm">Live Preview</h5>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {(() => {
+                              const preset = sheetPresets[sheetType];
+                              if (sheetType === 'custom') {
+                                return `${customWidth}×${customHeight}mm`;
+                              }
+                              return `${preset.width}×${preset.height}`;
+                            })()}
+                          </span>
                         </div>
                         <div className="flex justify-center">
                           <div 
-                            className="border-2 border-dashed border-primary/30 rounded bg-white p-2"
+                            className="border-2 border-dashed border-primary/30 rounded bg-white overflow-hidden"
                             style={{ 
-                              width: sheetType === 'custom' ? `${Math.min(customWidth * 2.5, 150)}px` : '120px',
-                              minHeight: sheetType === 'custom' ? `${Math.min(customHeight * 2.5, 200)}px` : '80px'
+                              width: (() => {
+                                if (sheetType === 'custom') {
+                                  return `${Math.min(customWidth * 2.5, 150)}px`;
+                                }
+                                const widthNum = parseInt(sheetPresets[sheetType].width);
+                                return `${Math.min(widthNum * 2.5, 150)}px`;
+                              })(),
+                              height: (() => {
+                                if (sheetType === 'custom') {
+                                  return `${Math.min(customHeight * 2.5, 200)}px`;
+                                }
+                                const heightNum = parseInt(sheetPresets[sheetType].height);
+                                return `${Math.min(heightNum * 2.5, 200)}px`;
+                              })(),
                             }}
                           >
                             <LivePreviewLabel 
@@ -3185,11 +3263,19 @@ export default function BarcodePrinting() {
                               businessName={businessName}
                               onConfigChange={setLabelConfig}
                               editable={true}
+                              sampleItem={labelItems.length > 0 ? labelItems[0] : null}
+                              labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
+                              labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
                             />
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground text-center mt-3">
-                          Drag fields to reorder • Changes update instantly
+                          {labelItems.length > 0 
+                            ? `Showing: ${labelItems[0].product_name}` 
+                            : 'Add products to see actual data'}
+                        </p>
+                        <p className="text-xs text-muted-foreground/70 text-center">
+                          Drag fields to reorder
                         </p>
                       </div>
                     </div>
