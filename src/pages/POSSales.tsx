@@ -1048,10 +1048,13 @@ export default function POSSales() {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { data: newCustomer, error } = await supabase.from("customers").insert([{
+      // Use phone as customer name if name is empty
+      const customerData = {
         ...data,
+        customer_name: data.customer_name.trim() || data.phone,
         organization_id: currentOrganization.id
-      }]).select().single();
+      };
+      const { data: newCustomer, error } = await supabase.from("customers").insert([customerData]).select().single();
       if (error) throw error;
       return newCustomer;
     },
@@ -1671,21 +1674,22 @@ export default function POSSales() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="customer_name">Customer Name *</Label>
-                <Input
-                  id="customer_name"
-                  value={newCustomerForm.customer_name}
-                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, customer_name: e.target.value })}
-                  placeholder="Enter customer name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Mobile Number *</Label>
                 <Input
                   id="phone"
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                  placeholder="Enter phone number"
+                  placeholder="Enter mobile number"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_name">Customer Name</Label>
+                <Input
+                  id="customer_name"
+                  value={newCustomerForm.customer_name}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, customer_name: e.target.value })}
+                  placeholder="Enter customer name (optional)"
                 />
               </div>
               <div className="space-y-2">
@@ -1724,7 +1728,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.customer_name || createCustomer.isPending}
+                disabled={!newCustomerForm.phone || createCustomer.isPending}
               >
                 {createCustomer.isPending ? "Adding..." : "Add Customer"}
               </Button>
