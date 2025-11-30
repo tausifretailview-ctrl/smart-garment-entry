@@ -738,8 +738,17 @@ export default function POSSales() {
     setSavedInvoiceData(null);
   };
 
-  const handleWhatsAppShare = () => {
-    if (!customerPhone) {
+  const handleWhatsAppShare = (useCurrentData: boolean = false) => {
+    const phone = useCurrentData ? customerPhone : savedInvoiceData?.customerPhone;
+    const invoiceNo = useCurrentData ? currentInvoiceNumber : savedInvoiceData?.invoiceNumber;
+    const name = useCurrentData ? customerName : savedInvoiceData?.customerName;
+    const itemsToUse = useCurrentData ? items : savedInvoiceData?.items;
+    const totalAmount = useCurrentData ? finalAmount : savedInvoiceData?.finalAmount;
+    const discountAmount = useCurrentData ? (totals.discount + flatDiscountAmount) : (savedInvoiceData?.totals?.discount + savedInvoiceData?.flatDiscountAmount);
+    const grossAmount = useCurrentData ? totals.mrp : savedInvoiceData?.totals?.mrp;
+    const method = useCurrentData ? paymentMethod : savedInvoiceData?.method;
+    
+    if (!phone) {
       toast({
         title: "No Phone Number",
         description: "Customer phone number is required to send WhatsApp message",
@@ -748,14 +757,16 @@ export default function POSSales() {
       return;
     }
 
-    const itemsList = items.map((item, index) =>
-      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount.toFixed(2)}`
-    ).join('\n');
+    const itemsList = itemsToUse?.map((item: any, index: number) =>
+      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount?.toFixed(2)}`
+    ).join('\n') || '';
 
-    const message = `*Invoice Details*\n\nInvoice No: ${currentInvoiceNumber}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${customerName || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${totals.mrp.toFixed(2)}\nDiscount: ₹${(totals.discount + flatDiscountAmount).toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${finalAmount.toFixed(2)}*\n\nPayment Method: ${paymentMethod.toUpperCase()}\n\nThank you for your business!`;
+    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${grossAmount?.toFixed(2)}\nDiscount: ₹${discountAmount?.toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${totalAmount?.toFixed(2)}*\n\nPayment Method: ${method?.toUpperCase()}\n\nThank you for your business!`;
 
-    const phoneNumber = customerPhone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    const phoneNumber = phone.replace(/\D/g, '');
+    // Add country code 91 for India if not present
+    const formattedPhone = phoneNumber.startsWith('91') ? phoneNumber : `91${phoneNumber}`;
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     
     // Open WhatsApp in new window
     window.open(whatsappUrl, '_blank');
@@ -1132,7 +1143,7 @@ export default function POSSales() {
         
         {/* WhatsApp Share Button */}
         <Button
-          onClick={handleWhatsAppShare}
+          onClick={() => handleWhatsAppShare(true)}
           disabled={!customerPhone || items.length === 0}
           className="h-16 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
           title="Share on WhatsApp"
@@ -1715,21 +1726,45 @@ export default function POSSales() {
 
         {/* Print Confirmation Dialog */}
         <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
-          <AlertDialogContent>
+          <AlertDialogContent className="sm:max-w-md">
             <AlertDialogHeader>
-              <AlertDialogTitle>Print Invoice?</AlertDialogTitle>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-500" />
+                Invoice Saved!
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
-                Would you like to print it now?
+                What would you like to do next?
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="flex flex-col gap-3 py-4">
+              <Button 
+                onClick={handlePrintFromDialog}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <Printer className="h-4 w-4" />
+                Print Invoice
+              </Button>
+              {savedInvoiceData?.customerPhone && (
+                <Button 
+                  variant="outline"
+                  onClick={() => handleWhatsAppShare(false)}
+                  className="w-full flex items-center justify-center gap-2 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Send via WhatsApp
+                </Button>
+              )}
+              {!savedInvoiceData?.customerPhone && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Add customer phone number to enable WhatsApp sharing
+                </p>
+              )}
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={handleClosePrintConfirmDialog}>
-                Skip
+                Done
               </AlertDialogCancel>
-              <AlertDialogAction onClick={handlePrintFromDialog}>
-                Print Now
-              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
