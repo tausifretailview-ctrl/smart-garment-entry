@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
 import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -19,28 +20,51 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+type PeriodType = "daily" | "monthly" | "quarterly";
+
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [period, setPeriod] = useState<PeriodType>("daily");
 
-  // Fetch sales for selected date
+  // Calculate date range based on period
+  const getDateRange = () => {
+    let startDate: Date;
+    let endDate: Date;
+
+    switch (period) {
+      case "monthly":
+        startDate = startOfMonth(selectedDate);
+        endDate = endOfMonth(selectedDate);
+        break;
+      case "quarterly":
+        startDate = startOfQuarter(selectedDate);
+        endDate = endOfQuarter(selectedDate);
+        break;
+      default: // daily
+        startDate = new Date(selectedDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(selectedDate);
+        endDate.setHours(23, 59, 59, 999);
+    }
+
+    return { startDate, endDate };
+  };
+
+  const { startDate, endDate } = getDateRange();
+
+  // Fetch sales for selected period
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["daily-cashier-report", currentOrganization?.id, selectedDate],
+    queryKey: ["cashier-report", currentOrganization?.id, selectedDate, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-
-      const startOfDay = new Date(selectedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      
-      const endOfDay = new Date(selectedDate);
-      endOfDay.setHours(23, 59, 59, 999);
 
       const { data, error } = await supabase
         .from("sales")
         .select("*")
         .eq("organization_id", currentOrganization.id)
-        .gte("sale_date", startOfDay.toISOString())
-        .lte("sale_date", endOfDay.toISOString())
+        .gte("sale_date", startDate.toISOString())
+        .lte("sale_date", endDate.toISOString())
         .order("sale_date", { ascending: true });
 
       if (error) throw error;
@@ -161,6 +185,28 @@ const DailyCashierReport = () => {
     }).format(amount);
   };
 
+  const getPeriodLabel = () => {
+    switch (period) {
+      case "monthly":
+        return format(selectedDate, "MMMM yyyy");
+      case "quarterly":
+        return `Q${Math.ceil((selectedDate.getMonth() + 1) / 3)} ${format(selectedDate, "yyyy")}`;
+      default:
+        return format(selectedDate, "dd MMM yyyy");
+    }
+  };
+
+  const getReportTitle = () => {
+    switch (period) {
+      case "monthly":
+        return "MONTHLY CASHIER REPORT";
+      case "quarterly":
+        return "QUARTERLY CASHIER REPORT";
+      default:
+        return "DAILY CASHIER REPORT";
+    }
+  };
+
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <div className="print:hidden">
@@ -170,16 +216,27 @@ const DailyCashierReport = () => {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Daily Cashier Report</h1>
-          <p className="text-muted-foreground">Daily sales summary by payment method</p>
+          <h1 className="text-2xl font-bold">Cashier Report</h1>
+          <p className="text-muted-foreground">Sales summary by payment method</p>
         </div>
         
-        <div className="flex items-center gap-2 print:hidden">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <Select value={period} onValueChange={(value: PeriodType) => setPeriod(value)}>
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal")}>
+              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {format(selectedDate, "dd MMM yyyy")}
+                {getPeriodLabel()}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">
@@ -188,6 +245,7 @@ const DailyCashierReport = () => {
                 selected={selectedDate}
                 onSelect={(date) => date && setSelectedDate(date)}
                 initialFocus
+                className="pointer-events-auto"
               />
             </PopoverContent>
           </Popover>
@@ -204,8 +262,8 @@ const DailyCashierReport = () => {
         <h1 className="text-xl font-bold">{settings?.business_name || "Business Name"}</h1>
         <p className="text-sm">{settings?.address}</p>
         <p className="text-sm">Ph: {settings?.mobile_number}</p>
-        <h2 className="text-lg font-semibold mt-4">DAILY CASHIER REPORT</h2>
-        <p className="text-sm">Date: {format(selectedDate, "dd/MM/yyyy")}</p>
+        <h2 className="text-lg font-semibold mt-4">{getReportTitle()}</h2>
+        <p className="text-sm">Period: {getPeriodLabel()}</p>
       </div>
 
       {isLoading ? (
