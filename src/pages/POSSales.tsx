@@ -770,8 +770,8 @@ export default function POSSales() {
     const formattedPhone = phoneNumber.startsWith('91') ? phoneNumber : `91${phoneNumber}`;
     const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     
-    // Open WhatsApp in new window
-    window.open(whatsappUrl, '_blank');
+    // Open WhatsApp directly in same window - avoids extra tab
+    window.location.href = whatsappUrl;
     
     toast({
       title: "WhatsApp Opened",
