@@ -770,12 +770,12 @@ export default function POSSales() {
     const formattedPhone = phoneNumber.startsWith('91') ? phoneNumber : `91${phoneNumber}`;
     const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     
-    // Open WhatsApp directly in same window - avoids extra tab
-    window.location.href = whatsappUrl;
+    // Open WhatsApp in new tab so POS screen stays open
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
     
     toast({
       title: "WhatsApp Opened",
-      description: "Opening WhatsApp to send invoice details",
+      description: "Invoice message sent to WhatsApp - POS screen remains open",
     });
   };
 
