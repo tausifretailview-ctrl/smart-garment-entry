@@ -1043,6 +1043,11 @@ export default function POSSales() {
       title: "New Invoice",
       description: "Cart cleared. Ready for new sale.",
     });
+    
+    // Focus on barcode input for next scan
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 100);
   };
 
   const createCustomer = useMutation({
@@ -1072,6 +1077,11 @@ export default function POSSales() {
         gst_number: "",
       });
       setShowAddCustomerDialog(false);
+      
+      // Focus on barcode input for scanning
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
     },
     onError: (error: any) => {
       toast({ title: "Error adding customer", description: error.message, variant: "destructive" });
