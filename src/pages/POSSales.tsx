@@ -698,6 +698,7 @@ export default function POSSales() {
         method: method,
         customerName: customerName,
         customerPhone: customerPhone,
+        roundOff: roundOff,
       });
       setShowPrintConfirmDialog(true);
     }
@@ -744,9 +745,10 @@ export default function POSSales() {
     const name = useCurrentData ? customerName : savedInvoiceData?.customerName;
     const itemsToUse = useCurrentData ? items : savedInvoiceData?.items;
     const totalAmount = useCurrentData ? finalAmount : savedInvoiceData?.finalAmount;
-    const discountAmount = useCurrentData ? (totals.discount + flatDiscountAmount) : (savedInvoiceData?.totals?.discount + savedInvoiceData?.flatDiscountAmount);
-    const grossAmount = useCurrentData ? totals.mrp : savedInvoiceData?.totals?.mrp;
+    const discountAmount = useCurrentData ? (totals.discount + flatDiscountAmount) : ((savedInvoiceData?.totals?.discount || 0) + (savedInvoiceData?.flatDiscountAmount || 0));
+    const grossAmount = useCurrentData ? totals.mrp : (savedInvoiceData?.totals?.mrp || 0);
     const method = useCurrentData ? paymentMethod : savedInvoiceData?.method;
+    const roundOffAmount = useCurrentData ? roundOff : (savedInvoiceData?.roundOff || 0);
     
     if (!phone) {
       toast({
@@ -758,10 +760,10 @@ export default function POSSales() {
     }
 
     const itemsList = itemsToUse?.map((item: any, index: number) =>
-      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${item.netAmount?.toFixed(2)}`
+      `${index + 1}. ${item.productName} (${item.size}) - Qty: ${item.quantity} - ₹${(item.netAmount || 0).toFixed(2)}`
     ).join('\n') || '';
 
-    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${grossAmount?.toFixed(2)}\nDiscount: ₹${discountAmount?.toFixed(2)}\nRound Off: ₹${roundOff.toFixed(2)}\n*Net Amount: ₹${totalAmount?.toFixed(2)}*\n\nPayment Method: ${method?.toUpperCase()}\n\nThank you for your business!`;
+    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment Method: ${(method || 'cash').toUpperCase()}\n\nThank you for your business!`;
 
     const phoneNumber = phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
