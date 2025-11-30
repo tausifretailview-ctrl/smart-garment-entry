@@ -50,7 +50,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
@@ -340,6 +340,14 @@ export function AppSidebar() {
                           <NavLink to="/product-tracking" className="flex items-center gap-3 group">
                             <Barcode className="h-4 w-4 sidebar-icon" />
                             <span>Product Tracking</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/daily-cashier-report")}>
+                          <NavLink to="/daily-cashier-report" className="flex items-center gap-3 group">
+                            <Wallet className="h-4 w-4 sidebar-icon" />
+                            <span>Daily Cashier</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>

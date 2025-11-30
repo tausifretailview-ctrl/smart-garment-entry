@@ -1,0 +1,409 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { BackToDashboard } from "@/components/BackToDashboard";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+const DailyCashierReport = () => {
+  const { currentOrganization } = useOrganization();
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Fetch sales for selected date
+  const { data: salesData, isLoading } = useQuery({
+    queryKey: ["daily-cashier-report", currentOrganization?.id, selectedDate],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startOfDay.toISOString())
+        .lte("sale_date", endOfDay.toISOString())
+        .order("sale_date", { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch settings for business name
+  const { data: settings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from("settings")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Calculate totals
+  const calculateTotals = () => {
+    if (!salesData || salesData.length === 0) {
+      return {
+        grossSale: 0,
+        totalDiscount: 0,
+        totalSale: 0,
+        cashSale: 0,
+        cardSale: 0,
+        upiSale: 0,
+        creditSale: 0,
+        totalBills: 0,
+        cashBills: 0,
+        cardBills: 0,
+        upiBills: 0,
+        creditBills: 0,
+      };
+    }
+
+    let grossSale = 0;
+    let totalDiscount = 0;
+    let totalSale = 0;
+    let cashSale = 0;
+    let cardSale = 0;
+    let upiSale = 0;
+    let creditSale = 0;
+    let cashBills = 0;
+    let cardBills = 0;
+    let upiBills = 0;
+    let creditBills = 0;
+
+    salesData.forEach((sale) => {
+      grossSale += Number(sale.gross_amount) || 0;
+      totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
+      totalSale += Number(sale.net_amount) || 0;
+
+      const netAmount = Number(sale.net_amount) || 0;
+      
+      switch (sale.payment_method) {
+        case "cash":
+          cashSale += netAmount;
+          cashBills++;
+          break;
+        case "card":
+          cardSale += netAmount;
+          cardBills++;
+          break;
+        case "upi":
+          upiSale += netAmount;
+          upiBills++;
+          break;
+        case "pay_later":
+          creditSale += netAmount;
+          creditBills++;
+          break;
+        case "multiple":
+          // For multiple payment, count in cash for simplicity
+          cashSale += netAmount;
+          cashBills++;
+          break;
+        default:
+          cashSale += netAmount;
+          cashBills++;
+      }
+    });
+
+    return {
+      grossSale,
+      totalDiscount,
+      totalSale,
+      cashSale,
+      cardSale,
+      upiSale,
+      creditSale,
+      totalBills: salesData.length,
+      cashBills,
+      cardBills,
+      upiBills,
+      creditBills,
+    };
+  };
+
+  const totals = calculateTotals();
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  return (
+    <div className="container mx-auto p-4 max-w-4xl">
+      <div className="print:hidden">
+        <BackToDashboard />
+      </div>
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Daily Cashier Report</h1>
+          <p className="text-muted-foreground">Daily sales summary by payment method</p>
+        </div>
+        
+        <div className="flex items-center gap-2 print:hidden">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[200px] justify-start text-left font-normal")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {format(selectedDate, "dd MMM yyyy")}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          
+          <Button onClick={handlePrint} variant="outline">
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+        </div>
+      </div>
+
+      {/* Print Header */}
+      <div className="hidden print:block mb-6 text-center border-b pb-4">
+        <h1 className="text-xl font-bold">{settings?.business_name || "Business Name"}</h1>
+        <p className="text-sm">{settings?.address}</p>
+        <p className="text-sm">Ph: {settings?.mobile_number}</p>
+        <h2 className="text-lg font-semibold mt-4">DAILY CASHIER REPORT</h2>
+        <p className="text-sm">Date: {format(selectedDate, "dd/MM/yyyy")}</p>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8">Loading...</div>
+      ) : (
+        <>
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                  <Receipt className="h-4 w-4" />
+                  Gross Sale
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{formatCurrency(totals.grossSale)}</p>
+                <p className="text-xs text-blue-600 dark:text-blue-400">{totals.totalBills} Bills</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4" />
+                  Total Discount
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-red-900 dark:text-red-100">{formatCurrency(totals.totalDiscount)}</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
+                  <IndianRupee className="h-4 w-4" />
+                  Total Sale
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(totals.totalSale)}</p>
+                <p className="text-xs text-green-600 dark:text-green-400">Gross - Discount</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Payment Method Breakdown */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Payment Method Breakdown</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Payment Method</TableHead>
+                    <TableHead className="text-center">Bills</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
+                          <IndianRupee className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <span className="font-medium">Cash</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{totals.cashBills}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(totals.cashSale)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900">
+                          <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="font-medium">Card</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{totals.cardBills}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(totals.cardSale)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900">
+                          <Smartphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <span className="font-medium">UPI</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{totals.upiBills}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(totals.upiSale)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900">
+                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <span className="font-medium">Credit (Pay Later)</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">{totals.creditBills}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(totals.creditSale)}</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/50 font-bold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-center">{totals.totalBills}</TableCell>
+                    <TableCell className="text-right">{formatCurrency(totals.totalSale)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Detailed Summary Box (for print) */}
+          <Card className="print:border print:shadow-none">
+            <CardHeader>
+              <CardTitle className="text-lg">Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between py-2 border-b">
+                  <span>Gross Sale</span>
+                  <span className="font-semibold">{formatCurrency(totals.grossSale)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b text-red-600">
+                  <span>Less: Discount</span>
+                  <span className="font-semibold">- {formatCurrency(totals.totalDiscount)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold">
+                  <span>Net Sale</span>
+                  <span>{formatCurrency(totals.totalSale)}</span>
+                </div>
+                <div className="pt-2 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cash Collection</span>
+                    <span>{formatCurrency(totals.cashSale)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Card Collection</span>
+                    <span>{formatCurrency(totals.cardSale)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">UPI Collection</span>
+                    <span>{formatCurrency(totals.upiSale)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Credit (Outstanding)</span>
+                    <span>{formatCurrency(totals.creditSale)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between py-2 border-t mt-2 font-bold">
+                  <span>Total Collection (Cash + Card + UPI)</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Print Footer */}
+          <div className="hidden print:block mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
+            <p>Generated on {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+            <p className="mt-2">--- End of Report ---</p>
+          </div>
+        </>
+      )}
+
+      {/* Print Styles */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .container, .container * {
+            visibility: visible;
+          }
+          .container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:block {
+            display: block !important;
+          }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default DailyCashierReport;
