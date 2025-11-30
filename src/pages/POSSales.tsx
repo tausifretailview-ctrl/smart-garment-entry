@@ -768,14 +768,20 @@ export default function POSSales() {
     const phoneNumber = phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
     const formattedPhone = phoneNumber.startsWith('91') ? phoneNumber : `91${phoneNumber}`;
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
     
-    // Open WhatsApp in new tab so POS screen stays open
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    // Use api.whatsapp.com for better compatibility with pre-filled message
+    const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(message)}`;
+    
+    console.log('WhatsApp Debug - Phone:', formattedPhone);
+    console.log('WhatsApp Debug - Message:', message);
+    console.log('WhatsApp Debug - URL:', whatsappUrl);
+    
+    // Open WhatsApp in new tab
+    window.open(whatsappUrl, '_blank');
     
     toast({
       title: "WhatsApp Opened",
-      description: "Invoice message sent to WhatsApp - POS screen remains open",
+      description: "Invoice message ready to send via WhatsApp",
     });
   };
 
