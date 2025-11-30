@@ -44,6 +44,7 @@ export default function SalesInvoiceDashboard() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'thermal'>('a4');
   const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
+  const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -65,6 +66,7 @@ export default function SalesInvoiceDashboard() {
         const settings = data.sale_settings as any;
         setBillFormat(settings.sales_bill_format || 'a4');
         setInvoiceTemplate(settings.invoice_template || 'professional');
+        setShowInvoicePreviewSetting(settings.show_invoice_preview ?? true);
       }
     } catch (error) {
       console.error('Error fetching bill format:', error);
@@ -246,7 +248,14 @@ export default function SalesInvoiceDashboard() {
 
   const handlePrintInvoice = (invoice: any) => {
     setInvoiceToPrint(invoice);
-    setShowPrintPreview(true);
+    if (showInvoicePreviewSetting) {
+      setShowPrintPreview(true);
+    } else {
+      // Direct print without preview
+      setTimeout(() => {
+        handlePrint();
+      }, 100);
+    }
   };
 
   const handleWhatsAppShare = (invoice: any) => {

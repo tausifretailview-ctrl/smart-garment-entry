@@ -89,6 +89,7 @@ interface SaleSettings {
   show_barcode?: boolean;
   show_gst_breakdown?: boolean;
   show_bank_details?: boolean;
+  show_invoice_preview?: boolean;  // Enable/disable invoice preview before printing
   bank_details?: {
     bank_name?: string;
     account_number?: string;
@@ -1394,6 +1395,30 @@ export default function Settings() {
                 <div className="space-y-4 pt-4 border-t">
                   <h3 className="text-lg font-semibold">Bill Format Settings</h3>
                   <p className="text-sm text-muted-foreground">Configure print formats for sales and POS</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="show_invoice_preview"
+                      checked={settings.sale_settings?.show_invoice_preview ?? true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            show_invoice_preview: checked as boolean,
+                          },
+                        })
+                      }
+                    />
+                    <div>
+                      <Label htmlFor="show_invoice_preview" className="font-normal cursor-pointer">
+                        Enable Invoice Preview
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, shows a preview dialog before printing. When disabled, directly opens the print dialog.
+                      </p>
+                    </div>
+                  </div>
                   
                   <div className="space-y-2">
                     <Label htmlFor="sales_bill_format">Sales Invoice Bill Format</Label>
