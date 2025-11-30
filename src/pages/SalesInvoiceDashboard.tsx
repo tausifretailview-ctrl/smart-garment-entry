@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -272,7 +272,10 @@ export default function SalesInvoiceDashboard() {
       `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
     ).join('\n') || '';
 
-    const message = `*Invoice Details*\n\nInvoice No: ${invoice.sale_number}\nDate: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}\nCustomer: ${invoice.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${invoice.gross_amount.toFixed(2)}\nDiscount: ₹${invoice.discount_amount.toFixed(2)}\nRound Off: ₹${invoice.round_off.toFixed(2)}\n*Net Amount: ₹${invoice.net_amount.toFixed(2)}*\n\nPayment Method: ${invoice.payment_method.toUpperCase()}\nPayment Status: ${invoice.payment_status}\n${invoice.terms_conditions ? `\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}\n\nThank you for your business!`;
+    // Generate invoice URL
+    const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
+    
+    const message = `*Invoice Details*\n\nInvoice No: ${invoice.sale_number}\nDate: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}\nCustomer: ${invoice.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${invoice.gross_amount.toFixed(2)}\nDiscount: ₹${invoice.discount_amount.toFixed(2)}\nRound Off: ₹${invoice.round_off.toFixed(2)}\n*Net Amount: ₹${invoice.net_amount.toFixed(2)}*\n\nPayment Method: ${invoice.payment_method.toUpperCase()}\nPayment Status: ${invoice.payment_status}\n\n📄 View Invoice Online:\n${invoiceUrl}\n${invoice.terms_conditions ? `\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}\n\nThank you for your business!`;
 
     const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
@@ -293,6 +296,24 @@ export default function SalesInvoiceDashboard() {
     
     // Open WhatsApp in new window
     window.open(whatsappUrl, '_blank');
+  };
+
+  const handleCopyLink = async (invoice: any) => {
+    const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(invoiceUrl);
+      toast({
+        title: "Link Copied",
+        description: "Invoice link copied to clipboard",
+      });
+    } catch (err) {
+      toast({
+        title: "Copy Failed",
+        description: "Please copy manually: " + invoiceUrl,
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -403,6 +424,14 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => handleCopyLink(invoice)}
+                                  title="Copy Invoice Link"
+                                >
+                                  <Link2 className="h-4 w-4 text-blue-600" />
+                                </Button>
                                 <Button 
                                   variant="ghost" 
                                   size="icon"

@@ -40,6 +40,7 @@ import Auth from "./pages/Auth";
 import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
+import PublicInvoiceView from "./pages/PublicInvoiceView";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -352,6 +353,8 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+            {/* Public invoice view - no authentication required */}
+            <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             {/* Organization-specific login route - must be last before catch-all */}
             <Route path="/:orgSlug" element={<OrgAuth />} />
