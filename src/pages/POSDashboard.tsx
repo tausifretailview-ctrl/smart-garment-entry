@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -402,7 +402,10 @@ const POSDashboard = () => {
       `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
     ).join('\n');
 
-    const message = `*Invoice Details*\n\nInvoice No: ${sale.sale_number}\nDate: ${format(new Date(sale.sale_date), 'dd/MM/yyyy')}\nCustomer: ${sale.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${sale.gross_amount.toFixed(2)}\nDiscount: ₹${(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}\nRound Off: ₹${sale.round_off.toFixed(2)}\n*Net Amount: ₹${sale.net_amount.toFixed(2)}*\n\nPayment Method: ${sale.payment_method.toUpperCase()}\n\nThank you for your business!`;
+    // Generate invoice URL
+    const invoiceUrl = `${window.location.origin}/invoice/view/${sale.id}`;
+    
+    const message = `*Invoice Details*\n\nInvoice No: ${sale.sale_number}\nDate: ${format(new Date(sale.sale_date), 'dd/MM/yyyy')}\nCustomer: ${sale.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${sale.gross_amount.toFixed(2)}\nDiscount: ₹${(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}\nRound Off: ₹${sale.round_off.toFixed(2)}\n*Net Amount: ₹${sale.net_amount.toFixed(2)}*\n\nPayment Method: ${sale.payment_method.toUpperCase()}\n\n📄 View Invoice Online:\n${invoiceUrl}\n\nThank you for your business!`;
 
     const phoneNumber = sale.customer_phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
@@ -428,6 +431,25 @@ const POSDashboard = () => {
       title: "WhatsApp Opened",
       description: "Opening WhatsApp to send invoice details",
     });
+  };
+
+  const handleCopyLink = async (sale: Sale, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const invoiceUrl = `${window.location.origin}/invoice/view/${sale.id}`;
+    
+    try {
+      await navigator.clipboard.writeText(invoiceUrl);
+      toast({
+        title: "Link Copied",
+        description: "Invoice link copied to clipboard",
+      });
+    } catch (err) {
+      toast({
+        title: "Copy Failed",
+        description: "Please copy manually: " + invoiceUrl,
+        variant: "destructive",
+      });
+    }
   };
 
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
@@ -678,6 +700,14 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => handleCopyLink(sale, e)}
+                                  title="Copy Invoice Link"
+                                >
+                                  <Link2 className="h-4 w-4 text-blue-600" />
+                                </Button>
                                 <Button
                                   variant="ghost"
                                   size="icon"
