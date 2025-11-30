@@ -85,8 +85,11 @@ const POSDashboard = () => {
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
 
   useEffect(() => {
-    fetchSales();
-    fetchPosBillFormat();
+    const loadData = async () => {
+      await fetchSales();
+      fetchPosBillFormat();
+    };
+    loadData();
   }, [currentOrganization]);
 
   const fetchPosBillFormat = async () => {
@@ -143,6 +146,26 @@ const POSDashboard = () => {
 
       if (error) throw error;
       setSales(data || []);
+      
+      // Fetch all sale items upfront for quantity calculation
+      if (data && data.length > 0) {
+        const saleIds = data.map(sale => sale.id);
+        const { data: itemsData, error: itemsError } = await supabase
+          .from("sale_items")
+          .select("*")
+          .in("sale_id", saleIds);
+        
+        if (!itemsError && itemsData) {
+          const itemsBySale: Record<string, SaleItem[]> = {};
+          itemsData.forEach(item => {
+            if (!itemsBySale[item.sale_id]) {
+              itemsBySale[item.sale_id] = [];
+            }
+            itemsBySale[item.sale_id].push(item);
+          });
+          setSaleItems(itemsBySale);
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Error",
