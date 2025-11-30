@@ -68,10 +68,13 @@ const CustomerMaster = () => {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { error } = await supabase.from("customers").insert([{
+      // Use phone as customer name if name is empty
+      const customerData = {
         ...data,
+        customer_name: data.customer_name.trim() || data.phone,
         organization_id: currentOrganization.id
-      }]);
+      };
+      const { error } = await supabase.from("customers").insert([customerData]);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -87,7 +90,12 @@ const CustomerMaster = () => {
 
   const updateCustomer = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase.from("customers").update(data).eq("id", id);
+      // Use phone as customer name if name is empty
+      const customerData = {
+        ...data,
+        customer_name: data.customer_name.trim() || data.phone,
+      };
+      const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -181,20 +189,23 @@ const CustomerMaster = () => {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="customer_name">Customer Name *</Label>
-                <Input
-                  id="customer_name"
-                  value={formData.customer_name}
-                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone</Label>
+                <Label htmlFor="phone">Mobile Number *</Label>
                 <Input
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  required
+                  autoFocus
+                  placeholder="Enter mobile number"
+                />
+              </div>
+              <div>
+                <Label htmlFor="customer_name">Customer Name</Label>
+                <Input
+                  id="customer_name"
+                  value={formData.customer_name}
+                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                  placeholder="Enter customer name (optional)"
                 />
               </div>
               <div>
