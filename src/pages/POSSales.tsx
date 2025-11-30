@@ -92,6 +92,7 @@ export default function POSSales() {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
+  const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -134,6 +135,7 @@ export default function POSSales() {
         const settings = data.sale_settings as any;
         setPosBillFormat(settings.pos_bill_format || 'thermal');
         setPosInvoiceTemplate(settings.invoice_template || 'professional');
+        setShowInvoicePreviewSetting(settings.show_invoice_preview ?? true);
       }
     } catch (error) {
       console.error('Error fetching POS bill format:', error);
@@ -720,7 +722,16 @@ export default function POSSales() {
     if (!savedInvoiceData) return;
 
     setShowPrintConfirmDialog(false);
-    setShowPrintPreview(true);
+    
+    if (showInvoicePreviewSetting) {
+      // Show preview dialog
+      setShowPrintPreview(true);
+    } else {
+      // Direct print without preview
+      setTimeout(() => {
+        handlePrint();
+      }, 100);
+    }
   };
 
   const handleClosePrintConfirmDialog = () => {
