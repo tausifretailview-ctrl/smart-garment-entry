@@ -34,6 +34,7 @@ import EmployeeMaster from "./pages/EmployeeMaster";
 import PurchaseReportBySupplier from "./pages/PurchaseReportBySupplier";
 import SalesReportByCustomer from "./pages/SalesReportByCustomer";
 import ProductTrackingReport from "./pages/ProductTrackingReport";
+import DailyCashierReport from "./pages/DailyCashierReport";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import Auth from "./pages/Auth";
@@ -327,6 +328,16 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <ProductTrackingReport />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/daily-cashier-report"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DailyCashierReport />
                   </Layout>
                 </ProtectedRoute>
               }
