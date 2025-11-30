@@ -405,7 +405,21 @@ const POSDashboard = () => {
     const message = `*Invoice Details*\n\nInvoice No: ${sale.sale_number}\nDate: ${format(new Date(sale.sale_date), 'dd/MM/yyyy')}\nCustomer: ${sale.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${sale.gross_amount.toFixed(2)}\nDiscount: ₹${(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}\nRound Off: ₹${sale.round_off.toFixed(2)}\n*Net Amount: ₹${sale.net_amount.toFixed(2)}*\n\nPayment Method: ${sale.payment_method.toUpperCase()}\n\nThank you for your business!`;
 
     const phoneNumber = sale.customer_phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    // Add country code 91 for India if not present
+    let formattedPhone = phoneNumber;
+    if (phoneNumber.length === 10) {
+      formattedPhone = `91${phoneNumber}`;
+    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
+      formattedPhone = phoneNumber;
+    } else if (!phoneNumber.startsWith('91')) {
+      formattedPhone = `91${phoneNumber}`;
+    }
+    
+    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    
+    console.log('WhatsApp Debug - Original Phone:', sale.customer_phone);
+    console.log('WhatsApp Debug - Formatted Phone:', formattedPhone);
     
     // Open WhatsApp in new window
     window.open(whatsappUrl, '_blank');
