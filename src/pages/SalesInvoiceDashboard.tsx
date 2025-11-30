@@ -275,14 +275,24 @@ export default function SalesInvoiceDashboard() {
     const message = `*Invoice Details*\n\nInvoice No: ${invoice.sale_number}\nDate: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}\nCustomer: ${invoice.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${invoice.gross_amount.toFixed(2)}\nDiscount: ₹${invoice.discount_amount.toFixed(2)}\nRound Off: ₹${invoice.round_off.toFixed(2)}\n*Net Amount: ₹${invoice.net_amount.toFixed(2)}*\n\nPayment Method: ${invoice.payment_method.toUpperCase()}\nPayment Status: ${invoice.payment_status}\n${invoice.terms_conditions ? `\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}\n\nThank you for your business!`;
 
     const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    // Add country code 91 for India if not present
+    let formattedPhone = phoneNumber;
+    if (phoneNumber.length === 10) {
+      formattedPhone = `91${phoneNumber}`;
+    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
+      formattedPhone = phoneNumber;
+    } else if (!phoneNumber.startsWith('91')) {
+      formattedPhone = `91${phoneNumber}`;
+    }
     
-    // Create temporary link to open WhatsApp
-    const link = document.createElement('a');
-    link.href = whatsappUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.click();
+    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    
+    console.log('WhatsApp Debug - Original Phone:', invoice.customer_phone);
+    console.log('WhatsApp Debug - Formatted Phone:', formattedPhone);
+    
+    // Open WhatsApp in new window
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
