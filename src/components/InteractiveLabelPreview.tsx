@@ -83,6 +83,7 @@ export function InteractiveLabelPreview({
   labelHeight
 }: InteractiveLabelPreviewProps) {
   const [selectedField, setSelectedField] = useState<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'> | null>(null);
+  const [zoom, setZoom] = useState(100);
   const previewRef = useRef<HTMLDivElement>(null);
   const barcodeValue = sampleItem?.barcode || '12345678';
 
@@ -233,22 +234,39 @@ export function InteractiveLabelPreview({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Live Preview */}
       <Card className="p-4">
-        <div className="flex items-center gap-2 mb-4">
-          <Eye className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Interactive Preview</h3>
-          <span className="text-xs text-muted-foreground ml-auto">{labelWidth}×{labelHeight}mm</span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Eye className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold">Interactive Preview</h3>
+            <span className="text-xs text-muted-foreground">{labelWidth}×{labelHeight}mm</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Zoom:</Label>
+            <Input
+              type="range"
+              min="50"
+              max="200"
+              step="10"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="w-24 h-6"
+            />
+            <span className="text-xs font-medium min-w-[45px]">{zoom}%</span>
+          </div>
         </div>
         
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-4 overflow-auto">
           <div 
             ref={previewRef}
-            className="border-2 border-dashed border-primary/30 rounded bg-white overflow-hidden relative"
+            className="border-2 border-dashed border-primary/30 rounded bg-white overflow-hidden relative origin-top-left"
             style={{ 
               width: `${Math.min(labelWidth * 2.5, 200)}px`,
               height: `${Math.min(labelHeight * 2.5, 250)}px`,
               fontFamily: 'Arial, sans-serif',
               fontSize: '6px',
               lineHeight: 1.2,
+              transform: `scale(${zoom / 100})`,
+              marginBottom: zoom > 100 ? `${(Math.min(labelHeight * 2.5, 250) * (zoom / 100 - 1))}px` : '0',
             }}
           >
             <div className="p-1 h-full flex flex-col items-center justify-start">
