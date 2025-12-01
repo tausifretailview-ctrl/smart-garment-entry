@@ -826,6 +826,5 @@ export default function SalesInvoiceDashboard() {
           </div>
         )}
       </div>
-    </div>
   );
 }
