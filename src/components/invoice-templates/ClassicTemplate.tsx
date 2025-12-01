@@ -2,14 +2,15 @@ import React from 'react';
 
 interface ClassicTemplateProps {
   businessName: string;
-  businessAddress: string;
-  businessContact: string;
-  businessEmail: string;
+  address: string;
+  mobile: string;
+  email?: string;
+  gstNumber?: string;
   logoUrl?: string;
-  billNo: string;
-  date: Date;
+  invoiceNumber: string;
+  invoiceDate: Date;
   customerName: string;
-  customerPhone: string;
+  customerMobile?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -20,15 +21,15 @@ interface ClassicTemplateProps {
     size: string;
     qty: number;
     rate: number;
-    discPercent: number;
+    discPercent?: number;
     total: number;
   }>;
-  subTotal: number;
-  discountAmount: number;
-  totalGST: number;
-  netAmount: number;
+  subtotal: number;
+  discount: number;
+  totalTax: number;
+  grandTotal: number;
   paymentMethod?: string;
-  termsConditions?: string;
+  termsConditions?: string[];
   productDetailsSettings?: {
     show_brand?: boolean;
     show_category?: boolean;
@@ -40,19 +41,19 @@ interface ClassicTemplateProps {
 
 export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   businessName,
-  businessAddress,
-  businessContact,
-  businessEmail,
+  address,
+  mobile,
+  email,
   logoUrl,
-  billNo,
-  date,
+  invoiceNumber,
+  invoiceDate,
   customerName,
-  customerPhone,
+  customerMobile,
   items,
-  subTotal,
-  discountAmount,
-  totalGST,
-  netAmount,
+  subtotal,
+  discount,
+  totalTax,
+  grandTotal,
   paymentMethod,
   termsConditions,
   productDetailsSettings,
@@ -114,15 +115,15 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
           )}
           <h1 style={{ margin: 0, fontSize: '24pt', color: '#2c3e50' }}>{businessName}</h1>
           <p style={{ margin: '5px 0', fontSize: '10pt', color: '#666' }}>
-            {businessAddress}<br />
-            {businessContact} | {businessEmail}
+            {address}<br />
+            {mobile} {email && `| ${email}`}
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
           <h2 style={{ margin: 0, fontSize: '18pt', color: '#2c3e50' }}>INVOICE</h2>
           <p style={{ margin: '5px 0', fontSize: '10pt' }}>
-            <strong>Invoice #:</strong> {billNo}<br />
-            <strong>Date:</strong> {date.toLocaleDateString('en-GB')}
+            <strong>Invoice #:</strong> {invoiceNumber}<br />
+            <strong>Date:</strong> {invoiceDate.toLocaleDateString('en-IN')}
           </p>
         </div>
       </div>
@@ -132,7 +133,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         <h3 style={{ margin: '0 0 10px 0', fontSize: '12pt', color: '#2c3e50' }}>Bill To:</h3>
         <p style={{ margin: 0 }}>
           <strong>{customerName}</strong><br />
-          {customerPhone && `Phone: ${customerPhone}`}
+          {customerMobile && `Phone: ${customerMobile}`}
         </p>
       </div>
 
@@ -144,8 +145,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
             <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #2c3e50' }}>Description</th>
             <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #2c3e50' }}>Size</th>
             <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Qty</th>
-            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Rate</th>
-            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Disc%</th>
+            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2px3e50' }}>Rate</th>
             <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Amount</th>
           </tr>
         </thead>
@@ -164,7 +164,6 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                 <td style={{ padding: '10px', textAlign: 'center' }}>{item.size}</td>
                 <td style={{ padding: '10px', textAlign: 'right' }}>{item.qty}</td>
                 <td style={{ padding: '10px', textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
-                <td style={{ padding: '10px', textAlign: 'right' }}>{item.discPercent}%</td>
                 <td style={{ padding: '10px', textAlign: 'right' }}>₹{item.total.toFixed(2)}</td>
               </tr>
             );
@@ -177,19 +176,21 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         <div style={{ width: '300px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>
             <span>Subtotal:</span>
-            <span>₹{subTotal.toFixed(2)}</span>
+            <span>₹{subtotal.toFixed(2)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>
-            <span>Discount:</span>
-            <span>- ₹{discountAmount.toFixed(2)}</span>
-          </div>
+          {discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>
+              <span>Discount:</span>
+              <span>- ₹{discount.toFixed(2)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>
             <span>GST:</span>
-            <span>₹{totalGST.toFixed(2)}</span>
+            <span>₹{totalTax.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#2c3e50', color: 'white', fontWeight: 'bold' }}>
             <span>Total Amount:</span>
-            <span>₹{netAmount.toFixed(2)}</span>
+            <span>₹{grandTotal.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -202,10 +203,14 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
       )}
 
       {/* Terms */}
-      {termsConditions && (
+      {termsConditions && termsConditions.length > 0 && (
         <div style={{ marginTop: '30px', borderTop: '1px solid #dee2e6', paddingTop: '15px' }}>
           <h4 style={{ margin: '0 0 10px 0', fontSize: '11pt' }}>Terms & Conditions:</h4>
-          <p style={{ margin: 0, fontSize: '9pt', color: '#666', whiteSpace: 'pre-wrap' }}>{termsConditions}</p>
+          <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '9pt', color: '#666' }}>
+            {termsConditions.map((term, index) => (
+              <li key={index}>{term}</li>
+            ))}
+          </ul>
         </div>
       )}
 

@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
+import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
+import { ModernTemplate } from './invoice-templates/ModernTemplate';
+import { MinimalTemplate } from './invoice-templates/MinimalTemplate';
+import { CompactTemplate } from './invoice-templates/CompactTemplate';
+import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
+import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import QRCode from 'qrcode';
 
@@ -253,8 +259,24 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         return <A5HorizontalBillFormat data={a5HorizontalData} />;
       }
       
-      // For other formats, use ProfessionalTemplate
-      return <ProfessionalTemplate {...commonProps} />;
+      // Select template based on settings
+      switch (template) {
+        case 'classic':
+          return <ClassicTemplate {...commonProps} />;
+        case 'modern':
+          return <ModernTemplate {...commonProps} />;
+        case 'minimal':
+          return <MinimalTemplate {...commonProps} />;
+        case 'compact':
+          return <CompactTemplate {...commonProps} />;
+        case 'detailed':
+          return <DetailedTemplate {...commonProps} />;
+        case 'tax-invoice':
+          return <TaxInvoiceTemplate {...commonProps} />;
+        case 'professional':
+        default:
+          return <ProfessionalTemplate {...commonProps} />;
+      }
     };
 
     return <div ref={ref}>{renderTemplate()}</div>;
