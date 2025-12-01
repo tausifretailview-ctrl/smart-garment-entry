@@ -5,8 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eye, X } from "lucide-react";
+import { ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Eye, X, GripVertical } from "lucide-react";
 import JsBarcode from "jsbarcode";
+import { DndContext, closestCenter, DragEndEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface LabelFieldConfig {
   show: boolean;
@@ -18,6 +21,8 @@ interface LabelFieldConfig {
   paddingBottom?: number;
   paddingLeft?: number;
   paddingRight?: number;
+  lineHeight?: number;
+  minHeight?: number;
 }
 
 interface LabelDesignConfig {
@@ -74,6 +79,117 @@ const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeH
   purchaseCode: 'Purchase Code',
 };
 
+// Sortable Field Item Component
+interface SortableFieldProps {
+  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+  field: LabelFieldConfig;
+  isSelected: boolean;
+  content: string;
+  labelConfig: LabelDesignConfig;
+  onSelect: () => void;
+  fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>, string>;
+}
+
+function SortableField({ fieldKey, field, isSelected, content, labelConfig, onSelect, fieldLabels }: SortableFieldProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: fieldKey });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const scale = 1;
+  const fontSize = Math.max(6, field.fontSize * scale);
+  const pt = (field.paddingTop ?? 0) * scale;
+  const pb = (field.paddingBottom ?? 0) * scale;
+  const pl = (field.paddingLeft ?? 0) * scale;
+  const pr = (field.paddingRight ?? 0) * scale;
+
+  if (fieldKey === 'barcode') {
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`cursor-pointer transition-all w-full relative ${isSelected ? 'ring-2 ring-primary ring-offset-2 bg-primary/5' : 'hover:bg-primary/5'}`}
+      >
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute left-0 top-1/2 -translate-y-1/2 p-1 cursor-grab active:cursor-grabbing hover:bg-primary/20 rounded"
+        >
+          <GripVertical className="h-3 w-3 text-muted-foreground" />
+        </div>
+        <div
+          onClick={onSelect}
+          style={{
+            margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+            display: 'flex',
+            justifyContent: 'center',
+            padding: '4px',
+          }}
+          title={`Click to select ${fieldLabels[fieldKey]}`}
+        >
+          <svg 
+            className={`interactive-barcode-${fieldKey}`} 
+            style={{ 
+              height: `${(labelConfig.barcodeHeight || 28) * scale}px`, 
+              width: 'auto',
+              maxWidth: '90%'
+            }} 
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const fieldStyle: React.CSSProperties = {
+    fontSize: `${fontSize}px`,
+    fontWeight: field.bold ? 'bold' : 'normal',
+    textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
+    margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    width: '100%',
+    padding: '4px 8px 4px 24px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    boxSizing: 'border-box',
+    lineHeight: field.lineHeight || 1.2,
+    minHeight: field.minHeight ? `${field.minHeight}px` : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`transition-all relative ${isSelected ? 'ring-2 ring-primary ring-offset-1 bg-primary/10' : 'hover:bg-primary/5'}`}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="absolute left-1 top-1/2 -translate-y-1/2 p-1 cursor-grab active:cursor-grabbing hover:bg-primary/20 rounded z-10"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <div
+        onClick={onSelect}
+        style={fieldStyle}
+        title={`Click to select ${fieldLabels[fieldKey]}`}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}
+
 export function InteractiveLabelPreview({ 
   labelConfig, 
   setLabelConfig, 
@@ -86,6 +202,14 @@ export function InteractiveLabelPreview({
   const [zoom, setZoom] = useState(100);
   const previewRef = useRef<HTMLDivElement>(null);
   const barcodeValue = sampleItem?.barcode || '12345678';
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  );
 
   // Render barcodes
   useEffect(() => {
@@ -230,6 +354,26 @@ export function InteractiveLabelPreview({
     }
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLabelConfig((prev) => {
+        const oldIndex = prev.fieldOrder.indexOf(active.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>);
+        const newIndex = prev.fieldOrder.indexOf(over.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>);
+
+        const newFieldOrder = [...prev.fieldOrder];
+        newFieldOrder.splice(oldIndex, 1);
+        newFieldOrder.splice(newIndex, 0, active.id as keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>);
+
+        return {
+          ...prev,
+          fieldOrder: newFieldOrder,
+        };
+      });
+    }
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* Live Preview */}
@@ -269,72 +413,39 @@ export function InteractiveLabelPreview({
               transformOrigin: 'top left',
             }}
           >
-            <div className="p-2 h-full w-full flex flex-col items-center justify-start overflow-visible">
-              {labelConfig.fieldOrder.map((fieldKey) => {
-                const field = labelConfig[fieldKey] as LabelFieldConfig;
-                if (!field.show) return null;
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="p-2 h-full w-full flex flex-col items-center justify-start overflow-visible">
+                <SortableContext
+                  items={labelConfig.fieldOrder.filter(key => (labelConfig[key] as LabelFieldConfig).show)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {labelConfig.fieldOrder.map((fieldKey) => {
+                    const field = labelConfig[fieldKey] as LabelFieldConfig;
+                    if (!field.show) return null;
 
-                const isSelected = selectedField === fieldKey;
-                const scale = 1;
-                const fontSize = Math.max(6, field.fontSize * scale);
-                const pt = (field.paddingTop ?? 0) * scale;
-                const pb = (field.paddingBottom ?? 0) * scale;
-                const pl = (field.paddingLeft ?? 0) * scale;
-                const pr = (field.paddingRight ?? 0) * scale;
+                    const isSelected = selectedField === fieldKey;
+                    const content = getFieldContent(fieldKey);
 
-                if (fieldKey === 'barcode') {
-                  return (
-                    <div
-                      key={fieldKey}
-                      onClick={() => setSelectedField(fieldKey)}
-                      className={`cursor-pointer transition-all w-full ${isSelected ? 'ring-2 ring-primary ring-offset-2 bg-primary/5' : 'hover:bg-primary/5'}`}
-                      style={{
-                        margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-                        display: 'flex',
-                        justifyContent: 'center',
-                        padding: '4px',
-                      }}
-                      title={`Click to select ${fieldLabels[fieldKey]}`}
-                    >
-                      <svg 
-                        className={`interactive-barcode-${fieldKey}`} 
-                        style={{ 
-                          height: `${(labelConfig.barcodeHeight || 28) * scale}px`, 
-                          width: 'auto',
-                          maxWidth: '90%'
-                        }} 
+                    return (
+                      <SortableField
+                        key={fieldKey}
+                        fieldKey={fieldKey}
+                        field={field}
+                        isSelected={isSelected}
+                        content={content}
+                        labelConfig={labelConfig}
+                        onSelect={() => setSelectedField(fieldKey)}
+                        fieldLabels={fieldLabels}
                       />
-                    </div>
-                  );
-                }
-
-                const style: React.CSSProperties = {
-                  fontSize: `${fontSize}px`,
-                  fontWeight: field.bold ? 'bold' : 'normal',
-                  textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
-                  margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  width: '100%',
-                  padding: '4px 8px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  boxSizing: 'border-box',
-                };
-
-                return (
-                  <div
-                    key={fieldKey}
-                    onClick={() => setSelectedField(fieldKey)}
-                    className={`transition-all ${isSelected ? 'ring-2 ring-primary ring-offset-1 bg-primary/10' : 'hover:bg-primary/5'}`}
-                    style={style}
-                    title={`Click to select ${fieldLabels[fieldKey]}`}
-                  >
-                    {getFieldContent(fieldKey)}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </SortableContext>
+              </div>
+            </DndContext>
           </div>
         </div>
 
@@ -348,7 +459,7 @@ export function InteractiveLabelPreview({
             {selectedField ? `Selected: ${fieldLabels[selectedField]}` : 'Click any field to edit'}
           </p>
           <p className="text-center text-muted-foreground/70">
-            Use arrow keys to adjust spacing (Shift for larger steps)
+            Drag fields with grip icon to reorder • Use arrow keys for spacing
           </p>
         </div>
       </Card>
@@ -437,6 +548,39 @@ export function InteractiveLabelPreview({
                       <SelectItem value="right">Right</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Line Height</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="3"
+                    step="0.1"
+                    value={selectedFieldConfig.lineHeight || 1.2}
+                    onChange={(e) => {
+                      setLabelConfig(prev => ({
+                        ...prev,
+                        [selectedField]: { ...prev[selectedField], lineHeight: parseFloat(e.target.value) || 1.2 }
+                      }));
+                    }}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Min Height (px)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="50"
+                    value={selectedFieldConfig.minHeight || 0}
+                    onChange={(e) => {
+                      setLabelConfig(prev => ({
+                        ...prev,
+                        [selectedField]: { ...prev[selectedField], minHeight: parseInt(e.target.value) || 0 }
+                      }));
+                    }}
+                  />
                 </div>
               </>
             )}
