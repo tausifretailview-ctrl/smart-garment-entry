@@ -1274,6 +1274,15 @@ export default function BarcodePrinting() {
       return;
     }
 
+    // Fetch pur_price from product_variants
+    const { data: variantData } = await supabase
+      .from("product_variants")
+      .select("pur_price")
+      .eq("id", result.id)
+      .maybeSingle();
+
+    const purPrice = variantData?.pur_price || 0;
+
     const newItem: LabelItem = {
       sku_id: result.id,
       product_name: result.product_name,
@@ -1283,6 +1292,8 @@ export default function BarcodePrinting() {
       style: result.style,
       size: result.size,
       sale_price: result.sale_price,
+      pur_price: purPrice,
+      purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice) : '',
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
@@ -1430,6 +1441,7 @@ export default function BarcodePrinting() {
           sku_id,
           barcode,
           sale_price,
+          pur_price,
           size
         `)
         .eq("bill_id", billData.id);
@@ -1447,6 +1459,24 @@ export default function BarcodePrinting() {
       if (skuIds.length === 0) {
         toast.error("No valid products found in this bill");
         return;
+      }
+
+      // Fetch supplier code from the bill
+      const { data: billDetailData } = await supabase
+        .from("purchase_bills")
+        .select("supplier_id")
+        .eq("id", billData.id)
+        .maybeSingle();
+
+      let supplierCode = '';
+      if (billDetailData?.supplier_id) {
+        const { data: supplierData } = await supabase
+          .from("suppliers")
+          .select("supplier_code")
+          .eq("id", billDetailData.supplier_id)
+          .maybeSingle();
+        
+        supplierCode = supplierData?.supplier_code || '';
       }
 
       // Fetch product details including variants
@@ -1489,6 +1519,7 @@ export default function BarcodePrinting() {
         .filter(item => item.sku_id && variantMap.has(item.sku_id))
         .map(item => {
           const variantInfo = variantMap.get(item.sku_id);
+          const purPrice = item.pur_price || 0;
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
@@ -1498,9 +1529,12 @@ export default function BarcodePrinting() {
             style: variantInfo.style,
             size: item.size || variantInfo.size,
             sale_price: item.sale_price || variantInfo.sale_price,
+            pur_price: purPrice,
+            purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice) : '',
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
-            qty: item.qty
+            qty: item.qty,
+            supplier_code: supplierCode
           };
         });
 
