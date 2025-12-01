@@ -18,7 +18,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -87,6 +88,24 @@ const PurchaseBillDashboard = () => {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+
+  // Column visibility settings
+  const [columnSettings, setColumnSettings] = useState(() => {
+    const saved = localStorage.getItem('purchaseBillColumnSettings');
+    return saved ? JSON.parse(saved) : {
+      status: true,
+      recordPayment: true,
+      modify: true,
+      printBarcodes: true,
+      delete: true
+    };
+  });
+
+  const updateColumnSetting = (column: string, visible: boolean) => {
+    const newSettings = { ...columnSettings, [column]: visible };
+    setColumnSettings(newSettings);
+    localStorage.setItem('purchaseBillColumnSettings', JSON.stringify(newSettings));
+  };
 
   useEffect(() => {
     fetchBills();
@@ -620,6 +639,61 @@ const PurchaseBillDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
           </div>
           <div className="flex gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">Show/Hide Columns</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="status"
+                        checked={columnSettings.status}
+                        onCheckedChange={(checked) => updateColumnSetting('status', checked as boolean)}
+                      />
+                      <Label htmlFor="status" className="text-sm cursor-pointer">Payment Status</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="recordPayment"
+                        checked={columnSettings.recordPayment}
+                        onCheckedChange={(checked) => updateColumnSetting('recordPayment', checked as boolean)}
+                      />
+                      <Label htmlFor="recordPayment" className="text-sm cursor-pointer">Record Payment</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="modify"
+                        checked={columnSettings.modify}
+                        onCheckedChange={(checked) => updateColumnSetting('modify', checked as boolean)}
+                      />
+                      <Label htmlFor="modify" className="text-sm cursor-pointer">Edit</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="printBarcodes"
+                        checked={columnSettings.printBarcodes}
+                        onCheckedChange={(checked) => updateColumnSetting('printBarcodes', checked as boolean)}
+                      />
+                      <Label htmlFor="printBarcodes" className="text-sm cursor-pointer">Print Barcodes</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="delete"
+                        checked={columnSettings.delete}
+                        onCheckedChange={(checked) => updateColumnSetting('delete', checked as boolean)}
+                      />
+                      <Label htmlFor="delete" className="text-sm cursor-pointer">Delete</Label>
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button 
               onClick={handleFixMissingProductNames} 
               variant="outline"
@@ -764,7 +838,7 @@ const PurchaseBillDashboard = () => {
                       <TableHead className="text-right">Gross Amount</TableHead>
                       <TableHead className="text-right">GST Amount</TableHead>
                       <TableHead className="text-right">Net Amount</TableHead>
-                      <TableHead className="text-center">Payment Status</TableHead>
+                      {columnSettings.status && <TableHead className="text-center">Payment Status</TableHead>}
                       <TableHead className="text-center">Items</TableHead>
                       <TableHead className="text-center">Actions</TableHead>
                     </TableRow>
@@ -813,9 +887,11 @@ const PurchaseBillDashboard = () => {
                           <TableCell className="text-right font-semibold text-primary">
                             ₹{bill.net_amount.toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-center">
-                            {getPaymentStatusBadge(bill)}
-                          </TableCell>
+                          {columnSettings.status && (
+                            <TableCell className="text-center">
+                              {getPaymentStatusBadge(bill)}
+                            </TableCell>
+                          )}
                           <TableCell className="text-center">
                             <Badge variant="secondary">
                               {billItems[bill.id]?.length || 0}
@@ -823,52 +899,60 @@ const PurchaseBillDashboard = () => {
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => handleOpenPaymentDialog(bill, e)}
-                                className="gap-1"
-                                title="Record Payment"
-                              >
-                                <Wallet className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate("/purchase-entry", { state: { editBillId: bill.id } });
-                                }}
-                                className="gap-1"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => handlePrintBarcodes(bill.id, e)}
-                                disabled={printingBill === bill.id}
-                                className="gap-1"
-                              >
-                                {printingBill === bill.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Printer className="h-4 w-4" />
-                                )}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => handleDeleteClick(bill, e)}
-                                disabled={deletingBill === bill.id}
-                                className="gap-1 text-destructive hover:text-destructive"
-                              >
-                                {deletingBill === bill.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </Button>
+                              {columnSettings.recordPayment && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => handleOpenPaymentDialog(bill, e)}
+                                  className="gap-1"
+                                  title="Record Payment"
+                                >
+                                  <Wallet className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {columnSettings.modify && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate("/purchase-entry", { state: { editBillId: bill.id } });
+                                  }}
+                                  className="gap-1"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {columnSettings.printBarcodes && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => handlePrintBarcodes(bill.id, e)}
+                                  disabled={printingBill === bill.id}
+                                  className="gap-1"
+                                >
+                                  {printingBill === bill.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Printer className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
+                              {columnSettings.delete && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => handleDeleteClick(bill, e)}
+                                  disabled={deletingBill === bill.id}
+                                  className="gap-1 text-destructive hover:text-destructive"
+                                >
+                                  {deletingBill === bill.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Trash2 className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -876,7 +960,7 @@ const PurchaseBillDashboard = () => {
                         {/* Expanded Items Row */}
                         {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={12} className="bg-muted/20 p-0">
+                            <TableCell colSpan={columnSettings.status ? 13 : 12} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="font-semibold text-sm">Purchase Items Details</h4>
