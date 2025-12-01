@@ -96,6 +96,11 @@ interface SaleSettings {
     ifsc_code?: string;
     account_holder?: string;
   };
+  // Invoice Customization
+  invoice_header_text?: string;
+  invoice_footer_text?: string;
+  logo_placement?: 'left' | 'center' | 'right';
+  font_family?: 'inter' | 'roboto' | 'montserrat' | 'opensans' | 'playfair' | 'merriweather' | 'lora' | 'raleway' | 'poppins';
 }
 
 interface BillBarcodeSettings {
@@ -1499,31 +1504,148 @@ export default function Settings() {
                     placeholder="e.g., 18"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invoice_template">Invoice Template Style</Label>
-                  <Select
-                    value={settings.sale_settings?.invoice_template || "professional"}
-                    onValueChange={(value) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          invoice_template: value as 'professional' | 'modern' | 'classic' | 'compact',
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger id="invoice_template">
-                      <SelectValue placeholder="Select template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="professional">Professional - Vyapar style (Recommended)</SelectItem>
-                      <SelectItem value="modern">Modern - Clean minimal design</SelectItem>
-                      <SelectItem value="classic">Classic - Traditional receipt style</SelectItem>
-                      <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="invoice_template">Invoice Template Style</Label>
+                    <Select
+                      value={settings.sale_settings?.invoice_template || "professional"}
+                      onValueChange={(value) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            invoice_template: value as 'professional' | 'modern' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice',
+                          },
+                        })
+                      }
+                    >
+                      <SelectTrigger id="invoice_template">
+                        <SelectValue placeholder="Select template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="professional">Professional - Detailed business style</SelectItem>
+                        <SelectItem value="modern">Modern - Clean gradient design</SelectItem>
+                        <SelectItem value="classic">Classic - Traditional receipt</SelectItem>
+                        <SelectItem value="minimal">Minimal - Simple & elegant</SelectItem>
+                        <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
+                        <SelectItem value="detailed">Detailed - Comprehensive info</SelectItem>
+                        <SelectItem value="tax-invoice">Tax Invoice - GST compliant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                
+                  {/* Invoice Customization Section */}
+                  <div className="space-y-4 mt-6 pt-6 border-t">
+                    <h3 className="text-lg font-semibold">Invoice Customization</h3>
+                    <p className="text-sm text-muted-foreground">Customize invoice appearance and branding</p>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="font_family">Font Family</Label>
+                      <Select
+                        value={settings.sale_settings?.font_family || "inter"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              font_family: value as any,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="font_family">
+                          <SelectValue placeholder="Select font" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inter">Inter - Modern sans-serif</SelectItem>
+                          <SelectItem value="roboto">Roboto - Clean & readable</SelectItem>
+                          <SelectItem value="montserrat">Montserrat - Professional</SelectItem>
+                          <SelectItem value="opensans">Open Sans - Friendly</SelectItem>
+                          <SelectItem value="poppins">Poppins - Contemporary</SelectItem>
+                          <SelectItem value="raleway">Raleway - Elegant</SelectItem>
+                          <SelectItem value="playfair">Playfair Display - Serif classic</SelectItem>
+                          <SelectItem value="merriweather">Merriweather - Traditional serif</SelectItem>
+                          <SelectItem value="lora">Lora - Readable serif</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Choose the font style for your invoices
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="logo_placement">Logo Placement</Label>
+                      <Select
+                        value={settings.sale_settings?.logo_placement || "left"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              logo_placement: value as 'left' | 'center' | 'right',
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="logo_placement">
+                          <SelectValue placeholder="Select placement" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="left">Left Aligned</SelectItem>
+                          <SelectItem value="center">Center Aligned</SelectItem>
+                          <SelectItem value="right">Right Aligned</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Position of your business logo on invoices
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_header_text">Custom Header Text</Label>
+                      <Textarea
+                        id="invoice_header_text"
+                        value={settings.sale_settings?.invoice_header_text || ''}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_header_text: e.target.value,
+                            },
+                          })
+                        }
+                        rows={2}
+                        maxLength={200}
+                        placeholder="e.g., Thank you for shopping with us!"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optional text to display at the top of invoices (max 200 chars)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="invoice_footer_text">Custom Footer Text</Label>
+                      <Textarea
+                        id="invoice_footer_text"
+                        value={settings.sale_settings?.invoice_footer_text || ''}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_footer_text: e.target.value,
+                            },
+                          })
+                        }
+                        rows={2}
+                        maxLength={200}
+                        placeholder="e.g., Visit us again! Follow us on social media"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Optional text to display at the bottom of invoices (max 200 chars)
+                      </p>
+                    </div>
+                  </div>
                 <div className="space-y-2">
                   <Label htmlFor="invoice_color_scheme">Invoice Color Scheme</Label>
                   <Select

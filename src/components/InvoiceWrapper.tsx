@@ -221,7 +221,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       showYouSaved,
       amountWithGrouping,
       format: format as 'a5-vertical' | 'a5-horizontal' | 'a4',
-      colorScheme
+      colorScheme,
+      
+      // Customization settings
+      customHeaderText: settings?.sale_settings?.invoice_header_text,
+      customFooterText: settings?.sale_settings?.invoice_footer_text,
+      logoPlacement: settings?.sale_settings?.logo_placement || 'left',
+      fontFamily: settings?.sale_settings?.font_family || 'inter',
     };
 
     // Select template component based on settings

@@ -51,6 +51,10 @@ interface TaxInvoiceTemplateProps {
   };
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
+  customHeaderText?: string;
+  customFooterText?: string;
+  logoPlacement?: 'left' | 'center' | 'right';
+  fontFamily?: string;
 }
 
 export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
@@ -82,6 +86,10 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   termsConditions,
   bankDetails,
   format = 'a5-vertical',
+  customHeaderText,
+  customFooterText,
+  logoPlacement = 'left',
+  fontFamily = 'inter',
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -94,6 +102,20 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
   const minHeight = format === 'a4' ? '297mm' : format === 'a5-horizontal' ? '148mm' : '210mm';
 
+  const fontFamilyMap: Record<string, string> = {
+    inter: "'Inter', sans-serif",
+    roboto: "'Roboto', sans-serif",
+    montserrat: "'Montserrat', sans-serif",
+    opensans: "'Open Sans', sans-serif",
+    poppins: "'Poppins', sans-serif",
+    raleway: "'Raleway', sans-serif",
+    playfair: "'Playfair Display', serif",
+    merriweather: "'Merriweather', serif",
+    lora: "'Lora', serif",
+  };
+
+  const logoAlign = logoPlacement === 'center' ? 'center' : logoPlacement === 'right' ? 'right' : 'left';
+
   return (
     <div style={{
       width,
@@ -102,14 +124,21 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       margin: '0 auto',
       padding: '10mm',
       backgroundColor: 'white',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.inter,
       fontSize: '9px',
       color: '#000',
       border: '2px solid #000',
       overflow: 'hidden'
     }}>
+      {/* Custom Header Text */}
+      {customHeaderText && (
+        <div style={{ textAlign: 'center', marginBottom: '6px', fontSize: '10px', fontWeight: 'bold', color: '#333' }}>
+          {customHeaderText}
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ textAlign: 'center', borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '8px' }}>
+      <div style={{ textAlign: logoAlign, borderBottom: '2px solid #000', paddingBottom: '8px', marginBottom: '8px' }}>
         <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>TAX INVOICE</div>
         {logoUrl && (
           <img src={logoUrl} alt="Logo" style={{ maxWidth: '60px', maxHeight: '60px', marginBottom: '4px' }} />
@@ -292,7 +321,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
 
       {/* Footer Note */}
       <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '7px', fontStyle: 'italic', color: '#666' }}>
-        This is a computer-generated invoice and does not require a physical signature
+        {customFooterText || 'This is a computer-generated invoice and does not require a physical signature'}
       </div>
     </div>
   );
