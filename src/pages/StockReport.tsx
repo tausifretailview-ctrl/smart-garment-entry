@@ -171,15 +171,14 @@ export default function StockReport() {
           notes,
           created_at,
           variant_id,
-          product_variants!inner (
+          product_variants (
             size,
-            organization_id,
             products (
               product_name
             )
           )
         `)
-        .eq("product_variants.organization_id", currentOrganization.id)
+        .eq("organization_id", currentOrganization.id)
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -210,17 +209,16 @@ export default function StockReport() {
         .from('batch_stock')
         .select(`
           *,
-          product_variants!inner (
+          product_variants (
             size,
             barcode,
-            organization_id,
             products (
               product_name,
               brand
             )
           )
         `)
-        .eq('product_variants.organization_id', currentOrganization.id)
+        .eq('organization_id', currentOrganization.id)
         .gt('quantity', 0)
         .order('purchase_date', { ascending: true });
       
