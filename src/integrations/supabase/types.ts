@@ -188,6 +188,7 @@ export type Database = {
           bill_number: string
           created_at: string | null
           id: string
+          organization_id: string
           purchase_bill_id: string | null
           purchase_date: string
           quantity: number
@@ -198,6 +199,7 @@ export type Database = {
           bill_number: string
           created_at?: string | null
           id?: string
+          organization_id: string
           purchase_bill_id?: string | null
           purchase_date: string
           quantity?: number
@@ -208,6 +210,7 @@ export type Database = {
           bill_number?: string
           created_at?: string | null
           id?: string
+          organization_id?: string
           purchase_bill_id?: string | null
           purchase_date?: string
           quantity?: number
@@ -215,6 +218,13 @@ export type Database = {
           variant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "batch_stock_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "batch_stock_purchase_bill_id_fkey"
             columns: ["purchase_bill_id"]
@@ -1205,6 +1215,7 @@ export type Database = {
           id: string
           movement_type: string
           notes: string | null
+          organization_id: string
           quantity: number
           reference_id: string | null
           variant_id: string
@@ -1215,6 +1226,7 @@ export type Database = {
           id?: string
           movement_type: string
           notes?: string | null
+          organization_id: string
           quantity: number
           reference_id?: string | null
           variant_id: string
@@ -1225,11 +1237,19 @@ export type Database = {
           id?: string
           movement_type?: string
           notes?: string | null
+          organization_id?: string
           quantity?: number
           reference_id?: string | null
           variant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "stock_movements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "stock_movements_variant_id_fkey"
             columns: ["variant_id"]
