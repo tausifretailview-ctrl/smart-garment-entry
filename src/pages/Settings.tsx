@@ -81,7 +81,7 @@ interface SaleSettings {
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'classic' | 'compact';
+  invoice_template?: 'professional' | 'modern' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
