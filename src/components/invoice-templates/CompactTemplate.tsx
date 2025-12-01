@@ -36,6 +36,10 @@ interface CompactTemplateProps {
   qrCodeUrl?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
+  customHeaderText?: string;
+  customFooterText?: string;
+  logoPlacement?: 'left' | 'center' | 'right';
+  fontFamily?: string;
 }
 
 export const CompactTemplate: React.FC<CompactTemplateProps> = ({
@@ -55,6 +59,10 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   paymentMethod,
   qrCodeUrl,
   format = 'a5-vertical',
+  customHeaderText,
+  customFooterText,
+  logoPlacement = 'left',
+  fontFamily = 'inter',
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -67,6 +75,20 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
   const minHeight = format === 'a4' ? '297mm' : format === 'a5-horizontal' ? '148mm' : '210mm';
 
+  const fontFamilyMap: Record<string, string> = {
+    inter: "'Inter', sans-serif",
+    roboto: "'Roboto', sans-serif",
+    montserrat: "'Montserrat', sans-serif",
+    opensans: "'Open Sans', sans-serif",
+    poppins: "'Poppins', sans-serif",
+    raleway: "'Raleway', sans-serif",
+    playfair: "'Playfair Display', serif",
+    merriweather: "'Merriweather', serif",
+    lora: "'Lora', serif",
+  };
+
+  const logoAlign = logoPlacement === 'center' ? 'center' : logoPlacement === 'right' ? 'right' : 'left';
+
   return (
     <div style={{
       width,
@@ -75,13 +97,20 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
       margin: '0 auto',
       padding: '8mm',
       backgroundColor: 'white',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.inter,
       fontSize: '10px',
       color: '#000',
       overflow: 'hidden'
     }}>
+      {/* Custom Header Text */}
+      {customHeaderText && (
+        <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', fontWeight: 'bold', color: '#555' }}>
+          {customHeaderText}
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #000', paddingBottom: '6px' }}>
+      <div style={{ textAlign: logoAlign, marginBottom: '8px', borderBottom: '2px solid #000', paddingBottom: '6px' }}>
         <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '2px' }}>{businessName}</div>
         <div style={{ fontSize: '9px', lineHeight: '1.3' }}>{address}</div>
         <div style={{ fontSize: '9px' }}>Ph: {mobile} {gstNumber && `| GSTIN: ${gstNumber}`}</div>
@@ -160,7 +189,11 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
 
       {/* Footer */}
       <div style={{ marginTop: '12px', textAlign: 'center', fontSize: '9px', borderTop: '1px solid #000', paddingTop: '6px' }}>
-        <div style={{ fontWeight: 'bold' }}>Thank You! Visit Again</div>
+        {customFooterText ? (
+          <div style={{ fontWeight: 'bold' }}>{customFooterText}</div>
+        ) : (
+          <div style={{ fontWeight: 'bold' }}>Thank You! Visit Again</div>
+        )}
       </div>
     </div>
   );

@@ -44,6 +44,10 @@ interface DetailedTemplateProps {
   termsConditions?: string[];
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
+  customHeaderText?: string;
+  customFooterText?: string;
+  logoPlacement?: 'left' | 'center' | 'right';
+  fontFamily?: string;
 }
 
 export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
@@ -73,7 +77,11 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   declarationText,
   termsConditions,
   format = 'a5-vertical',
-  colorScheme = 'blue'
+  colorScheme = 'blue',
+  customHeaderText,
+  customFooterText,
+  logoPlacement = 'left',
+  fontFamily = 'inter',
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -96,6 +104,20 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
 
   const primaryColor = colorMap[colorScheme] || colorMap.blue;
 
+  const fontFamilyMap: Record<string, string> = {
+    inter: "'Inter', sans-serif",
+    roboto: "'Roboto', sans-serif",
+    montserrat: "'Montserrat', sans-serif",
+    opensans: "'Open Sans', sans-serif",
+    poppins: "'Poppins', sans-serif",
+    raleway: "'Raleway', sans-serif",
+    playfair: "'Playfair Display', serif",
+    merriweather: "'Merriweather', serif",
+    lora: "'Lora', serif",
+  };
+
+  const logoAlign = logoPlacement === 'center' ? 'center' : logoPlacement === 'right' ? 'flex-end' : 'flex-start';
+
   return (
     <div style={{
       width,
@@ -104,19 +126,26 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
       margin: '0 auto',
       padding: '10mm',
       backgroundColor: 'white',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.inter,
       fontSize: '10px',
       color: '#000',
       overflow: 'hidden'
     }}>
+      {/* Custom Header Text */}
+      {customHeaderText && (
+        <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', fontWeight: 'bold', color: primaryColor }}>
+          {customHeaderText}
+        </div>
+      )}
+
       {/* Header with Logo */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: `3px solid ${primaryColor}`, paddingBottom: '8px' }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: logoAlign }}>
           {logoUrl && (
             <img src={logoUrl} alt="Logo" style={{ maxWidth: '60px', maxHeight: '60px', marginBottom: '6px' }} />
           )}
-          <div style={{ fontSize: '16px', fontWeight: 'bold', color: primaryColor, marginBottom: '3px' }}>{businessName}</div>
-          <div style={{ fontSize: '9px', lineHeight: '1.4', maxWidth: '80%' }}>
+          <div style={{ fontSize: '16px', fontWeight: 'bold', color: primaryColor, marginBottom: '3px', textAlign: logoPlacement }}>{businessName}</div>
+          <div style={{ fontSize: '9px', lineHeight: '1.4', maxWidth: '80%', textAlign: logoPlacement }}>
             {address}<br/>
             Mobile: {mobile} {email && `| Email: ${email}`}<br/>
             {gstNumber && `GSTIN: ${gstNumber}`}
@@ -250,7 +279,13 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: `2px solid ${primaryColor}`, paddingTop: '8px', fontSize: '9px' }}>
-        <div style={{ fontWeight: 'bold' }}>Thank You for Your Business!</div>
+        <div>
+          {customFooterText ? (
+            <div style={{ fontWeight: 'bold' }}>{customFooterText}</div>
+          ) : (
+            <div style={{ fontWeight: 'bold' }}>Thank You for Your Business!</div>
+          )}
+        </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 'bold' }}>Authorized Signatory</div>
         </div>
