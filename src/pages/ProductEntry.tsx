@@ -609,6 +609,7 @@ const ProductEntry = () => {
                 quantity: v.opening_qty,
                 movement_type: "opening_stock",
                 notes: `Opening stock for ${formData.product_name} - ${v.size}`,
+                organization_id: currentOrganization.id,
               }));
 
             if (stockMovements.length > 0) {
