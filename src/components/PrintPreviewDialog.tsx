@@ -86,22 +86,27 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           width: '148mm',
           minHeight: '210mm',
           maxHeight: '210mm',
+          overflow: 'hidden',
         };
       case 'a5-horizontal':
         return {
           width: '210mm',
           minHeight: '148mm',
           maxHeight: '148mm',
+          overflow: 'hidden',
         };
       case 'thermal':
         return {
           width: '80mm',
           minHeight: 'auto',
+          maxHeight: 'none',
         };
       default: // a4
         return {
           width: '210mm',
           minHeight: '297mm',
+          maxHeight: '297mm',
+          overflow: 'hidden',
         };
     }
   };

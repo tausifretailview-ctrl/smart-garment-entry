@@ -707,9 +707,53 @@ export default function POSSales() {
   };
 
   // Setup print handler using react-to-print
+  const getPageStyle = () => {
+    const format = posBillFormat;
+    let size = 'A5 portrait';
+    let margin = '5mm';
+    
+    switch (format) {
+      case 'a5-horizontal':
+        size = 'A5 landscape';
+        break;
+      case 'a4':
+        size = 'A4 portrait';
+        margin = '10mm';
+        break;
+      case 'thermal':
+        size = '80mm auto';
+        margin = '3mm';
+        break;
+      default: // a5-vertical
+        size = 'A5 portrait';
+        break;
+    }
+    
+    return `
+      @page {
+        size: ${size};
+        margin: ${margin};
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+        * {
+          page-break-after: avoid !important;
+          page-break-inside: avoid !important;
+        }
+      }
+    `;
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
+    pageStyle: getPageStyle(),
     onAfterPrint: () => {
       toast({
         title: "Success",
@@ -1865,16 +1909,24 @@ export default function POSSales() {
           position: 'fixed', 
           top: 0, 
           left: 0,
-          width: '210mm',
-          minHeight: '297mm',
+          width: posBillFormat === 'a4' ? '210mm' : 
+                 posBillFormat === 'a5-horizontal' ? '210mm' : 
+                 posBillFormat === 'thermal' ? '80mm' : '148mm',
+          minHeight: posBillFormat === 'a4' ? '297mm' : 
+                     posBillFormat === 'a5-horizontal' ? '148mm' : 
+                     posBillFormat === 'thermal' ? 'auto' : '210mm',
+          maxHeight: posBillFormat === 'thermal' ? 'none' : 
+                     posBillFormat === 'a4' ? '297mm' : 
+                     posBillFormat === 'a5-horizontal' ? '148mm' : '210mm',
           opacity: 0, 
           pointerEvents: 'none',
           zIndex: -9999,
-          overflow: 'visible'
+          overflow: 'hidden'
         }}>
           {(items.length > 0 || savedInvoiceData) && (
             <InvoiceWrapper
               ref={invoicePrintRef}
+              format={posBillFormat}
               billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber || nextInvoicePreview || "DRAFT"}
               date={new Date()}
               customerName={savedInvoiceData?.customerName || customerName || "Walk-in Customer"}

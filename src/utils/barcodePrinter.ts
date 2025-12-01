@@ -168,6 +168,22 @@ export const printBarcodesDirectly = async (
     padding: 0;
   `;
 
+  const dimensions = sheetType === 'custom' && customDimensions
+    ? { 
+        cols: customDimensions.cols, 
+        width: `${customDimensions.width}mm`, 
+        height: `${customDimensions.height}mm`, 
+        gap: `${customDimensions.gap}mm` 
+      }
+    : sheetPresets[sheetType];
+
+  // Calculate actual content height
+  const labelCount = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  const rows = Math.ceil(labelCount / dimensions.cols);
+  const heightValue = parseFloat(dimensions.height);
+  const gapValue = parseFloat(dimensions.gap);
+  const contentHeight = (rows * heightValue) + ((rows - 1) * gapValue) + topOffset + 10;
+
   const style = doc.createElement('style');
   style.textContent = `
     body {
@@ -189,11 +205,25 @@ export const printBarcodesDirectly = async (
       line-height: 1.4;
     }
     .label-grid {
-      page-break-after: auto;
+      page-break-inside: avoid !important;
+      page-break-after: avoid !important;
     }
     @page {
-      size: A4;
+      size: 210mm ${contentHeight}mm;
       margin: 0;
+    }
+    @media print {
+      html, body {
+        width: 210mm;
+        height: ${contentHeight}mm;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      * {
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+      }
     }
   `;
 
@@ -201,15 +231,6 @@ export const printBarcodesDirectly = async (
   doc.body.appendChild(printContainer);
 
   try {
-    const dimensions = sheetType === 'custom' && customDimensions
-      ? { 
-          cols: customDimensions.cols, 
-          width: `${customDimensions.width}mm`, 
-          height: `${customDimensions.height}mm`, 
-          gap: `${customDimensions.gap}mm` 
-        }
-      : sheetPresets[sheetType];
-
     const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';
     gridDiv.style.cssText = `

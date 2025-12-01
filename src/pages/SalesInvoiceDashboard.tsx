@@ -266,8 +266,49 @@ export default function SalesInvoiceDashboard() {
     setCurrentPage(1);
   };
 
+  const getPageStyle = () => {
+    const format = billFormat;
+    let size = 'A4 portrait';
+    let margin = '10mm';
+    
+    switch (format) {
+      case 'a5':
+        size = 'A5 portrait';
+        margin = '5mm';
+        break;
+      case 'thermal':
+        size = '80mm auto';
+        margin = '3mm';
+        break;
+      default: // a4
+        size = 'A4 portrait';
+        break;
+    }
+    
+    return `
+      @page {
+        size: ${size};
+        margin: ${margin};
+      }
+      @media print {
+        html, body {
+          width: 100%;
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+        * {
+          page-break-after: avoid !important;
+          page-break-inside: avoid !important;
+        }
+      }
+    `;
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+    pageStyle: getPageStyle(),
     onAfterPrint: () => {
       setInvoiceToPrint(null);
       toast({
@@ -740,45 +781,51 @@ export default function SalesInvoiceDashboard() {
         )}
 
         {/* Hidden Invoice for Printing */}
-      {invoiceToPrint && (
-        <div style={{ 
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '210mm',
-          minHeight: '297mm',
-          opacity: 0,
-          pointerEvents: 'none',
-          zIndex: -9999,
-          overflow: 'visible'
-        }}>
-          <InvoiceWrapper
-            ref={printRef}
-            billNo={invoiceToPrint.sale_number}
-            date={new Date(invoiceToPrint.sale_date)}
-            customerName={invoiceToPrint.customer_name}
-            customerAddress={invoiceToPrint.customer_address || ""}
-            customerMobile={invoiceToPrint.customer_phone || ""}
-            customerGSTIN=""
-            template={invoiceTemplate}
-            items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
-              sr: index + 1,
-              particulars: item.product_name,
-              size: item.size,
-              barcode: item.barcode || "",
-              hsn: "",
-              sp: item.mrp,
-              qty: item.quantity,
-              rate: item.unit_price,
-              total: item.line_total,
-            })) || []}
-            subTotal={invoiceToPrint.gross_amount}
-            discount={invoiceToPrint.discount_amount}
-            grandTotal={invoiceToPrint.net_amount}
-            paymentMethod={invoiceToPrint.payment_method}
-          />
-        </div>
-      )}
+        {invoiceToPrint && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: billFormat === 'a4' ? '210mm' : 
+                   billFormat === 'thermal' ? '80mm' : '148mm',
+            minHeight: billFormat === 'a4' ? '297mm' : 
+                       billFormat === 'thermal' ? 'auto' : '210mm',
+            maxHeight: billFormat === 'thermal' ? 'none' : 
+                       billFormat === 'a4' ? '297mm' : '210mm',
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -9999,
+            overflow: 'hidden'
+          }}>
+            <InvoiceWrapper
+              ref={printRef}
+              format={billFormat}
+              billNo={invoiceToPrint.sale_number}
+              date={new Date(invoiceToPrint.sale_date)}
+              customerName={invoiceToPrint.customer_name}
+              customerAddress={invoiceToPrint.customer_address || ""}
+              customerMobile={invoiceToPrint.customer_phone || ""}
+              customerGSTIN=""
+              template={invoiceTemplate}
+              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+                sr: index + 1,
+                particulars: item.product_name,
+                size: item.size,
+                barcode: item.barcode || "",
+                hsn: "",
+                sp: item.mrp,
+                qty: item.quantity,
+                rate: item.unit_price,
+                total: item.line_total,
+              })) || []}
+              subTotal={invoiceToPrint.gross_amount}
+              discount={invoiceToPrint.discount_amount}
+              grandTotal={invoiceToPrint.net_amount}
+              paymentMethod={invoiceToPrint.payment_method}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
