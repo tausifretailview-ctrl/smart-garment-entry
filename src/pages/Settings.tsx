@@ -1953,6 +1953,12 @@ export default function Settings() {
                         showTaxDetails={(settings.sale_settings as any)?.show_tax_details}
                         showYouSaved={(settings.sale_settings as any)?.show_you_saved}
                         amountWithGrouping={(settings.sale_settings as any)?.amount_with_grouping}
+                        customHeaderText={settings.sale_settings?.invoice_header_text}
+                        customFooterText={settings.sale_settings?.invoice_footer_text}
+                        logoPlacement={settings.sale_settings?.logo_placement}
+                        fontFamily={settings.sale_settings?.font_family}
+                        declarationText={settings.sale_settings?.declaration_text}
+                        termsConditions={settings.sale_settings?.terms_list}
                       />
                     </div>
                   </div>

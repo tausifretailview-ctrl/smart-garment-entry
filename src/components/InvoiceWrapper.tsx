@@ -72,6 +72,14 @@ interface InvoiceWrapperProps {
   showTaxDetails?: boolean;
   showYouSaved?: boolean;
   amountWithGrouping?: boolean;
+  
+  // Customization overrides (for live preview)
+  customHeaderText?: string;
+  customFooterText?: string;
+  logoPlacement?: string;
+  fontFamily?: string;
+  declarationText?: string;
+  termsConditions?: string[];
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -155,6 +163,18 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const showYouSaved = props.showYouSaved ?? (settings?.sale_settings as any)?.show_you_saved ?? false;
     const amountWithGrouping = props.amountWithGrouping ?? (settings?.sale_settings as any)?.amount_with_grouping ?? true;
     
+    // Get customization settings - use prop overrides if provided for live preview
+    const customHeaderText = props.customHeaderText ?? settings?.sale_settings?.invoice_header_text;
+    const customFooterText = props.customFooterText ?? settings?.sale_settings?.invoice_footer_text;
+    const logoPlacement = props.logoPlacement ?? settings?.sale_settings?.logo_placement ?? 'left';
+    const fontFamily = props.fontFamily ?? settings?.sale_settings?.font_family ?? 'inter';
+    const declarationText = props.declarationText ?? settings?.sale_settings?.declaration_text ?? 'Certified that the particulars given above are true and correct';
+    const termsConditions = props.termsConditions ?? settings?.sale_settings?.terms_list ?? [
+      'Goods once sold will not be taken back',
+      'No exchange without bill',
+      'Subject to jurisdiction'
+    ];
+    
     // Calculate tax amounts (simplified - you may need more complex logic)
     const taxableAmount = props.subTotal - props.discount;
     const gstRate = settings?.sale_settings?.sales_tax_rate || 0;
@@ -200,12 +220,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       qrCodeUrl,
       upiId: settings?.bill_barcode_settings?.upi_id,
       bankDetails: settings?.sale_settings?.bank_details,
-      declarationText: settings?.sale_settings?.declaration_text || 'Certified that the particulars given above are true and correct',
-      termsConditions: settings?.sale_settings?.terms_list || [
-        'Goods once sold will not be taken back',
-        'No exchange without bill',
-        'Subject to jurisdiction'
-      ],
+      declarationText,
+      termsConditions,
       
       showHSN,
       showBarcode,
@@ -224,10 +240,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       colorScheme,
       
       // Customization settings
-      customHeaderText: settings?.sale_settings?.invoice_header_text,
-      customFooterText: settings?.sale_settings?.invoice_footer_text,
-      logoPlacement: settings?.sale_settings?.logo_placement || 'left',
-      fontFamily: settings?.sale_settings?.font_family || 'inter',
+      customHeaderText,
+      customFooterText,
+      logoPlacement,
+      fontFamily,
     };
 
     // Select template component based on settings
