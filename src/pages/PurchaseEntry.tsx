@@ -102,6 +102,7 @@ const PurchaseEntry = () => {
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
+  const [roundOff, setRoundOff] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
@@ -144,6 +145,7 @@ const PurchaseEntry = () => {
         setSoftwareBillNo(parsed.softwareBillNo);
         setBillDate(new Date(parsed.billDate));
         setLineItems(parsed.lineItems);
+        setRoundOff(parsed.roundOff || 0);
         sessionStorage.removeItem('purchaseEntryState');
       } catch (error) {
         console.error('Error restoring purchase state:', error);
@@ -179,6 +181,7 @@ const PurchaseEntry = () => {
           });
           setSoftwareBillNo(existingBill.software_bill_no || "");
           setBillDate(new Date(existingBill.bill_date));
+          setRoundOff(Number(existingBill.round_off) || 0);
           
           // Load bill items - get product details from purchase_items (denormalized data)
           const { data: itemsData, error: itemsError } = await supabase
@@ -301,10 +304,11 @@ const PurchaseEntry = () => {
   useEffect(() => {
     const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
     const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+    const netBeforeRoundOff = gross + gst;
     setGrossAmount(gross);
     setGstAmount(gst);
-    setNetAmount(gross + gst);
-  }, [lineItems]);
+    setNetAmount(netBeforeRoundOff + roundOff);
+  }, [lineItems, roundOff]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
@@ -625,9 +629,10 @@ const PurchaseEntry = () => {
             supplier_name: billData.supplier_name,
             supplier_invoice_no: billData.supplier_invoice_no,
             bill_date: format(billDate, "yyyy-MM-dd"),
-            gross_amount: grossAmount,
-            gst_amount: gstAmount,
-            net_amount: netAmount,
+      gross_amount: grossAmount,
+      gst_amount: gstAmount,
+      net_amount: netAmount,
+      round_off: roundOff,
           })
           .eq("id", editingBillId);
 
@@ -757,6 +762,7 @@ const PurchaseEntry = () => {
               gross_amount: grossAmount,
               gst_amount: gstAmount,
               net_amount: netAmount,
+              round_off: roundOff,
               organization_id: currentOrganization.id,
             },
           ])
@@ -827,6 +833,7 @@ const PurchaseEntry = () => {
         });
         setBillDate(new Date());
         setLineItems([]);
+        setRoundOff(0);
         setSoftwareBillNo(""); // Reset for next entry
       }
     } catch (error: any) {
@@ -1023,6 +1030,7 @@ const PurchaseEntry = () => {
                       softwareBillNo,
                       billDate: billDate.toISOString(),
                       lineItems,
+                      roundOff,
                     };
                     sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
                     navigate('/product-entry', { state: { returnToPurchase: true } });
@@ -1271,6 +1279,17 @@ const PurchaseEntry = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GST Amount:</span>
                   <span className="font-semibold">₹{totals.gstAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-muted-foreground">Round Off:</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={roundOff}
+                    onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                    className="w-28 text-right"
+                    placeholder="0.00"
+                  />
                 </div>
                 <div className="flex justify-between border-t pt-2 text-lg">
                   <span className="font-semibold">Net Amount:</span>
