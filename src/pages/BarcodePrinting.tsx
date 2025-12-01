@@ -36,6 +36,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
+import { InteractiveLabelPreview } from "@/components/InteractiveLabelPreview";
 
 interface LabelItem {
   sku_id: string;
@@ -3231,10 +3232,10 @@ export default function BarcodePrinting() {
             
             {showCustomizeFields && (
               <div className="pt-4 border-t">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h4 className="font-medium text-sm mb-1">Customize Label Fields</h4>
-                    <p className="text-xs text-muted-foreground">Control which fields appear on your labels, their styling, and drag to reorder</p>
+                    <h4 className="font-medium text-sm mb-1">Interactive Label Editor</h4>
+                    <p className="text-xs text-muted-foreground">Click fields in preview to edit, use arrow keys for precise spacing</p>
                   </div>
                   {selectedLabelTemplate && (
                     <Button 
@@ -3257,92 +3258,14 @@ export default function BarcodePrinting() {
                   )}
                 </div>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Live Preview Panel */}
-                  <div className="lg:col-span-1 order-first lg:order-last">
-                    <div className="sticky top-4">
-                      <div className="border rounded-lg p-4 bg-card">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Eye className="h-4 w-4 text-primary" />
-                          <h5 className="font-medium text-sm">Live Preview</h5>
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {(() => {
-                              const preset = sheetPresets[sheetType];
-                              if (sheetType === 'custom') {
-                                return `${customWidth}×${customHeight}mm`;
-                              }
-                              return `${preset.width}×${preset.height}`;
-                            })()}
-                          </span>
-                        </div>
-                        <div className="flex justify-center">
-                          <div 
-                            className="border-2 border-dashed border-primary/30 rounded bg-white overflow-hidden"
-                            style={{ 
-                              width: (() => {
-                                if (sheetType === 'custom') {
-                                  return `${Math.min(customWidth * 2.5, 150)}px`;
-                                }
-                                const widthNum = parseInt(sheetPresets[sheetType].width);
-                                return `${Math.min(widthNum * 2.5, 150)}px`;
-                              })(),
-                              height: (() => {
-                                if (sheetType === 'custom') {
-                                  return `${Math.min(customHeight * 2.5, 200)}px`;
-                                }
-                                const heightNum = parseInt(sheetPresets[sheetType].height);
-                                return `${Math.min(heightNum * 2.5, 200)}px`;
-                              })(),
-                            }}
-                          >
-                            <LivePreviewLabel 
-                              labelConfig={labelConfig}
-                              businessName={businessName}
-                              onConfigChange={setLabelConfig}
-                              editable={true}
-                              sampleItem={labelItems.length > 0 ? labelItems[0] : null}
-                              labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
-                              labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
-                            />
-                          </div>
-                        </div>
-                        <p className="text-xs text-muted-foreground text-center mt-3">
-                          {labelItems.length > 0 
-                            ? `Showing: ${labelItems[0].product_name}` 
-                            : 'Add products to see actual data'}
-                        </p>
-                        <p className="text-xs text-muted-foreground/70 text-center">
-                          Drag fields to reorder
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Field Controls */}
-                  <div className="lg:col-span-2">
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleDragEnd}
-                    >
-                      <SortableContext
-                        items={labelConfig.fieldOrder}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {labelConfig.fieldOrder.map((fieldKey) => (
-                            <SortableFieldItem
-                              key={fieldKey}
-                              fieldKey={fieldKey}
-                              labelConfig={labelConfig}
-                              setLabelConfig={setLabelConfig}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  </div>
-                </div>
+                <InteractiveLabelPreview
+                  labelConfig={labelConfig}
+                  setLabelConfig={setLabelConfig}
+                  businessName={businessName}
+                  sampleItem={labelItems.length > 0 ? labelItems[0] : null}
+                  labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
+                  labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
+                />
               </div>
             )}
           </div>
