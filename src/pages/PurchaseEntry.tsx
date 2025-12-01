@@ -50,8 +50,8 @@ interface LineItem {
   gst_per: number;
   hsn_code: string;
   barcode: string;
-  discount: number; // discount in rupees
-  line_total: number; // total before GST
+  discount_percent: number; // discount percentage
+  line_total: number; // total after discount
   brand?: string;
   category?: string;
   color?: string;
@@ -204,7 +204,7 @@ const PurchaseEntry = () => {
             gst_per: item.gst_per,
             hsn_code: item.hsn_code || "",
             barcode: item.barcode || "",
-            discount: 0,
+            discount_percent: 0,
             line_total: Number(item.line_total),
           }));
           
@@ -487,7 +487,7 @@ const PurchaseEntry = () => {
         gst_per: product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
-        discount: 0,
+        discount_percent: 0,
         brand: product.brand || "",
         category: product.category || "",
         color: product.color || "",
@@ -505,7 +505,9 @@ const PurchaseEntry = () => {
   };
 
   const addInlineRow = (variant: ProductVariant) => {
-    const lineTotal = 1 * variant.pur_price;
+    const subTotal = 1 * variant.pur_price;
+    const discountAmount = 0;
+    const lineTotal = subTotal - discountAmount;
     const newItem: LineItem = {
       temp_id: Date.now().toString() + Math.random(),
       product_id: variant.product_id,
@@ -518,7 +520,7 @@ const PurchaseEntry = () => {
       gst_per: variant.gst_per,
       hsn_code: variant.hsn_code,
       barcode: variant.barcode,
-      discount: 0,
+      discount_percent: 0,
       line_total: lineTotal,
       brand: variant.brand || "",
       category: variant.category || "",
@@ -529,12 +531,15 @@ const PurchaseEntry = () => {
   };
 
   const addItemRow = (item: Omit<LineItem, "temp_id" | "line_total">) => {
+    const subTotal = item.qty * item.pur_price;
+    const discountAmount = subTotal * (item.discount_percent / 100);
+    const lineTotal = subTotal - discountAmount;
     setLineItems((prev) => [
       ...prev,
       {
         ...item,
         temp_id: Date.now().toString() + Math.random(),
-        line_total: item.qty * item.pur_price,
+        line_total: lineTotal,
       },
     ]);
   };
@@ -544,8 +549,10 @@ const PurchaseEntry = () => {
       items.map((item) => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
-          if (field === "qty" || field === "pur_price") {
-            updated.line_total = updated.qty * updated.pur_price;
+          if (field === "qty" || field === "pur_price" || field === "discount_percent") {
+            const subTotal = updated.qty * updated.pur_price;
+            const discountAmount = subTotal * (updated.discount_percent / 100);
+            updated.line_total = subTotal - discountAmount;
           }
           return updated;
         }
@@ -835,6 +842,10 @@ const PurchaseEntry = () => {
 
   const totals = { 
     totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
+    totalDiscount: lineItems.reduce((sum, item) => {
+      const subTotal = item.qty * item.pur_price;
+      return sum + (subTotal * (item.discount_percent / 100));
+    }, 0),
     grossAmount, 
     gstAmount, 
     netAmount 
@@ -1113,7 +1124,7 @@ const PurchaseEntry = () => {
                       <TableHead className="w-28">PUR.RATE</TableHead>
                       <TableHead className="w-28">SALE.RATE</TableHead>
                       <TableHead className="w-28">SUB TOTAL</TableHead>
-                      <TableHead className="w-24">DIS(Rs)</TableHead>
+                      <TableHead className="w-24">DISC %</TableHead>
                       <TableHead className="w-28">TOTAL</TableHead>
                       <TableHead className="w-24">I-GST</TableHead>
                       <TableHead className="w-24">O-GST</TableHead>
@@ -1192,12 +1203,13 @@ const PurchaseEntry = () => {
                             <Input
                               type="number"
                               min="0"
+                              max="100"
                               step="0.01"
-                              value={item.discount}
+                              value={item.discount_percent}
                               onChange={(e) =>
                                 updateLineItem(
                                   item.temp_id,
-                                  "discount",
+                                  "discount_percent",
                                   parseFloat(e.target.value) || 0
                                 )
                               }
@@ -1251,6 +1263,10 @@ const PurchaseEntry = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Gross Amount:</span>
                   <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Discount:</span>
+                  <span className="font-semibold text-destructive">-₹{totals.totalDiscount.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GST Amount:</span>
@@ -1401,7 +1417,7 @@ const PurchaseEntry = () => {
                           gst_per: selectedProduct.gst_per,
                           hsn_code: selectedProduct.hsn_code,
                           barcode: barcode,
-                          discount: 0,
+                          discount_percent: 0,
                           brand: selectedProduct.brand || "",
                           category: selectedProduct.category || "",
                           color: selectedProduct.color || "",
