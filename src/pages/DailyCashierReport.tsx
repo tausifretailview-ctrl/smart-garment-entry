@@ -8,7 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown } from "lucide-react";
+import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import {
@@ -177,6 +179,117 @@ const DailyCashierReport = () => {
     window.print();
   };
 
+  const handleExportExcel = () => {
+    const data = [
+      ["Cashier Report - " + getPeriodLabel()],
+      [settings?.business_name || "Business Name"],
+      [],
+      ["Summary"],
+      ["Gross Sale", totals.grossSale],
+      ["Total Discount", totals.totalDiscount],
+      ["Net Sale", totals.totalSale],
+      [],
+      ["Payment Method Breakdown"],
+      ["Payment Method", "Bills", "Amount"],
+      ["Cash", totals.cashBills, totals.cashSale],
+      ["Card", totals.cardBills, totals.cardSale],
+      ["UPI", totals.upiBills, totals.upiSale],
+      ["Credit (Pay Later)", totals.creditBills, totals.creditSale],
+      ["Total", totals.totalBills, totals.totalSale],
+      [],
+      ["Collection Summary"],
+      ["Cash Collection", totals.cashSale],
+      ["Card Collection", totals.cardSale],
+      ["UPI Collection", totals.upiSale],
+      ["Credit (Outstanding)", totals.creditSale],
+      ["Total Collection (Cash + Card + UPI)", totals.cashSale + totals.cardSale + totals.upiSale],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Cashier Report");
+    XLSX.writeFile(wb, `Cashier_Report_${format(selectedDate, "yyyy-MM-dd")}.xlsx`);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFontSize(16);
+    doc.text(settings?.business_name || "Business Name", pageWidth / 2, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(getReportTitle(), pageWidth / 2, 30, { align: "center" });
+    doc.text(`Period: ${getPeriodLabel()}`, pageWidth / 2, 38, { align: "center" });
+
+    let y = 55;
+    doc.setFontSize(11);
+    
+    // Summary
+    doc.setFont("helvetica", "bold");
+    doc.text("Summary", 20, y);
+    doc.setFont("helvetica", "normal");
+    y += 10;
+    doc.text(`Gross Sale: ${formatCurrency(totals.grossSale)}`, 20, y);
+    y += 7;
+    doc.text(`Total Discount: ${formatCurrency(totals.totalDiscount)}`, 20, y);
+    y += 7;
+    doc.setFont("helvetica", "bold");
+    doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
+    doc.setFont("helvetica", "normal");
+
+    // Payment Breakdown
+    y += 15;
+    doc.setFont("helvetica", "bold");
+    doc.text("Payment Method Breakdown", 20, y);
+    doc.setFont("helvetica", "normal");
+    y += 10;
+    
+    doc.text("Payment Method", 20, y);
+    doc.text("Bills", 100, y);
+    doc.text("Amount", 140, y);
+    y += 7;
+    
+    doc.text("Cash", 20, y);
+    doc.text(String(totals.cashBills), 100, y);
+    doc.text(formatCurrency(totals.cashSale), 140, y);
+    y += 7;
+    
+    doc.text("Card", 20, y);
+    doc.text(String(totals.cardBills), 100, y);
+    doc.text(formatCurrency(totals.cardSale), 140, y);
+    y += 7;
+    
+    doc.text("UPI", 20, y);
+    doc.text(String(totals.upiBills), 100, y);
+    doc.text(formatCurrency(totals.upiSale), 140, y);
+    y += 7;
+    
+    doc.text("Credit (Pay Later)", 20, y);
+    doc.text(String(totals.creditBills), 100, y);
+    doc.text(formatCurrency(totals.creditSale), 140, y);
+    y += 10;
+    
+    doc.setFont("helvetica", "bold");
+    doc.text("Total", 20, y);
+    doc.text(String(totals.totalBills), 100, y);
+    doc.text(formatCurrency(totals.totalSale), 140, y);
+    
+    // Collection Summary
+    y += 15;
+    doc.text("Collection Summary", 20, y);
+    doc.setFont("helvetica", "normal");
+    y += 10;
+    doc.text(`Total Collection (Cash + Card + UPI): ${formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale)}`, 20, y);
+
+    // Footer
+    y += 20;
+    doc.setFontSize(9);
+    doc.text(`Generated on ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth / 2, y, { align: "center" });
+
+    doc.save(`Cashier_Report_${format(selectedDate, "yyyy-MM-dd")}.pdf`);
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -250,6 +363,14 @@ const DailyCashierReport = () => {
             </PopoverContent>
           </Popover>
           
+          <Button onClick={handleExportExcel} variant="outline">
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Excel
+          </Button>
+          <Button onClick={handleExportPDF} variant="outline">
+            <FileText className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
           <Button onClick={handlePrint} variant="outline">
             <Printer className="h-4 w-4 mr-2" />
             Print
