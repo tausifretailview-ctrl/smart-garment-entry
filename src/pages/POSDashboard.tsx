@@ -19,7 +19,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2 } from "lucide-react";
 import { format } from "date-fns";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -83,6 +85,25 @@ const POSDashboard = () => {
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
+  
+  // Column visibility state with localStorage persistence
+  const [columnSettings, setColumnSettings] = useState(() => {
+    const saved = localStorage.getItem('pos-dashboard-columns');
+    return saved ? JSON.parse(saved) : {
+      status: true,
+      whatsapp: true,
+      copyLink: true,
+      preview: true,
+      print: true,
+      modify: true,
+    };
+  });
+
+  const updateColumnSetting = (key: string, value: boolean) => {
+    const newSettings = { ...columnSettings, [key]: value };
+    setColumnSettings(newSettings);
+    localStorage.setItem('pos-dashboard-columns', JSON.stringify(newSettings));
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -618,6 +639,70 @@ const POSDashboard = () => {
                   <SelectItem value="credit">Credit</SelectItem>
                 </SelectContent>
               </Select>
+              
+              {/* Column Settings Popover */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" title="Column Settings">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 bg-popover z-50" align="end">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Show/Hide Columns</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-status" className="text-sm">Status</Label>
+                        <Checkbox
+                          id="col-status"
+                          checked={columnSettings.status}
+                          onCheckedChange={(checked) => updateColumnSetting('status', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-whatsapp" className="text-sm">WhatsApp</Label>
+                        <Checkbox
+                          id="col-whatsapp"
+                          checked={columnSettings.whatsapp}
+                          onCheckedChange={(checked) => updateColumnSetting('whatsapp', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-link" className="text-sm">Copy Link</Label>
+                        <Checkbox
+                          id="col-link"
+                          checked={columnSettings.copyLink}
+                          onCheckedChange={(checked) => updateColumnSetting('copyLink', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-preview" className="text-sm">Preview</Label>
+                        <Checkbox
+                          id="col-preview"
+                          checked={columnSettings.preview}
+                          onCheckedChange={(checked) => updateColumnSetting('preview', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-print" className="text-sm">Print</Label>
+                        <Checkbox
+                          id="col-print"
+                          checked={columnSettings.print}
+                          onCheckedChange={(checked) => updateColumnSetting('print', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-modify" className="text-sm">Modify</Label>
+                        <Checkbox
+                          id="col-modify"
+                          checked={columnSettings.modify}
+                          onCheckedChange={(checked) => updateColumnSetting('modify', !!checked)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {loading ? (
@@ -643,14 +728,14 @@ const POSDashboard = () => {
                       <TableHead>Qty</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Payment</TableHead>
-                      <TableHead>Status</TableHead>
+                      {columnSettings.status && <TableHead>Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={columnSettings.status ? 11 : 10} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -693,59 +778,71 @@ const POSDashboard = () => {
                                 {sale.payment_method}
                               </Badge>
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              <Badge variant={sale.payment_status === "completed" ? "default" : "destructive"}>
-                                {sale.payment_status}
-                              </Badge>
-                            </TableCell>
+                            {columnSettings.status && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                <Badge variant={sale.payment_status === "completed" ? "default" : "destructive"}>
+                                  {sale.payment_status}
+                                </Badge>
+                              </TableCell>
+                            )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex items-center justify-end gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handleCopyLink(sale, e)}
-                                  title="Copy Invoice Link"
-                                >
-                                  <Link2 className="h-4 w-4 text-blue-600" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handlePreviewClick(sale, e)}
-                                  title="Preview Invoice"
-                                >
-                                  <Eye className="h-4 w-4 text-primary" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handleWhatsAppShare(sale, e)}
-                                  title="Share on WhatsApp"
-                                  disabled={!sale.customer_phone}
-                                >
-                                  <MessageCircle className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handlePrintClick(sale, e)}
-                                  title="Print Invoice (Ctrl+P)"
-                                >
-                                  <Printer className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => handleEditSale(sale.id, e)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
+                                {columnSettings.copyLink && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleCopyLink(sale, e)}
+                                    title="Copy Invoice Link"
+                                  >
+                                    <Link2 className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                )}
+                                {columnSettings.preview && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handlePreviewClick(sale, e)}
+                                    title="Preview Invoice"
+                                  >
+                                    <Eye className="h-4 w-4 text-primary" />
+                                  </Button>
+                                )}
+                                {columnSettings.whatsapp && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleWhatsAppShare(sale, e)}
+                                    title="Share on WhatsApp"
+                                    disabled={!sale.customer_phone}
+                                  >
+                                    <MessageCircle className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                )}
+                                {columnSettings.print && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handlePrintClick(sale, e)}
+                                    title="Print Invoice (Ctrl+P)"
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {columnSettings.modify && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleEditSale(sale.id, e)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={10} className="bg-muted/50 p-4">
+                              <TableCell colSpan={columnSettings.status ? 11 : 10} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold text-sm">Sale Items:</h4>
                                   <div className="rounded-md border">
