@@ -370,6 +370,36 @@ export type Database = {
           },
         ]
       }
+      login_attempts: {
+        Row: {
+          attempt_type: string
+          attempts: number | null
+          created_at: string | null
+          id: string
+          identifier: string
+          last_attempt_at: string | null
+          locked_until: string | null
+        }
+        Insert: {
+          attempt_type: string
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          identifier: string
+          last_attempt_at?: string | null
+          locked_until?: string | null
+        }
+        Update: {
+          attempt_type?: string
+          attempts?: number | null
+          created_at?: string | null
+          id?: string
+          identifier?: string
+          last_attempt_at?: string | null
+          locked_until?: string | null
+        }
+        Relationships: []
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1433,6 +1463,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_old_login_attempts: { Args: never; Returns: undefined }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
@@ -1504,6 +1535,14 @@ export type Database = {
           p_admin_email?: string
           p_enabled_features?: string[]
           p_name: string
+        }
+        Returns: Json
+      }
+      record_login_attempt: {
+        Args: {
+          p_attempt_type: string
+          p_identifier: string
+          p_success?: boolean
         }
         Returns: Json
       }
