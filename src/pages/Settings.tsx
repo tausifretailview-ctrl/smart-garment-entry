@@ -1144,14 +1144,16 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="sale">
-            <Card>
-              <CardHeader>
-                <CardTitle>Sale Settings</CardTitle>
-                <CardDescription>
-                  Configure sale-related preferences
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {/* Settings Form */}
+              <Card className="h-fit">
+                <CardHeader>
+                  <CardTitle>Sale Settings</CardTitle>
+                  <CardDescription>
+                    Configure sale-related preferences
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="default_discount">Default Discount (%)</Label>
                   <Input
@@ -1902,15 +1904,23 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
-                
-                {/* Invoice Preview Section */}
-                <div className="space-y-4 pt-6 border-t">
-                  <h3 className="text-lg font-semibold">Invoice Preview</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Preview how your invoice will look with the selected template and color scheme (updates live as you change settings)
-                  </p>
-                  <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[600px]">
-                    <div className="flex justify-center">
+                </CardContent>
+              </Card>
+              
+              {/* Live Preview Panel */}
+              <Card className="sticky top-6 h-fit">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Eye className="h-5 w-5" />
+                    Live Invoice Preview
+                  </CardTitle>
+                  <CardDescription>
+                    See real-time changes as you customize
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-lg p-4 bg-muted/50 overflow-auto max-h-[calc(100vh-200px)]">
+                    <div className="flex justify-center scale-75 origin-top">
                       <InvoiceWrapper
                         billNo={sampleInvoiceData.billNo}
                         date={sampleInvoiceData.date}
@@ -1946,9 +1956,9 @@ export default function Settings() {
                       />
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="bill">
