@@ -255,10 +255,10 @@ export function InteractiveLabelPreview({
           </div>
         </div>
         
-        <div className="flex justify-center mb-4 overflow-auto">
+        <div className="flex justify-center mb-4 overflow-auto p-4" style={{ minHeight: '400px' }}>
           <div 
             ref={previewRef}
-            className="border-2 border-dashed border-primary/30 rounded bg-white overflow-hidden relative origin-top-left"
+            className="border-2 border-dashed border-primary/30 rounded bg-white relative origin-top-left"
             style={{ 
               width: `${Math.min(labelWidth * 2.5, 200)}px`,
               height: `${Math.min(labelHeight * 2.5, 250)}px`,
@@ -266,17 +266,17 @@ export function InteractiveLabelPreview({
               fontSize: '6px',
               lineHeight: 1.2,
               transform: `scale(${zoom / 100})`,
-              marginBottom: zoom > 100 ? `${(Math.min(labelHeight * 2.5, 250) * (zoom / 100 - 1))}px` : '0',
+              transformOrigin: 'top left',
             }}
           >
-            <div className="p-1 h-full flex flex-col items-center justify-start">
+            <div className="p-2 h-full w-full flex flex-col items-center justify-start overflow-visible">
               {labelConfig.fieldOrder.map((fieldKey) => {
                 const field = labelConfig[fieldKey] as LabelFieldConfig;
                 if (!field.show) return null;
 
                 const isSelected = selectedField === fieldKey;
-                const scale = 0.7;
-                const fontSize = Math.max(5, field.fontSize * scale);
+                const scale = 1;
+                const fontSize = Math.max(6, field.fontSize * scale);
                 const pt = (field.paddingTop ?? 0) * scale;
                 const pb = (field.paddingBottom ?? 0) * scale;
                 const pl = (field.paddingLeft ?? 0) * scale;
@@ -287,12 +287,12 @@ export function InteractiveLabelPreview({
                     <div
                       key={fieldKey}
                       onClick={() => setSelectedField(fieldKey)}
-                      className={`cursor-pointer transition-all ${isSelected ? 'ring-2 ring-primary ring-offset-2 bg-primary/5' : 'hover:bg-primary/5'}`}
+                      className={`cursor-pointer transition-all w-full ${isSelected ? 'ring-2 ring-primary ring-offset-2 bg-primary/5' : 'hover:bg-primary/5'}`}
                       style={{
                         margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
                         display: 'flex',
                         justifyContent: 'center',
-                        padding: '2px',
+                        padding: '4px',
                       }}
                       title={`Click to select ${fieldLabels[fieldKey]}`}
                     >
@@ -301,7 +301,7 @@ export function InteractiveLabelPreview({
                         style={{ 
                           height: `${(labelConfig.barcodeHeight || 28) * scale}px`, 
                           width: 'auto',
-                          maxWidth: '100%'
+                          maxWidth: '90%'
                         }} 
                       />
                     </div>
@@ -313,12 +313,13 @@ export function InteractiveLabelPreview({
                   fontWeight: field.bold ? 'bold' : 'normal',
                   textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
                   margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  padding: '2px 4px',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  width: '100%',
+                  padding: '4px 8px',
                   cursor: 'pointer',
                   transition: 'all 0.2s',
+                  boxSizing: 'border-box',
                 };
 
                 return (
