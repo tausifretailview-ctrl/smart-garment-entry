@@ -435,6 +435,7 @@ export type Database = {
           created_at: string | null
           id: string
           opening_qty: number | null
+          organization_id: string
           product_id: string
           pur_price: number | null
           sale_price: number | null
@@ -448,6 +449,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           opening_qty?: number | null
+          organization_id: string
           product_id: string
           pur_price?: number | null
           sale_price?: number | null
@@ -461,6 +463,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           opening_qty?: number | null
+          organization_id?: string
           product_id?: string
           pur_price?: number | null
           sale_price?: number | null
@@ -469,6 +472,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "product_variants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "product_variants_product_id_fkey"
             columns: ["product_id"]

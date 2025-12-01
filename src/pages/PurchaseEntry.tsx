@@ -419,6 +419,8 @@ const PurchaseEntry = () => {
   };
 
   const openSizeGridModal = async (productId: string) => {
+    if (!currentOrganization) return;
+    
     const { data, error } = await supabase
       .from("product_variants")
       .select(`
@@ -442,6 +444,7 @@ const PurchaseEntry = () => {
         )
       `)
       .eq("product_id", productId)
+      .eq("organization_id", currentOrganization.id)
       .eq("active", true);
 
     if (error || !data || data.length === 0) {
