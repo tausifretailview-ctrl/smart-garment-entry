@@ -535,6 +535,7 @@ const ProductEntry = () => {
               .from("product_variants")
               .upsert({
                 product_id: editingProductId,
+                organization_id: currentOrganization.id,
                 size: v.size,
                 pur_price: v.pur_price,
                 sale_price: v.sale_price,
@@ -580,6 +581,7 @@ const ProductEntry = () => {
         if (variants.length > 0) {
           const variantsToUpsert = variants.map((v) => ({
             product_id: productData.id,
+            organization_id: currentOrganization.id,
             size: v.size,
             pur_price: v.pur_price,
             sale_price: v.sale_price,

@@ -85,6 +85,8 @@ export default function StockReport() {
   };
 
   const fetchStockData = async () => {
+    if (!currentOrganization?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from("product_variants")
@@ -101,6 +103,7 @@ export default function StockReport() {
             color
           )
         `)
+        .eq("organization_id", currentOrganization.id)
         .eq("active", true)
         .order("stock_qty", { ascending: true });
 
@@ -156,6 +159,8 @@ export default function StockReport() {
   };
 
   const fetchMovements = async () => {
+    if (!currentOrganization?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from("stock_movements")
@@ -166,13 +171,15 @@ export default function StockReport() {
           notes,
           created_at,
           variant_id,
-          product_variants (
+          product_variants!inner (
             size,
+            organization_id,
             products (
               product_name
             )
           )
         `)
+        .eq("product_variants.organization_id", currentOrganization.id)
         .order("created_at", { ascending: false })
         .limit(50);
 
@@ -196,20 +203,24 @@ export default function StockReport() {
   };
 
   const fetchBatchStock = async () => {
+    if (!currentOrganization?.id) return;
+    
     try {
       const { data, error } = await supabase
         .from('batch_stock')
         .select(`
           *,
-          product_variants (
+          product_variants!inner (
             size,
             barcode,
+            organization_id,
             products (
               product_name,
               brand
             )
           )
         `)
+        .eq('product_variants.organization_id', currentOrganization.id)
         .gt('quantity', 0)
         .order('purchase_date', { ascending: true });
       

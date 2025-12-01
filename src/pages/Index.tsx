@@ -71,8 +71,8 @@ const DashboardContent = () => {
       
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty, products!inner(organization_id)")
-        .eq("products.organization_id", currentOrganization.id);
+        .select("stock_qty")
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return data?.reduce((sum, item) => sum + (item.stock_qty || 0), 0) || 0;
     },
@@ -119,8 +119,8 @@ const DashboardContent = () => {
       
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty, sale_price, products!inner(organization_id)")
-        .eq("products.organization_id", currentOrganization.id);
+        .select("stock_qty, sale_price")
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
       return (
         data?.reduce(
