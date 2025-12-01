@@ -10,13 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2 } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { useReactToPrint } from "react-to-print";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +29,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+interface ColumnSettings {
+  status: boolean;
+  whatsapp: boolean;
+  copyLink: boolean;
+  print: boolean;
+  modify: boolean;
+  delete: boolean;
+}
+
+const defaultColumnSettings: ColumnSettings = {
+  status: true,
+  whatsapp: true,
+  copyLink: true,
+  print: true,
+  modify: true,
+  delete: true,
+};
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
@@ -46,6 +66,17 @@ export default function SalesInvoiceDashboard() {
   const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+  
+  const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
+    const saved = localStorage.getItem('salesInvoiceDashboardColumnSettings');
+    return saved ? JSON.parse(saved) : defaultColumnSettings;
+  });
+
+  const updateColumnSetting = (key: keyof ColumnSettings, value: boolean) => {
+    const newSettings = { ...columnSettings, [key]: value };
+    setColumnSettings(newSettings);
+    localStorage.setItem('salesInvoiceDashboardColumnSettings', JSON.stringify(newSettings));
+  };
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -347,14 +378,78 @@ export default function SalesInvoiceDashboard() {
 
         <Card className="p-6">
           <div className="space-y-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by invoice number or customer..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by invoice number or customer..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" title="Column Settings">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56" align="end">
+                  <div className="space-y-3">
+                    <h4 className="font-medium text-sm">Show Columns</h4>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-status"
+                          checked={columnSettings.status}
+                          onCheckedChange={(checked) => updateColumnSetting('status', !!checked)}
+                        />
+                        <Label htmlFor="col-status" className="text-sm">Status</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-whatsapp"
+                          checked={columnSettings.whatsapp}
+                          onCheckedChange={(checked) => updateColumnSetting('whatsapp', !!checked)}
+                        />
+                        <Label htmlFor="col-whatsapp" className="text-sm">WhatsApp</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-copyLink"
+                          checked={columnSettings.copyLink}
+                          onCheckedChange={(checked) => updateColumnSetting('copyLink', !!checked)}
+                        />
+                        <Label htmlFor="col-copyLink" className="text-sm">Copy Link</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-print"
+                          checked={columnSettings.print}
+                          onCheckedChange={(checked) => updateColumnSetting('print', !!checked)}
+                        />
+                        <Label htmlFor="col-print" className="text-sm">Print</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-modify"
+                          checked={columnSettings.modify}
+                          onCheckedChange={(checked) => updateColumnSetting('modify', !!checked)}
+                        />
+                        <Label htmlFor="col-modify" className="text-sm">Modify</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-delete"
+                          checked={columnSettings.delete}
+                          onCheckedChange={(checked) => updateColumnSetting('delete', !!checked)}
+                        />
+                        <Label htmlFor="col-delete" className="text-sm">Delete</Label>
+                      </div>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {isLoading ? (
@@ -378,14 +473,14 @@ export default function SalesInvoiceDashboard() {
                       <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Amount</TableHead>
-                      <TableHead>Status</TableHead>
+                      {columnSettings.status && <TableHead>Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={columnSettings.status ? 9 : 8} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -417,50 +512,62 @@ export default function SalesInvoiceDashboard() {
                               {format(new Date(invoice.sale_date), 'dd/MM/yyyy')}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>
-                              <Badge variant={invoice.payment_status === 'completed' ? 'default' : 'secondary'}>
-                                {invoice.payment_status}
-                              </Badge>
-                            </TableCell>
+                            {columnSettings.status && (
+                              <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                                <Badge variant={invoice.payment_status === 'completed' ? 'default' : 'secondary'}>
+                                  {invoice.payment_status}
+                                </Badge>
+                              </TableCell>
+                            )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => handleCopyLink(invoice)}
-                                  title="Copy Invoice Link"
-                                >
-                                  <Link2 className="h-4 w-4 text-blue-600" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => handleWhatsAppShare(invoice)}
-                                  title="Share on WhatsApp"
-                                  disabled={!invoice.customer_phone}
-                                >
-                                  <MessageCircle className="h-4 w-4 text-green-600" />
-                                </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => handlePrintInvoice(invoice)}
-                                  title="Print Invoice"
-                                >
-                                  <Printer className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button variant="ghost" size="icon" onClick={() => setInvoiceToDelete(invoice)}>
-                                  <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
+                                {columnSettings.copyLink && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleCopyLink(invoice)}
+                                    title="Copy Invoice Link"
+                                  >
+                                    <Link2 className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                )}
+                                {columnSettings.whatsapp && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleWhatsAppShare(invoice)}
+                                    title="Share on WhatsApp"
+                                    disabled={!invoice.customer_phone}
+                                  >
+                                    <MessageCircle className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                )}
+                                {columnSettings.print && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handlePrintInvoice(invoice)}
+                                    title="Print Invoice"
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {columnSettings.modify && (
+                                  <Button variant="ghost" size="icon" onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {columnSettings.delete && (
+                                  <Button variant="ghost" size="icon" onClick={() => setInvoiceToDelete(invoice)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={9} className="bg-muted/50 p-4">
+                              <TableCell colSpan={columnSettings.status ? 9 : 8} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold">Items:</h4>
                                   <Table>
