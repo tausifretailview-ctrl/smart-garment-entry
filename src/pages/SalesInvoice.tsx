@@ -77,8 +77,8 @@ interface LineItem {
 }
 
 const customerSchema = z.object({
-  customer_name: z.string().trim().min(1, "Customer name is required").max(100),
-  phone: z.string().trim().max(20).optional(),
+  customer_name: z.string().trim().max(100).optional().or(z.literal("")),
+  phone: z.string().trim().min(1, "Mobile number is required").max(20, "Mobile number must be less than 20 characters"),
   email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),
@@ -440,11 +440,14 @@ export default function SalesInvoice() {
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
+      // Use phone as customer name if name is empty
+      const customerName = values.customer_name?.trim() || values.phone;
+      
       const { data, error } = await supabase
         .from('customers')
         .insert([{
-          customer_name: values.customer_name,
-          phone: values.phone || null,
+          customer_name: customerName,
+          phone: values.phone,
           email: values.email || null,
           address: values.address || null,
           gst_number: values.gst_number || null,
@@ -457,7 +460,7 @@ export default function SalesInvoice() {
 
       toast({
         title: "Customer Created",
-        description: `${values.customer_name} has been added successfully`,
+        description: `${customerName} has been added successfully`,
       });
 
       // Auto-select the new customer
@@ -636,6 +639,17 @@ Thank you for choosing us!`;
         variant: "destructive",
         title: "Validation Error",
         description: "Please select a customer",
+      });
+      return;
+    }
+
+    // Check if customer mobile is required (for any sale with pending/partial payment)
+    // Since Sales Invoice defaults to pay_later, customer mobile is mandatory
+    if (!selectedCustomer.phone || !selectedCustomer.phone.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Customer Details Required",
+        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for invoices.",
       });
       return;
     }
@@ -1422,32 +1436,32 @@ Thank you for choosing us!`;
             <form onSubmit={customerForm.handleSubmit(handleCreateCustomer)} className="space-y-4">
               <FormField
                 control={customerForm.control}
-                name="customer_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Customer Name<span className="text-destructive">*</span></FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter customer name" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={customerForm.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
+                    <FormLabel>Mobile Number<span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="Enter phone number" />
+                      <Input {...field} placeholder="Enter mobile number" autoFocus />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              <FormField
+                control={customerForm.control}
+                name="customer_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Customer Name</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter customer name (optional)" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <FormField
                 control={customerForm.control}
                 name="email"

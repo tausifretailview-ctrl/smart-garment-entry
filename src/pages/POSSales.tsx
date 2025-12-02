@@ -592,6 +592,16 @@ export default function POSSales() {
       return;
     }
 
+    // Check if payment method is pay_later and customer mobile is missing
+    if ((forcePaymentMethod || paymentMethod) === 'pay_later' && !customerPhone?.trim()) {
+      toast({
+        title: "Customer Details Required",
+        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for credit sales.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const saleData = {
       customerId: customerId || null,
       customerName,
@@ -731,6 +741,17 @@ export default function POSSales() {
     upiAmount: number;
     totalPaid: number;
   }) => {
+    // Check if there's a balance and customer mobile is missing
+    const balanceAmount = finalAmount - paymentData.totalPaid;
+    if (balanceAmount > 0 && !customerPhone?.trim()) {
+      toast({
+        title: "Customer Details Required",
+        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for partial payments.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Real-time stock validation before saving
     const cartItems = items.map(item => ({
       variantId: item.variantId,
