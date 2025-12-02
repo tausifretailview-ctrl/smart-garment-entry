@@ -735,9 +735,14 @@ const POSDashboard = () => {
       sale.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       sale.customer_name.toLowerCase().includes(searchQuery.toLowerCase());
 
+    // Normalize dates to yyyy-MM-dd format for accurate comparison
+    const saleDateStr = sale.sale_date.split('T')[0]; // Extract date part only
+    const startDateStr = startDate ? format(new Date(startDate), 'yyyy-MM-dd') : null;
+    const endDateStr = endDate ? format(new Date(endDate), 'yyyy-MM-dd') : null;
+
     const matchesDateRange =
-      (!startDate || new Date(sale.sale_date) >= new Date(startDate)) &&
-      (!endDate || new Date(sale.sale_date) <= new Date(endDate));
+      (!startDateStr || saleDateStr >= startDateStr) &&
+      (!endDateStr || saleDateStr <= endDateStr);
 
     const matchesPaymentMethod =
       paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
