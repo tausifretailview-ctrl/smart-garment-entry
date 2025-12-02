@@ -22,8 +22,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { customerMasterFields, customerMasterSampleData } from "@/utils/excelImportUtils";
 
 interface Customer {
   id: string;
@@ -51,6 +53,8 @@ const CustomerMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const [showExcelImport, setShowExcelImport] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
@@ -179,21 +183,77 @@ const CustomerMaster = () => {
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+    if (!currentOrganization?.id) {
+      toast({ title: "No organization selected", variant: "destructive" });
+      return;
+    }
+
+    setImportLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const row of mappedData) {
+        const phone = row.phone?.toString().trim();
+        if (!phone) {
+          errorCount++;
+          continue;
+        }
+
+        const customerData = {
+          customer_name: row.customer_name?.toString().trim() || phone,
+          phone: phone,
+          email: row.email?.toString().trim() || '',
+          address: row.address?.toString().trim() || '',
+          gst_number: row.gst_number?.toString().trim() || '',
+          opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
+          organization_id: currentOrganization.id,
+        };
+
+        const { error } = await supabase.from("customers").insert([customerData]);
+        if (error) {
+          console.error('Error inserting customer:', error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast({
+        title: "Import completed",
+        description: `${successCount} customers imported${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+      });
+      setShowExcelImport(false);
+    } catch (error) {
+      console.error('Import error:', error);
+      toast({ title: "Import failed", variant: "destructive" });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <BackToDashboard />
       
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Customer Master</h1>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Customer
-            </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowExcelImport(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Import Excel
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Customer
+              </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -265,6 +325,7 @@ const CustomerMaster = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -330,6 +391,16 @@ const CustomerMaster = () => {
           </TableBody>
         </Table>
       </div>
+
+      <ExcelImportDialog
+        open={showExcelImport}
+        onClose={() => setShowExcelImport(false)}
+        targetFields={customerMasterFields}
+        onImport={handleExcelImport}
+        sampleData={customerMasterSampleData}
+        sampleFileName="Customer_Master_Sample.xlsx"
+        title="Import Customers"
+      />
     </div>
   );
 };
