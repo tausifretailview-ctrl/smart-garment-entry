@@ -39,6 +39,12 @@ interface Transaction {
   debit: number;
   credit: number;
   balance: number;
+  paymentBreakdown?: {
+    cash?: number;
+    card?: number;
+    upi?: number;
+    method?: string;
+  };
 }
 
 export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
@@ -169,6 +175,12 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           // Find the related sale to get invoice reference
           const relatedSale = salesData.find(s => s.id === sale.id);
           
+          // Build payment breakdown
+          const paymentBreakdown: any = {};
+          if (sale.cash_amount && sale.cash_amount > 0) paymentBreakdown.cash = sale.cash_amount;
+          if (sale.card_amount && sale.card_amount > 0) paymentBreakdown.card = sale.card_amount;
+          if (sale.upi_amount && sale.upi_amount > 0) paymentBreakdown.upi = sale.upi_amount;
+          
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
@@ -178,6 +190,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
             debit: sale.net_amount,
             credit: 0,
             balance: runningBalance,
+            paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
         } else {
           const voucher = item.data as any;
@@ -196,6 +209,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
             debit: 0,
             credit: voucher.total_amount,
             balance: runningBalance,
+            paymentBreakdown: voucher.metadata?.paymentMethod ? { method: voucher.metadata.paymentMethod } : undefined,
           });
         }
       });
@@ -246,15 +260,35 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
   const handleExportToExcel = () => {
     if (!selectedCustomer || !transactions) return;
 
-    const exportData = transactions.map((t) => ({
-      Date: format(new Date(t.date), "dd/MM/yyyy"),
-      Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
-      Reference: t.reference,
-      Description: t.description,
-      Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
-      Credit: t.credit > 0 ? t.credit.toFixed(2) : '',
-      Balance: t.balance.toFixed(2),
-    }));
+    const exportData = transactions.map((t) => {
+      const row: any = {
+        Date: format(new Date(t.date), "dd/MM/yyyy"),
+        Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
+        Reference: t.reference,
+        Description: t.description,
+        Debit: t.debit > 0 ? t.debit.toFixed(2) : '',
+        Credit: t.credit > 0 ? t.credit.toFixed(2) : '',
+      };
+
+      // Add payment breakdown columns if available
+      if (t.paymentBreakdown) {
+        if (t.paymentBreakdown.cash !== undefined && t.paymentBreakdown.cash > 0) {
+          row['Cash Amount'] = t.paymentBreakdown.cash.toFixed(2);
+        }
+        if (t.paymentBreakdown.card !== undefined && t.paymentBreakdown.card > 0) {
+          row['Card Amount'] = t.paymentBreakdown.card.toFixed(2);
+        }
+        if (t.paymentBreakdown.upi !== undefined && t.paymentBreakdown.upi > 0) {
+          row['UPI Amount'] = t.paymentBreakdown.upi.toFixed(2);
+        }
+        if (t.paymentBreakdown.method) {
+          row['Payment Method'] = t.paymentBreakdown.method.toUpperCase();
+        }
+      }
+
+      row.Balance = t.balance.toFixed(2);
+      return row;
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -452,7 +486,35 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
                           </Badge>
                         </TableCell>
                         <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
-                        <TableCell className="text-muted-foreground">{transaction.description}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <div className="text-muted-foreground">{transaction.description}</div>
+                            {transaction.paymentBreakdown && (
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {transaction.paymentBreakdown.cash !== undefined && transaction.paymentBreakdown.cash > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                                    Cash: ₹{transaction.paymentBreakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </Badge>
+                                )}
+                                {transaction.paymentBreakdown.card !== undefined && transaction.paymentBreakdown.card > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                                    Card: ₹{transaction.paymentBreakdown.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </Badge>
+                                )}
+                                {transaction.paymentBreakdown.upi !== undefined && transaction.paymentBreakdown.upi > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                                    UPI: ₹{transaction.paymentBreakdown.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                  </Badge>
+                                )}
+                                {transaction.paymentBreakdown.method && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {transaction.paymentBreakdown.method.toUpperCase()}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-medium">
                           {transaction.debit > 0 && (
                             <span className="text-red-600 dark:text-red-400">
