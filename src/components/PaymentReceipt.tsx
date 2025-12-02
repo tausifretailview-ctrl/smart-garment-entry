@@ -165,7 +165,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
             <tr>
               <td className="border border-gray-300 p-2 font-medium">Payment Method</td>
               <td className="border border-gray-300 p-2 text-right">
-                {receiptData.paymentMethod.toUpperCase()}
+                {receiptData.paymentMethod?.toUpperCase() || '-'}
               </td>
             </tr>
             <tr className="bg-blue-50">

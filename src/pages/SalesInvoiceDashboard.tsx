@@ -604,7 +604,7 @@ export default function SalesInvoiceDashboard() {
         paidAmount: amount,
         previousBalance: currentPaid,
         currentBalance: newPaidAmount,
-        paymentMode: paymentMode,
+        paymentMethod: paymentMode,
         narration: paymentNarration,
       };
 

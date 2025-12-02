@@ -655,7 +655,7 @@ const POSDashboard = () => {
 
       const newReceiptData = {
         voucherNumber: voucherData,
-        date: format(paymentDate, 'yyyy-MM-dd'),
+        voucherDate: format(paymentDate, 'yyyy-MM-dd'),
         customerName: selectedSaleForPayment.customer_name,
         customerPhone: selectedSaleForPayment.customer_phone || '',
         customerAddress: selectedSaleForPayment.customer_address || '',
@@ -665,7 +665,7 @@ const POSDashboard = () => {
         paidAmount: amount,
         previousBalance: currentPaid,
         currentBalance: newPaidAmount,
-        paymentMode: paymentMode,
+        paymentMethod: paymentMode,
         narration: paymentNarration,
       };
 
