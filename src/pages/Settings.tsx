@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
+import { WhatsAppTemplateSettings } from "@/components/WhatsAppTemplateSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
@@ -829,6 +830,11 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* WhatsApp Templates Section */}
+            <div className="mt-6">
+              <WhatsAppTemplateSettings />
+            </div>
           </TabsContent>
 
           <TabsContent value="product">

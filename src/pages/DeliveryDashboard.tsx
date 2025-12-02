@@ -18,10 +18,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 
 const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { formatMessage } = useWhatsAppTemplates();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -264,20 +266,18 @@ const DeliveryDashboard = () => {
     }
 
     const deliveryStatusText = getDeliveryLabel(invoice.delivery_status);
-    const message = `Hello ${invoice.customer_name},
-
-Your order details:
-Invoice: ${invoice.sale_number}
-Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
-Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
-Payment Status: ${invoice.payment_status}
-Delivery Status: ${deliveryStatusText}
-
-${invoice.delivery_status === "delivered" 
-  ? "Your order has been delivered. Thank you for your business!" 
-  : invoice.delivery_status === "in_process"
-  ? "Your order is currently being processed and will be delivered soon."
-  : "Your order is pending delivery. We will update you soon."}`;
+    
+    // Use template if available
+    const templateType = `delivery_${invoice.delivery_status}`;
+    const message = formatMessage(templateType, {
+      sale_number: invoice.sale_number,
+      customer_name: invoice.customer_name,
+      customer_phone: invoice.customer_phone,
+      sale_date: invoice.sale_date,
+      net_amount: invoice.net_amount,
+      payment_status: invoice.payment_status,
+      delivery_status: invoice.delivery_status,
+    });
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
