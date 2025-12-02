@@ -125,7 +125,7 @@ export const useSaveSale = () => {
 
   const saveSale = async (
     saleData: SaleData,
-    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later' | 'refund',
+    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
     paymentBreakdown?: {
       cashAmount: number;
       cardAmount: number;
@@ -190,6 +190,7 @@ export const useSaveSale = () => {
       let paidAmt = 0;
       let refundAmt = 0;
       let payStatus = 'completed';
+      let finalPaymentMethod = paymentMethod;
 
       if (paymentBreakdown) {
         // Mix payment or refund
@@ -198,6 +199,9 @@ export const useSaveSale = () => {
         upiAmt = paymentBreakdown.upiAmount;
         paidAmt = paymentBreakdown.totalPaid;
         refundAmt = paymentBreakdown.refundAmount;
+        
+        // Use 'multiple' as payment method for refunds or mixed payments
+        finalPaymentMethod = 'multiple';
         
         if (paidAmt >= saleData.netAmount) {
           payStatus = 'completed';
@@ -241,7 +245,7 @@ export const useSaveSale = () => {
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
-          payment_method: paymentMethod,
+          payment_method: finalPaymentMethod,
           payment_status: payStatus,
           paid_amount: paidAmt,
           cash_amount: cashAmt,
