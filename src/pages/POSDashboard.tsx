@@ -66,6 +66,9 @@ interface Sale {
   payment_method: string;
   payment_status: string;
   paid_amount?: number;
+  cash_amount?: number;
+  card_amount?: number;
+  upi_amount?: number;
   created_at: string;
 }
 
@@ -80,6 +83,7 @@ const POSDashboard = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
@@ -734,7 +738,10 @@ const POSDashboard = () => {
     const matchesPaymentMethod =
       paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
 
-    return matchesSearch && matchesDateRange && matchesPaymentMethod;
+    const matchesPaymentStatus =
+      paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
+
+    return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus;
   });
 
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -756,7 +763,7 @@ const POSDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter]);
+  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -878,7 +885,19 @@ const POSDashboard = () => {
                   <SelectItem value="cash">Cash</SelectItem>
                   <SelectItem value="upi">UPI</SelectItem>
                   <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="credit">Credit</SelectItem>
+                  <SelectItem value="multiple">Mix Payment</SelectItem>
+                  <SelectItem value="pay_later">Pay Later</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Payment Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -969,7 +988,11 @@ const POSDashboard = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>Amount</TableHead>
-                      <TableHead>Payment</TableHead>
+                      <TableHead>Cash</TableHead>
+                      <TableHead>Card</TableHead>
+                      <TableHead>UPI</TableHead>
+                      <TableHead>Paid</TableHead>
+                      <TableHead>Balance</TableHead>
                       {columnSettings.status && <TableHead>Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -977,7 +1000,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={columnSettings.status ? 11 : 10} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={columnSettings.status ? 16 : 15} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1016,9 +1039,25 @@ const POSDashboard = () => {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>₹{sale.net_amount.toFixed(2)}</TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              <Badge variant={sale.payment_method === "cash" ? "default" : "secondary"}>
-                                {sale.payment_method}
-                              </Badge>
+                              {sale.cash_amount ? `₹${sale.cash_amount.toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {sale.card_amount ? `₹${sale.card_amount.toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {sale.upi_amount ? `₹${sale.upi_amount.toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              ₹{(sale.paid_amount || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {sale.payment_status !== 'completed' ? (
+                                <span className="font-semibold text-orange-600">
+                                  ₹{(sale.net_amount - (sale.paid_amount || 0)).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
@@ -1097,7 +1136,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={columnSettings.status ? 11 : 10} className="bg-muted/50 p-4">
+                              <TableCell colSpan={columnSettings.status ? 16 : 15} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold text-sm">Sale Items:</h4>
                                   <div className="rounded-md border">
