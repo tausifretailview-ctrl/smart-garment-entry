@@ -88,6 +88,7 @@ const POSDashboard = () => {
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
+  const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -270,14 +271,42 @@ const POSDashboard = () => {
     }
   };
 
+  const fetchSaleReturns = async (saleNumber: string): Promise<any[]> => {
+    if (saleReturns[saleNumber]) return saleReturns[saleNumber];
+
+    try {
+      const { data, error } = await supabase
+        .from("sale_returns")
+        .select("*")
+        .eq("organization_id", currentOrganization?.id)
+        .eq("original_sale_number", saleNumber);
+
+      if (error) throw error;
+
+      const returns = data || [];
+      setSaleReturns((prev) => ({ ...prev, [saleNumber]: returns }));
+      return returns;
+    } catch (error: any) {
+      console.error("Failed to load sale returns:", error);
+      return [];
+    }
+  };
+
   const toggleExpanded = async (saleId: string) => {
     if (expandedSale === saleId) {
       setExpandedSale(null);
     } else {
       setExpandedSale(saleId);
-      await fetchSaleItems(saleId);
+      const sale = sales.find(s => s.id === saleId);
+      if (sale) {
+        await Promise.all([
+          fetchSaleItems(saleId),
+          fetchSaleReturns(sale.sale_number)
+        ]);
+      }
     }
   };
+
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
@@ -1184,38 +1213,76 @@ const POSDashboard = () => {
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
                               <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 15} className="bg-muted/50 p-4">
-                                <div className="space-y-2">
-                                  <h4 className="font-semibold text-sm">Sale Items:</h4>
-                                  <div className="rounded-md border">
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>Product</TableHead>
-                                          <TableHead>Size</TableHead>
-                                          <TableHead>Quantity</TableHead>
-                                          <TableHead>MRP</TableHead>
-                                          <TableHead>Unit Price</TableHead>
-                                          <TableHead>Discount</TableHead>
-                                          <TableHead>GST</TableHead>
-                                          <TableHead className="text-right">Total</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {saleItems[sale.id].map((item) => (
-                                          <TableRow key={item.id}>
-                                            <TableCell>{item.product_name}</TableCell>
-                                            <TableCell>{item.size}</TableCell>
-                                            <TableCell>{item.quantity}</TableCell>
-                                            <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
-                                            <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
-                                            <TableCell>{item.discount_percent}%</TableCell>
-                                            <TableCell>{item.gst_percent}%</TableCell>
-                                            <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="font-semibold text-sm mb-2">Sale Items:</h4>
+                                    <div className="rounded-md border">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead>Product</TableHead>
+                                            <TableHead>Size</TableHead>
+                                            <TableHead>Quantity</TableHead>
+                                            <TableHead>MRP</TableHead>
+                                            <TableHead>Unit Price</TableHead>
+                                            <TableHead>Discount</TableHead>
+                                            <TableHead>GST</TableHead>
+                                            <TableHead className="text-right">Total</TableHead>
                                           </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {saleItems[sale.id].map((item) => (
+                                            <TableRow key={item.id}>
+                                              <TableCell>{item.product_name}</TableCell>
+                                              <TableCell>{item.size}</TableCell>
+                                              <TableCell>{item.quantity}</TableCell>
+                                              <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
+                                              <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
+                                              <TableCell>{item.discount_percent}%</TableCell>
+                                              <TableCell>{item.gst_percent}%</TableCell>
+                                              <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
                                   </div>
+
+                                  {saleReturns[sale.sale_number] && saleReturns[sale.sale_number].length > 0 && (
+                                    <div>
+                                      <h4 className="font-semibold text-sm mb-2 text-red-600">Linked Sale Returns:</h4>
+                                      <div className="rounded-md border border-red-200 bg-red-50/50">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead>Return No</TableHead>
+                                              <TableHead>Return Date</TableHead>
+                                              <TableHead>Customer</TableHead>
+                                              <TableHead className="text-right">Return Amount</TableHead>
+                                              <TableHead>Notes</TableHead>
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            {saleReturns[sale.sale_number].map((ret: any) => (
+                                              <TableRow key={ret.id}>
+                                                <TableCell>
+                                                  <Badge variant="destructive">{ret.return_number || "-"}</Badge>
+                                                </TableCell>
+                                                <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
+                                                <TableCell>{ret.customer_name}</TableCell>
+                                                <TableCell className="text-right font-medium text-red-600">
+                                                  ₹{ret.net_amount.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-muted-foreground">
+                                                  {ret.notes || "-"}
+                                                </TableCell>
+                                              </TableRow>
+                                            ))}
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
