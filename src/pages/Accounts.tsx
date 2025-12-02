@@ -18,11 +18,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import { CustomerLedger } from "@/components/CustomerLedger";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
-  const [selectedTab, setSelectedTab] = useState("customer-payment");
+  const [selectedTab, setSelectedTab] = useState("customer-ledger");
   
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -391,7 +392,8 @@ export default function Accounts() {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-7">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+            <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
             <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
             <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
             <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
@@ -400,6 +402,11 @@ export default function Accounts() {
             <TabsTrigger value="pl-report">P&L Report</TabsTrigger>
             <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
           </TabsList>
+
+          {/* Customer Ledger Tab */}
+          <TabsContent value="customer-ledger" className="space-y-6">
+            {currentOrganization?.id && <CustomerLedger organizationId={currentOrganization.id} />}
+          </TabsContent>
 
           {/* Customer Payment Tab */}
           <TabsContent value="customer-payment" className="space-y-6">
