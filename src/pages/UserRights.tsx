@@ -174,9 +174,10 @@ const UserRights = () => {
         .eq("organization_id", currentOrganization.id)
         .neq("role", "admin"); // Exclude admins
       
-      // Match with user emails
+      // Match with user emails - response.data contains { users: [...] }
+      const users = response.data?.users || response.data || [];
       const membersWithEmail = (orgMembers || []).map((member: any) => {
-        const userInfo = response.data?.find((u: any) => u.id === member.user_id);
+        const userInfo = users.find((u: any) => u.id === member.user_id);
         return {
           ...member,
           email: userInfo?.email || "Unknown",
