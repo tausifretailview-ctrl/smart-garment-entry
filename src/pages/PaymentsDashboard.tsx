@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, MessageCircle, Settings2, DollarSign, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { Search, MessageCircle, Settings2, DollarSign, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -17,6 +17,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { useReactToPrint } from "react-to-print";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
+import { Layout } from "@/components/Layout";
 
 interface Invoice {
   id: string;
@@ -78,6 +83,10 @@ export default function PaymentsDashboard() {
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
+  
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
     const saved = localStorage.getItem('paymentsDashboardColumnSettings');
@@ -317,6 +326,24 @@ export default function PaymentsDashboard() {
       });
 
       setShowPaymentDialog(false);
+      
+      // Show receipt options
+      setShowReceiptDialog(true);
+      setReceiptData({
+        voucherNumber,
+        voucherDate: format(paymentDate, 'yyyy-MM-dd'),
+        customerName: selectedInvoice.customer_name,
+        customerPhone: selectedInvoice.customer_phone,
+        customerAddress: selectedInvoice.customer_address,
+        invoiceNumber: selectedInvoice.sale_number,
+        invoiceDate: selectedInvoice.sale_date,
+        invoiceAmount: netAmount,
+        paidAmount: amount,
+        paymentMethod: paymentMethod,
+        previousBalance: netAmount - currentPaid,
+        currentBalance: netAmount - newPaidAmount,
+      });
+
       refetch();
     } catch (error: any) {
       console.error('Error recording payment:', error);
@@ -328,6 +355,54 @@ export default function PaymentsDashboard() {
     } finally {
       setIsRecordingPayment(false);
     }
+  };
+
+  const handlePrintReceipt = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: `Receipt_${receiptData?.voucherNumber}`,
+    onAfterPrint: () => {
+      toast({
+        title: "Receipt Printed",
+        description: "Payment receipt has been sent to the printer",
+      });
+    },
+  });
+
+  const handleSendReceiptWhatsApp = () => {
+    if (!receiptData || !receiptData.customerPhone) return;
+
+    const message = `Dear ${receiptData.customerName},
+
+Thank you for your payment!
+
+Receipt No: ${receiptData.voucherNumber}
+Date: ${format(new Date(receiptData.voucherDate), 'dd MMM yyyy')}
+Amount Paid: ₹${receiptData.paidAmount.toLocaleString('en-IN')}
+Payment Method: ${receiptData.paymentMethod.toUpperCase()}
+
+Invoice: ${receiptData.invoiceNumber}
+Current Balance: ₹${receiptData.currentBalance.toLocaleString('en-IN')}
+
+Thank you for your business!`;
+
+    const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
+    let formattedPhone = phoneNumber;
+    if (phoneNumber.length === 10) {
+      formattedPhone = `91${phoneNumber}`;
+    } else if (!phoneNumber.startsWith('91')) {
+      formattedPhone = `91${phoneNumber}`;
+    }
+
+    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+
+    navigator.clipboard.writeText(message);
+    window.location.href = whatsappUrl;
+
+    toast({
+      title: "Receipt Sent",
+      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -733,6 +808,59 @@ export default function PaymentsDashboard() {
             <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
               {isRecordingPayment ? "Recording..." : "Record Payment"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Receipt Dialog */}
+      <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Payment Receipt</DialogTitle>
+            <DialogDescription>Print or send this receipt to the customer</DialogDescription>
+          </DialogHeader>
+          
+          <div className="hidden">
+            <PaymentReceipt
+              ref={receiptRef}
+              receiptData={receiptData}
+              companyDetails={{}}
+              receiptSettings={{
+                showCompanyLogo: true,
+                showQrCode: false,
+                showSignature: true,
+                signatureLabel: "Authorized Signature"
+              }}
+            />
+          </div>
+
+          <div className="border rounded-lg p-4 bg-gray-50">
+            <PaymentReceipt
+              receiptData={receiptData}
+              companyDetails={{}}
+              receiptSettings={{
+                showCompanyLogo: true,
+                showQrCode: false,
+                showSignature: true,
+                signatureLabel: "Authorized Signature"
+              }}
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
+              Close
+            </Button>
+            <Button onClick={handlePrintReceipt} className="gap-2">
+              <Printer className="h-4 w-4" />
+              Print Receipt
+            </Button>
+            {receiptData?.customerPhone && (
+              <Button onClick={handleSendReceiptWhatsApp} className="gap-2 bg-green-600 hover:bg-green-700">
+                <Send className="h-4 w-4" />
+                Send via WhatsApp
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
