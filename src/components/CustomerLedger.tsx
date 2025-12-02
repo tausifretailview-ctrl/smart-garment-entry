@@ -25,6 +25,7 @@ interface Customer {
   phone: string | null;
   email: string | null;
   address: string | null;
+  opening_balance: number;
   totalSales: number;
   totalPaid: number;
   balance: number;
@@ -81,10 +82,13 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
         const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
         // Use paid_amount from sales table (includes cash, card, upi from mixed payments)
         const totalPaid = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
-        const balance = totalSales - totalPaid;
+        const openingBalance = customer.opening_balance || 0;
+        // Balance = Opening Balance + Total Sales - Total Paid
+        const balance = openingBalance + totalSales - totalPaid;
 
         return {
           ...customer,
+          opening_balance: openingBalance,
           totalSales,
           totalPaid,
           balance,
@@ -159,7 +163,24 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
-      let runningBalance = 0;
+      
+      // Start with opening balance
+      const openingBalance = selectedCustomer.opening_balance || 0;
+      let runningBalance = openingBalance;
+
+      // Add opening balance as first entry if it exists
+      if (openingBalance !== 0) {
+        allTransactions.push({
+          id: 'opening-balance',
+          date: '1900-01-01', // Will be shown as "Opening Balance"
+          type: 'invoice',
+          reference: 'Opening',
+          description: 'Opening Balance (Carried Forward)',
+          debit: openingBalance > 0 ? openingBalance : 0,
+          credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
+          balance: runningBalance,
+        });
+      }
 
       // Merge sales and payments chronologically
       const combined = [
@@ -422,7 +443,23 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              {selectedCustomer.opening_balance !== 0 && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-sm text-muted-foreground mb-1">Opening Balance</div>
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      selectedCustomer.opening_balance > 0 ? "text-orange-600 dark:text-orange-400" : "text-green-600 dark:text-green-400"
+                    )}>
+                      ₹{Math.abs(selectedCustomer.opening_balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedCustomer.opening_balance > 0 ? "Receivable" : "Advance"}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Sales</div>
@@ -443,8 +480,8 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Collection Rate</div>
                   <div className="text-2xl font-bold">
-                    {selectedCustomer.totalSales > 0
-                      ? ((selectedCustomer.totalPaid / selectedCustomer.totalSales) * 100).toFixed(1)
+                    {(selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance)) > 0
+                      ? ((selectedCustomer.totalPaid / (selectedCustomer.totalSales + Math.max(0, selectedCustomer.opening_balance))) * 100).toFixed(1)
                       : '0.0'}%
                   </div>
                 </CardContent>
@@ -477,21 +514,30 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
                     </TableRow>
                   ) : (
                     transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
+                      <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {format(new Date(transaction.date), "dd MMM yyyy")}
+                            {transaction.id === 'opening-balance' 
+                              ? <span className="font-semibold">Opening</span>
+                              : format(new Date(transaction.date), "dd MMM yyyy")
+                            }
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
-                            {transaction.type === 'invoice' ? (
-                              <><FileText className="h-3 w-3 mr-1" /> Invoice</>
-                            ) : (
-                              <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
-                            )}
-                          </Badge>
+                          {transaction.id === 'opening-balance' ? (
+                            <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                              B/F
+                            </Badge>
+                          ) : (
+                            <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                              {transaction.type === 'invoice' ? (
+                                <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                              ) : (
+                                <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                              )}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
                         <TableCell>
