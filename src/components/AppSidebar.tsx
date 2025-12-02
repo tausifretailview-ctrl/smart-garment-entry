@@ -19,6 +19,7 @@ import {
   Shield,
   Plus,
   PackageCheck,
+  DollarSign,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -51,7 +52,8 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/delivery-dashboard", "/payments-dashboard"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report"];
+  const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
@@ -352,24 +354,6 @@ export function AppSidebar() {
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/delivery-dashboard")}>
-                          <NavLink to="/delivery-dashboard" className="flex items-center gap-3 group">
-                            <PackageCheck className="h-4 w-4 sidebar-icon" />
-                            <span>Delivery Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      {canAccessPurchases && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")}>
-                            <NavLink to="/payments-dashboard" className="flex items-center gap-3 group">
-                              <Wallet className="h-4 w-4 sidebar-icon" />
-                              <span>Payments Dashboard</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )}
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
@@ -378,19 +362,60 @@ export function AppSidebar() {
           </Collapsible>
         </SidebarGroup>
 
+        {/* Delivery Status */}
+        <SidebarGroup>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild isActive={isActive("/delivery-dashboard")}>
+                <NavLink to="/delivery-dashboard" className="flex items-center gap-3 group">
+                  <PackageCheck className="h-5 w-5 sidebar-icon" />
+                  {open && <span className="font-medium">Delivery Status</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+
         {/* Accounts */}
         {canAccessPurchases && (
           <SidebarGroup>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/accounts")}>
-                  <NavLink to="/accounts" className="flex items-center gap-3 group">
-                    <Wallet className="h-5 w-5 sidebar-icon" />
-                    {open && <span className="font-medium">Accounts</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+            <Collapsible defaultOpen={isGroupActive(accountsPaths)} className="group/collapsible">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 rounded-md p-2 transition-all duration-200 group">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 sidebar-icon" />
+                    {open && <span className="font-semibold">Accounts</span>}
+                  </div>
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/accounts")}>
+                            <NavLink to="/accounts" className="flex items-center gap-3 group">
+                              <Wallet className="h-4 w-4 sidebar-icon" />
+                              <span>Account Ledgers</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")}>
+                            <NavLink to="/payments-dashboard" className="flex items-center gap-3 group">
+                              <DollarSign className="h-4 w-4 sidebar-icon" />
+                              <span>Payments</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
           </SidebarGroup>
         )}
 
