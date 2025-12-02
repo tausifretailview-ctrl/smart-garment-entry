@@ -644,7 +644,7 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${format(new Date(receiptData.date), 'dd/MM/yyyy')}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.date ? format(new Date(receiptData.date), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     let formattedPhone = phoneNumber.length === 10 ? `91${phoneNumber}` : phoneNumber;
@@ -943,7 +943,7 @@ export default function SalesInvoiceDashboard() {
                               {invoice.customer_phone || '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>
-                              {format(new Date(invoice.sale_date), 'dd/MM/yyyy')}
+                              {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
@@ -1070,7 +1070,7 @@ export default function SalesInvoiceDashboard() {
                                         {deliveryHistory[invoice.id].map((history: any, idx: number) => (
                                           <div key={idx} className="text-sm flex gap-3 p-2 bg-background rounded">
                                             <span className="font-medium text-muted-foreground min-w-[90px]">
-                                              {format(new Date(history.status_date), 'dd/MM/yyyy')}
+                                              {history.status_date ? format(new Date(history.status_date), 'dd/MM/yyyy') : '-'}
                                             </span>
                                             <Badge className={`${getDeliveryBadgeClass(history.status)} text-xs`}>
                                               {getDeliveryLabel(history.status)}

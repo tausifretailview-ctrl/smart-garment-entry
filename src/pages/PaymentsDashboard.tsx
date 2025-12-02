@@ -394,7 +394,7 @@ export default function PaymentsDashboard() {
 Thank you for your payment!
 
 Receipt No: ${receiptData.voucherNumber}
-Date: ${format(new Date(receiptData.voucherDate), 'dd MMM yyyy')}
+Date: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd MMM yyyy') : '-'}
 Amount Paid: ₹${receiptData.paidAmount.toLocaleString('en-IN')}
 Payment Method: ${receiptData.paymentMethod.toUpperCase()}
 
@@ -643,7 +643,7 @@ Thank you for your business!`;
                             </TableCell>
                           )}
                           {columnSettings.saleDate && (
-                            <TableCell>{format(new Date(invoice.sale_date), 'dd MMM yyyy')}</TableCell>
+                            <TableCell>{invoice.sale_date ? format(new Date(invoice.sale_date), 'dd MMM yyyy') : '-'}</TableCell>
                           )}
                           {columnSettings.dueDate && (
                             <TableCell>
