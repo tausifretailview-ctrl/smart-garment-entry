@@ -63,10 +63,11 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
       if (salesError) throw salesError;
 
-      // Calculate totals per customer
+      // Calculate totals per customer - using paid_amount directly from sales table
       const customerTotals = customersData.map((customer) => {
         const customerSales = salesData.filter((s) => s.customer_id === customer.id);
         const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+        // Use paid_amount from sales table (includes cash, card, upi from mixed payments)
         const totalPaid = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
         const balance = totalSales - totalPaid;
 
