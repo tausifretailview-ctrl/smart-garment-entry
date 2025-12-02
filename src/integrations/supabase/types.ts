@@ -1086,6 +1086,8 @@ export type Database = {
       }
       sales: {
         Row: {
+          card_amount: number | null
+          cash_amount: number | null
           created_at: string
           created_by: string | null
           customer_address: string | null
@@ -1117,8 +1119,11 @@ export type Database = {
           shipping_instructions: string | null
           terms_conditions: string | null
           updated_at: string
+          upi_amount: number | null
         }
         Insert: {
+          card_amount?: number | null
+          cash_amount?: number | null
           created_at?: string
           created_by?: string | null
           customer_address?: string | null
@@ -1150,8 +1155,11 @@ export type Database = {
           shipping_instructions?: string | null
           terms_conditions?: string | null
           updated_at?: string
+          upi_amount?: number | null
         }
         Update: {
+          card_amount?: number | null
+          cash_amount?: number | null
           created_at?: string
           created_by?: string | null
           customer_address?: string | null
@@ -1183,6 +1191,7 @@ export type Database = {
           shipping_instructions?: string | null
           terms_conditions?: string | null
           updated_at?: string
+          upi_amount?: number | null
         }
         Relationships: [
           {

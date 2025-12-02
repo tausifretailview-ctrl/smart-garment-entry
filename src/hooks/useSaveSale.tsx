@@ -123,7 +123,13 @@ export const useSaveSale = () => {
 
   const saveSale = async (
     saleData: SaleData,
-    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later'
+    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
+    paymentBreakdown?: {
+      cashAmount: number;
+      cardAmount: number;
+      upiAmount: number;
+      totalPaid: number;
+    }
   ) => {
     if (!user) {
       toast({
@@ -174,6 +180,41 @@ export const useSaveSale = () => {
         saleNumber = defaultNumber;
       }
 
+      // Calculate payment status and amounts
+      let cashAmt = 0;
+      let cardAmt = 0;
+      let upiAmt = 0;
+      let paidAmt = 0;
+      let payStatus = 'completed';
+
+      if (paymentBreakdown) {
+        // Mix payment
+        cashAmt = paymentBreakdown.cashAmount;
+        cardAmt = paymentBreakdown.cardAmount;
+        upiAmt = paymentBreakdown.upiAmount;
+        paidAmt = paymentBreakdown.totalPaid;
+        
+        if (paidAmt >= saleData.netAmount) {
+          payStatus = 'completed';
+        } else if (paidAmt > 0) {
+          payStatus = 'partial';
+        } else {
+          payStatus = 'pending';
+        }
+      } else {
+        // Single payment method
+        paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
+        payStatus = paymentMethod === 'pay_later' ? 'pending' : 'completed';
+        
+        if (paymentMethod === 'cash') {
+          cashAmt = saleData.netAmount;
+        } else if (paymentMethod === 'card') {
+          cardAmt = saleData.netAmount;
+        } else if (paymentMethod === 'upi') {
+          upiAmt = saleData.netAmount;
+        }
+      }
+
       // Insert sale record
       const { data: sale, error: saleError } = await (supabase as any)
         .from('sales')
@@ -190,7 +231,11 @@ export const useSaveSale = () => {
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: paymentMethod,
-          payment_status: paymentMethod === 'pay_later' ? 'pending' : 'completed',
+          payment_status: payStatus,
+          paid_amount: paidAmt,
+          cash_amount: cashAmt,
+          card_amount: cardAmt,
+          upi_amount: upiAmt,
           created_by: user.id,
           organization_id: currentOrganization.id,
         })
