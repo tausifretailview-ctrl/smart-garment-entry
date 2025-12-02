@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, DollarSign, Send } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -972,7 +972,7 @@ export default function SalesInvoiceDashboard() {
                                     onClick={() => openPaymentDialog(invoice)}
                                     title="Record Payment"
                                   >
-                                    <DollarSign className="h-4 w-4 text-purple-600" />
+                                    <IndianRupee className="h-4 w-4 text-purple-600" />
                                   </Button>
                                 )}
                                 {columnSettings.copyLink && (
