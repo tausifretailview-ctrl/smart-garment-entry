@@ -32,6 +32,7 @@ interface Customer {
   email: string | null;
   address: string | null;
   gst_number: string | null;
+  opening_balance: number | null;
   created_at: string;
 }
 
@@ -45,6 +46,7 @@ const CustomerMaster = () => {
     email: "",
     address: "",
     gst_number: "",
+    opening_balance: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -70,8 +72,12 @@ const CustomerMaster = () => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       // Use phone as customer name if name is empty
       const customerData = {
-        ...data,
         customer_name: data.customer_name.trim() || data.phone,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        gst_number: data.gst_number,
+        opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         organization_id: currentOrganization.id
       };
       const { error } = await supabase.from("customers").insert([customerData]);
@@ -92,8 +98,12 @@ const CustomerMaster = () => {
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       // Use phone as customer name if name is empty
       const customerData = {
-        ...data,
         customer_name: data.customer_name.trim() || data.phone,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        gst_number: data.gst_number,
+        opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
       };
       const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
@@ -130,6 +140,7 @@ const CustomerMaster = () => {
       email: "",
       address: "",
       gst_number: "",
+      opening_balance: "",
     });
     setEditingCustomer(null);
   };
@@ -151,6 +162,7 @@ const CustomerMaster = () => {
       email: customer.email || "",
       address: customer.address || "",
       gst_number: customer.gst_number || "",
+      opening_balance: customer.opening_balance?.toString() || "",
     });
     setIsDialogOpen(true);
   };
@@ -233,6 +245,20 @@ const CustomerMaster = () => {
                   onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
                 />
               </div>
+              <div>
+                <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
+                <Input
+                  id="opening_balance"
+                  type="number"
+                  step="0.01"
+                  value={formData.opening_balance}
+                  onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
+                  placeholder="Receivable from customer"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Positive = Receivable from customer
+                </p>
+              </div>
               <Button type="submit" className="w-full">
                 {editingCustomer ? "Update" : "Create"} Customer
               </Button>
@@ -259,17 +285,18 @@ const CustomerMaster = () => {
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>GST Number</TableHead>
+              <TableHead className="text-right">Opening Bal.</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center">No customers found</TableCell>
+                <TableCell colSpan={6} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
               filteredCustomers.map((customer) => (
@@ -278,6 +305,9 @@ const CustomerMaster = () => {
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
                   <TableCell>{customer.gst_number || "-"}</TableCell>
+                  <TableCell className="text-right">
+                    {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString()}` : "-"}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="ghost"
