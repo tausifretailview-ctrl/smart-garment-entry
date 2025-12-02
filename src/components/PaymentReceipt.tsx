@@ -112,7 +112,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
           <div>
             <p className="font-semibold text-gray-900">Receipt Date:</p>
             <p className="text-gray-700">
-              {format(new Date(receiptData.voucherDate), "dd MMM yyyy")}
+              {receiptData.voucherDate ? format(new Date(receiptData.voucherDate), "dd MMM yyyy") : "-"}
             </p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                 Payment for Invoice: {receiptData.invoiceNumber}
                 <br />
                 <span className="text-sm text-gray-600">
-                  Invoice Date: {format(new Date(receiptData.invoiceDate), "dd MMM yyyy")}
+                  Invoice Date: {receiptData.invoiceDate ? format(new Date(receiptData.invoiceDate), "dd MMM yyyy") : "-"}
                 </span>
               </td>
               <td className="border border-gray-300 p-2 text-right">
