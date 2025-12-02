@@ -102,11 +102,14 @@ const DailyCashierReport = () => {
         cardSale: 0,
         upiSale: 0,
         creditSale: 0,
+        totalPaid: 0,
+        totalBalance: 0,
         totalBills: 0,
         cashBills: 0,
         cardBills: 0,
         upiBills: 0,
         creditBills: 0,
+        mixBills: 0,
       };
     }
 
@@ -117,10 +120,13 @@ const DailyCashierReport = () => {
     let cardSale = 0;
     let upiSale = 0;
     let creditSale = 0;
+    let totalPaid = 0;
+    let totalBalance = 0;
     let cashBills = 0;
     let cardBills = 0;
     let upiBills = 0;
     let creditBills = 0;
+    let mixBills = 0;
 
     salesData.forEach((sale) => {
       grossSale += Number(sale.gross_amount) || 0;
@@ -128,32 +134,41 @@ const DailyCashierReport = () => {
       totalSale += Number(sale.net_amount) || 0;
 
       const netAmount = Number(sale.net_amount) || 0;
+      const paidAmount = Number(sale.paid_amount) || 0;
+      const balance = netAmount - paidAmount;
       
-      switch (sale.payment_method) {
-        case "cash":
-          cashSale += netAmount;
-          cashBills++;
-          break;
-        case "card":
-          cardSale += netAmount;
-          cardBills++;
-          break;
-        case "upi":
-          upiSale += netAmount;
-          upiBills++;
-          break;
-        case "pay_later":
-          creditSale += netAmount;
-          creditBills++;
-          break;
-        case "multiple":
-          // For multiple payment, count in cash for simplicity
-          cashSale += netAmount;
-          cashBills++;
-          break;
-        default:
-          cashSale += netAmount;
-          cashBills++;
+      totalPaid += paidAmount;
+      totalBalance += balance;
+      
+      // For mixed payments, add individual amounts
+      if (sale.payment_method === "multiple") {
+        cashSale += Number(sale.cash_amount) || 0;
+        cardSale += Number(sale.card_amount) || 0;
+        upiSale += Number(sale.upi_amount) || 0;
+        mixBills++;
+      } else {
+        // For single payment methods
+        switch (sale.payment_method) {
+          case "cash":
+            cashSale += Number(sale.cash_amount) || netAmount;
+            cashBills++;
+            break;
+          case "card":
+            cardSale += Number(sale.card_amount) || netAmount;
+            cardBills++;
+            break;
+          case "upi":
+            upiSale += Number(sale.upi_amount) || netAmount;
+            upiBills++;
+            break;
+          case "pay_later":
+            creditSale += netAmount;
+            creditBills++;
+            break;
+          default:
+            cashSale += netAmount;
+            cashBills++;
+        }
       }
     });
 
@@ -165,11 +180,14 @@ const DailyCashierReport = () => {
       cardSale,
       upiSale,
       creditSale,
+      totalPaid,
+      totalBalance,
       totalBills: salesData.length,
       cashBills,
       cardBills,
       upiBills,
       creditBills,
+      mixBills,
     };
   };
 
@@ -188,21 +206,25 @@ const DailyCashierReport = () => {
       ["Gross Sale", totals.grossSale],
       ["Total Discount", totals.totalDiscount],
       ["Net Sale", totals.totalSale],
+      ["Total Paid", totals.totalPaid],
+      ["Total Balance", totals.totalBalance],
       [],
       ["Payment Method Breakdown"],
       ["Payment Method", "Bills", "Amount"],
       ["Cash", totals.cashBills, totals.cashSale],
       ["Card", totals.cardBills, totals.cardSale],
       ["UPI", totals.upiBills, totals.upiSale],
+      ["Mix Payment", totals.mixBills, totals.cashSale + totals.cardSale + totals.upiSale - (totals.cashBills * (totals.cashSale / (totals.cashBills || 1))) - (totals.cardBills * (totals.cardSale / (totals.cardBills || 1))) - (totals.upiBills * (totals.upiSale / (totals.upiBills || 1)))],
       ["Credit (Pay Later)", totals.creditBills, totals.creditSale],
       ["Total", totals.totalBills, totals.totalSale],
       [],
       ["Collection Summary"],
-      ["Cash Collection", totals.cashSale],
-      ["Card Collection", totals.cardSale],
-      ["UPI Collection", totals.upiSale],
+      ["Total Cash Collection", totals.cashSale],
+      ["Total Card Collection", totals.cardSale],
+      ["Total UPI Collection", totals.upiSale],
+      ["Total Collection", totals.totalPaid],
       ["Credit (Outstanding)", totals.creditSale],
-      ["Total Collection (Cash + Card + UPI)", totals.cashSale + totals.cardSale + totals.upiSale],
+      ["Total Balance Pending", totals.totalBalance],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(data);
@@ -236,51 +258,31 @@ const DailyCashierReport = () => {
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
+    y += 7;
+    doc.setFont("helvetica", "normal");
+    doc.text(`Total Paid: ${formatCurrency(totals.totalPaid)}`, 20, y);
+    y += 7;
+    doc.text(`Balance Pending: ${formatCurrency(totals.totalBalance)}`, 20, y);
     doc.setFont("helvetica", "normal");
 
     // Payment Breakdown
     y += 15;
     doc.setFont("helvetica", "bold");
-    doc.text("Payment Method Breakdown", 20, y);
+    doc.text("Payment Collection Breakdown", 20, y);
     doc.setFont("helvetica", "normal");
     y += 10;
     
-    doc.text("Payment Method", 20, y);
-    doc.text("Bills", 100, y);
-    doc.text("Amount", 140, y);
+    doc.text("Cash Collection: " + formatCurrency(totals.cashSale), 20, y);
     y += 7;
-    
-    doc.text("Cash", 20, y);
-    doc.text(String(totals.cashBills), 100, y);
-    doc.text(formatCurrency(totals.cashSale), 140, y);
+    doc.text("Card Collection: " + formatCurrency(totals.cardSale), 20, y);
     y += 7;
-    
-    doc.text("Card", 20, y);
-    doc.text(String(totals.cardBills), 100, y);
-    doc.text(formatCurrency(totals.cardSale), 140, y);
+    doc.text("UPI Collection: " + formatCurrency(totals.upiSale), 20, y);
     y += 7;
-    
-    doc.text("UPI", 20, y);
-    doc.text(String(totals.upiBills), 100, y);
-    doc.text(formatCurrency(totals.upiSale), 140, y);
-    y += 7;
-    
-    doc.text("Credit (Pay Later)", 20, y);
-    doc.text(String(totals.creditBills), 100, y);
-    doc.text(formatCurrency(totals.creditSale), 140, y);
-    y += 10;
-    
     doc.setFont("helvetica", "bold");
-    doc.text("Total", 20, y);
-    doc.text(String(totals.totalBills), 100, y);
-    doc.text(formatCurrency(totals.totalSale), 140, y);
-    
-    // Collection Summary
-    y += 15;
-    doc.text("Collection Summary", 20, y);
+    doc.text("Total Collection: " + formatCurrency(totals.totalPaid), 20, y);
+    y += 7;
     doc.setFont("helvetica", "normal");
-    y += 10;
-    doc.text(`Total Collection (Cash + Card + UPI): ${formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale)}`, 20, y);
+    doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
 
     // Footer
     y += 20;
@@ -392,7 +394,7 @@ const DailyCashierReport = () => {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
@@ -422,7 +424,7 @@ const DailyCashierReport = () => {
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
                   <IndianRupee className="h-4 w-4" />
-                  Total Sale
+                  Net Sale
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -430,19 +432,31 @@ const DailyCashierReport = () => {
                 <p className="text-xs text-green-600 dark:text-green-400">Gross - Discount</p>
               </CardContent>
             </Card>
+
+            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300 flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Balance Pending
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{formatCurrency(totals.totalBalance)}</p>
+                <p className="text-xs text-orange-600 dark:text-orange-400">Outstanding</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Payment Method Breakdown */}
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Payment Method Breakdown</CardTitle>
+              <CardTitle className="text-lg">Payment Collection Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Payment Method</TableHead>
-                    <TableHead className="text-center">Bills</TableHead>
+                    <TableHead>Collection Type</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -453,10 +467,9 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
                           <IndianRupee className="h-4 w-4 text-green-600 dark:text-green-400" />
                         </div>
-                        <span className="font-medium">Cash</span>
+                        <span className="font-medium">Cash Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{totals.cashBills}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(totals.cashSale)}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -465,10 +478,9 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900">
                           <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <span className="font-medium">Card</span>
+                        <span className="font-medium">Card Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{totals.cardBills}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(totals.cardSale)}</TableCell>
                   </TableRow>
                   <TableRow>
@@ -477,11 +489,21 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900">
                           <Smartphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         </div>
-                        <span className="font-medium">UPI</span>
+                        <span className="font-medium">UPI Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{totals.upiBills}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(totals.upiSale)}</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-green-50 dark:bg-green-950">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
+                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
+                        </div>
+                        <span className="font-bold">Total Collection</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.totalPaid)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -489,16 +511,21 @@ const DailyCashierReport = () => {
                         <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900">
                           <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
                         </div>
-                        <span className="font-medium">Credit (Pay Later)</span>
+                        <span className="font-medium">Credit (Outstanding)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-center">{totals.creditBills}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(totals.creditSale)}</TableCell>
+                    <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(totals.creditSale)}</TableCell>
                   </TableRow>
-                  <TableRow className="bg-muted/50 font-bold">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-center">{totals.totalBills}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(totals.totalSale)}</TableCell>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900">
+                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <span className="font-medium">Balance Pending</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(totals.totalBalance)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -541,10 +568,14 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">Credit (Outstanding)</span>
                     <span>{formatCurrency(totals.creditSale)}</span>
                   </div>
+                  <div className="flex justify-between text-orange-600">
+                    <span className="text-muted-foreground">Balance Pending</span>
+                    <span>{formatCurrency(totals.totalBalance)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between py-2 border-t mt-2 font-bold">
-                  <span>Total Collection (Cash + Card + UPI)</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale)}</span>
+                <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
+                  <span>Total Collection</span>
+                  <span>{formatCurrency(totals.totalPaid)}</span>
                 </div>
               </div>
             </CardContent>
