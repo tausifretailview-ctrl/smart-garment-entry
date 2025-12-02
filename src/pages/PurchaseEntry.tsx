@@ -16,11 +16,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer, ChevronDown } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 
 interface ProductVariant {
   id: string;
@@ -112,6 +114,8 @@ const PurchaseEntry = () => {
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
+  const [showExcelImport, setShowExcelImport] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -911,6 +915,139 @@ const PurchaseEntry = () => {
     }
   };
 
+  // Handle Excel import for purchase bill
+  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+    if (!currentOrganization) return;
+    
+    setImportLoading(true);
+    try {
+      const newLineItems: LineItem[] = [];
+      
+      for (const row of mappedData) {
+        // Skip rows without required fields
+        if (!row.product_name || !row.size || !row.qty || row.qty <= 0) continue;
+        
+        // Generate barcode if not provided
+        let barcode = row.barcode || '';
+        if (!barcode) {
+          const { data: barcodeData, error: barcodeError } = await supabase.rpc(
+            'generate_next_barcode',
+            { p_organization_id: currentOrganization.id }
+          );
+          if (barcodeError) throw barcodeError;
+          barcode = barcodeData;
+        }
+        
+        // Check if product already exists
+        const { data: existingProducts } = await supabase
+          .from('products')
+          .select('id')
+          .eq('organization_id', currentOrganization.id)
+          .eq('product_name', row.product_name)
+          .eq('brand', row.brand || '')
+          .eq('category', row.category || '')
+          .eq('color', row.color || '')
+          .eq('style', row.style || '')
+          .limit(1);
+        
+        let productId = existingProducts?.[0]?.id;
+        
+        // Create product if it doesn't exist
+        if (!productId) {
+          const { data: newProduct, error: productError } = await supabase
+            .from('products')
+            .insert({
+              organization_id: currentOrganization.id,
+              product_name: row.product_name,
+              category: row.category || null,
+              brand: row.brand || null,
+              style: row.style || null,
+              color: row.color || null,
+              hsn_code: row.hsn_code || null,
+              gst_per: Number(row.gst_per) || 0,
+              default_pur_price: Number(row.pur_price) || 0,
+              default_sale_price: Number(row.sale_price) || 0,
+              status: 'active',
+            })
+            .select('id')
+            .single();
+          
+          if (productError) throw productError;
+          productId = newProduct.id;
+        }
+        
+        // Check if variant already exists
+        const { data: existingVariants } = await supabase
+          .from('product_variants')
+          .select('id')
+          .eq('organization_id', currentOrganization.id)
+          .eq('product_id', productId)
+          .eq('size', row.size)
+          .limit(1);
+        
+        let skuId = existingVariants?.[0]?.id;
+        
+        // Create variant if it doesn't exist
+        if (!skuId) {
+          const { data: newVariant, error: variantError } = await supabase
+            .from('product_variants')
+            .insert({
+              organization_id: currentOrganization.id,
+              product_id: productId,
+              size: row.size,
+              barcode: barcode,
+              pur_price: Number(row.pur_price) || 0,
+              sale_price: Number(row.sale_price) || 0,
+              stock_qty: 0,
+              active: true,
+            })
+            .select('id')
+            .single();
+          
+          if (variantError) throw variantError;
+          skuId = newVariant.id;
+        }
+        
+        const lineTotal = Number(row.qty) * Number(row.pur_price);
+        
+        newLineItems.push({
+          temp_id: `import_${Date.now()}_${Math.random()}`,
+          product_id: productId,
+          sku_id: skuId,
+          product_name: row.product_name,
+          size: row.size,
+          qty: Number(row.qty) || 0,
+          pur_price: Number(row.pur_price) || 0,
+          sale_price: Number(row.sale_price) || 0,
+          gst_per: Number(row.gst_per) || 0,
+          hsn_code: row.hsn_code || '',
+          barcode: barcode,
+          discount_percent: 0,
+          line_total: lineTotal,
+          brand: row.brand,
+          category: row.category,
+          color: row.color,
+          style: row.style,
+        });
+      }
+      
+      setLineItems(prev => [...prev, ...newLineItems]);
+      toast({
+        title: "Import Successful",
+        description: `Added ${newLineItems.length} items from Excel`,
+      });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      toast({
+        title: "Import Failed",
+        description: error.message || "Failed to import Excel data",
+        variant: "destructive",
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -1022,6 +1159,19 @@ const PurchaseEntry = () => {
             <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle>Products</CardTitle>
               <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setShowExcelImport(true)}
+                  variant="outline"
+                  className="gap-2"
+                  disabled={importLoading}
+                >
+                  {importLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4" />
+                  )}
+                  Import Excel
+                </Button>
                 <Button
                   onClick={() => {
                     // Save current state before navigating
@@ -1534,6 +1684,17 @@ const PurchaseEntry = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Excel Import Dialog */}
+        <ExcelImportDialog
+          open={showExcelImport}
+          onClose={() => setShowExcelImport(false)}
+          targetFields={purchaseBillFields}
+          onImport={handleExcelImport}
+          title="Import Purchase Bill from Excel"
+          sampleData={purchaseBillSampleData}
+          sampleFileName="Purchase_Bill_Sample.xlsx"
+        />
       </div>
     </div>
   );
