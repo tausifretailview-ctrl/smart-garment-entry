@@ -151,25 +151,99 @@ export const applyMappings = (
   });
 };
 
+export interface RowValidationError {
+  row: number;
+  field: string;
+  message: string;
+  value?: any;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  rowErrors: RowValidationError[];
+  validRowCount: number;
+  invalidRowCount: number;
+}
+
 export const validateMappedData = (
   mappedData: Record<string, any>[],
-  targetFields: TargetField[]
-): { valid: boolean; errors: string[] } => {
+  targetFields: TargetField[],
+  mappings: Record<string, string | null>
+): ValidationResult => {
   const errors: string[] = [];
+  const rowErrors: RowValidationError[] = [];
   const requiredFields = targetFields.filter(f => f.required);
-
+  const numberFields = targetFields.filter(f => f.type === 'number');
+  
+  // Check if required fields are mapped
+  const mappedFieldKeys = Object.values(mappings).filter(Boolean);
   requiredFields.forEach(field => {
-    const hasValue = mappedData.some(row => 
-      row[field.key] !== undefined && row[field.key] !== '' && row[field.key] !== null
-    );
-    if (!hasValue) {
-      errors.push(`Required field "${field.label}" is not mapped or has no values`);
+    if (!mappedFieldKeys.includes(field.key)) {
+      errors.push(`Required field "${field.label}" is not mapped`);
+    }
+  });
+
+  // Validate each row
+  let invalidRowCount = 0;
+  mappedData.forEach((row, index) => {
+    const rowNumber = index + 2; // Excel row (1-indexed + header row)
+    let rowHasError = false;
+
+    // Check required fields have values
+    requiredFields.forEach(field => {
+      if (mappedFieldKeys.includes(field.key)) {
+        const value = row[field.key];
+        if (value === undefined || value === '' || value === null) {
+          rowErrors.push({
+            row: rowNumber,
+            field: field.label,
+            message: `Missing required value`,
+            value: value
+          });
+          rowHasError = true;
+        }
+      }
+    });
+
+    // Validate number fields
+    numberFields.forEach(field => {
+      if (mappedFieldKeys.includes(field.key)) {
+        const value = row[field.key];
+        if (value !== undefined && value !== '' && value !== null) {
+          const numValue = Number(value);
+          if (isNaN(numValue)) {
+            rowErrors.push({
+              row: rowNumber,
+              field: field.label,
+              message: `Invalid number`,
+              value: value
+            });
+            rowHasError = true;
+          } else if (numValue < 0 && ['qty', 'pur_price', 'sale_price', 'gst_per', 'opening_qty', 'default_pur_price', 'default_sale_price'].includes(field.key)) {
+            rowErrors.push({
+              row: rowNumber,
+              field: field.label,
+              message: `Cannot be negative`,
+              value: value
+            });
+            rowHasError = true;
+          }
+        }
+      }
+    });
+
+    if (rowHasError) {
+      invalidRowCount++;
     }
   });
 
   return {
-    valid: errors.length === 0,
+    valid: errors.length === 0 && rowErrors.length === 0,
     errors,
+    rowErrors,
+    validRowCount: mappedData.length - invalidRowCount,
+    invalidRowCount,
   };
 };
 
