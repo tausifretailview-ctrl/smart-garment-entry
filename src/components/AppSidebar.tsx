@@ -51,7 +51,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/delivery-dashboard"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/delivery-dashboard", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
@@ -360,6 +360,16 @@ export function AppSidebar() {
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                      {canAccessPurchases && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")}>
+                            <NavLink to="/payments-dashboard" className="flex items-center gap-3 group">
+                              <Wallet className="h-4 w-4 sidebar-icon" />
+                              <span>Payments Dashboard</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>

@@ -38,6 +38,7 @@ import DailyCashierReport from "./pages/DailyCashierReport";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
+import PaymentsDashboard from "./pages/PaymentsDashboard";
 import Auth from "./pages/Auth";
 import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
@@ -370,6 +371,16 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <DeliveryDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/payments-dashboard"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <PaymentsDashboard />
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
