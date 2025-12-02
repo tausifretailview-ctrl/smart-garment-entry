@@ -14,6 +14,8 @@ import {
   applyMappings,
   validateMappedData,
   generateSampleExcel,
+  ValidationResult,
+  RowValidationError,
 } from '@/utils/excelImportUtils';
 
 interface ExcelImportDialogProps {
@@ -144,20 +146,31 @@ export const ExcelImportDialog = ({
     };
   };
 
+  const getValidationResult = (): ValidationResult | null => {
+    if (!parsedData) return null;
+    const mappedData = applyMappings(parsedData.rows, mappings);
+    return validateMappedData(mappedData, targetFields, mappings);
+  };
+
   const handleImport = () => {
     if (!parsedData) return;
 
     const mappedData = applyMappings(parsedData.rows, mappings);
-    const validation = validateMappedData(mappedData, targetFields);
+    const validation = validateMappedData(mappedData, targetFields, mappings);
 
     if (!validation.valid) {
       validation.errors.forEach(err => toast.error(err));
+      if (validation.rowErrors.length > 0) {
+        toast.error(`${validation.invalidRowCount} rows have validation errors. Please fix them before importing.`);
+      }
       return;
     }
 
     onImport(mappedData);
     handleClose();
   };
+
+  const validationResult = getValidationResult();
 
   const handleClose = () => {
     setParsedData(null);
@@ -302,6 +315,52 @@ export const ExcelImportDialog = ({
                   </p>
                 </div>
               )}
+
+              {/* Validation Errors */}
+              {validationResult && !validationResult.valid && (
+                <div className="border border-destructive/50 bg-destructive/10 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-destructive font-medium">
+                    <AlertCircle className="h-4 w-4" />
+                    Validation Errors ({validationResult.invalidRowCount} rows with issues)
+                  </div>
+                  
+                  {validationResult.errors.length > 0 && (
+                    <div className="space-y-1">
+                      {validationResult.errors.map((error, idx) => (
+                        <p key={idx} className="text-sm text-destructive">• {error}</p>
+                      ))}
+                    </div>
+                  )}
+
+                  {validationResult.rowErrors.length > 0 && (
+                    <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                      {validationResult.rowErrors.slice(0, 20).map((error, idx) => (
+                        <p key={idx} className="text-sm text-destructive/80">
+                          Row {error.row}: {error.field} - {error.message}
+                          {error.value !== undefined && error.value !== '' && (
+                            <span className="text-muted-foreground"> (value: "{error.value}")</span>
+                          )}
+                        </p>
+                      ))}
+                      {validationResult.rowErrors.length > 20 && (
+                        <p className="text-sm text-muted-foreground italic">
+                          ... and {validationResult.rowErrors.length - 20} more errors
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Validation Success */}
+              {validationResult && validationResult.valid && (
+                <div className="border border-green-500/50 bg-green-500/10 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-600 font-medium">
+                    <Check className="h-4 w-4" />
+                    All {validationResult.validRowCount} rows passed validation
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -311,9 +370,12 @@ export const ExcelImportDialog = ({
             Cancel
           </Button>
           {parsedData && (
-            <Button onClick={handleImport}>
+            <Button 
+              onClick={handleImport}
+              disabled={validationResult ? !validationResult.valid : false}
+            >
               <Upload className="h-4 w-4 mr-2" />
-              Import {parsedData.rows.length} Rows
+              Import {validationResult?.validRowCount || parsedData.rows.length} Rows
             </Button>
           )}
         </DialogFooter>
