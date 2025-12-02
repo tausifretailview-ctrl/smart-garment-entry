@@ -208,38 +208,82 @@ export default function Accounts() {
 
   // Fetch reconciliation data
   const { data: reconciliationData } = useQuery({
-    queryKey: ["payment-reconciliation", currentOrganization?.id, reconStartDate, reconEndDate],
+    queryKey: ["payment-reconciliation", currentOrganization?.id, reconStartDate, reconEndDate, reconCustomerFilter, reconStatusFilter],
     queryFn: async () => {
-      const { data: payments, error } = await supabase
+      // If customer filter is selected, first get sales IDs for that customer
+      let salesIdsFilter: string[] | null = null;
+      
+      if (reconCustomerFilter && reconCustomerFilter !== "all" && reconCustomerFilter !== "") {
+        const { data: customerSales, error: salesError } = await supabase
+          .from("sales")
+          .select("id")
+          .eq("customer_id", reconCustomerFilter);
+        
+        if (salesError) throw salesError;
+        salesIdsFilter = customerSales?.map(s => s.id) || [];
+        
+        // If no sales found for this customer, return empty array
+        if (salesIdsFilter.length === 0) {
+          return [];
+        }
+      }
+
+      // Build voucher query
+      let query = supabase
         .from("voucher_entries")
-        .select("*, sales(*), customers(*)")
+        .select("*")
         .eq("organization_id", currentOrganization?.id)
         .eq("voucher_type", "receipt")
         .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
-        .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"))
-        .order("voucher_date", { ascending: false });
+        .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
+
+      // Apply customer filter through sales IDs
+      if (salesIdsFilter !== null) {
+        query = query.in("reference_id", salesIdsFilter);
+      }
+
+      const { data: payments, error } = await query.order("voucher_date", { ascending: false });
 
       if (error) throw error;
 
-      // Enhance with customer names and invoice details
+      // Enhance with customer and invoice details
       const enhanced = await Promise.all(
         (payments || []).map(async (payment) => {
           let customerName = "Unknown";
           let customerPhone = "";
-          let invoiceDetails = null;
+          let invoiceDetails: any = null;
 
           if (payment.reference_id) {
             // Fetch invoice details
             const { data: invoice } = await supabase
               .from("sales")
-              .select("*, customers(*)")
+              .select("*")
               .eq("id", payment.reference_id)
               .maybeSingle();
 
             if (invoice) {
+              // Apply status filter here
+              if (reconStatusFilter && reconStatusFilter !== "all" && invoice.payment_status !== reconStatusFilter) {
+                return null; // Filter out this record
+              }
+
               invoiceDetails = invoice;
-              customerName = invoice.customer_name || invoice.customers?.customer_name || "Walk-in Customer";
-              customerPhone = invoice.customer_phone || invoice.customers?.phone || "";
+              customerName = invoice.customer_name || "Walk-in Customer";
+              customerPhone = invoice.customer_phone || "";
+
+              // Fetch customer master data if customer_id exists
+              if (invoice.customer_id) {
+                const { data: customer } = await supabase
+                  .from("customers")
+                  .select("*")
+                  .eq("id", invoice.customer_id)
+                  .maybeSingle();
+                
+                if (customer) {
+                  customerName = customer.customer_name || customerName;
+                  customerPhone = customer.phone || customerPhone;
+                }
+              }
             }
           }
 
@@ -252,7 +296,8 @@ export default function Accounts() {
         })
       );
 
-      return enhanced;
+      // Filter out nulls (records that didn't match status filter)
+      return enhanced.filter(e => e !== null);
     },
     enabled: !!currentOrganization?.id,
   });
@@ -1301,12 +1346,7 @@ export default function Accounts() {
                         <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
                           {new Set(
                             reconciliationData
-                              .filter((r) => {
-                                const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                                const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                                return matchesCustomer && matchesStatus;
-                              })
-                              .map((r) => r.invoiceDetails?.customer_id)
+                              ?.map((r) => r.invoiceDetails?.customer_id)
                               .filter(Boolean)
                           ).size}
                         </div>
@@ -1322,11 +1362,7 @@ export default function Accounts() {
                 <div className="flex justify-end">
                   <Button
                     onClick={() => {
-                      const filtered = reconciliationData?.filter((r) => {
-                        const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                        const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                        return matchesCustomer && matchesStatus;
-                      }) || [];
+                      const filtered = reconciliationData || [];
 
                       const ws = XLSX.utils.json_to_sheet(
                         filtered.map((payment) => ({
@@ -1378,13 +1414,7 @@ export default function Accounts() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reconciliationData
-                        ?.filter((r) => {
-                          const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                          const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                          return matchesCustomer && matchesStatus;
-                        })
-                        .map((payment) => {
+                      {reconciliationData?.map((payment) => {
                           const invoice = payment.invoiceDetails;
                           const balance = invoice ? invoice.net_amount - (invoice.paid_amount || 0) : 0;
                           const cashAmt = invoice?.cash_amount || 0;
@@ -1461,11 +1491,7 @@ export default function Accounts() {
                             </TableRow>
                           );
                         })}
-                      {reconciliationData?.filter((r) => {
-                        const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                        const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                        return matchesCustomer && matchesStatus;
-                      }).length === 0 && (
+                      {(!reconciliationData || reconciliationData.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                             No payment records found for the selected period and filters
