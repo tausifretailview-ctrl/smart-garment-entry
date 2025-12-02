@@ -99,6 +99,24 @@ export default function PaymentsDashboard() {
     localStorage.setItem('paymentsDashboardColumnSettings', JSON.stringify(newSettings));
   };
 
+  // Fetch company settings for receipt branding
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
     queryKey: ['payment-invoices', currentOrganization?.id, statusFilter, dateFrom, dateTo],
     queryFn: async () => {
@@ -824,10 +842,18 @@ Thank you for your business!`;
             <PaymentReceipt
               ref={receiptRef}
               receiptData={receiptData}
-              companyDetails={{}}
+              companyDetails={{
+                businessName: settings?.business_name,
+                address: settings?.address,
+                mobileNumber: settings?.mobile_number,
+                emailId: settings?.email_id,
+                gstNumber: settings?.gst_number,
+                logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                upiId: (settings?.sale_settings as any)?.upiId,
+              }}
               receiptSettings={{
                 showCompanyLogo: true,
-                showQrCode: false,
+                showQrCode: !!(settings?.sale_settings as any)?.upiId,
                 showSignature: true,
                 signatureLabel: "Authorized Signature"
               }}
@@ -837,10 +863,18 @@ Thank you for your business!`;
           <div className="border rounded-lg p-4 bg-gray-50">
             <PaymentReceipt
               receiptData={receiptData}
-              companyDetails={{}}
+              companyDetails={{
+                businessName: settings?.business_name,
+                address: settings?.address,
+                mobileNumber: settings?.mobile_number,
+                emailId: settings?.email_id,
+                gstNumber: settings?.gst_number,
+                logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                upiId: (settings?.sale_settings as any)?.upiId,
+              }}
               receiptSettings={{
                 showCompanyLogo: true,
-                showQrCode: false,
+                showQrCode: !!(settings?.sale_settings as any)?.upiId,
                 showSignature: true,
                 signatureLabel: "Authorized Signature"
               }}
