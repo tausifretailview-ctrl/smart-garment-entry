@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,10 +15,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CustomerLedger } from "@/components/CustomerLedger";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { useReactToPrint } from "react-to-print";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -30,9 +33,48 @@ export default function Accounts() {
   const [voucherType, setVoucherType] = useState("payment");
   const [referenceType, setReferenceType] = useState("");
   const [referenceId, setReferenceId] = useState("");
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  
+  // Receipt states
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  // Fetch customer outstanding invoices
+  const { data: customerInvoices } = useQuery({
+    queryKey: ["customer-invoices", referenceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("customer_id", referenceId)
+        .in("payment_status", ["pending", "partial"])
+        .order("sale_date", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!referenceId && referenceType === "customer",
+  });
+
+  // Fetch settings for receipt
+  const { data: settings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("*")
+        .eq("organization_id", currentOrganization?.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   // Fetch customer outstanding balance
   const { data: customerBalance } = useQuery({
@@ -221,9 +263,38 @@ export default function Accounts() {
     })(),
   };
 
-  // Create voucher mutation
+  // Create voucher mutation with receipt generation
   const createVoucher = useMutation({
     mutationFn: async (voucherData: any) => {
+      if (voucherType === "receipt" && !selectedInvoiceId) {
+        throw new Error("Please select an invoice to record payment against");
+      }
+
+      // For customer payments, update the sales invoice
+      if (voucherType === "receipt" && selectedInvoiceId) {
+        const invoice = customerInvoices?.find(inv => inv.id === selectedInvoiceId);
+        if (!invoice) throw new Error("Invoice not found");
+
+        const currentPaid = invoice.paid_amount || 0;
+        const paymentAmount = parseFloat(amount);
+        const newPaidAmount = currentPaid + paymentAmount;
+        const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
+                         newPaidAmount > 0 ? 'partial' : 'pending';
+
+        // Update sales invoice
+        const { error: updateError } = await supabase
+          .from('sales')
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: newStatus,
+            payment_date: format(voucherDate, 'yyyy-MM-dd'),
+            payment_method: paymentMethod,
+          })
+          .eq('id', selectedInvoiceId);
+
+        if (updateError) throw updateError;
+      }
+
       // Generate voucher number
       const { data: voucherNumber, error: numberError } = await supabase.rpc(
         "generate_voucher_number",
@@ -240,7 +311,7 @@ export default function Accounts() {
           voucher_type: voucherType,
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
           reference_type: referenceType,
-          reference_id: referenceId || null,
+          reference_id: selectedInvoiceId || referenceId || null,
           description: description,
           total_amount: parseFloat(amount),
         })
@@ -249,15 +320,44 @@ export default function Accounts() {
 
       if (voucherError) throw voucherError;
 
-      return voucher;
+      return { voucher, voucherNumber };
     },
-    onSuccess: () => {
-      toast.success("Voucher created successfully");
+    onSuccess: (data) => {
+      toast.success("Payment recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      
+      // Generate receipt for customer payments
+      if (voucherType === "receipt" && selectedInvoiceId) {
+        const invoice = customerInvoices?.find(inv => inv.id === selectedInvoiceId);
+        if (invoice) {
+          const currentPaid = invoice.paid_amount || 0;
+          const paymentAmount = parseFloat(amount);
+          const newPaidAmount = currentPaid + paymentAmount;
+          
+          setReceiptData({
+            voucherNumber: data.voucherNumber,
+            voucherDate: format(voucherDate, 'yyyy-MM-dd'),
+            customerName: invoice.customer_name,
+            customerPhone: invoice.customer_phone,
+            customerAddress: invoice.customer_address,
+            invoiceNumber: invoice.sale_number,
+            invoiceDate: invoice.sale_date,
+            invoiceAmount: invoice.net_amount,
+            paidAmount: paymentAmount,
+            previousBalance: invoice.net_amount - currentPaid,
+            currentBalance: invoice.net_amount - newPaidAmount,
+            paymentMethod: paymentMethod,
+          });
+          setShowReceiptDialog(true);
+        }
+      }
+      
       resetForm();
     },
     onError: (error: any) => {
-      toast.error(`Failed to create voucher: ${error.message}`);
+      toast.error(`Failed to record payment: ${error.message}`);
     },
   });
 
@@ -265,9 +365,32 @@ export default function Accounts() {
     setVoucherDate(new Date());
     setReferenceType("");
     setReferenceId("");
+    setSelectedInvoiceId("");
     setDescription("");
     setAmount("");
     setAccountId("");
+    setPaymentMethod("cash");
+  };
+
+  const handlePrintReceipt = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: `Receipt_${receiptData?.voucherNumber}`,
+  });
+
+  const handleSendWhatsApp = () => {
+    if (!receiptData || !receiptData.customerPhone) {
+      toast.error("Customer phone number not available");
+      return;
+    }
+
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n\nThank you for your payment!`;
+
+    const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
+    const waUrl = `https://wa.me/${phoneNumber.startsWith('91') ? phoneNumber : '91' + phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    navigator.clipboard.writeText(message);
+    toast.success("WhatsApp opened! Message copied to clipboard - paste with Ctrl+V if it doesn't auto-fill");
+    window.open(waUrl, '_blank');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -469,6 +592,48 @@ export default function Accounts() {
                           </p>
                         </div>
                       )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Select Invoice</Label>
+                      <Select 
+                        value={selectedInvoiceId} 
+                        onValueChange={setSelectedInvoiceId}
+                        disabled={!referenceId}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select invoice to pay" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerInvoices?.map((invoice) => {
+                            const balance = invoice.net_amount - (invoice.paid_amount || 0);
+                            return (
+                              <SelectItem key={invoice.id} value={invoice.id}>
+                                {invoice.sale_number} - ₹{balance.toFixed(2)} pending
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {!referenceId && (
+                        <p className="text-xs text-muted-foreground">Select a customer first</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Payment Method</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="card">Card</SelectItem>
+                          <SelectItem value="upi">UPI</SelectItem>
+                          <SelectItem value="cheque">Cheque</SelectItem>
+                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">
@@ -960,6 +1125,72 @@ export default function Accounts() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Receipt Dialog */}
+        <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Payment Receipt</DialogTitle>
+              <DialogDescription>
+                Payment receipt for {receiptData?.customerName}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="hidden">
+              <PaymentReceipt
+                ref={receiptRef}
+                receiptData={receiptData}
+                companyDetails={{
+                  businessName: settings?.business_name,
+                  address: settings?.address,
+                  mobileNumber: settings?.mobile_number,
+                  emailId: settings?.email_id,
+                  gstNumber: settings?.gst_number,
+                  upiId: (settings?.sale_settings as any)?.upiId,
+                }}
+                receiptSettings={{
+                  showCompanyLogo: false,
+                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                  showSignature: true,
+                  signatureLabel: "Authorized Signature",
+                }}
+              />
+            </div>
+
+            <div className="border rounded-lg p-4">
+              <PaymentReceipt
+                receiptData={receiptData}
+                companyDetails={{
+                  businessName: settings?.business_name,
+                  address: settings?.address,
+                  mobileNumber: settings?.mobile_number,
+                  emailId: settings?.email_id,
+                  gstNumber: settings?.gst_number,
+                  upiId: (settings?.sale_settings as any)?.upiId,
+                }}
+                receiptSettings={{
+                  showCompanyLogo: false,
+                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                  showSignature: true,
+                  signatureLabel: "Authorized Signature",
+                }}
+              />
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={handlePrintReceipt}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print Receipt
+              </Button>
+              {receiptData?.customerPhone && (
+                <Button onClick={handleSendWhatsApp}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Send via WhatsApp
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
