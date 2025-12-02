@@ -1788,7 +1788,7 @@ export default function POSSales() {
 
         {/* Totals Section - Fixed at Bottom */}
         <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-10">
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
@@ -1837,7 +1837,7 @@ export default function POSSales() {
               />
               <div className="text-xs md:text-sm mt-1">Round OFF</div>
             </div>
-            <div className="text-center col-span-2 md:col-span-1">
+            <div className="text-center">
               <div className="text-2xl md:text-3xl font-bold">₹{finalAmount.toFixed(2)}</div>
               <div className="text-xs md:text-sm mt-1">Amount</div>
             </div>
