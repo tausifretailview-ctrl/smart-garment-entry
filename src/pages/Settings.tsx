@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Home, Save, Eye } from "lucide-react";
+import { Home, Save, Eye, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -2401,10 +2401,20 @@ export default function Settings() {
               <CardHeader>
                 <CardTitle>User Rights Management</CardTitle>
                 <CardDescription>
-                  Manage user roles and permissions
+                  Manage user roles and configure granular permissions
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-6">
+                <div className="border rounded-lg p-4 bg-muted/50">
+                  <h3 className="font-medium mb-2">Configure User Permissions</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Set granular permissions for each user including menu access, special rights like modify, delete, WhatsApp, accounting, delivery module, and dashboard customization.
+                  </p>
+                  <Button onClick={() => navigate("/user-rights")}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    Manage User Rights
+                  </Button>
+                </div>
                 <UserManagement />
               </CardContent>
             </Card>

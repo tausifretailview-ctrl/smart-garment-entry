@@ -39,6 +39,7 @@ import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
 import PaymentsDashboard from "./pages/PaymentsDashboard";
+import UserRights from "./pages/UserRights";
 import Auth from "./pages/Auth";
 import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
@@ -380,6 +381,16 @@ const App = () => {
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                     <PaymentsDashboard />
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/user-rights"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin"]}>
+                    <UserRights />
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
