@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { Layout } from "@/components/Layout";
@@ -26,6 +26,7 @@ const DeliveryDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [selectedInvoiceForStatus, setSelectedInvoiceForStatus] = useState<any>(null);
   const [newDeliveryStatus, setNewDeliveryStatus] = useState<string>("");
@@ -136,9 +137,9 @@ const DeliveryDashboard = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch filtered invoices based on selected status, date range, and search
+  // Fetch filtered invoices based on selected status, date range, search, and payment status
   const { data: filteredInvoices } = useQuery({
-    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus, searchQuery, dateFrom, dateTo],
+    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus, searchQuery, dateFrom, dateTo, paymentStatusFilter],
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedStatus) return [];
 
@@ -147,6 +148,11 @@ const DeliveryDashboard = () => {
         .select("*")
         .eq("organization_id", currentOrganization.id)
         .eq("delivery_status", selectedStatus);
+
+      // Apply payment status filter
+      if (paymentStatusFilter !== "all") {
+        query = query.eq("payment_status", paymentStatusFilter);
+      }
 
       // Apply date range filter
       if (dateFrom) {
@@ -248,6 +254,40 @@ const DeliveryDashboard = () => {
       case "undelivered": return "Undelivered";
       default: return status;
     }
+  };
+
+  const sendWhatsAppMessage = (invoice: any) => {
+    const phone = invoice.customer_phone?.replace(/\D/g, "");
+    if (!phone) {
+      toast.error("Customer phone number not available");
+      return;
+    }
+
+    const deliveryStatusText = getDeliveryLabel(invoice.delivery_status);
+    const message = `Hello ${invoice.customer_name},
+
+Your order details:
+Invoice: ${invoice.sale_number}
+Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
+Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
+Payment Status: ${invoice.payment_status}
+Delivery Status: ${deliveryStatusText}
+
+${invoice.delivery_status === "delivered" 
+  ? "Your order has been delivered. Thank you for your business!" 
+  : invoice.delivery_status === "in_process"
+  ? "Your order is currently being processed and will be delivered soon."
+  : "Your order is pending delivery. We will update you soon."}`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
+    
+    // Copy to clipboard as fallback
+    navigator.clipboard.writeText(message).then(() => {
+      toast.success("Message copied to clipboard! Opening WhatsApp...");
+    });
+    
+    window.location.href = whatsappUrl;
   };
 
   return (
@@ -381,12 +421,26 @@ const DeliveryDashboard = () => {
                     </PopoverContent>
                   </Popover>
 
+                  {/* Payment Status Filter */}
+                  <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Payment Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Payments</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="partial">Partial</SelectItem>
+                    </SelectContent>
+                  </Select>
+
                   {/* Clear Filters */}
-                  {(searchQuery || dateFrom || dateTo) && (
+                  {(searchQuery || dateFrom || dateTo || paymentStatusFilter !== "all") && (
                     <Button variant="ghost" size="sm" onClick={() => {
                       setSearchQuery("");
                       setDateFrom(undefined);
                       setDateTo(undefined);
+                      setPaymentStatusFilter("all");
                     }}>
                       Clear
                     </Button>
@@ -403,18 +457,26 @@ const DeliveryDashboard = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>Payment</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Delivery Status</TableHead>
+                    <TableHead className="text-center">WhatsApp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices?.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">{invoice.sale_number}</TableCell>
-                      <TableCell>{invoice.customer_name}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{invoice.customer_name}</span>
+                          {invoice.customer_phone && (
+                            <span className="text-xs text-muted-foreground">{invoice.customer_phone}</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{format(new Date(invoice.sale_date), "dd MMM yyyy")}</TableCell>
                       <TableCell>₹{Number(invoice.net_amount).toLocaleString("en-IN")}</TableCell>
                       <TableCell>
-                        <Badge variant={invoice.payment_status === "completed" ? "default" : "secondary"}>
+                        <Badge variant={invoice.payment_status === "completed" ? "default" : invoice.payment_status === "pending" ? "destructive" : "secondary"}>
                           {invoice.payment_status}
                         </Badge>
                       </TableCell>
@@ -427,11 +489,22 @@ const DeliveryDashboard = () => {
                           {getDeliveryLabel(invoice.delivery_status)}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => sendWhatsAppMessage(invoice)}
+                          disabled={!invoice.customer_phone}
+                          className="h-8 w-8 p-0"
+                        >
+                          <MessageCircle className="h-4 w-4 text-green-600" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                   {(!filteredInvoices || filteredInvoices.length === 0) && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
                         No invoices found
                       </TableCell>
                     </TableRow>
