@@ -320,6 +320,54 @@ export type Database = {
           },
         ]
       }
+      delivery_tracking: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          narration: string | null
+          organization_id: string
+          sale_id: string
+          status: string
+          status_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          narration?: string | null
+          organization_id: string
+          sale_id: string
+          status: string
+          status_date?: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          narration?: string | null
+          organization_id?: string
+          sale_id?: string
+          status?: string
+          status_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_tracking_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_tracking_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           address: string | null
@@ -1045,6 +1093,7 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          delivery_status: string | null
           discount_amount: number
           due_date: string | null
           flat_discount_amount: number
@@ -1076,6 +1125,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
           flat_discount_amount?: number
@@ -1107,6 +1157,7 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
           flat_discount_amount?: number

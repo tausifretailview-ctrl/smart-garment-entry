@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2 } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +20,9 @@ import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { useReactToPrint } from "react-to-print";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +36,7 @@ import {
 
 interface ColumnSettings {
   status: boolean;
+  delivery: boolean;
   whatsapp: boolean;
   copyLink: boolean;
   print: boolean;
@@ -41,6 +46,7 @@ interface ColumnSettings {
 
 const defaultColumnSettings: ColumnSettings = {
   status: true,
+  delivery: true,
   whatsapp: true,
   copyLink: true,
   print: true,
@@ -51,8 +57,10 @@ const defaultColumnSettings: ColumnSettings = {
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
@@ -66,6 +74,15 @@ export default function SalesInvoiceDashboard() {
   const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
+  
+  // Delivery status update dialog state
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [selectedInvoiceForStatus, setSelectedInvoiceForStatus] = useState<any>(null);
+  const [newDeliveryStatus, setNewDeliveryStatus] = useState<string>("");
+  const [statusDate, setStatusDate] = useState<Date>(new Date());
+  const [statusNarration, setStatusNarration] = useState("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [deliveryHistory, setDeliveryHistory] = useState<Record<string, any[]>>({});
   
   const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
     const saved = localStorage.getItem('salesInvoiceDashboardColumnSettings');
@@ -105,7 +122,7 @@ export default function SalesInvoiceDashboard() {
   };
 
   const { data: invoicesData, isLoading, refetch } = useQuery({
-    queryKey: ['invoices', currentOrganization?.id, searchQuery],
+    queryKey: ['invoices', currentOrganization?.id, searchQuery, deliveryFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
@@ -118,6 +135,10 @@ export default function SalesInvoiceDashboard() {
 
       if (searchQuery) {
         query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%`);
+      }
+
+      if (deliveryFilter !== 'all') {
+        query = query.eq('delivery_status', deliveryFilter);
       }
 
       const { data, error } = await query;
@@ -388,6 +409,106 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const openStatusDialog = async (invoice: any) => {
+    setSelectedInvoiceForStatus(invoice);
+    setNewDeliveryStatus(invoice.delivery_status || 'undelivered');
+    setStatusDate(new Date());
+    setStatusNarration("");
+    setShowStatusDialog(true);
+
+    // Fetch delivery history
+    const { data, error } = await supabase
+      .from('delivery_tracking')
+      .select('*')
+      .eq('sale_id', invoice.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setDeliveryHistory(prev => ({ ...prev, [invoice.id]: data }));
+    }
+  };
+
+  const handleUpdateDeliveryStatus = async () => {
+    if (!selectedInvoiceForStatus || !newDeliveryStatus) return;
+
+    setIsUpdatingStatus(true);
+    try {
+      // Update sales table
+      const { error: updateError } = await supabase
+        .from('sales')
+        .update({ delivery_status: newDeliveryStatus })
+        .eq('id', selectedInvoiceForStatus.id);
+
+      if (updateError) throw updateError;
+
+      // Insert delivery tracking record
+      const { error: trackingError } = await supabase
+        .from('delivery_tracking')
+        .insert({
+          sale_id: selectedInvoiceForStatus.id,
+          organization_id: currentOrganization?.id,
+          status: newDeliveryStatus,
+          status_date: format(statusDate, 'yyyy-MM-dd'),
+          narration: statusNarration || null,
+          created_by: user?.id,
+        });
+
+      if (trackingError) throw trackingError;
+
+      toast({
+        title: "Status Updated",
+        description: `Delivery status updated to ${newDeliveryStatus}`,
+      });
+
+      setShowStatusDialog(false);
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update delivery status",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const getDeliveryBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'default'; // Green
+      case 'in_process':
+        return 'secondary'; // Yellow/Orange
+      case 'undelivered':
+      default:
+        return 'outline'; // Red/Gray
+    }
+  };
+
+  const getDeliveryBadgeClass = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'in_process':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'undelivered':
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getDeliveryLabel = (status: string) => {
+    switch (status) {
+      case 'delivered':
+        return 'Delivered';
+      case 'in_process':
+        return 'In Process';
+      case 'undelivered':
+      default:
+        return 'Undelivered';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
       <BackToDashboard />
@@ -429,6 +550,17 @@ export default function SalesInvoiceDashboard() {
                   className="pl-10"
                 />
               </div>
+              <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="in_process">In Process</SelectItem>
+                  <SelectItem value="undelivered">Undelivered</SelectItem>
+                </SelectContent>
+              </Select>
               <Popover>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="icon" title="Column Settings">
@@ -445,7 +577,15 @@ export default function SalesInvoiceDashboard() {
                           checked={columnSettings.status}
                           onCheckedChange={(checked) => updateColumnSetting('status', !!checked)}
                         />
-                        <Label htmlFor="col-status" className="text-sm">Status</Label>
+                        <Label htmlFor="col-status" className="text-sm">Payment Status</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="col-delivery"
+                          checked={columnSettings.delivery}
+                          onCheckedChange={(checked) => updateColumnSetting('delivery', !!checked)}
+                        />
+                        <Label htmlFor="col-delivery" className="text-sm">Delivery Status</Label>
                       </div>
                       <div className="flex items-center gap-2">
                         <Checkbox
@@ -514,14 +654,15 @@ export default function SalesInvoiceDashboard() {
                       <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Amount</TableHead>
-                      {columnSettings.status && <TableHead>Status</TableHead>}
+                      {columnSettings.status && <TableHead>Pay Status</TableHead>}
+                      {columnSettings.delivery && <TableHead>Delivery</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={columnSettings.status ? 9 : 8} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={9 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -557,6 +698,16 @@ export default function SalesInvoiceDashboard() {
                               <TableCell onClick={() => toggleExpanded(invoice.id)}>
                                 <Badge variant={invoice.payment_status === 'completed' ? 'default' : 'secondary'}>
                                   {invoice.payment_status}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {columnSettings.delivery && (
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Badge 
+                                  className={`cursor-pointer ${getDeliveryBadgeClass(invoice.delivery_status || 'undelivered')}`}
+                                  onClick={() => openStatusDialog(invoice)}
+                                >
+                                  {getDeliveryLabel(invoice.delivery_status || 'undelivered')}
                                 </Badge>
                               </TableCell>
                             )}
@@ -608,31 +759,57 @@ export default function SalesInvoiceDashboard() {
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={columnSettings.status ? 9 : 8} className="bg-muted/50 p-4">
-                                <div className="space-y-2">
-                                  <h4 className="font-semibold">Items:</h4>
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Product</TableHead>
-                                        <TableHead>Size</TableHead>
-                                        <TableHead>Qty</TableHead>
-                                        <TableHead>Price</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {invoice.sale_items?.map((item: any) => (
-                                        <TableRow key={item.id}>
-                                          <TableCell>{item.product_name}</TableCell>
-                                          <TableCell>{item.size}</TableCell>
-                                          <TableCell>{item.quantity}</TableCell>
-                                          <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
-                                          <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                              <TableCell colSpan={9 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4">
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="font-semibold mb-2">Items:</h4>
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>Product</TableHead>
+                                          <TableHead>Size</TableHead>
+                                          <TableHead>Qty</TableHead>
+                                          <TableHead>Price</TableHead>
+                                          <TableHead className="text-right">Total</TableHead>
                                         </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {invoice.sale_items?.map((item: any) => (
+                                          <TableRow key={item.id}>
+                                            <TableCell>{item.product_name}</TableCell>
+                                            <TableCell>{item.size}</TableCell>
+                                            <TableCell>{item.quantity}</TableCell>
+                                            <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+
+                                  {deliveryHistory[invoice.id] && deliveryHistory[invoice.id].length > 0 && (
+                                    <div className="border-t pt-3">
+                                      <h4 className="font-semibold mb-2 flex items-center gap-2">
+                                        <Package className="h-4 w-4" />
+                                        Delivery History:
+                                      </h4>
+                                      <div className="space-y-1">
+                                        {deliveryHistory[invoice.id].map((history: any, idx: number) => (
+                                          <div key={idx} className="text-sm flex gap-3 p-2 bg-background rounded">
+                                            <span className="font-medium text-muted-foreground min-w-[90px]">
+                                              {format(new Date(history.status_date), 'dd/MM/yyyy')}
+                                            </span>
+                                            <Badge className={`${getDeliveryBadgeClass(history.status)} text-xs`}>
+                                              {getDeliveryLabel(history.status)}
+                                            </Badge>
+                                            {history.narration && (
+                                              <span className="text-muted-foreground">- {history.narration}</span>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -740,6 +917,68 @@ export default function SalesInvoiceDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
         </AlertDialog>
+
+        {/* Delivery Status Update Dialog */}
+        <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Update Delivery Status</DialogTitle>
+              <DialogDescription>
+                Update the delivery status for invoice {selectedInvoiceForStatus?.sale_number}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={newDeliveryStatus} onValueChange={setNewDeliveryStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="in_process">In Process</SelectItem>
+                    <SelectItem value="undelivered">Undelivered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Calendar
+                  mode="single"
+                  selected={statusDate}
+                  onSelect={(date) => date && setStatusDate(date)}
+                  className="rounded-md border"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Narration (Optional)</Label>
+                <Textarea
+                  placeholder="Add notes about delivery status..."
+                  value={statusNarration}
+                  onChange={(e) => setStatusNarration(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowStatusDialog(false)} disabled={isUpdatingStatus}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateDeliveryStatus} disabled={isUpdatingStatus}>
+                {isUpdatingStatus ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Updating...
+                  </>
+                ) : (
+                  'Update Status'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         
         {/* Print Preview Dialog */}
         {invoiceToPrint && (
