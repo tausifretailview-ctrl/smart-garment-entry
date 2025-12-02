@@ -37,6 +37,7 @@ import ProductTrackingReport from "./pages/ProductTrackingReport";
 import DailyCashierReport from "./pages/DailyCashierReport";
 import AuditLog from "./pages/AuditLog";
 import Accounts from "./pages/Accounts";
+import DeliveryDashboard from "./pages/DeliveryDashboard";
 import Auth from "./pages/Auth";
 import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
@@ -361,6 +362,14 @@ const App = () => {
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                     <Accounts />
                   </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/delivery-dashboard"
+              element={
+                <ProtectedRoute>
+                  <DeliveryDashboard />
                 </ProtectedRoute>
               }
             />

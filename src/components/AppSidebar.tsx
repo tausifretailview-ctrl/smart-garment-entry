@@ -18,6 +18,7 @@ import {
   Wallet,
   Shield,
   Plus,
+  PackageCheck,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -50,7 +51,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/delivery-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
@@ -348,6 +349,14 @@ export function AppSidebar() {
                           <NavLink to="/daily-cashier-report" className="flex items-center gap-3 group">
                             <Wallet className="h-4 w-4 sidebar-icon" />
                             <span>Daily Cashier</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/delivery-dashboard")}>
+                          <NavLink to="/delivery-dashboard" className="flex items-center gap-3 group">
+                            <PackageCheck className="h-4 w-4 sidebar-icon" />
+                            <span>Delivery Dashboard</span>
                           </NavLink>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
