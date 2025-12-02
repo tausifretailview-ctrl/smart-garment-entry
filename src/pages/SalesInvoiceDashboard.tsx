@@ -594,7 +594,7 @@ export default function SalesInvoiceDashboard() {
       // Prepare receipt data
       const newReceiptData = {
         voucherNumber: voucherData,
-        date: format(paymentDate, 'yyyy-MM-dd'),
+        voucherDate: format(paymentDate, 'yyyy-MM-dd'),
         customerName: selectedInvoiceForPayment.customer_name,
         customerPhone: selectedInvoiceForPayment.customer_phone || '',
         customerAddress: selectedInvoiceForPayment.customer_address || '',
@@ -644,7 +644,7 @@ export default function SalesInvoiceDashboard() {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.date ? format(new Date(receiptData.date), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     let formattedPhone = phoneNumber.length === 10 ? `91${phoneNumber}` : phoneNumber;
