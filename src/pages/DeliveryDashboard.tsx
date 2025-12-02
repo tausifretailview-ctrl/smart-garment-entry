@@ -6,9 +6,13 @@ import { Package, Clock, CheckCircle2, TrendingUp } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { Layout } from "@/components/Layout";
+import { useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
 
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
@@ -114,6 +118,43 @@ const DeliveryDashboard = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch filtered invoices based on selected status
+  const { data: filteredInvoices } = useQuery({
+    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !selectedStatus) return [];
+
+      const { data, error } = await supabase
+        .from("sales")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .eq("delivery_status", selectedStatus)
+        .order("sale_date", { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id && !!selectedStatus,
+  });
+
+  const getDeliveryBadgeVariant = (status: string) => {
+    switch (status) {
+      case "delivered": return "default";
+      case "in_process": return "secondary";
+      case "undelivered": return "destructive";
+      default: return "outline";
+    }
+  };
+
+  const getDeliveryLabel = (status: string) => {
+    switch (status) {
+      case "delivered": return "Delivered";
+      case "in_process": return "In Process";
+      case "undelivered": return "Undelivered";
+      default: return status;
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto p-6 space-y-6">
@@ -126,7 +167,10 @@ const DeliveryDashboard = () => {
 
         {/* Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedStatus(null)}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Deliveries</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
@@ -137,7 +181,10 @@ const DeliveryDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedStatus("delivered")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Delivered</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-500" />
@@ -150,7 +197,10 @@ const DeliveryDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedStatus("undelivered")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Pending</CardTitle>
               <Clock className="h-4 w-4 text-red-500" />
@@ -163,7 +213,10 @@ const DeliveryDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card 
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setSelectedStatus("in_process")}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">In Process</CardTitle>
               <TrendingUp className="h-4 w-4 text-yellow-500" />
@@ -174,6 +227,58 @@ const DeliveryDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Filtered Invoices Table */}
+        {selectedStatus && (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                {getDeliveryLabel(selectedStatus)} Invoices ({filteredInvoices?.length || 0})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice No</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredInvoices?.map((invoice) => (
+                    <TableRow key={invoice.id}>
+                      <TableCell className="font-medium">{invoice.sale_number}</TableCell>
+                      <TableCell>{invoice.customer_name}</TableCell>
+                      <TableCell>{format(new Date(invoice.sale_date), "dd MMM yyyy")}</TableCell>
+                      <TableCell>₹{Number(invoice.net_amount).toLocaleString("en-IN")}</TableCell>
+                      <TableCell>
+                        <Badge variant={invoice.payment_status === "completed" ? "default" : "secondary"}>
+                          {invoice.payment_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getDeliveryBadgeVariant(invoice.delivery_status)}>
+                          {getDeliveryLabel(invoice.delivery_status)}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(!filteredInvoices || filteredInvoices.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No invoices found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Charts */}
         <div className="grid gap-4 md:grid-cols-2">
