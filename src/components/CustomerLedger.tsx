@@ -98,21 +98,21 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
       if (salesError) throw salesError;
 
-      // Fetch payment vouchers for this customer
+      // Get all sale IDs for this customer
+      const saleIds = salesData?.map(s => s.id) || [];
+
+      // Fetch payment vouchers that reference this customer's sales
       const { data: vouchersData, error: vouchersError } = await supabase
         .from("voucher_entries")
         .select("*")
-        .eq("reference_type", "customer")
         .eq("voucher_type", "receipt")
+        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000'])
         .order("voucher_date", { ascending: true });
 
       if (vouchersError) throw vouchersError;
 
-      // Filter vouchers that reference sales for this customer
-      const saleIds = salesData.map(s => s.id);
-      const customerVouchers = vouchersData.filter(v => 
-        v.reference_id && saleIds.includes(v.reference_id)
-      );
+      console.log('Sales for customer:', salesData?.length || 0);
+      console.log('Payments found:', vouchersData?.length || 0);
 
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
@@ -125,7 +125,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           type: 'invoice' as const,
           data: sale,
         })),
-        ...customerVouchers.map((voucher) => ({
+        ...(vouchersData || []).map((voucher) => ({
           date: voucher.voucher_date,
           type: 'payment' as const,
           data: voucher,
@@ -136,12 +136,16 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
         if (item.type === 'invoice') {
           const sale = item.data as any;
           runningBalance += sale.net_amount;
+          
+          // Find the related sale to get invoice reference
+          const relatedSale = salesData.find(s => s.id === sale.id);
+          
           allTransactions.push({
             id: sale.id,
             date: sale.sale_date,
             type: 'invoice',
             reference: sale.sale_number,
-            description: `Invoice - ${sale.payment_status}`,
+            description: `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${sale.payment_status}`,
             debit: sale.net_amount,
             credit: 0,
             balance: runningBalance,
@@ -149,12 +153,17 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
+          
+          // Find related invoice number
+          const relatedSale = salesData.find(s => s.id === voucher.reference_id);
+          const invoiceRef = relatedSale ? ` for ${relatedSale.sale_number}` : '';
+          
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
             type: 'payment',
             reference: voucher.voucher_number,
-            description: voucher.description || 'Payment received',
+            description: (voucher.description || 'Payment received') + invoiceRef,
             debit: 0,
             credit: voucher.total_amount,
             balance: runningBalance,
