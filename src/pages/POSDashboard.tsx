@@ -705,7 +705,7 @@ const POSDashboard = () => {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${format(new Date(receiptData.date), 'dd/MM/yyyy')}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.date ? format(new Date(receiptData.date), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     let formattedPhone = phoneNumber.length === 10 ? `91${phoneNumber}` : phoneNumber;
@@ -1009,7 +1009,7 @@ const POSDashboard = () => {
                               {sale.customer_phone || '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {format(new Date(sale.sale_date), "dd/MM/yyyy")}
+                              {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
