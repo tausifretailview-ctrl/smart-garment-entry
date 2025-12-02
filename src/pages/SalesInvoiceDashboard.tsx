@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, DollarSign, Send } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { PaymentReceipt } from "@/components/PaymentReceipt";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,6 +97,38 @@ export default function SalesInvoiceDashboard() {
     setColumnSettings(newSettings);
     localStorage.setItem('salesInvoiceDashboardColumnSettings', JSON.stringify(newSettings));
   };
+
+  // Payment recording state
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState<any>(null);
+  const [paidAmount, setPaidAmount] = useState("");
+  const [paymentDate, setPaymentDate] = useState<Date>(new Date());
+  const [paymentMode, setPaymentMode] = useState("cash");
+  const [paymentNarration, setPaymentNarration] = useState("");
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  
+  // Receipt state
+  const [showReceiptDialog, setShowReceiptDialog] = useState(false);
+  const [receiptData, setReceiptData] = useState<any>(null);
+  const receiptRef = useRef<HTMLDivElement>(null);
+
+  // Fetch company settings for receipt branding
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -472,6 +505,162 @@ export default function SalesInvoiceDashboard() {
     });
   };
 
+  const openPaymentDialog = (invoice: any) => {
+    setSelectedInvoiceForPayment(invoice);
+    const pendingAmount = invoice.net_amount - (invoice.paid_amount || 0);
+    setPaidAmount(pendingAmount.toString());
+    setPaymentDate(new Date());
+    setPaymentMode("cash");
+    setPaymentNarration("");
+    setShowPaymentDialog(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedInvoiceForPayment || !paidAmount) return;
+
+    const amount = parseFloat(paidAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Please enter a valid payment amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
+    const pendingAmount = selectedInvoiceForPayment.net_amount - currentPaid;
+
+    if (amount > pendingAmount) {
+      toast({
+        title: "Amount Exceeds Pending",
+        description: `Payment amount cannot exceed pending amount of ₹${pendingAmount.toFixed(2)}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      const newPaidAmount = currentPaid + amount;
+      const newStatus = newPaidAmount >= selectedInvoiceForPayment.net_amount ? 'completed' : 
+                       newPaidAmount > 0 ? 'partial' : 'pending';
+
+      // Update sales table
+      const { error: updateError } = await supabase
+        .from('sales')
+        .update({
+          paid_amount: newPaidAmount,
+          payment_status: newStatus,
+          payment_date: format(paymentDate, 'yyyy-MM-dd'),
+          payment_method: paymentMode,
+        })
+        .eq('id', selectedInvoiceForPayment.id);
+
+      if (updateError) throw updateError;
+
+      // Generate voucher number
+      const { data: voucherData, error: voucherError } = await supabase.rpc(
+        'generate_voucher_number',
+        { p_type: 'RECEIPT', p_date: format(paymentDate, 'yyyy-MM-dd') }
+      );
+
+      if (voucherError) throw voucherError;
+
+      // Create voucher entry
+      const { data: voucherEntry, error: voucherEntryError } = await supabase
+        .from('voucher_entries')
+        .insert({
+          organization_id: currentOrganization?.id,
+          voucher_number: voucherData,
+          voucher_type: 'RECEIPT',
+          voucher_date: format(paymentDate, 'yyyy-MM-dd'),
+          reference_type: 'SALE',
+          reference_id: selectedInvoiceForPayment.id,
+          total_amount: amount,
+          description: `Payment received for invoice ${selectedInvoiceForPayment.sale_number} - ${paymentNarration}`,
+          created_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (voucherEntryError) throw voucherEntryError;
+
+      toast({
+        title: "Payment Recorded",
+        description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
+      });
+
+      // Prepare receipt data
+      const newReceiptData = {
+        voucherNumber: voucherData,
+        date: format(paymentDate, 'yyyy-MM-dd'),
+        customerName: selectedInvoiceForPayment.customer_name,
+        customerPhone: selectedInvoiceForPayment.customer_phone || '',
+        customerAddress: selectedInvoiceForPayment.customer_address || '',
+        invoiceNumber: selectedInvoiceForPayment.sale_number,
+        invoiceDate: selectedInvoiceForPayment.sale_date,
+        invoiceAmount: selectedInvoiceForPayment.net_amount,
+        paidAmount: amount,
+        previousBalance: currentPaid,
+        currentBalance: newPaidAmount,
+        paymentMode: paymentMode,
+        narration: paymentNarration,
+      };
+
+      setReceiptData(newReceiptData);
+      setShowPaymentDialog(false);
+      setShowReceiptDialog(true);
+      refetch();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record payment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  };
+
+  const handlePrintReceipt = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: `Receipt_${receiptData?.voucherNumber || 'receipt'}`,
+    onAfterPrint: () => {
+      toast({
+        title: "Receipt Printed",
+        description: "Payment receipt printed successfully",
+      });
+    },
+  });
+
+  const handleSendReceiptWhatsApp = () => {
+    if (!receiptData || !receiptData.customerPhone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${format(new Date(receiptData.date), 'dd/MM/yyyy')}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+
+    const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
+    let formattedPhone = phoneNumber.length === 10 ? `91${phoneNumber}` : phoneNumber;
+    
+    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    
+    navigator.clipboard.writeText(message);
+    window.location.href = whatsappUrl;
+    
+    toast({
+      title: "WhatsApp Opened",
+      description: "Receipt message copied! Paste with Ctrl+V if needed",
+    });
+  };
+
   const openStatusDialog = async (invoice: any) => {
     setSelectedInvoiceForStatus(invoice);
     setNewDeliveryStatus(invoice.delivery_status || 'undelivered');
@@ -776,6 +965,16 @@ export default function SalesInvoiceDashboard() {
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
+                                {invoice.payment_status !== 'completed' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => openPaymentDialog(invoice)}
+                                    title="Record Payment"
+                                  >
+                                    <DollarSign className="h-4 w-4 text-purple-600" />
+                                  </Button>
+                                )}
                                 {columnSettings.copyLink && (
                                   <Button 
                                     variant="ghost" 
@@ -1049,6 +1248,161 @@ export default function SalesInvoiceDashboard() {
                 ) : (
                   'Update Status'
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Recording Dialog */}
+        <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Record Payment</DialogTitle>
+              <DialogDescription>
+                Record payment for Invoice {selectedInvoiceForPayment?.sale_number}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <span className="text-muted-foreground">Customer:</span>
+                <span className="font-medium">{selectedInvoiceForPayment?.customer_name}</span>
+                <span className="text-muted-foreground">Invoice Amount:</span>
+                <span className="font-medium">₹{selectedInvoiceForPayment?.net_amount.toFixed(2)}</span>
+                <span className="text-muted-foreground">Paid Amount:</span>
+                <span className="font-medium">₹{(selectedInvoiceForPayment?.paid_amount || 0).toFixed(2)}</span>
+                <span className="text-muted-foreground">Pending Amount:</span>
+                <span className="font-semibold text-orange-600">
+                  ₹{((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0)).toFixed(2)}
+                </span>
+              </div>
+              <div>
+                <Label>Payment Amount *</Label>
+                <Input
+                  type="number"
+                  value={paidAmount}
+                  onChange={(e) => setPaidAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <Label>Payment Date *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start">
+                      {format(paymentDate, 'dd/MM/yyyy')}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={paymentDate}
+                      onSelect={(date) => date && setPaymentDate(date)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label>Payment Mode *</Label>
+                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Narration</Label>
+                <Textarea
+                  value={paymentNarration}
+                  onChange={(e) => setPaymentNarration(e.target.value)}
+                  placeholder="Optional notes..."
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
+                {isRecordingPayment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Record Payment
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Payment Receipt Dialog */}
+        <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Payment Receipt</DialogTitle>
+              <DialogDescription>
+                Payment recorded successfully. Print or send via WhatsApp
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="hidden">
+              <PaymentReceipt
+                ref={receiptRef}
+                receiptData={receiptData}
+                companyDetails={{
+                  businessName: settings?.business_name,
+                  address: settings?.address,
+                  mobileNumber: settings?.mobile_number,
+                  emailId: settings?.email_id,
+                  gstNumber: settings?.gst_number,
+                  logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                  upiId: (settings?.sale_settings as any)?.upiId,
+                }}
+                receiptSettings={{
+                  showCompanyLogo: true,
+                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                  showSignature: true,
+                  signatureLabel: "Authorized Signature"
+                }}
+              />
+            </div>
+            
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <PaymentReceipt
+                receiptData={receiptData}
+                companyDetails={{
+                  businessName: settings?.business_name,
+                  address: settings?.address,
+                  mobileNumber: settings?.mobile_number,
+                  emailId: settings?.email_id,
+                  gstNumber: settings?.gst_number,
+                  logoUrl: (settings?.sale_settings as any)?.logoUrl,
+                  upiId: (settings?.sale_settings as any)?.upiId,
+                }}
+                receiptSettings={{
+                  showCompanyLogo: true,
+                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                  showSignature: true,
+                  signatureLabel: "Authorized Signature"
+                }}
+              />
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowReceiptDialog(false)}>
+                Close
+              </Button>
+              <Button variant="outline" onClick={handlePrintReceipt}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print Receipt
+              </Button>
+              <Button onClick={handleSendReceiptWhatsApp}>
+                <Send className="h-4 w-4 mr-2" />
+                Send via WhatsApp
               </Button>
             </DialogFooter>
           </DialogContent>
