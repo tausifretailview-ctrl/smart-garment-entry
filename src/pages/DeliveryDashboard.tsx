@@ -156,9 +156,9 @@ const DeliveryDashboard = () => {
         query = query.lte("sale_date", endOfDay(dateTo).toISOString());
       }
 
-      // Apply search filter
+      // Apply search filter - search by invoice, customer name, phone, and address
       if (searchQuery) {
-        query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%`);
+        query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%,customer_phone.ilike.%${searchQuery}%,customer_address.ilike.%${searchQuery}%`);
       }
 
       query = query.order("sale_date", { ascending: false });
@@ -336,10 +336,10 @@ const DeliveryDashboard = () => {
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search by invoice or customer..."
+                      placeholder="Search by invoice, customer, mobile, or area..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-8 w-64"
+                      className="pl-8 w-80"
                     />
                   </div>
                   
