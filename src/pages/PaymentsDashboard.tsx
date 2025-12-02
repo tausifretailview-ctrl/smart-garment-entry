@@ -1,0 +1,741 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { BackToDashboard } from "@/components/BackToDashboard";
+import { Search, MessageCircle, Settings2, DollarSign, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+interface Invoice {
+  id: string;
+  sale_number: string;
+  customer_name: string;
+  customer_phone: string | null;
+  customer_email: string | null;
+  sale_date: string;
+  due_date: string | null;
+  net_amount: number;
+  payment_status: string;
+  payment_date: string | null;
+  payment_method: string;
+  paid_amount?: number;
+  [key: string]: any;
+}
+
+interface ColumnSettings {
+  saleNumber: boolean;
+  customer: boolean;
+  saleDate: boolean;
+  dueDate: boolean;
+  netAmount: boolean;
+  paidAmount: boolean;
+  pendingAmount: boolean;
+  status: boolean;
+  whatsapp: boolean;
+  recordPayment: boolean;
+}
+
+const defaultColumnSettings: ColumnSettings = {
+  saleNumber: true,
+  customer: true,
+  saleDate: true,
+  dueDate: true,
+  netAmount: true,
+  paidAmount: true,
+  pendingAmount: true,
+  status: true,
+  whatsapp: true,
+  recordPayment: true,
+};
+
+export default function PaymentsDashboard() {
+  const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+  const { formatMessage } = useWhatsAppTemplates();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+  
+  // Payment recording dialog state
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<string>("");
+  const [paymentDate, setPaymentDate] = useState<Date>(new Date());
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+
+  const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
+    const saved = localStorage.getItem('paymentsDashboardColumnSettings');
+    return saved ? JSON.parse(saved) : defaultColumnSettings;
+  });
+
+  const updateColumnSetting = (key: keyof ColumnSettings, value: boolean) => {
+    const newSettings = { ...columnSettings, [key]: value };
+    setColumnSettings(newSettings);
+    localStorage.setItem('paymentsDashboardColumnSettings', JSON.stringify(newSettings));
+  };
+
+  const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
+    queryKey: ['payment-invoices', currentOrganization?.id, statusFilter, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+
+      let query = supabase
+        .from('sales')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .order('sale_date', { ascending: false });
+
+      // Apply status filter
+      if (statusFilter === 'pending') {
+        query = query.eq('payment_status', 'pending');
+      } else if (statusFilter === 'partial') {
+        query = query.eq('payment_status', 'partial');
+      } else if (statusFilter === 'completed') {
+        query = query.eq('payment_status', 'completed');
+      }
+
+      // Apply date filters
+      if (dateFrom) {
+        query = query.gte('sale_date', format(dateFrom, 'yyyy-MM-dd'));
+      }
+      if (dateTo) {
+        query = query.lte('sale_date', format(dateTo, 'yyyy-MM-dd'));
+      }
+
+      const { data: salesData, error } = await query;
+      if (error) throw error;
+
+      // Fetch payment amounts from voucher_entries
+      if (salesData && salesData.length > 0) {
+        const salesIds = salesData.map(s => s.id);
+        const { data: voucherData } = await supabase
+          .from('voucher_entries')
+          .select('reference_id, total_amount')
+          .eq('reference_type', 'customer_payment')
+          .in('reference_id', salesIds);
+
+        // Calculate paid amounts per invoice
+        const paidAmounts: Record<string, number> = {};
+        voucherData?.forEach(v => {
+          if (v.reference_id) {
+            paidAmounts[v.reference_id] = (paidAmounts[v.reference_id] || 0) + Number(v.total_amount);
+          }
+        });
+
+        // Add paid_amount to each invoice
+        return salesData.map(invoice => ({
+          ...invoice,
+          paid_amount: paidAmounts[invoice.id] || 0
+        }));
+      }
+
+      return salesData || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Calculate summary statistics
+  const summaryStats = {
+    total: invoices?.length || 0,
+    totalRevenue: invoices?.reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0) || 0,
+    pendingAmount: invoices?.filter(inv => inv.payment_status !== 'completed')
+      .reduce((sum, inv) => sum + (Number(inv.net_amount || 0) - Number(inv.paid_amount || 0)), 0) || 0,
+    completedAmount: invoices?.filter(inv => inv.payment_status === 'completed')
+      .reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0) || 0,
+  };
+
+  // Filter invoices based on search
+  const filteredInvoices = invoices?.filter(invoice => {
+    const searchLower = searchQuery.toLowerCase();
+    return (
+      invoice.sale_number?.toLowerCase().includes(searchLower) ||
+      invoice.customer_name?.toLowerCase().includes(searchLower) ||
+      invoice.customer_phone?.toLowerCase().includes(searchLower) ||
+      invoice.customer_email?.toLowerCase().includes(searchLower)
+    );
+  }) || [];
+
+  // Pagination
+  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
+
+  const handleSendPaymentReminder = (invoice: Invoice) => {
+    if (!invoice.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send payment reminder",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reminderMessage = formatMessage('payment_reminder', {
+      sale_number: invoice.sale_number,
+      customer_name: invoice.customer_name,
+      customer_phone: invoice.customer_phone,
+      sale_date: invoice.sale_date,
+      net_amount: invoice.net_amount,
+      payment_status: invoice.payment_status,
+      paid_amount: invoice.paid_amount || 0,
+      due_date: invoice.due_date,
+    });
+
+    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
+    let formattedPhone = phoneNumber;
+    if (phoneNumber.length === 10) {
+      formattedPhone = `91${phoneNumber}`;
+    } else if (!phoneNumber.startsWith('91')) {
+      formattedPhone = `91${phoneNumber}`;
+    }
+    
+    const encodedMessage = encodeURIComponent(reminderMessage).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    
+    navigator.clipboard.writeText(reminderMessage);
+    window.location.href = whatsappUrl;
+    
+    toast({
+      title: "Payment Reminder Sent",
+      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
+    });
+  };
+
+  const openPaymentDialog = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    const pendingAmount = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+    setPaymentAmount(pendingAmount.toFixed(2));
+    setPaymentDate(new Date());
+    setPaymentMethod("cash");
+    setShowPaymentDialog(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!selectedInvoice || !paymentAmount) {
+      toast({
+        title: "Invalid Input",
+        description: "Please enter a valid payment amount",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Invalid Amount",
+        description: "Payment amount must be greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentPaid = Number(selectedInvoice.paid_amount || 0);
+    const netAmount = Number(selectedInvoice.net_amount || 0);
+    const newPaidAmount = currentPaid + amount;
+
+    if (newPaidAmount > netAmount) {
+      toast({
+        title: "Amount Exceeds Total",
+        description: "Payment amount exceeds the invoice total",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRecordingPayment(true);
+
+    try {
+      // Determine new payment status
+      let newStatus = 'partial';
+      if (newPaidAmount >= netAmount) {
+        newStatus = 'completed';
+      }
+
+      // Update sales record (only payment status and payment date/method when completed)
+      const updateData: any = {
+        payment_status: newStatus,
+      };
+      
+      if (newStatus === 'completed') {
+        updateData.payment_date = format(paymentDate, 'yyyy-MM-dd');
+        updateData.payment_method = paymentMethod;
+      }
+
+      const { error: updateError } = await supabase
+        .from('sales')
+        .update(updateData)
+        .eq('id', selectedInvoice.id);
+
+      if (updateError) throw updateError;
+
+      // Generate voucher number
+      const { data: voucherNumber, error: voucherError } = await supabase
+        .rpc('generate_voucher_number', {
+          p_type: 'receipt',
+          p_date: format(paymentDate, 'yyyy-MM-dd')
+        });
+
+      if (voucherError) throw voucherError;
+
+      // Create voucher entry
+      const { error: voucherEntryError } = await supabase
+        .from('voucher_entries')
+        .insert({
+          organization_id: currentOrganization?.id,
+          voucher_type: 'receipt',
+          voucher_number: voucherNumber,
+          voucher_date: format(paymentDate, 'yyyy-MM-dd'),
+          reference_type: 'customer_payment',
+          reference_id: selectedInvoice.id,
+          total_amount: amount,
+          description: `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}`,
+        });
+
+      if (voucherEntryError) throw voucherEntryError;
+
+      toast({
+        title: "Payment Recorded",
+        description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
+      });
+
+      setShowPaymentDialog(false);
+      refetch();
+    } catch (error: any) {
+      console.error('Error recording payment:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to record payment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecordingPayment(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-500 hover:bg-yellow-600"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
+      case 'pending':
+        return <Badge className="bg-red-500 hover:bg-red-600"><AlertCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      <BackToDashboard />
+      
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Payments Dashboard</h1>
+            <p className="text-muted-foreground">Track and manage invoice payments</p>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{summaryStats.total}</div>
+              <p className="text-xs text-muted-foreground">
+                Total Revenue: ₹{summaryStats.totalRevenue.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">
+                ₹{summaryStats.completedAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">Received payments</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
+              <AlertCircle className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                ₹{summaryStats.pendingAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-muted-foreground">Outstanding amount</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Collection Rate</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {summaryStats.totalRevenue > 0 
+                  ? ((summaryStats.completedAmount / summaryStats.totalRevenue) * 100).toFixed(1)
+                  : 0}%
+              </div>
+              <p className="text-xs text-muted-foreground">Payment collection rate</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filters</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-5">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by invoice, customer, phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Payment Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From Date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateTo ? format(dateTo, "dd MMM yyyy") : "To Date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={dateTo} onSelect={setDateTo} />
+                </PopoverContent>
+              </Popover>
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Settings2 className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Column Visibility</h4>
+                    {Object.entries(columnSettings).map(([key, value]) => (
+                      <div key={key} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id={key}
+                          checked={value}
+                          onChange={(e) => updateColumnSetting(key as keyof ColumnSettings, e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                        <Label htmlFor={key} className="cursor-pointer capitalize">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Payments Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoice Payments ({filteredInvoices.length})</CardTitle>
+            <CardDescription>Showing {paginatedInvoices.length} of {filteredInvoices.length} invoices</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {columnSettings.saleNumber && <TableHead>Invoice No.</TableHead>}
+                    {columnSettings.customer && <TableHead>Customer</TableHead>}
+                    {columnSettings.saleDate && <TableHead>Sale Date</TableHead>}
+                    {columnSettings.dueDate && <TableHead>Due Date</TableHead>}
+                    {columnSettings.netAmount && <TableHead>Total Amount</TableHead>}
+                    {columnSettings.paidAmount && <TableHead>Paid Amount</TableHead>}
+                    {columnSettings.pendingAmount && <TableHead>Pending</TableHead>}
+                    {columnSettings.status && <TableHead>Status</TableHead>}
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8">
+                        Loading payments...
+                      </TableCell>
+                    </TableRow>
+                  ) : paginatedInvoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8">
+                        No invoices found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    paginatedInvoices.map((invoice) => {
+                      const pendingAmount = Number(invoice.net_amount || 0) - Number(invoice.paid_amount || 0);
+                      
+                      return (
+                        <TableRow key={invoice.id}>
+                          {columnSettings.saleNumber && (
+                            <TableCell className="font-medium">{invoice.sale_number}</TableCell>
+                          )}
+                          {columnSettings.customer && (
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">{invoice.customer_name}</div>
+                                {invoice.customer_phone && (
+                                  <div className="text-sm text-muted-foreground">{invoice.customer_phone}</div>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {columnSettings.saleDate && (
+                            <TableCell>{format(new Date(invoice.sale_date), 'dd MMM yyyy')}</TableCell>
+                          )}
+                          {columnSettings.dueDate && (
+                            <TableCell>
+                              {invoice.due_date ? format(new Date(invoice.due_date), 'dd MMM yyyy') : '-'}
+                            </TableCell>
+                          )}
+                          {columnSettings.netAmount && (
+                            <TableCell className="font-medium">₹{Number(invoice.net_amount).toFixed(2)}</TableCell>
+                          )}
+                          {columnSettings.paidAmount && (
+                            <TableCell className="text-green-600">
+                              ₹{Number(invoice.paid_amount || 0).toFixed(2)}
+                            </TableCell>
+                          )}
+                          {columnSettings.pendingAmount && (
+                            <TableCell className={pendingAmount > 0 ? "text-red-600 font-medium" : "text-muted-foreground"}>
+                              ₹{pendingAmount.toFixed(2)}
+                            </TableCell>
+                          )}
+                          {columnSettings.status && (
+                            <TableCell>{getStatusBadge(invoice.payment_status)}</TableCell>
+                          )}
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {columnSettings.whatsapp && invoice.payment_status !== 'completed' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleSendPaymentReminder(invoice)}
+                                  title="Send Payment Reminder"
+                                  disabled={!invoice.customer_phone}
+                                >
+                                  <MessageCircle className="h-4 w-4 text-orange-600" />
+                                </Button>
+                              )}
+                              {columnSettings.recordPayment && invoice.payment_status !== 'completed' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openPaymentDialog(invoice)}
+                                  title="Record Payment"
+                                >
+                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  Record
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Items per page:</span>
+                  <Select value={itemsPerPage.toString()} onValueChange={(value) => {
+                    setItemsPerPage(parseInt(value));
+                    setCurrentPage(1);
+                  }}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Record Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Record Customer Payment</DialogTitle>
+            <DialogDescription>
+              Record payment for invoice {selectedInvoice?.sale_number}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Customer</Label>
+              <div className="text-sm font-medium">{selectedInvoice?.customer_name}</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Invoice Amount</Label>
+                <div className="text-sm">₹{Number(selectedInvoice?.net_amount || 0).toFixed(2)}</div>
+              </div>
+              <div className="space-y-2">
+                <Label>Already Paid</Label>
+                <div className="text-sm text-green-600">₹{Number(selectedInvoice?.paid_amount || 0).toFixed(2)}</div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Payment Amount *</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter payment amount"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Payment Date *</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(paymentDate, "dd MMM yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={paymentDate} onSelect={(date) => date && setPaymentDate(date)} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentMethod">Payment Method *</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="upi">UPI</SelectItem>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPaymentDialog(false)} disabled={isRecordingPayment}>
+              Cancel
+            </Button>
+            <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
+              {isRecordingPayment ? "Recording..." : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
