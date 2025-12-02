@@ -91,6 +91,9 @@ export default function SalesInvoiceDashboard() {
     const saved = localStorage.getItem('salesInvoiceDashboardColumnSettings');
     return saved ? JSON.parse(saved) : defaultColumnSettings;
   });
+  
+  // Sale returns state
+  const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
 
   const updateColumnSetting = (key: keyof ColumnSettings, value: boolean) => {
     const newSettings = { ...columnSettings, [key]: value };
@@ -286,12 +289,35 @@ export default function SalesInvoiceDashboard() {
     setSelectedInvoices(newSelected);
   };
 
-  const toggleExpanded = (id: string) => {
+  const fetchSaleReturns = async (saleNumber: string, saleId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('sale_returns')
+        .select('*')
+        .eq('organization_id', currentOrganization?.id)
+        .eq('original_sale_number', saleNumber)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setSaleReturns(prev => ({
+        ...prev,
+        [saleId]: data || []
+      }));
+    } catch (error) {
+      console.error('Error fetching sale returns:', error);
+    }
+  };
+
+  const toggleExpanded = (id: string, saleNumber?: string) => {
     const newExpanded = new Set(expandedRows);
     if (newExpanded.has(id)) {
       newExpanded.delete(id);
     } else {
       newExpanded.add(id);
+      if (saleNumber) {
+        fetchSaleReturns(saleNumber, id);
+      }
     }
     setExpandedRows(newExpanded);
   };
@@ -928,26 +954,26 @@ export default function SalesInvoiceDashboard() {
                                 onCheckedChange={() => toggleSelectInvoice(invoice.id)}
                               />
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {expandedRows.has(invoice.id) ? (
                                 <ChevronUp className="h-4 w-4" />
                               ) : (
                                 <ChevronDown className="h-4 w-4" />
                               )}
                             </TableCell>
-                            <TableCell className="font-medium" onClick={() => toggleExpanded(invoice.id)}>
+                            <TableCell className="font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_number}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>{invoice.customer_name}</TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>{invoice.customer_name}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.customer_phone || '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
-                              <TableCell onClick={() => toggleExpanded(invoice.id)}>
+                              <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 <Badge variant={invoice.payment_status === 'completed' ? 'default' : 'secondary'}>
                                   {invoice.payment_status}
                                 </Badge>
@@ -1081,6 +1107,44 @@ export default function SalesInvoiceDashboard() {
                                           </div>
                                         ))}
                                       </div>
+                                    </div>
+                                  )}
+                                  
+                                  {saleReturns[invoice.id] && saleReturns[invoice.id].length > 0 && (
+                                    <div className="border-t pt-3">
+                                      <h4 className="font-semibold mb-2 text-orange-600">Linked Sale Returns:</h4>
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead>Return No</TableHead>
+                                            <TableHead>Return Date</TableHead>
+                                            <TableHead>Customer</TableHead>
+                                            <TableHead className="text-right">Amount</TableHead>
+                                            <TableHead>Notes</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {saleReturns[invoice.id].map((saleReturn: any) => (
+                                            <TableRow key={saleReturn.id}>
+                                              <TableCell>
+                                                <Badge variant="outline" className="text-orange-600">
+                                                  {saleReturn.return_number || '-'}
+                                                </Badge>
+                                              </TableCell>
+                                              <TableCell>
+                                                {saleReturn.return_date ? format(new Date(saleReturn.return_date), 'dd/MM/yyyy') : '-'}
+                                              </TableCell>
+                                              <TableCell>{saleReturn.customer_name}</TableCell>
+                                              <TableCell className="text-right text-orange-600">
+                                                -₹{saleReturn.net_amount.toFixed(2)}
+                                              </TableCell>
+                                              <TableCell className="text-muted-foreground">
+                                                {saleReturn.notes || '-'}
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
                                     </div>
                                   )}
                                 </div>
