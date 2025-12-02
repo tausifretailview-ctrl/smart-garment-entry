@@ -16,6 +16,7 @@ import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 
 interface SaleReturn {
   id: string;
+  return_number: string | null;
   customer_name: string;
   original_sale_number: string | null;
   return_date: string;
@@ -167,6 +168,7 @@ export default function SaleReturnDashboard() {
   const filteredReturns = returns.filter((ret) => {
     const search = searchTerm.toLowerCase();
     return (
+      ret.return_number?.toLowerCase().includes(search) ||
       ret.customer_name.toLowerCase().includes(search) ||
       ret.original_sale_number?.toLowerCase().includes(search) ||
       ret.return_date.includes(search)
@@ -213,7 +215,7 @@ export default function SaleReturnDashboard() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by customer, sale number, or date..."
+                  placeholder="Search by return number, customer, sale number, or date..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -231,9 +233,10 @@ export default function SaleReturnDashboard() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
+                    <TableHead>Return No</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Sale Number</TableHead>
+                    <TableHead>Original Sale No</TableHead>
                     <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
@@ -256,6 +259,9 @@ export default function SaleReturnDashboard() {
                               <ChevronDown className="h-4 w-4" />
                             )}
                           </Button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{ret.return_number || "-"}</Badge>
                         </TableCell>
                         <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
                         <TableCell>{ret.customer_name}</TableCell>
@@ -293,7 +299,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && ret.items && (
                         <TableRow>
-                          <TableCell colSpan={8} className="bg-muted/50">
+                          <TableCell colSpan={9} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
