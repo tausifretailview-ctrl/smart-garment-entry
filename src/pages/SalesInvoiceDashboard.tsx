@@ -424,6 +424,54 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  const handlePaymentReminder = (invoice: any) => {
+    if (!invoice.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send payment reminder",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Use payment_reminder template
+    const reminderMessage = formatMessage('payment_reminder', {
+      sale_number: invoice.sale_number,
+      customer_name: invoice.customer_name,
+      customer_phone: invoice.customer_phone,
+      sale_date: invoice.sale_date,
+      net_amount: invoice.net_amount,
+      payment_status: invoice.payment_status,
+      paid_amount: invoice.paid_amount || 0,
+      due_date: invoice.due_date,
+    });
+
+    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
+    // Add country code 91 for India if not present
+    let formattedPhone = phoneNumber;
+    if (phoneNumber.length === 10) {
+      formattedPhone = `91${phoneNumber}`;
+    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
+      formattedPhone = phoneNumber;
+    } else if (!phoneNumber.startsWith('91')) {
+      formattedPhone = `91${phoneNumber}`;
+    }
+    
+    const encodedMessage = encodeURIComponent(reminderMessage).replace(/%20/g, '+');
+    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
+    
+    // Copy message to clipboard
+    navigator.clipboard.writeText(reminderMessage);
+    
+    // Open WhatsApp
+    window.location.href = whatsappUrl;
+    
+    toast({
+      title: "Payment Reminder Sent",
+      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
+    });
+  };
+
   const openStatusDialog = async (invoice: any) => {
     setSelectedInvoiceForStatus(invoice);
     setNewDeliveryStatus(invoice.delivery_status || 'undelivered');
@@ -747,6 +795,17 @@ export default function SalesInvoiceDashboard() {
                                     disabled={!invoice.customer_phone}
                                   >
                                     <MessageCircle className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                )}
+                                {invoice.payment_status !== 'completed' && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handlePaymentReminder(invoice)}
+                                    title="Send Payment Reminder"
+                                    disabled={!invoice.customer_phone}
+                                  >
+                                    <MessageCircle className="h-4 w-4 text-orange-600" />
                                   </Button>
                                 )}
                                 {columnSettings.print && (
