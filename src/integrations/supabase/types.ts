@@ -1114,6 +1114,7 @@ export type Database = {
           round_off: number
           sale_date: string
           sale_number: string
+          sale_return_adjust: number | null
           sale_type: string
           shipping_address: string | null
           shipping_instructions: string | null
@@ -1150,6 +1151,7 @@ export type Database = {
           round_off?: number
           sale_date?: string
           sale_number: string
+          sale_return_adjust?: number | null
           sale_type: string
           shipping_address?: string | null
           shipping_instructions?: string | null
@@ -1186,6 +1188,7 @@ export type Database = {
           round_off?: number
           sale_date?: string
           sale_number?: string
+          sale_return_adjust?: number | null
           sale_type?: string
           shipping_address?: string | null
           shipping_instructions?: string | null

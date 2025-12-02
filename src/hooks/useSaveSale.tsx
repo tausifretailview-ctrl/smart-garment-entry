@@ -29,6 +29,7 @@ interface SaleData {
   discountAmount: number;
   flatDiscountPercent: number;
   flatDiscountAmount: number;
+  saleReturnAdjust: number;
   roundOff: number;
   netAmount: number;
 }
@@ -228,6 +229,7 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
+          sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: paymentMethod,

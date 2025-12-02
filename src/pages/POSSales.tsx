@@ -79,6 +79,7 @@ export default function POSSales() {
   const [searchInput, setSearchInput] = useState("");
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
+  const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
@@ -171,6 +172,7 @@ export default function POSSales() {
       setCustomerName(sale.customer_name);
       setCustomerPhone(sale.customer_phone || "");
       setFlatDiscountPercent(sale.flat_discount_percent);
+      setSaleReturnAdjust(sale.sale_return_adjust || 0);
       setRoundOff(sale.round_off);
       setPaymentMethod(sale.payment_method as any);
 
@@ -579,7 +581,7 @@ export default function POSSales() {
   };
 
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
-  const finalAmount = totals.subtotal - flatDiscountAmount + roundOff;
+  const finalAmount = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
 
   // Handle save sale
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
@@ -611,6 +613,7 @@ export default function POSSales() {
       discountAmount: totals.discount,
       flatDiscountPercent,
       flatDiscountAmount,
+      saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
     };
@@ -639,6 +642,7 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountPercent(0);
+      setSaleReturnAdjust(0);
       setRoundOff(0);
       setSearchInput("");
     }
@@ -687,6 +691,7 @@ export default function POSSales() {
       discountAmount: totals.discount,
       flatDiscountPercent,
       flatDiscountAmount,
+      saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
     };
@@ -713,6 +718,7 @@ export default function POSSales() {
         items: items,
         totals: totals,
         flatDiscountAmount: flatDiscountAmount,
+        saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
         method: method,
         customerName: customerName,
@@ -777,6 +783,7 @@ export default function POSSales() {
       discountAmount: totals.discount,
       flatDiscountPercent,
       flatDiscountAmount,
+      saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
     };
@@ -806,6 +813,7 @@ export default function POSSales() {
         items: items,
         totals: totals,
         flatDiscountAmount: flatDiscountAmount,
+        saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
         method: 'multiple',
         customerName: customerName,
@@ -898,6 +906,7 @@ export default function POSSales() {
     setCustomerName("");
     setCustomerPhone("");
     setFlatDiscountPercent(0);
+    setSaleReturnAdjust(0);
     setRoundOff(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
@@ -914,6 +923,7 @@ export default function POSSales() {
     const discountAmount = useCurrentData ? (totals.discount + flatDiscountAmount) : ((savedInvoiceData?.totals?.discount || 0) + (savedInvoiceData?.flatDiscountAmount || 0));
     const grossAmount = useCurrentData ? totals.mrp : (savedInvoiceData?.totals?.mrp || 0);
     const method = useCurrentData ? paymentMethod : savedInvoiceData?.method;
+    const srAdjust = useCurrentData ? saleReturnAdjust : (savedInvoiceData?.saleReturnAdjust || 0);
     const roundOffAmount = useCurrentData ? roundOff : (savedInvoiceData?.roundOff || 0);
     
     if (!phone) {
@@ -933,7 +943,7 @@ export default function POSSales() {
     const saleId = useCurrentData ? currentSaleId : savedInvoiceData?.saleId;
     const invoiceUrl = saleId ? `${window.location.origin}/invoice/view/${saleId}` : '';
     
-    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment Method: ${(method || 'cash').toUpperCase()}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
+    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment Method: ${(method || 'cash').toUpperCase()}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
 
     const phoneNumber = phone.replace(/\D/g, '');
     // Add country code 91 for India if not present - check if already 12 digits with 91 prefix
@@ -1019,6 +1029,7 @@ export default function POSSales() {
 
     setItems(loadedItems);
     setFlatDiscountPercent(Number(sale.flat_discount_percent) || 0);
+    setSaleReturnAdjust(Number(sale.sale_return_adjust) || 0);
     setRoundOff(Number(sale.round_off) || 0);
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
@@ -1035,6 +1046,7 @@ export default function POSSales() {
         subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
       },
       flatDiscountAmount: (Number(sale.flat_discount_percent) / 100) * Number(sale.gross_amount),
+      saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
       finalAmount: Number(sale.net_amount),
       method: sale.payment_method,
       customerName: sale.customer_name,
@@ -1199,6 +1211,7 @@ export default function POSSales() {
     setCustomerId("");
     setCustomerPhone("");
     setFlatDiscountPercent(0);
+    setSaleReturnAdjust(0);
     setRoundOff(0);
     setSearchInput("");
     
@@ -1214,6 +1227,7 @@ export default function POSSales() {
     setCustomerId("");
     setCustomerPhone("");
     setFlatDiscountPercent(0);
+    setSaleReturnAdjust(0);
     setRoundOff(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
@@ -1802,6 +1816,16 @@ export default function POSSales() {
                 />
               </div>
               <div className="text-xs md:text-sm mt-1">Flat Discount</div>
+            </div>
+            <div className="text-center">
+              <Input 
+                type="number"
+                className="w-20 h-8 bg-white text-black text-center text-base font-semibold mx-auto" 
+                value={saleReturnAdjust}
+                onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
+                step="0.01"
+              />
+              <div className="text-xs md:text-sm mt-1">S/R Adjust</div>
             </div>
             <div className="text-center">
               <Input 
