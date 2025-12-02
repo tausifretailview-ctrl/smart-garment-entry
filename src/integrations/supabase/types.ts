@@ -1111,6 +1111,7 @@ export type Database = {
           payment_method: string
           payment_status: string
           payment_term: string | null
+          refund_amount: number | null
           round_off: number
           sale_date: string
           sale_number: string
@@ -1148,6 +1149,7 @@ export type Database = {
           payment_method: string
           payment_status?: string
           payment_term?: string | null
+          refund_amount?: number | null
           round_off?: number
           sale_date?: string
           sale_number: string
@@ -1185,6 +1187,7 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           payment_term?: string | null
+          refund_amount?: number | null
           round_off?: number
           sale_date?: string
           sale_number?: string

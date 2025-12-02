@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { cn } from "@/lib/utils";
@@ -104,6 +104,7 @@ const DailyCashierReport = () => {
         creditSale: 0,
         totalPaid: 0,
         totalBalance: 0,
+        totalRefund: 0,
         totalBills: 0,
         cashBills: 0,
         cardBills: 0,
@@ -122,6 +123,7 @@ const DailyCashierReport = () => {
     let creditSale = 0;
     let totalPaid = 0;
     let totalBalance = 0;
+    let totalRefund = 0;
     let cashBills = 0;
     let cardBills = 0;
     let upiBills = 0;
@@ -135,10 +137,12 @@ const DailyCashierReport = () => {
 
       const netAmount = Number(sale.net_amount) || 0;
       const paidAmount = Number(sale.paid_amount) || 0;
+      const refundAmt = Number(sale.refund_amount) || 0;
       const balance = netAmount - paidAmount;
       
       totalPaid += paidAmount;
       totalBalance += balance;
+      totalRefund += refundAmt;
       
       // For mixed payments, add individual amounts
       if (sale.payment_method === "multiple") {
@@ -182,6 +186,7 @@ const DailyCashierReport = () => {
       creditSale,
       totalPaid,
       totalBalance,
+      totalRefund,
       totalBills: salesData.length,
       cashBills,
       cardBills,
@@ -494,17 +499,28 @@ const DailyCashierReport = () => {
                     </TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(totals.upiSale)}</TableCell>
                   </TableRow>
-                  <TableRow className="bg-green-50 dark:bg-green-950">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
-                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
-                        </div>
-                        <span className="font-bold">Total Collection</span>
+                <TableRow>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
+                        <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.totalPaid)}</TableCell>
-                  </TableRow>
+                      <span className="font-medium">Total Refund</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
+                </TableRow>
+                <TableRow className="bg-green-50 dark:bg-green-950">
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
+                        <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
+                      </div>
+                      <span className="font-bold">Net Cash Collection</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
+                </TableRow>
                   <TableRow>
                     <TableCell>
                       <div className="flex items-center gap-2">

@@ -102,6 +102,7 @@ export default function POSSales() {
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
+  const [refundAmount, setRefundAmount] = useState(0);
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -738,6 +739,10 @@ export default function POSSales() {
       });
       return;
     }
+    // Auto-set refund if final amount is negative
+    if (finalAmount < 0) {
+      setRefundAmount(Math.abs(finalAmount));
+    }
     setShowMixPaymentDialog(true);
   };
 
@@ -746,6 +751,7 @@ export default function POSSales() {
     cardAmount: number;
     upiAmount: number;
     totalPaid: number;
+    refundAmount: number;
   }) => {
     // Check if there's a balance and customer mobile is missing
     const balanceAmount = finalAmount - paymentData.totalPaid;
@@ -773,7 +779,7 @@ export default function POSSales() {
       return;
     }
 
-    // Save the sale with mix payment
+    // Save the sale with mix payment or refund
     const saleData = {
       customerId: customerId || null,
       customerName,
@@ -786,9 +792,11 @@ export default function POSSales() {
       saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
+      refundAmount: paymentData.refundAmount,
     };
 
-    const result = await saveSale(saleData, 'multiple', paymentData);
+    const paymentMethodType = paymentData.refundAmount > 0 ? 'refund' : 'multiple';
+    const result = await saveSale(saleData, paymentMethodType as any, paymentData);
     
     if (result) {
       // Store invoice number and sale ID for printing
@@ -798,12 +806,15 @@ export default function POSSales() {
       // Refetch today's sales
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
-      const balanceAmount = finalAmount - paymentData.totalPaid;
+      const isRefund = paymentData.refundAmount > 0;
+      const balanceAmount = isRefund ? 0 : finalAmount - paymentData.totalPaid;
       const paymentStatus = balanceAmount > 0 ? 'partial' : 'completed';
       
       toast({
         title: "Sale Saved",
-        description: `Invoice ${result.sale_number} saved with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
+        description: isRefund 
+          ? `Invoice ${result.sale_number} saved with refund of ₹${paymentData.refundAmount.toFixed(2)}`
+          : `Invoice ${result.sale_number} saved with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
       });
       
       // Store invoice data and show print dialog
@@ -815,11 +826,12 @@ export default function POSSales() {
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
-        method: 'multiple',
+        method: isRefund ? 'refund' : 'multiple',
         customerName: customerName,
         customerPhone: customerPhone,
         roundOff: roundOff,
         paymentBreakdown: paymentData,
+        refundAmount: paymentData.refundAmount,
       });
       setShowPrintConfirmDialog(true);
     }
@@ -1213,6 +1225,7 @@ export default function POSSales() {
     setFlatDiscountPercent(0);
     setSaleReturnAdjust(0);
     setRoundOff(0);
+    setRefundAmount(0);
     setSearchInput("");
     
     toast({
@@ -1229,6 +1242,7 @@ export default function POSSales() {
     setFlatDiscountPercent(0);
     setSaleReturnAdjust(0);
     setRoundOff(0);
+    setRefundAmount(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
@@ -1838,8 +1852,12 @@ export default function POSSales() {
               <div className="text-xs md:text-sm mt-1">Round OFF</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold">₹{finalAmount.toFixed(2)}</div>
-              <div className="text-xs md:text-sm mt-1">Amount</div>
+              <div className={`text-2xl md:text-3xl font-bold ${finalAmount < 0 ? 'text-orange-300' : ''}`}>
+                ₹{finalAmount.toFixed(2)}
+              </div>
+              <div className="text-xs md:text-sm mt-1">
+                {finalAmount < 0 ? "Refund" : "Amount"}
+              </div>
             </div>
           </div>
         </div>
