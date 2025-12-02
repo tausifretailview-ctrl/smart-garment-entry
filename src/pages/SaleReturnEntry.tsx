@@ -77,10 +77,15 @@ export default function SaleReturnEntry() {
   useEffect(() => {
     if (currentOrganization) {
       fetchCustomers();
-      fetchProducts();
       fetchNextReturnNumber();
     }
   }, [currentOrganization]);
+
+  useEffect(() => {
+    if (currentOrganization) {
+      fetchProducts();
+    }
+  }, [currentOrganization, originalSaleNumber, selectedCustomer]);
 
   const fetchNextReturnNumber = async () => {
     const { data, error } = await supabase.rpc('generate_sale_return_number', {
@@ -106,11 +111,22 @@ export default function SaleReturnEntry() {
   };
 
   const fetchProducts = async () => {
-    // Step 1: Get sold items to filter only products that have been sold
-    const { data: salesData, error: salesError } = await supabase
+    // Step 1: Build sales query with filters
+    let salesQuery = supabase
       .from("sales")
       .select("id")
       .eq("organization_id", currentOrganization?.id);
+
+    // Apply filters if provided
+    if (originalSaleNumber?.trim()) {
+      salesQuery = salesQuery.eq("sale_number", originalSaleNumber.trim());
+    }
+    
+    if (selectedCustomer) {
+      salesQuery = salesQuery.eq("customer_id", selectedCustomer);
+    }
+
+    const { data: salesData, error: salesError } = await salesQuery;
 
     if (salesError) {
       toast({ title: "Error", description: "Failed to load sales data", variant: "destructive" });
@@ -122,6 +138,15 @@ export default function SaleReturnEntry() {
     if (saleIds.length === 0) {
       setProducts([]);
       setVariants([]);
+      if (originalSaleNumber?.trim() || selectedCustomer) {
+        toast({ 
+          title: "No Sales Found", 
+          description: originalSaleNumber?.trim() 
+            ? "No sale found with this sale number" 
+            : "No sales found for selected customer",
+          variant: "destructive" 
+        });
+      }
       return;
     }
 
