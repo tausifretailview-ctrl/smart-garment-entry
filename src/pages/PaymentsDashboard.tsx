@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -137,12 +137,14 @@ export default function PaymentsDashboard() {
         query = query.eq('payment_status', 'completed');
       }
 
-      // Apply date filters
+      // Apply date filters - normalize to yyyy-MM-dd format for accurate comparison
       if (dateFrom) {
-        query = query.gte('sale_date', format(dateFrom, 'yyyy-MM-dd'));
+        const startDateStr = format(dateFrom, 'yyyy-MM-dd');
+        query = query.gte('sale_date', startDateStr);
       }
       if (dateTo) {
-        query = query.lte('sale_date', format(dateTo, 'yyyy-MM-dd'));
+        const endDateStr = format(dateTo, 'yyyy-MM-dd');
+        query = query.lte('sale_date', endDateStr);
       }
 
       const { data: salesData, error } = await query;
@@ -163,6 +165,36 @@ export default function PaymentsDashboard() {
       .reduce((sum, inv) => sum + (Number(inv.net_amount || 0) - Number(inv.paid_amount || 0)), 0) || 0,
     completedAmount: invoices?.filter(inv => inv.payment_status === 'completed')
       .reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0) || 0,
+  };
+
+  // Quick date filter handlers
+  const setTodayFilter = () => {
+    const today = new Date();
+    setDateFrom(today);
+    setDateTo(today);
+  };
+
+  const setMonthlyFilter = () => {
+    const today = new Date();
+    setDateFrom(startOfMonth(today));
+    setDateTo(endOfMonth(today));
+  };
+
+  const setQuarterlyFilter = () => {
+    const today = new Date();
+    setDateFrom(startOfQuarter(today));
+    setDateTo(endOfQuarter(today));
+  };
+
+  const setYearlyFilter = () => {
+    const today = new Date();
+    setDateFrom(startOfYear(today));
+    setDateTo(endOfYear(today));
+  };
+
+  const clearDateFilter = () => {
+    setDateFrom(undefined);
+    setDateTo(undefined);
   };
 
   // Filter invoices based on search
@@ -489,79 +521,133 @@ Thank you for your business!`;
             <CardTitle>Filters</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by invoice, customer, phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+            <div className="space-y-4">
+              {/* Quick Date Filters */}
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? "default" : "outline"} 
+                  size="sm"
+                  onClick={setTodayFilter}
+                >
+                  Today
+                </Button>
+                <Button 
+                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfMonth(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfMonth(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
+                  size="sm"
+                  onClick={setMonthlyFilter}
+                >
+                  Monthly
+                </Button>
+                <Button 
+                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfQuarter(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfQuarter(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
+                  size="sm"
+                  onClick={setQuarterlyFilter}
+                >
+                  Quarterly
+                </Button>
+                <Button 
+                  variant={dateFrom && dateTo && format(dateFrom, 'yyyy-MM-dd') === format(startOfYear(new Date()), 'yyyy-MM-dd') && format(dateTo, 'yyyy-MM-dd') === format(endOfYear(new Date()), 'yyyy-MM-dd') ? "default" : "outline"}
+                  size="sm"
+                  onClick={setYearlyFilter}
+                >
+                  Year
+                </Button>
+                {(dateFrom || dateTo) && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearDateFilter}
+                  >
+                    Clear Dates
+                  </Button>
+                )}
               </div>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Payment Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Search and Filters */}
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by invoice, customer, phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From Date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} />
-                </PopoverContent>
-              </Popover>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Payment Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="partial">Partial</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, "dd MMM yyyy") : "To Date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={dateTo} onSelect={setDateTo} />
-                </PopoverContent>
-              </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="justify-start">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateFrom ? format(dateFrom, "dd MMM yyyy") : "From Date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar 
+                      mode="single" 
+                      selected={dateFrom} 
+                      onSelect={setDateFrom}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
 
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Settings2 className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                  <div className="space-y-4">
-                    <h4 className="font-medium">Column Visibility</h4>
-                    {Object.entries(columnSettings).map(([key, value]) => (
-                      <div key={key} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id={key}
-                          checked={value}
-                          onChange={(e) => updateColumnSetting(key as keyof ColumnSettings, e.target.checked)}
-                          className="h-4 w-4"
-                        />
-                        <Label htmlFor={key} className="cursor-pointer capitalize">
-                          {key.replace(/([A-Z])/g, ' $1').trim()}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="justify-start">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateTo ? format(dateTo, "dd MMM yyyy") : "To Date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar 
+                      mode="single" 
+                      selected={dateTo} 
+                      onSelect={setDateTo}
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Settings2 className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80">
+                    <div className="space-y-4">
+                      <h4 className="font-medium">Column Visibility</h4>
+                      {Object.entries(columnSettings).map(([key, value]) => (
+                        <div key={key} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={key}
+                            checked={value}
+                            onChange={(e) => updateColumnSetting(key as keyof ColumnSettings, e.target.checked)}
+                            className="h-4 w-4"
+                          />
+                          <Label htmlFor={key} className="cursor-pointer capitalize">
+                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </CardContent>
         </Card>
