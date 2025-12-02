@@ -6,11 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -41,6 +44,9 @@ interface Transaction {
 export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
 
   // Fetch all customers with their transaction summary
   const { data: customers, isLoading } = useQuery({
@@ -86,29 +92,51 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
   // Fetch detailed transactions for selected customer
   const { data: transactions } = useQuery({
-    queryKey: ["customer-transactions", selectedCustomer?.id],
+    queryKey: ["customer-transactions", selectedCustomer?.id, startDate, endDate],
     queryFn: async () => {
       if (!selectedCustomer) return [];
 
-      // Fetch sales invoices
-      const { data: salesData, error: salesError } = await supabase
+      // Build date filter
+      let salesQuery = supabase
         .from("sales")
         .select("*")
-        .eq("customer_id", selectedCustomer.id)
-        .order("sale_date", { ascending: true });
+        .eq("customer_id", selectedCustomer.id);
+
+      // Apply date filters - normalize dates to yyyy-MM-dd format for accurate comparison
+      if (startDate) {
+        const startDateStr = format(startDate, 'yyyy-MM-dd');
+        salesQuery = salesQuery.gte("sale_date", startDateStr);
+      }
+      if (endDate) {
+        const endDateStr = format(endDate, 'yyyy-MM-dd');
+        salesQuery = salesQuery.lte("sale_date", endDateStr);
+      }
+
+      const { data: salesData, error: salesError } = await salesQuery.order("sale_date", { ascending: true });
 
       if (salesError) throw salesError;
 
       // Get all sale IDs for this customer
       const saleIds = salesData?.map(s => s.id) || [];
 
-      // Fetch payment vouchers that reference this customer's sales
-      const { data: vouchersData, error: vouchersError } = await supabase
+      // Build voucher query with date filter
+      let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
         .eq("voucher_type", "receipt")
-        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000'])
-        .order("voucher_date", { ascending: true });
+        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
+
+      // Apply date filters to vouchers
+      if (startDate) {
+        const startDateStr = format(startDate, 'yyyy-MM-dd');
+        vouchersQuery = vouchersQuery.gte("voucher_date", startDateStr);
+      }
+      if (endDate) {
+        const endDateStr = format(endDate, 'yyyy-MM-dd');
+        vouchersQuery = vouchersQuery.lte("voucher_date", endDateStr);
+      }
+
+      const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: true });
 
       if (vouchersError) throw vouchersError;
 
@@ -177,19 +205,32 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
     enabled: !!selectedCustomer?.id,
   });
 
-  // Filter customers based on search
+  // Filter customers based on search, payment status, and date range
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
     
     return customers.filter((customer) => {
+      // Search filter
       const searchLower = searchQuery.toLowerCase();
-      return (
+      const matchesSearch = (
         customer.customer_name.toLowerCase().includes(searchLower) ||
         customer.phone?.toLowerCase().includes(searchLower) ||
         customer.email?.toLowerCase().includes(searchLower)
       );
+
+      // Payment status filter
+      let matchesPaymentStatus = true;
+      if (paymentStatusFilter === "outstanding") {
+        matchesPaymentStatus = customer.balance > 0;
+      } else if (paymentStatusFilter === "settled") {
+        matchesPaymentStatus = customer.balance === 0;
+      } else if (paymentStatusFilter === "advance") {
+        matchesPaymentStatus = customer.balance < 0;
+      }
+
+      return matchesSearch && matchesPaymentStatus;
     });
-  }, [customers, searchQuery]);
+  }, [customers, searchQuery, paymentStatusFilter]);
 
   // Calculate summary statistics
   const summary = useMemo(() => {
@@ -224,7 +265,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
   if (selectedCustomer && transactions) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <Button
             variant="outline"
             size="sm"
@@ -233,14 +274,63 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Customers
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExportToExcel}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Export to Excel
-          </Button>
+          
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            {(startDate || endDate) && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                }}
+              >
+                Clear
+              </Button>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportToExcel}
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export to Excel
+            </Button>
+          </div>
         </div>
 
         <Card>
@@ -401,7 +491,10 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setPaymentStatusFilter("all")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
           </CardHeader>
@@ -411,7 +504,10 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setPaymentStatusFilter("outstanding")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Outstanding</CardTitle>
           </CardHeader>
@@ -423,7 +519,10 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => setPaymentStatusFilter("all")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Receivable</CardTitle>
           </CardHeader>
@@ -443,8 +542,8 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           <CardDescription>View detailed transaction history for each customer</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 mb-6">
-            <div className="relative flex-1">
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
+            <div className="relative flex-1 w-full">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, phone, or email..."
@@ -453,6 +552,66 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
                 className="pl-10"
               />
             </div>
+            
+            <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="Payment Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="outstanding">Outstanding</SelectItem>
+                <SelectItem value="settled">Settled</SelectItem>
+                <SelectItem value="advance">Advance</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full md:w-[240px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={startDate}
+                  onSelect={setStartDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full md:w-[240px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <CalendarComponent
+                  mode="single"
+                  selected={endDate}
+                  onSelect={setEndDate}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            {(startDate || endDate || paymentStatusFilter !== "all") && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setStartDate(undefined);
+                  setEndDate(undefined);
+                  setPaymentStatusFilter("all");
+                }}
+                className="w-full md:w-auto"
+              >
+                Clear Filters
+              </Button>
+            )}
           </div>
 
           <div className="rounded-md border">
