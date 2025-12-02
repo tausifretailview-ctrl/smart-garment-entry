@@ -102,7 +102,17 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
     queryFn: async () => {
       if (!selectedCustomer) return [];
 
-      // Build date filter
+      // First, get ALL sales for this customer (without date filter) to get all possible reference_ids
+      const { data: allCustomerSales, error: allSalesError } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("customer_id", selectedCustomer.id);
+
+      if (allSalesError) throw allSalesError;
+
+      const allSaleIds = allCustomerSales?.map(s => s.id) || [];
+
+      // Build date filter for displayed sales
       let salesQuery = supabase
         .from("sales")
         .select("*")
@@ -122,15 +132,12 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
       if (salesError) throw salesError;
 
-      // Get all sale IDs for this customer
-      const saleIds = salesData?.map(s => s.id) || [];
-
-      // Build voucher query with date filter
+      // Build voucher query - fetch all payments for ANY of this customer's invoices
       let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
         .eq("voucher_type", "receipt")
-        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
+        .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
 
       // Apply date filters to vouchers
       if (startDate) {
@@ -147,6 +154,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
       if (vouchersError) throw vouchersError;
 
       console.log('Sales for customer:', salesData?.length || 0);
+      console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Payments found:', vouchersData?.length || 0);
 
       // Combine and sort transactions
