@@ -1,18 +1,36 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Clock, CheckCircle2, TrendingUp } from "lucide-react";
+import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { Layout } from "@/components/Layout";
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const DeliveryDashboard = () => {
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [selectedInvoiceForStatus, setSelectedInvoiceForStatus] = useState<any>(null);
+  const [newDeliveryStatus, setNewDeliveryStatus] = useState<string>("");
+  const [statusDate, setStatusDate] = useState<Date>(new Date());
+  const [statusNarration, setStatusNarration] = useState("");
 
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
@@ -118,24 +136,101 @@ const DeliveryDashboard = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch filtered invoices based on selected status
+  // Fetch filtered invoices based on selected status, date range, and search
   const { data: filteredInvoices } = useQuery({
-    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus],
+    queryKey: ["filtered-invoices", currentOrganization?.id, selectedStatus, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
       if (!currentOrganization?.id || !selectedStatus) return [];
 
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales")
         .select("*")
         .eq("organization_id", currentOrganization.id)
-        .eq("delivery_status", selectedStatus)
-        .order("sale_date", { ascending: false });
+        .eq("delivery_status", selectedStatus);
 
+      // Apply date range filter
+      if (dateFrom) {
+        query = query.gte("sale_date", startOfDay(dateFrom).toISOString());
+      }
+      if (dateTo) {
+        query = query.lte("sale_date", endOfDay(dateTo).toISOString());
+      }
+
+      // Apply search filter
+      if (searchQuery) {
+        query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%`);
+      }
+
+      query = query.order("sale_date", { ascending: false });
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
     enabled: !!currentOrganization?.id && !!selectedStatus,
   });
+
+  // Mutation to update delivery status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ saleId, status, date, narration }: { saleId: string; status: string; date: Date; narration: string }) => {
+      const { error: saleError } = await supabase
+        .from("sales")
+        .update({ delivery_status: status })
+        .eq("id", saleId);
+
+      if (saleError) throw saleError;
+
+      const { error: trackingError } = await supabase
+        .from("delivery_tracking")
+        .insert({
+          sale_id: saleId,
+          organization_id: currentOrganization!.id,
+          status,
+          status_date: format(date, "yyyy-MM-dd"),
+          narration: narration || null,
+        });
+
+      if (trackingError) throw trackingError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["filtered-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-trend"] });
+      queryClient.invalidateQueries({ queryKey: ["delivery-status-distribution"] });
+      toast.success("Delivery status updated successfully");
+      setShowStatusDialog(false);
+      setSelectedInvoiceForStatus(null);
+      setNewDeliveryStatus("");
+      setStatusDate(new Date());
+      setStatusNarration("");
+    },
+    onError: (error) => {
+      console.error("Error updating delivery status:", error);
+      toast.error("Failed to update delivery status");
+    },
+  });
+
+  const openStatusDialog = (invoice: any) => {
+    setSelectedInvoiceForStatus(invoice);
+    setNewDeliveryStatus(invoice.delivery_status);
+    setStatusDate(new Date());
+    setStatusNarration("");
+    setShowStatusDialog(true);
+  };
+
+  const handleUpdateDeliveryStatus = () => {
+    if (!newDeliveryStatus) {
+      toast.error("Please select a delivery status");
+      return;
+    }
+
+    updateStatusMutation.mutate({
+      saleId: selectedInvoiceForStatus.id,
+      status: newDeliveryStatus,
+      date: statusDate,
+      narration: statusNarration,
+    });
+  };
 
   const getDeliveryBadgeVariant = (status: string) => {
     switch (status) {
@@ -232,9 +327,72 @@ const DeliveryDashboard = () => {
         {selectedStatus && (
           <Card>
             <CardHeader>
-              <CardTitle>
-                {getDeliveryLabel(selectedStatus)} Invoices ({filteredInvoices?.length || 0})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>
+                  {getDeliveryLabel(selectedStatus)} Invoices ({filteredInvoices?.length || 0})
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by invoice or customer..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-8 w-64"
+                    />
+                  </div>
+                  
+                  {/* Date From */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-36 justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateFrom ? format(dateFrom, "PP") : "From Date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={setDateFrom}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Date To */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-36 justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateTo ? format(dateTo, "PP") : "To Date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={setDateTo}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  {/* Clear Filters */}
+                  {(searchQuery || dateFrom || dateTo) && (
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setSearchQuery("");
+                      setDateFrom(undefined);
+                      setDateTo(undefined);
+                    }}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <Table>
@@ -261,7 +419,11 @@ const DeliveryDashboard = () => {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getDeliveryBadgeVariant(invoice.delivery_status)}>
+                        <Badge 
+                          variant={getDeliveryBadgeVariant(invoice.delivery_status)}
+                          className="cursor-pointer hover:opacity-80"
+                          onClick={() => openStatusDialog(invoice)}
+                        >
                           {getDeliveryLabel(invoice.delivery_status)}
                         </Badge>
                       </TableCell>
@@ -302,6 +464,75 @@ const DeliveryDashboard = () => {
             height={300}
           />
         </div>
+
+        {/* Status Update Dialog */}
+        <Dialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Delivery Status</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Invoice Number</label>
+                <p className="text-sm text-muted-foreground">{selectedInvoiceForStatus?.sale_number}</p>
+              </div>
+              
+              <div>
+                <label className="text-sm font-medium">Delivery Status</label>
+                <Select value={newDeliveryStatus} onValueChange={setNewDeliveryStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="delivered">Delivered</SelectItem>
+                    <SelectItem value="in_process">In Process</SelectItem>
+                    <SelectItem value="undelivered">Undelivered</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Status Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {statusDate ? format(statusDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={statusDate}
+                      onSelect={(date) => date && setStatusDate(date)}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Narration (Optional)</label>
+                <Textarea
+                  placeholder="Add notes about this status update..."
+                  value={statusNarration}
+                  onChange={(e) => setStatusNarration(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowStatusDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateDeliveryStatus} disabled={updateStatusMutation.isPending}>
+                  {updateStatusMutation.isPending ? "Updating..." : "Update Status"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );
