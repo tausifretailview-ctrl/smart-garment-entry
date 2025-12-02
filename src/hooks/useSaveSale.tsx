@@ -32,6 +32,7 @@ interface SaleData {
   saleReturnAdjust: number;
   roundOff: number;
   netAmount: number;
+  refundAmount?: number;
 }
 
 export const useSaveSale = () => {
@@ -124,12 +125,13 @@ export const useSaveSale = () => {
 
   const saveSale = async (
     saleData: SaleData,
-    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
+    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later' | 'refund',
     paymentBreakdown?: {
       cashAmount: number;
       cardAmount: number;
       upiAmount: number;
       totalPaid: number;
+      refundAmount: number;
     }
   ) => {
     if (!user) {
@@ -186,14 +188,16 @@ export const useSaveSale = () => {
       let cardAmt = 0;
       let upiAmt = 0;
       let paidAmt = 0;
+      let refundAmt = 0;
       let payStatus = 'completed';
 
       if (paymentBreakdown) {
-        // Mix payment
+        // Mix payment or refund
         cashAmt = paymentBreakdown.cashAmount;
         cardAmt = paymentBreakdown.cardAmount;
         upiAmt = paymentBreakdown.upiAmount;
         paidAmt = paymentBreakdown.totalPaid;
+        refundAmt = paymentBreakdown.refundAmount;
         
         if (paidAmt >= saleData.netAmount) {
           payStatus = 'completed';
@@ -214,6 +218,11 @@ export const useSaveSale = () => {
         } else if (paymentMethod === 'upi') {
           upiAmt = saleData.netAmount;
         }
+      }
+
+      // Store refund amount from saleData if provided
+      if (saleData.refundAmount) {
+        refundAmt = saleData.refundAmount;
       }
 
       // Insert sale record
@@ -238,6 +247,7 @@ export const useSaveSale = () => {
           cash_amount: cashAmt,
           card_amount: cardAmt,
           upi_amount: upiAmt,
+          refund_amount: refundAmt,
           created_by: user.id,
           organization_id: currentOrganization.id,
         })
