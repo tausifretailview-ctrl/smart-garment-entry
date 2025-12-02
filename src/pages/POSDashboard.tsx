@@ -69,6 +69,7 @@ interface Sale {
   cash_amount?: number;
   card_amount?: number;
   upi_amount?: number;
+  refund_amount?: number;
   created_at: string;
 }
 
@@ -84,6 +85,7 @@ const POSDashboard = () => {
   const [endDate, setEndDate] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [refundFilter, setRefundFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
@@ -104,6 +106,7 @@ const POSDashboard = () => {
     const saved = localStorage.getItem('pos-dashboard-columns');
     return saved ? JSON.parse(saved) : {
       status: true,
+      refund: true,
       whatsapp: true,
       copyLink: true,
       preview: true,
@@ -750,7 +753,12 @@ const POSDashboard = () => {
     const matchesPaymentStatus =
       paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
 
-    return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus;
+    const matchesRefund =
+      refundFilter === "all" ||
+      (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
+      (refundFilter === "without_refund" && (sale.refund_amount || 0) === 0);
+
+    return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund;
   });
 
   const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
@@ -772,7 +780,7 @@ const POSDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter]);
+  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter, refundFilter]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -909,6 +917,16 @@ const POSDashboard = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={refundFilter} onValueChange={setRefundFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Refund" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="with_refund">With Refund</SelectItem>
+                  <SelectItem value="without_refund">Without Refund</SelectItem>
+                </SelectContent>
+              </Select>
               
               {/* Column Settings Popover */}
               <Popover>
@@ -927,6 +945,14 @@ const POSDashboard = () => {
                           id="col-status"
                           checked={columnSettings.status}
                           onCheckedChange={(checked) => updateColumnSetting('status', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-refund" className="text-sm">Refund</Label>
+                        <Checkbox
+                          id="col-refund"
+                          checked={columnSettings.refund}
+                          onCheckedChange={(checked) => updateColumnSetting('refund', !!checked)}
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -1002,6 +1028,7 @@ const POSDashboard = () => {
                       <TableHead>UPI</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
+                      {columnSettings.refund && <TableHead>Refund</TableHead>}
                       {columnSettings.status && <TableHead>Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1009,7 +1036,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={columnSettings.status ? 16 : 15} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1068,6 +1095,17 @@ const POSDashboard = () => {
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
+                            {columnSettings.refund && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                {(sale.refund_amount || 0) > 0 ? (
+                                  <span className="font-semibold text-red-600">
+                                    ₹{(sale.refund_amount || 0).toFixed(2)}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
                                 <Badge variant={sale.payment_status === "completed" ? "default" : "destructive"}>
@@ -1145,7 +1183,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={columnSettings.status ? 16 : 15} className="bg-muted/50 p-4">
+                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 15} className="bg-muted/50 p-4">
                                 <div className="space-y-2">
                                   <h4 className="font-semibold text-sm">Sale Items:</h4>
                                   <div className="rounded-md border">
