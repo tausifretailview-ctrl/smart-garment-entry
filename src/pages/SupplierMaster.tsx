@@ -24,8 +24,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { supplierMasterFields, supplierMasterSampleData } from "@/utils/excelImportUtils";
 
 interface Supplier {
   id: string;
@@ -60,6 +62,8 @@ const SupplierMaster = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = (location.state as any)?.returnTo;
+  const [showExcelImport, setShowExcelImport] = useState(false);
+  const [importLoading, setImportLoading] = useState(false);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -202,22 +206,80 @@ const SupplierMaster = () => {
     supplier.supplier_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+    if (!currentOrganization?.id) {
+      toast({ title: "No organization selected", variant: "destructive" });
+      return;
+    }
+
+    setImportLoading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const row of mappedData) {
+        const supplierName = row.supplier_name?.toString().trim();
+        if (!supplierName) {
+          errorCount++;
+          continue;
+        }
+
+        const supplierData = {
+          supplier_name: supplierName,
+          contact_person: row.contact_person?.toString().trim() || '',
+          phone: row.phone?.toString().trim() || '',
+          email: row.email?.toString().trim() || '',
+          address: row.address?.toString().trim() || '',
+          gst_number: row.gst_number?.toString().trim() || '',
+          supplier_code: row.supplier_code?.toString().trim() || '',
+          opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
+          organization_id: currentOrganization.id,
+        };
+
+        const { error } = await supabase.from("suppliers").insert([supplierData]);
+        if (error) {
+          console.error('Error inserting supplier:', error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      toast({
+        title: "Import completed",
+        description: `${successCount} suppliers imported${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
+      });
+      setShowExcelImport(false);
+    } catch (error) {
+      console.error('Import error:', error);
+      toast({ title: "Import failed", variant: "destructive" });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <BackToDashboard />
       
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Supplier Master</h1>
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Supplier
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowExcelImport(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Import Excel
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Supplier
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editingSupplier ? "Edit Supplier" : "Add New Supplier"}</DialogTitle>
@@ -305,6 +367,7 @@ const SupplierMaster = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
@@ -380,6 +443,16 @@ const SupplierMaster = () => {
           </TableBody>
         </Table>
       </div>
+
+      <ExcelImportDialog
+        open={showExcelImport}
+        onClose={() => setShowExcelImport(false)}
+        targetFields={supplierMasterFields}
+        onImport={handleExcelImport}
+        sampleData={supplierMasterSampleData}
+        sampleFileName="Supplier_Master_Sample.xlsx"
+        title="Import Suppliers"
+      />
     </div>
   );
 };
