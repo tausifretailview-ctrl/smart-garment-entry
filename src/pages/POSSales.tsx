@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2 } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
+import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
@@ -99,6 +100,7 @@ export default function POSSales() {
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
+  const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -239,6 +241,11 @@ export default function POSSales() {
       else if (e.key === 'F3') {
         e.preventDefault();
         handlePaymentAndPrint('upi');
+      }
+      // F4 - Mix Payment
+      else if (e.key === 'F4') {
+        e.preventDefault();
+        handleMixPayment();
       }
       // Esc - Clear items
       else if (e.key === 'Escape') {
@@ -701,6 +708,89 @@ export default function POSSales() {
         customerName: customerName,
         customerPhone: customerPhone,
         roundOff: roundOff,
+      });
+      setShowPrintConfirmDialog(true);
+    }
+  };
+
+  const handleMixPayment = () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before processing payment",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowMixPaymentDialog(true);
+  };
+
+  const handleMixPaymentSave = async (paymentData: {
+    cashAmount: number;
+    cardAmount: number;
+    upiAmount: number;
+    totalPaid: number;
+  }) => {
+    // Real-time stock validation before saving
+    const cartItems = items.map(item => ({
+      variantId: item.variantId,
+      quantity: item.quantity,
+      productName: item.productName,
+      size: item.size,
+    }));
+
+    const insufficientItems = await validateCartStock(cartItems);
+    
+    if (insufficientItems.length > 0) {
+      showMultipleStockErrors(insufficientItems);
+      return;
+    }
+
+    // Save the sale with mix payment
+    const saleData = {
+      customerId: customerId || null,
+      customerName,
+      customerPhone: customerPhone || null,
+      items,
+      grossAmount: totals.mrp,
+      discountAmount: totals.discount,
+      flatDiscountPercent,
+      flatDiscountAmount,
+      roundOff,
+      netAmount: finalAmount,
+    };
+
+    const result = await saveSale(saleData, 'multiple', paymentData);
+    
+    if (result) {
+      // Store invoice number and sale ID for printing
+      setCurrentInvoiceNumber(result.sale_number);
+      setCurrentSaleId(result.id);
+      
+      // Refetch today's sales
+      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      
+      const balanceAmount = finalAmount - paymentData.totalPaid;
+      const paymentStatus = balanceAmount > 0 ? 'partial' : 'completed';
+      
+      toast({
+        title: "Sale Saved",
+        description: `Invoice ${result.sale_number} saved with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
+      });
+      
+      // Store invoice data and show print dialog
+      setSavedInvoiceData({
+        invoiceNumber: result.sale_number,
+        saleId: result.id,
+        items: items,
+        totals: totals,
+        flatDiscountAmount: flatDiscountAmount,
+        finalAmount: finalAmount,
+        method: 'multiple',
+        customerName: customerName,
+        customerPhone: customerPhone,
+        roundOff: roundOff,
+        paymentBreakdown: paymentData,
       });
       setShowPrintConfirmDialog(true);
     }
@@ -1275,6 +1365,16 @@ export default function POSSales() {
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F3</Badge>
             <Smartphone className="h-4 w-4" />
             <span>UPI</span>
+          </Button>
+          <Button
+            onClick={handleMixPayment}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50"
+            title="Mix Payment - Save & Print (F4)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F4</Badge>
+            <Wallet className="h-4 w-4" />
+            <span>Mix</span>
           </Button>
         </div>
       </div>
@@ -1963,6 +2063,14 @@ export default function POSSales() {
             />
           )}
         </div>
+
+        {/* Mix Payment Dialog */}
+        <MixPaymentDialog
+          open={showMixPaymentDialog}
+          onOpenChange={setShowMixPaymentDialog}
+          billAmount={finalAmount}
+          onSave={handleMixPaymentSave}
+        />
       </div>
     </div>
   );
