@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, MessageCircle, Settings2, DollarSign, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -453,7 +453,7 @@ Thank you for your business!`;
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Invoices</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <IndianRupee className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{summaryStats.total}</div>
@@ -686,7 +686,7 @@ Thank you for your business!`;
                                   onClick={() => openPaymentDialog(invoice)}
                                   title="Record Payment"
                                 >
-                                  <DollarSign className="h-4 w-4 mr-1" />
+                                  <IndianRupee className="h-4 w-4 mr-1" />
                                   Record
                                 </Button>
                               )}
