@@ -472,6 +472,10 @@ const POSDashboard = () => {
         cashPaid: sale.payment_method === 'cash' ? sale.net_amount : 0,
         upiPaid: sale.payment_method === 'upi' ? sale.net_amount : 0,
         paymentMethod: sale.payment_method,
+        cashAmount: sale.cash_amount,
+        cardAmount: sale.card_amount,
+        upiAmount: sale.upi_amount,
+        paidAmount: sale.paid_amount,
       };
 
       setPrintData(invoiceData);
@@ -1263,6 +1267,10 @@ const POSDashboard = () => {
               cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
               upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
               paymentMethod={previewSale.payment_method}
+              cashAmount={previewSale.cash_amount}
+              cardAmount={previewSale.card_amount}
+              upiAmount={previewSale.upi_amount}
+              paidAmount={previewSale.paid_amount}
             />
           )}
         />
@@ -1348,6 +1356,10 @@ const POSDashboard = () => {
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}
             paymentMethod={printData.paymentMethod}
+            cashAmount={printData.cashAmount}
+            cardAmount={printData.cardAmount}
+            upiAmount={printData.upiAmount}
+            paidAmount={printData.paidAmount}
             format={posBillFormat}
             template={posInvoiceTemplate}
           />
