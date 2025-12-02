@@ -61,19 +61,36 @@ Thank you for your purchase! 🛍️
 Invoice Details:
 📋 Invoice: {invoice_number}
 📅 Date: {invoice_date}
-💰 Amount: {amount}
-💳 Payment: {payment_status}
+💰 Total Amount: {amount}
+💳 Payment Status: {payment_status}
 
 {invoice_items}
 
-We appreciate your business!`
+We appreciate your business!`,
+  
+  payment_reminder: `Hello {customer_name},
+
+This is a friendly reminder regarding your pending payment 💳
+
+Invoice Details:
+📋 Invoice: {invoice_number}
+📅 Invoice Date: {invoice_date}
+💰 Total Amount: {amount}
+💵 Paid Amount: {paid_amount}
+⚠️ Pending Amount: {pending_amount}
+📅 Due Date: {due_date}
+
+Please make the payment at your earliest convenience.
+
+Thank you for your cooperation!`
 };
 
 const templateLabels = {
   delivery_delivered: "Delivery Completed Message",
   delivery_in_process: "Delivery In Process Message",
   delivery_undelivered: "Delivery Pending Message",
-  sales_invoice: "Sales Invoice Message"
+  sales_invoice: "Sales Invoice / POS Billing Message",
+  payment_reminder: "Payment Reminder Message"
 };
 
 export const WhatsAppTemplateSettings = () => {
@@ -181,7 +198,7 @@ export const WhatsAppTemplateSettings = () => {
           <CardTitle>WhatsApp Message Templates</CardTitle>
         </div>
         <CardDescription>
-          Customize WhatsApp messages for delivery updates and invoices. Use placeholders like {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, and {"{invoice_items}"}
+          Customize WhatsApp messages for delivery updates, invoices, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
