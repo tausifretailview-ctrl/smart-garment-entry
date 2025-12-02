@@ -15,8 +15,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import * as XLSX from "xlsx";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -43,6 +45,12 @@ export default function Accounts() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  // Reconciliation filters
+  const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
+  const [reconEndDate, setReconEndDate] = useState<Date>(endOfMonth(new Date()));
+  const [reconCustomerFilter, setReconCustomerFilter] = useState<string>("");
+  const [reconStatusFilter, setReconStatusFilter] = useState<string>("all");
 
   // Fetch customer outstanding invoices
   const { data: customerInvoices } = useQuery({
@@ -194,6 +202,57 @@ export default function Accounts() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch reconciliation data
+  const { data: reconciliationData } = useQuery({
+    queryKey: ["payment-reconciliation", currentOrganization?.id, reconStartDate, reconEndDate],
+    queryFn: async () => {
+      const { data: payments, error } = await supabase
+        .from("voucher_entries")
+        .select("*, sales(*), customers(*)")
+        .eq("organization_id", currentOrganization?.id)
+        .eq("voucher_type", "receipt")
+        .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
+        .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"))
+        .order("voucher_date", { ascending: false });
+
+      if (error) throw error;
+
+      // Enhance with customer names and invoice details
+      const enhanced = await Promise.all(
+        (payments || []).map(async (payment) => {
+          let customerName = "Unknown";
+          let customerPhone = "";
+          let invoiceDetails = null;
+
+          if (payment.reference_id) {
+            // Fetch invoice details
+            const { data: invoice } = await supabase
+              .from("sales")
+              .select("*, customers(*)")
+              .eq("id", payment.reference_id)
+              .maybeSingle();
+
+            if (invoice) {
+              invoiceDetails = invoice;
+              customerName = invoice.customer_name || invoice.customers?.customer_name || "Walk-in Customer";
+              customerPhone = invoice.customer_phone || invoice.customers?.phone || "";
+            }
+          }
+
+          return {
+            ...payment,
+            customerName,
+            customerPhone,
+            invoiceDetails,
+          };
+        })
+      );
+
+      return enhanced;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -515,13 +574,14 @@ export default function Accounts() {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
             <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
             <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
             <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
             <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
+            <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
             <TabsTrigger value="pl-report">P&L Report</TabsTrigger>
             <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
           </TabsList>
@@ -1087,6 +1147,334 @@ export default function Accounts() {
                     ))}
                   </TableBody>
                 </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Payment Reconciliation Tab */}
+          <TabsContent value="reconciliation" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Payment Reconciliation Report</CardTitle>
+                <CardDescription>All customer payments matched with invoices for accounting audit</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Filters Section */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-muted/50 rounded-lg">
+                  <div className="space-y-2">
+                    <Label>From Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !reconStartDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {reconStartDate ? format(reconStartDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={reconStartDate}
+                          onSelect={(date) => date && setReconStartDate(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>To Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !reconEndDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {reconEndDate ? format(reconEndDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={reconEndDate}
+                          onSelect={(date) => date && setReconEndDate(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Customer Filter</Label>
+                    <Select value={reconCustomerFilter} onValueChange={setReconCustomerFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Customers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Customers</SelectItem>
+                        {customers?.map((customer) => (
+                          <SelectItem key={customer.id} value={customer.id}>
+                            {customer.customer_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status Filter</Label>
+                    <Select value={reconStatusFilter} onValueChange={setReconStatusFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="partial">Partial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Summary Cards */}
+                {reconciliationData && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+                          Total Payments
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                          {reconciliationData.filter((r) => {
+                            const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                            const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                            return matchesCustomer && matchesStatus;
+                          }).length}
+                        </div>
+                        <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                          Payment transactions
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                          Total Amount Received
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                          ₹{reconciliationData
+                            .filter((r) => {
+                              const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                              const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                              return matchesCustomer && matchesStatus;
+                            })
+                            .reduce((sum, r) => sum + (r.total_amount || 0), 0)
+                            .toFixed(2)}
+                        </div>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          Cash + Card + UPI
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                          Unique Customers
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                          {new Set(
+                            reconciliationData
+                              .filter((r) => {
+                                const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                                const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                                return matchesCustomer && matchesStatus;
+                              })
+                              .map((r) => r.invoiceDetails?.customer_id)
+                              .filter(Boolean)
+                          ).size}
+                        </div>
+                        <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
+                          Customers paid
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Export Button */}
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => {
+                      const filtered = reconciliationData?.filter((r) => {
+                        const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                        const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                        return matchesCustomer && matchesStatus;
+                      }) || [];
+
+                      const ws = XLSX.utils.json_to_sheet(
+                        filtered.map((payment) => ({
+                          "Voucher No": payment.voucher_number,
+                          "Payment Date": format(new Date(payment.voucher_date), "dd/MM/yyyy"),
+                          "Customer Name": payment.customerName,
+                          "Customer Phone": payment.customerPhone || "-",
+                          "Invoice Number": payment.invoiceDetails?.sale_number || "-",
+                          "Invoice Date": payment.invoiceDetails?.sale_date ? format(new Date(payment.invoiceDetails.sale_date), "dd/MM/yyyy") : "-",
+                          "Invoice Amount": payment.invoiceDetails?.net_amount?.toFixed(2) || "0.00",
+                          "Cash Amount": payment.invoiceDetails?.cash_amount?.toFixed(2) || "0.00",
+                          "Card Amount": payment.invoiceDetails?.card_amount?.toFixed(2) || "0.00",
+                          "UPI Amount": payment.invoiceDetails?.upi_amount?.toFixed(2) || "0.00",
+                          "Payment Amount": payment.total_amount.toFixed(2),
+                          "Payment Method": ((payment as any).metadata?.paymentMethod) || payment.invoiceDetails?.payment_method || "-",
+                          "Payment Status": payment.invoiceDetails?.payment_status || "-",
+                          "Balance": payment.invoiceDetails ? (payment.invoiceDetails.net_amount - (payment.invoiceDetails.paid_amount || 0)).toFixed(2) : "0.00",
+                        }))
+                      );
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Reconciliation");
+                      XLSX.writeFile(wb, `Payment_Reconciliation_${format(reconStartDate, "dd-MM-yyyy")}_to_${format(reconEndDate, "dd-MM-yyyy")}.xlsx`);
+                      toast.success("Reconciliation report exported to Excel");
+                    }}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <FileDown className="h-4 w-4" />
+                    Export to Excel
+                  </Button>
+                </div>
+
+                {/* Reconciliation Table */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Voucher No</TableHead>
+                        <TableHead>Payment Date</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Invoice No</TableHead>
+                        <TableHead>Invoice Date</TableHead>
+                        <TableHead className="text-right">Invoice Amt</TableHead>
+                        <TableHead className="text-right">Payment Breakdown</TableHead>
+                        <TableHead className="text-right">Paid</TableHead>
+                        <TableHead>Method</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {reconciliationData
+                        ?.filter((r) => {
+                          const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                          const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                          return matchesCustomer && matchesStatus;
+                        })
+                        .map((payment) => {
+                          const invoice = payment.invoiceDetails;
+                          const balance = invoice ? invoice.net_amount - (invoice.paid_amount || 0) : 0;
+                          const cashAmt = invoice?.cash_amount || 0;
+                          const cardAmt = invoice?.card_amount || 0;
+                          const upiAmt = invoice?.upi_amount || 0;
+
+                          return (
+                            <TableRow key={payment.id}>
+                              <TableCell className="font-medium">{payment.voucher_number}</TableCell>
+                              <TableCell>{format(new Date(payment.voucher_date), "dd/MM/yyyy")}</TableCell>
+                              <TableCell>
+                                <div>
+                                  <div className="font-medium">{payment.customerName}</div>
+                                  {payment.customerPhone && (
+                                    <div className="text-xs text-muted-foreground">{payment.customerPhone}</div>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-medium">{invoice?.sale_number || "-"}</TableCell>
+                              <TableCell>
+                                {invoice?.sale_date ? format(new Date(invoice.sale_date), "dd/MM/yyyy") : "-"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                ₹{invoice?.net_amount?.toFixed(2) || "0.00"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex flex-wrap gap-1 justify-end">
+                                  {cashAmt > 0 && (
+                                    <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
+                                      Cash: ₹{cashAmt.toFixed(2)}
+                                    </Badge>
+                                  )}
+                                  {cardAmt > 0 && (
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                      Card: ₹{cardAmt.toFixed(2)}
+                                    </Badge>
+                                  )}
+                                  {upiAmt > 0 && (
+                                    <Badge variant="outline" className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                      UPI: ₹{upiAmt.toFixed(2)}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                ₹{payment.total_amount.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="capitalize">
+                                {((payment as any).metadata?.paymentMethod) || invoice?.payment_method || "-"}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    invoice?.payment_status === "completed"
+                                      ? "default"
+                                      : invoice?.payment_status === "partial"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                  className={cn(
+                                    invoice?.payment_status === "completed" && "bg-green-500 text-white",
+                                    invoice?.payment_status === "partial" && "bg-orange-500 text-white"
+                                  )}
+                                >
+                                  {invoice?.payment_status || "-"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className={cn(
+                                "text-right font-medium",
+                                balance > 0 && "text-orange-600 dark:text-orange-400"
+                              )}>
+                                ₹{balance.toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      {reconciliationData?.filter((r) => {
+                        const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                        const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                        return matchesCustomer && matchesStatus;
+                      }).length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                            No payment records found for the selected period and filters
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
