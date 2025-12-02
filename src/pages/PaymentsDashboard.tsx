@@ -148,30 +148,8 @@ export default function PaymentsDashboard() {
       const { data: salesData, error } = await query;
       if (error) throw error;
 
-      // Fetch payment amounts from voucher_entries
-      if (salesData && salesData.length > 0) {
-        const salesIds = salesData.map(s => s.id);
-        const { data: voucherData } = await supabase
-          .from('voucher_entries')
-          .select('reference_id, total_amount')
-          .eq('reference_type', 'customer_payment')
-          .in('reference_id', salesIds);
-
-        // Calculate paid amounts per invoice
-        const paidAmounts: Record<string, number> = {};
-        voucherData?.forEach(v => {
-          if (v.reference_id) {
-            paidAmounts[v.reference_id] = (paidAmounts[v.reference_id] || 0) + Number(v.total_amount);
-          }
-        });
-
-        // Add paid_amount to each invoice
-        return salesData.map(invoice => ({
-          ...invoice,
-          paid_amount: paidAmounts[invoice.id] || 0
-        }));
-      }
-
+      // Return sales with paid_amount already in the table
+      // paid_amount includes cash_amount + card_amount + upi_amount from mixed payments
       return salesData || [];
     },
     enabled: !!currentOrganization?.id,
