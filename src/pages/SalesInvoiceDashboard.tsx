@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +60,7 @@ export default function SalesInvoiceDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
+  const { formatMessage } = useWhatsAppTemplates();
   const [searchQuery, setSearchQuery] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -368,7 +370,15 @@ export default function SalesInvoiceDashboard() {
     // Generate invoice URL
     const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
     
-    const message = `*Invoice Details*\n\nInvoice No: ${invoice.sale_number}\nDate: ${format(new Date(invoice.sale_date), 'dd/MM/yyyy')}\nCustomer: ${invoice.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${invoice.gross_amount.toFixed(2)}\nDiscount: ₹${invoice.discount_amount.toFixed(2)}\nRound Off: ₹${invoice.round_off.toFixed(2)}\n*Net Amount: ₹${invoice.net_amount.toFixed(2)}*\n\nPayment Method: ${invoice.payment_method.toUpperCase()}\nPayment Status: ${invoice.payment_status}\n\n📄 View Invoice Online:\n${invoiceUrl}\n${invoice.terms_conditions ? `\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}\n\nThank you for your business!`;
+    // Use template for message
+    const templateMessage = formatMessage('sales_invoice', {
+      sale_number: invoice.sale_number,
+      customer_name: invoice.customer_name,
+      customer_phone: invoice.customer_phone,
+      sale_date: invoice.sale_date,
+      net_amount: invoice.net_amount,
+      payment_status: invoice.payment_status,
+    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`);
 
     const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
@@ -381,14 +391,19 @@ export default function SalesInvoiceDashboard() {
       formattedPhone = `91${phoneNumber}`;
     }
     
-    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const encodedMessage = encodeURIComponent(templateMessage).replace(/%20/g, '+');
     const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
     
-    console.log('WhatsApp Debug - Original Phone:', invoice.customer_phone);
-    console.log('WhatsApp Debug - Formatted Phone:', formattedPhone);
+    // Copy message to clipboard
+    navigator.clipboard.writeText(templateMessage);
     
-    // Open WhatsApp in new window
-    window.open(whatsappUrl, '_blank');
+    // Open WhatsApp
+    window.location.href = whatsappUrl;
+    
+    toast({
+      title: "WhatsApp Opened",
+      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
+    });
   };
 
   const handleCopyLink = async (invoice: any) => {

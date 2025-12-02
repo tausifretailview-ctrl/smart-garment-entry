@@ -11,6 +11,8 @@ interface Invoice {
   net_amount: number;
   payment_status: string;
   delivery_status?: string;
+  paid_amount?: number;
+  due_date?: string;
 }
 
 export const useWhatsAppTemplates = () => {
@@ -46,6 +48,10 @@ export const useWhatsAppTemplates = () => {
 
     let message = template.message_template;
 
+    // Calculate pending amount for payment reminders
+    const paidAmount = invoice.paid_amount || 0;
+    const pendingAmount = invoice.net_amount - paidAmount;
+
     // Replace placeholders
     message = message
       .replace(/{customer_name}/g, invoice.customer_name || "Customer")
@@ -53,7 +59,10 @@ export const useWhatsAppTemplates = () => {
       .replace(/{invoice_date}/g, format(new Date(invoice.sale_date), "dd MMM yyyy"))
       .replace(/{amount}/g, `₹${Number(invoice.net_amount).toLocaleString("en-IN")}`)
       .replace(/{payment_status}/g, invoice.payment_status)
-      .replace(/{invoice_items}/g, items || "");
+      .replace(/{invoice_items}/g, items || "")
+      .replace(/{paid_amount}/g, `₹${Number(paidAmount).toLocaleString("en-IN")}`)
+      .replace(/{pending_amount}/g, `₹${Number(pendingAmount).toLocaleString("en-IN")}`)
+      .replace(/{due_date}/g, invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy") : "Not specified");
 
     return message;
   };

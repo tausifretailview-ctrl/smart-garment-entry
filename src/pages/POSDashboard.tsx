@@ -28,6 +28,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useReactToPrint } from "react-to-print";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 
 interface SaleItem {
   id: string;
@@ -65,6 +66,7 @@ const POSDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
+  const { formatMessage } = useWhatsAppTemplates();
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -470,7 +472,15 @@ const POSDashboard = () => {
     // Generate invoice URL
     const invoiceUrl = `${window.location.origin}/invoice/view/${sale.id}`;
     
-    const message = `*Invoice Details*\n\nInvoice No: ${sale.sale_number}\nDate: ${format(new Date(sale.sale_date), 'dd/MM/yyyy')}\nCustomer: ${sale.customer_name}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${sale.gross_amount.toFixed(2)}\nDiscount: ₹${(sale.discount_amount + sale.flat_discount_amount).toFixed(2)}\nRound Off: ₹${sale.round_off.toFixed(2)}\n*Net Amount: ₹${sale.net_amount.toFixed(2)}*\n\nPayment Method: ${sale.payment_method.toUpperCase()}\n\n📄 View Invoice Online:\n${invoiceUrl}\n\nThank you for your business!`;
+    // Use template for message
+    const templateMessage = formatMessage('sales_invoice', {
+      sale_number: sale.sale_number,
+      customer_name: sale.customer_name,
+      customer_phone: sale.customer_phone,
+      sale_date: sale.sale_date,
+      net_amount: sale.net_amount,
+      payment_status: sale.payment_status,
+    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`);
 
     const phoneNumber = sale.customer_phone.replace(/\D/g, '');
     // Add country code 91 for India if not present
@@ -483,18 +493,18 @@ const POSDashboard = () => {
       formattedPhone = `91${phoneNumber}`;
     }
     
-    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
+    const encodedMessage = encodeURIComponent(templateMessage).replace(/%20/g, '+');
     const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
     
-    console.log('WhatsApp Debug - Original Phone:', sale.customer_phone);
-    console.log('WhatsApp Debug - Formatted Phone:', formattedPhone);
+    // Copy message to clipboard
+    navigator.clipboard.writeText(templateMessage);
     
-    // Open WhatsApp in new window
-    window.open(whatsappUrl, '_blank');
+    // Open WhatsApp
+    window.location.href = whatsappUrl;
     
     toast({
       title: "WhatsApp Opened",
-      description: "Opening WhatsApp to send invoice details",
+      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
     });
   };
 
