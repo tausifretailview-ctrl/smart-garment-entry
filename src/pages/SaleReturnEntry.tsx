@@ -61,6 +61,8 @@ export default function SaleReturnEntry() {
   const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [originalSaleNumber, setOriginalSaleNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
   
   const [products, setProducts] = useState<Product[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -76,8 +78,18 @@ export default function SaleReturnEntry() {
     if (currentOrganization) {
       fetchCustomers();
       fetchProducts();
+      fetchNextReturnNumber();
     }
   }, [currentOrganization]);
+
+  const fetchNextReturnNumber = async () => {
+    const { data, error } = await supabase.rpc('generate_sale_return_number', {
+      p_organization_id: currentOrganization?.id
+    });
+    if (!error && data) {
+      setNextReturnNumber(data);
+    }
+  };
 
   const fetchCustomers = async () => {
     const { data, error } = await supabase
@@ -282,20 +294,25 @@ export default function SaleReturnEntry() {
 
   const calculateTotals = () => {
     const grossAmount = returnItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const gstAmount = returnItems.reduce((sum, item) => {
-      const baseAmount = item.lineTotal;
-      return sum + (baseAmount * item.gstPercent) / 100;
-    }, 0);
-    const netAmount = grossAmount + gstAmount;
+    
+    let gstAmount: number;
+    if (taxType === "inclusive") {
+      // Extract GST from inclusive price
+      gstAmount = returnItems.reduce((sum, item) => {
+        return sum + (item.lineTotal - (item.lineTotal / (1 + item.gstPercent / 100)));
+      }, 0);
+    } else {
+      // Calculate GST on exclusive price
+      gstAmount = returnItems.reduce((sum, item) => {
+        return sum + (item.lineTotal * item.gstPercent) / 100;
+      }, 0);
+    }
+    
+    const netAmount = taxType === "inclusive" ? grossAmount : grossAmount + gstAmount;
     return { grossAmount, gstAmount, netAmount };
   };
 
   const handleSave = async () => {
-    if (!selectedCustomer) {
-      toast({ title: "Error", description: "Please select a customer", variant: "destructive" });
-      return;
-    }
-
     if (returnItems.length === 0) {
       toast({ title: "Error", description: "Please add at least one item", variant: "destructive" });
       return;
@@ -319,8 +336,8 @@ export default function SaleReturnEntry() {
         .insert({
           return_number: returnNumber,
           organization_id: currentOrganization?.id,
-          customer_id: selectedCustomer,
-          customer_name: customer?.customer_name || "",
+          customer_id: selectedCustomer || null,
+          customer_name: customer?.customer_name || "Walk-in Customer",
           original_sale_number: originalSaleNumber || null,
           return_date: returnDate,
           gross_amount: totals.grossAmount,
@@ -403,9 +420,18 @@ export default function SaleReturnEntry() {
             <CardTitle>Return Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label>Customer *</Label>
+                <Label>Return No</Label>
+                <Input
+                  value={nextReturnNumber}
+                  readOnly
+                  className="bg-muted"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Customer (Optional)</Label>
                 <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select customer" />
@@ -430,9 +456,22 @@ export default function SaleReturnEntry() {
               </div>
 
               <div className="space-y-2">
-                <Label>Original Sale Number</Label>
+                <Label>Tax Type</Label>
+                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                    <SelectItem value="inclusive">Inclusive GST</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2 md:col-span-2 lg:col-span-4">
+                <Label>Original Sale Number (Optional)</Label>
                 <Input
-                  placeholder="Optional"
+                  placeholder="Enter original sale invoice number if available"
                   value={originalSaleNumber}
                   onChange={(e) => setOriginalSaleNumber(e.target.value)}
                 />
