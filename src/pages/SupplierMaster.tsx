@@ -36,6 +36,7 @@ interface Supplier {
   address: string | null;
   gst_number: string | null;
   supplier_code: string | null;
+  opening_balance: number | null;
   created_at: string;
 }
 
@@ -51,6 +52,7 @@ const SupplierMaster = () => {
     address: "",
     gst_number: "",
     supplier_code: "",
+    opening_balance: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,7 +80,14 @@ const SupplierMaster = () => {
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       const { data: newSupplier, error } = await supabase.from("suppliers").insert([{
-        ...data,
+        supplier_name: data.supplier_name,
+        contact_person: data.contact_person,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        gst_number: data.gst_number,
+        supplier_code: data.supplier_code,
+        opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
         organization_id: currentOrganization.id
       }]).select().single();
       if (error) throw error;
@@ -104,7 +113,17 @@ const SupplierMaster = () => {
 
   const updateSupplier = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase.from("suppliers").update(data).eq("id", id);
+      const supplierData = {
+        supplier_name: data.supplier_name,
+        contact_person: data.contact_person,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        gst_number: data.gst_number,
+        supplier_code: data.supplier_code,
+        opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
+      };
+      const { error } = await supabase.from("suppliers").update(supplierData).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -141,6 +160,7 @@ const SupplierMaster = () => {
       address: "",
       gst_number: "",
       supplier_code: "",
+      opening_balance: "",
     });
     setEditingSupplier(null);
   };
@@ -164,6 +184,7 @@ const SupplierMaster = () => {
       address: supplier.address || "",
       gst_number: supplier.gst_number || "",
       supplier_code: supplier.supplier_code || "",
+      opening_balance: supplier.opening_balance?.toString() || "",
     });
     setIsDialogOpen(true);
   };
@@ -264,6 +285,20 @@ const SupplierMaster = () => {
                   This code will be displayed on barcode labels to identify the supplier
                 </p>
               </div>
+              <div>
+                <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
+                <Input
+                  id="opening_balance"
+                  type="number"
+                  step="0.01"
+                  value={formData.opening_balance}
+                  onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
+                  placeholder="Payable to supplier"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Positive = Payable to supplier
+                </p>
+              </div>
               <Button type="submit" className="w-full">
                 {editingSupplier ? "Update" : "Create"} Supplier
               </Button>
@@ -292,17 +327,18 @@ const SupplierMaster = () => {
               <TableHead>Email</TableHead>
               <TableHead>GST Number</TableHead>
               <TableHead>Supplier Code</TableHead>
+              <TableHead className="text-right">Opening Bal.</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={8} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredSuppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">No suppliers found</TableCell>
+                <TableCell colSpan={8} className="text-center">No suppliers found</TableCell>
               </TableRow>
             ) : (
               filteredSuppliers.map((supplier) => (
@@ -318,6 +354,9 @@ const SupplierMaster = () => {
                     ) : (
                       "-"
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {supplier.opening_balance ? `₹${supplier.opening_balance.toLocaleString()}` : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

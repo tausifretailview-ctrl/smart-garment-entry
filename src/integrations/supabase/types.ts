@@ -284,6 +284,7 @@ export type Database = {
           email: string | null
           gst_number: string | null
           id: string
+          opening_balance: number | null
           organization_id: string | null
           phone: string | null
           updated_at: string | null
@@ -295,6 +296,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
           updated_at?: string | null
@@ -306,6 +308,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
           updated_at?: string | null
@@ -1369,6 +1372,7 @@ export type Database = {
           email: string | null
           gst_number: string | null
           id: string
+          opening_balance: number | null
           organization_id: string | null
           phone: string | null
           supplier_code: string | null
@@ -1382,6 +1386,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
           supplier_code?: string | null
@@ -1395,6 +1400,7 @@ export type Database = {
           email?: string | null
           gst_number?: string | null
           id?: string
+          opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
           supplier_code?: string | null
