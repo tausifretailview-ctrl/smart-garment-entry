@@ -33,6 +33,10 @@ interface CompactTemplateProps {
   discount: number;
   grandTotal: number;
   paymentMethod?: string;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  paidAmount?: number;
   qrCodeUrl?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
@@ -57,6 +61,10 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   discount,
   grandTotal,
   paymentMethod,
+  cashAmount,
+  cardAmount,
+  upiAmount,
+  paidAmount,
   qrCodeUrl,
   format = 'a5-vertical',
   customHeaderText,
@@ -176,6 +184,42 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
       {paymentMethod && (
         <div style={{ marginBottom: '8px', fontSize: '9px', textAlign: 'center' }}>
           <strong>Payment Mode:</strong> {paymentMethod.toUpperCase()}
+          
+          {/* Payment Breakdown for Mix Payment */}
+          {paymentMethod === 'Mix Payment' && (
+            <div style={{ marginTop: '6px', fontSize: '8px', textAlign: 'left', maxWidth: '200px', margin: '6px auto 0' }}>
+              {cashAmount && cashAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>Cash:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{Math.round(cashAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {cardAmount && cardAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>Card:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{Math.round(cardAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {upiAmount && upiAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>UPI:</span>
+                  <span style={{ fontWeight: 'bold' }}>₹{Math.round(upiAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {paidAmount && paidAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid #ccc', fontWeight: 'bold' }}>
+                  <span>Total Paid:</span>
+                  <span>{formatCurrency(paidAmount)}</span>
+                </div>
+              )}
+              {paidAmount !== undefined && paidAmount < grandTotal && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', color: '#f59e0b', fontWeight: 'bold' }}>
+                  <span>Balance:</span>
+                  <span>₹{Math.round(grandTotal - paidAmount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

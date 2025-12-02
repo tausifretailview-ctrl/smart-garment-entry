@@ -52,6 +52,10 @@ interface InvoiceWrapperProps {
   refundCash?: number;
   upiPaid?: number;
   paymentMethod?: string;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  paidAmount?: number;
   
   // Optional overrides
   template?: string;
@@ -214,8 +218,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       grandTotal: props.grandTotal,
       
       paymentMethod: props.paymentMethod,
-      amountPaid: props.cashPaid || props.upiPaid,
-      balanceDue: props.grandTotal - (props.cashPaid || 0) - (props.upiPaid || 0),
+      amountPaid: props.paidAmount || props.cashPaid || props.upiPaid,
+      balanceDue: props.grandTotal - (props.paidAmount || props.cashPaid || 0) - (props.upiPaid || 0),
+      cashAmount: props.cashAmount,
+      cardAmount: props.cardAmount,
+      upiAmount: props.upiAmount,
+      paidAmount: props.paidAmount,
       
       qrCodeUrl,
       upiId: settings?.bill_barcode_settings?.upi_id,

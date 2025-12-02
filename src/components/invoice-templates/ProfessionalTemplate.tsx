@@ -55,6 +55,9 @@ interface ProfessionalTemplateProps {
   paymentMethod?: string;
   amountPaid?: number;
   balanceDue?: number;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
   
   // Optional
   qrCodeUrl?: string;
@@ -111,6 +114,9 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   paymentMethod,
   amountPaid,
   balanceDue,
+  cashAmount,
+  cardAmount,
+  upiAmount,
   qrCodeUrl,
   upiId,
   bankDetails,
@@ -387,9 +393,47 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             </div>
           )}
           {paymentMethod && (
-            <p style={{ margin: '6px 0 0 0' }}>
-              <strong>Payment Mode:</strong> {paymentMethod}
-            </p>
+            <div style={{ margin: '6px 0 0 0' }}>
+              <p style={{ margin: '0 0 4px 0' }}>
+                <strong>Payment Mode:</strong> {paymentMethod}
+              </p>
+              
+              {/* Payment Breakdown for Mix Payment */}
+              {paymentMethod === 'Mix Payment' && (
+                <div style={{ marginTop: '6px', fontSize: isA4 ? '8pt' : '7pt', lineHeight: 1.4 }}>
+                  {cashAmount && cashAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>Cash Amount:</span>
+                      <span style={{ fontWeight: 600 }}>{formatCurrency(cashAmount)}</span>
+                    </div>
+                  )}
+                  {cardAmount && cardAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>Card Amount:</span>
+                      <span style={{ fontWeight: 600 }}>{formatCurrency(cardAmount)}</span>
+                    </div>
+                  )}
+                  {upiAmount && upiAmount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                      <span>UPI Amount:</span>
+                      <span style={{ fontWeight: 600 }}>{formatCurrency(upiAmount)}</span>
+                    </div>
+                  )}
+                  {amountPaid && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '4px 0 2px', paddingTop: '4px', borderTop: '1px solid #e2e8f0', fontWeight: 700, color: colors.primary }}>
+                      <span>Total Paid:</span>
+                      <span>{formatCurrency(amountPaid)}</span>
+                    </div>
+                  )}
+                  {balanceDue && balanceDue > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0', fontWeight: 600, color: '#f59e0b' }}>
+                      <span>Balance:</span>
+                      <span>{formatCurrency(balanceDue)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
         

@@ -21,6 +21,10 @@ interface BillData {
   discount: number;
   grandTotal: number;
   paymentMethod?: string;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  paidAmount?: number;
   organization: {
     name: string;
     address: string;
@@ -423,6 +427,30 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
           <div className="payment-box">
             <div className="payment-label">Payment Method</div>
             <div className="payment-value">{data.paymentMethod}</div>
+            
+            {/* Payment Breakdown for Mix Payment */}
+            {data.paymentMethod === 'Mix Payment' && (
+              <div style={{ marginTop: '6px', fontSize: '8pt', lineHeight: '1.4' }}>
+                {data.cashAmount && data.cashAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Cash:</span>
+                    <span style={{ fontWeight: 600 }}>₹{data.cashAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {data.cardAmount && data.cardAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Card:</span>
+                    <span style={{ fontWeight: 600 }}>₹{data.cardAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {data.upiAmount && data.upiAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>UPI:</span>
+                    <span style={{ fontWeight: 600 }}>₹{data.upiAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
         {data.organization.terms && (
@@ -505,6 +533,18 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
             <span>Grand Total:</span>
             <span>₹{data.grandTotal.toFixed(2)}</span>
           </div>
+          {data.paidAmount !== undefined && data.paidAmount < data.grandTotal && (
+            <>
+              <div className="total-row" style={{ fontWeight: 600, color: '#10b981' }}>
+                <span>Paid:</span>
+                <span>₹{data.paidAmount.toFixed(2)}</span>
+              </div>
+              <div className="total-row" style={{ fontWeight: 600, color: '#f59e0b' }}>
+                <span>Balance:</span>
+                <span>₹{(data.grandTotal - data.paidAmount).toFixed(2)}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
