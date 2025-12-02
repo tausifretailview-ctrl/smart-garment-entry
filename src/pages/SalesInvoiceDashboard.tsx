@@ -602,8 +602,8 @@ export default function SalesInvoiceDashboard() {
         invoiceDate: selectedInvoiceForPayment.sale_date,
         invoiceAmount: selectedInvoiceForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: currentPaid,
-        currentBalance: newPaidAmount,
+        previousBalance: selectedInvoiceForPayment.net_amount - currentPaid,
+        currentBalance: selectedInvoiceForPayment.net_amount - newPaidAmount,
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
