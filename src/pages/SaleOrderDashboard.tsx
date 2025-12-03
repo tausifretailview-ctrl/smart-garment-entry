@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -9,11 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useReactToPrint } from "react-to-print";
+import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,6 +72,23 @@ export default function SaleOrderDashboard() {
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [conversionItems, setConversionItems] = useState<ConversionItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [orderToPrint, setOrderToPrint] = useState<any>(null);
+
+  // Fetch settings for print
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: ['sale-orders', currentOrganization?.id, statusFilter],
@@ -387,6 +406,9 @@ export default function SaleOrderDashboard() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => setOrderToPrint(order)} title="Print">
+                            <Printer className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => navigate('/sale-order-entry', { state: { orderData: order } })}>
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -580,6 +602,92 @@ export default function SaleOrderDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Print Preview Dialog */}
+      {orderToPrint && (
+        <PrintSaleOrderDialog 
+          order={orderToPrint}
+          settings={settings}
+          onClose={() => setOrderToPrint(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Print Dialog Component
+function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settings: any; onClose: () => void }) {
+  const printRef = useRef<HTMLDivElement>(null);
+  
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `SaleOrder-${order.order_number}`,
+  });
+
+  const printItems = (order.sale_order_items || []).map((item: any, index: number) => ({
+    sr: index + 1,
+    particulars: item.product_name,
+    size: item.size,
+    barcode: item.barcode || '',
+    hsn: '',
+    orderQty: item.order_qty,
+    fulfilledQty: item.fulfilled_qty,
+    pendingQty: item.pending_qty,
+    rate: item.unit_price,
+    mrp: item.mrp,
+    discountPercent: item.discount_percent,
+    total: item.line_total,
+  }));
+
+  return (
+    <AlertDialog open={true} onOpenChange={onClose}>
+      <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Print Sale Order</AlertDialogTitle>
+        </AlertDialogHeader>
+        
+        <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
+          <SaleOrderPrint
+            ref={printRef}
+            businessName={settings?.business_name || 'Business Name'}
+            address={settings?.address || ''}
+            mobile={settings?.mobile_number || ''}
+            email={settings?.email_id}
+            gstNumber={settings?.gst_number}
+            logoUrl={settings?.bill_barcode_settings?.logo_url}
+            orderNumber={order.order_number}
+            orderDate={new Date(order.order_date)}
+            expectedDeliveryDate={order.expected_delivery_date ? new Date(order.expected_delivery_date) : undefined}
+            quotationNumber={order.quotation_id ? `Linked` : undefined}
+            customerName={order.customer_name}
+            customerAddress={order.customer_address}
+            customerMobile={order.customer_phone}
+            customerEmail={order.customer_email}
+            items={printItems}
+            grossAmount={order.gross_amount}
+            discountAmount={order.discount_amount + order.flat_discount_amount}
+            taxableAmount={order.gross_amount - order.discount_amount - order.flat_discount_amount}
+            gstAmount={order.gst_amount}
+            roundOff={order.round_off}
+            netAmount={order.net_amount}
+            status={order.status}
+            termsConditions={order.terms_conditions}
+            notes={order.notes}
+            shippingAddress={order.shipping_address}
+            taxType={order.tax_type}
+            format="a5-vertical"
+            colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
+          />
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel>Close</AlertDialogCancel>
+          <Button onClick={() => handlePrint()}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
