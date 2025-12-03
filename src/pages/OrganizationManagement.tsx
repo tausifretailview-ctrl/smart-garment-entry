@@ -337,14 +337,14 @@ export default function OrganizationManagement() {
                 <Label>Login URL</Label>
                 <div className="flex gap-2">
                   <Input
-                    value={`${window.location.origin}/org/${currentOrganization.slug}`}
+                    value={`${window.location.origin}/${currentOrganization.slug}`}
                     readOnly
                     className="font-mono text-sm"
                   />
                   <Button
                     variant="outline"
                     onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin}/org/${currentOrganization.slug}`);
+                      navigator.clipboard.writeText(`${window.location.origin}/${currentOrganization.slug}`);
                       toast.success("Login URL copied to clipboard!");
                     }}
                   >
