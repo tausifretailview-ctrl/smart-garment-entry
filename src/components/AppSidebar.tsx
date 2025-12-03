@@ -57,8 +57,8 @@ export function AppSidebar() {
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
   return (
-    <Sidebar collapsible="icon" className="border-r bg-gradient-to-b from-sidebar/95 to-sidebar/98 backdrop-blur-sm">
-      <SidebarContent className="font-display">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarContent className="font-sans text-[15px]">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
           <SidebarGroup>
