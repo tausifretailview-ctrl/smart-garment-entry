@@ -62,7 +62,7 @@ export default function SaleReturnEntry() {
   const [originalSaleNumber, setOriginalSaleNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [nextReturnNumber, setNextReturnNumber] = useState<string>("");
-  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   
   const [products, setProducts] = useState<Product[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);

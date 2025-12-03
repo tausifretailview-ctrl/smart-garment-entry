@@ -108,7 +108,7 @@ export default function SaleOrderEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [quotationId, setQuotationId] = useState<string | null>(null);
-  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -172,7 +172,7 @@ export default function SaleOrderEntry() {
       const q = state.quotationData;
       setQuotationId(q.id);
       setSelectedCustomerId(q.customer_id || "");
-      setTaxType(q.tax_type || "exclusive");
+      setTaxType(q.tax_type || "inclusive");
       setTermsConditions(q.terms_conditions || "");
       setNotes(q.notes || "");
       setShippingAddress(q.shipping_address || "");
@@ -231,7 +231,7 @@ export default function SaleOrderEntry() {
       setExpectedDelivery(o.expected_delivery_date ? new Date(o.expected_delivery_date) : new Date());
       setSelectedCustomerId(o.customer_id || "");
       setQuotationId(o.quotation_id);
-      setTaxType(o.tax_type || "exclusive");
+      setTaxType(o.tax_type || "inclusive");
       setTermsConditions(o.terms_conditions || "");
       setNotes(o.notes || "");
       setShippingAddress(o.shipping_address || "");
