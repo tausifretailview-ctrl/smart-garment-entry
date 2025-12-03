@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -9,10 +10,19 @@ import {
   Users,
   Store,
   DollarSign,
+  Calendar,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 
 const MetricCard = ({
   title,
@@ -26,11 +36,9 @@ const MetricCard = ({
   bgColor: string;
 }) => (
   <div className="group relative animate-fade-in">
-    {/* Gradient Border Effect */}
     <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
     
     <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
-      {/* Shimmer Effect on Hover */}
       <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -38,7 +46,6 @@ const MetricCard = ({
           {title}
         </CardTitle>
         <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
-          {/* Icon Glow Effect */}
           <div className="absolute inset-0 rounded-xl bg-primary/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <Icon className="h-5 w-5 text-primary relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
         </div>
@@ -49,19 +56,95 @@ const MetricCard = ({
           {value}
         </div>
         
-        {/* Animated Bottom Bar */}
         <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary via-secondary to-accent rounded-full transition-all duration-500 shadow-glow" />
       </CardContent>
       
-      {/* Corner Accent */}
       <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
     </Card>
   </div>
 );
 
+type DateRangeType = "monthly" | "quarterly" | "yearly";
+
+const getDateRange = (type: DateRangeType) => {
+  const now = new Date();
+  switch (type) {
+    case "monthly":
+      return {
+        start: format(startOfMonth(now), "yyyy-MM-dd"),
+        end: format(endOfMonth(now), "yyyy-MM-dd"),
+        label: format(now, "MMMM yyyy"),
+      };
+    case "quarterly":
+      return {
+        start: format(startOfQuarter(now), "yyyy-MM-dd"),
+        end: format(endOfQuarter(now), "yyyy-MM-dd"),
+        label: `Q${Math.ceil((now.getMonth() + 1) / 3)} ${format(now, "yyyy")}`,
+      };
+    case "yearly":
+      return {
+        start: format(startOfYear(now), "yyyy-MM-dd"),
+        end: format(endOfYear(now), "yyyy-MM-dd"),
+        label: format(now, "yyyy"),
+      };
+  }
+};
+
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
+  const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
+  
+  const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
+
+  // Fetch total sales for selected period
+  const { data: salesData } = useQuery({
+    queryKey: ["total-sales", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization) return { total: 0, count: 0, soldQty: 0 };
+      
+      const { data, error } = await supabase
+        .from("sales")
+        .select("net_amount, id")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startDate)
+        .lte("sale_date", endDate);
+      if (error) throw error;
+      
+      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      const count = data?.length || 0;
+      
+      // Fetch sold quantity
+      const saleIds = data?.map(s => s.id) || [];
+      let soldQty = 0;
+      if (saleIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("sale_items")
+          .select("quantity")
+          .in("sale_id", saleIds);
+        soldQty = itemsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+      }
+      
+      return { total, count, soldQty };
+    },
+    enabled: !!currentOrganization,
+  });
+
+  // Fetch total customers
+  const { data: customersCount } = useQuery({
+    queryKey: ["customers-count", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
+      const { count, error } = await supabase
+        .from("customers")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!currentOrganization,
+  });
   
   // Fetch total stock quantity
   const { data: stockData } = useQuery({
@@ -95,18 +178,51 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
-  // Fetch total purchase
-  const { data: purchaseTotal } = useQuery({
-    queryKey: ["purchase-total", currentOrganization?.id],
+  // Fetch total purchase for selected period
+  const { data: purchaseData } = useQuery({
+    queryKey: ["purchase-total", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
-      if (!currentOrganization) return 0;
+      if (!currentOrganization) return { total: 0, count: 0, purchaseQty: 0 };
       
       const { data, error } = await supabase
         .from("purchase_bills")
-        .select("net_amount")
+        .select("net_amount, id")
+        .eq("organization_id", currentOrganization.id)
+        .gte("bill_date", startDate)
+        .lte("bill_date", endDate);
+      if (error) throw error;
+      
+      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      const count = data?.length || 0;
+      
+      // Fetch purchase quantity
+      const billIds = data?.map(b => b.id) || [];
+      let purchaseQty = 0;
+      if (billIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("purchase_items")
+          .select("qty")
+          .in("bill_id", billIds);
+        purchaseQty = itemsData?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+      }
+      
+      return { total, count, purchaseQty };
+    },
+    enabled: !!currentOrganization,
+  });
+
+  // Fetch total suppliers
+  const { data: suppliersCount } = useQuery({
+    queryKey: ["suppliers-count", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
+      const { count, error } = await supabase
+        .from("suppliers")
+        .select("*", { count: "exact", head: true })
         .eq("organization_id", currentOrganization.id);
       if (error) throw error;
-      return data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      return count || 0;
     },
     enabled: !!currentOrganization,
   });
@@ -133,18 +249,51 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
-  // Fetch total purchase bills count
-  const { data: billsCount } = useQuery({
-    queryKey: ["bills-count", currentOrganization?.id],
+  // Calculate profit (Sales - Purchase Cost)
+  const { data: profitData } = useQuery({
+    queryKey: ["profit-data", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
-      const { count, error } = await supabase
+      // Get sales amount
+      const { data: salesData } = await supabase
+        .from("sales")
+        .select("net_amount")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startDate)
+        .lte("sale_date", endDate);
+      
+      const totalSales = salesData?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      
+      // Get purchase amount for same period
+      const { data: purchaseData } = await supabase
         .from("purchase_bills")
-        .select("*", { count: "exact", head: true })
-        .eq("organization_id", currentOrganization.id);
-      if (error) throw error;
-      return count || 0;
+        .select("net_amount")
+        .eq("organization_id", currentOrganization.id)
+        .gte("bill_date", startDate)
+        .lte("bill_date", endDate);
+      
+      const totalPurchase = purchaseData?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      
+      return totalSales - totalPurchase;
+    },
+    enabled: !!currentOrganization,
+  });
+
+  // Fetch cash collection
+  const { data: cashCollection } = useQuery({
+    queryKey: ["cash-collection", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization) return 0;
+      
+      const { data } = await supabase
+        .from("sales")
+        .select("paid_amount, cash_amount")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startDate)
+        .lte("sale_date", endDate);
+      
+      return data?.reduce((sum, item) => sum + (item.cash_amount || item.paid_amount || 0), 0) || 0;
     },
     enabled: !!currentOrganization,
   });
@@ -159,7 +308,7 @@ const DashboardContent = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
         <div>
           <h1 className="text-5xl font-display font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent animate-gradient-shift bg-[length:200%_auto]">
             Dashboard
@@ -167,6 +316,22 @@ const DashboardContent = () => {
           <p className="text-muted-foreground mt-2 text-lg font-medium">
             Welcome to Smart Inventory Management System
           </p>
+        </div>
+        
+        {/* Date Range Selector */}
+        <div className="flex items-center gap-3 bg-card border rounded-lg p-2 shadow-sm">
+          <Calendar className="h-5 w-5 text-muted-foreground" />
+          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+            <SelectTrigger className="w-[140px] border-0 shadow-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-sm font-medium text-primary">{dateLabel}</span>
         </div>
       </div>
 
@@ -179,25 +344,25 @@ const DashboardContent = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Sales"
-            value="₹0"
+            value={formatCurrency(salesData?.total || 0)}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
           />
           <MetricCard
-            title="Total Invoice"
-            value="0"
+            title="Total Invoices"
+            value={salesData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
           />
           <MetricCard
             title="Sold Qty"
-            value="0"
+            value={salesData?.soldQty || 0}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
           />
           <MetricCard
             title="Total Customers"
-            value="0"
+            value={customersCount || 0}
             icon={Users}
             bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
           />
@@ -213,25 +378,25 @@ const DashboardContent = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Purchase"
-            value={formatCurrency(purchaseTotal || 0)}
+            value={formatCurrency(purchaseData?.total || 0)}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
           />
           <MetricCard
             title="Total Bills"
-            value={billsCount || 0}
+            value={purchaseData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
           />
           <MetricCard
             title="Purchase Qty"
-            value="0"
+            value={purchaseData?.purchaseQty || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900"
           />
           <MetricCard
             title="Total Suppliers"
-            value="0"
+            value={suppliersCount || 0}
             icon={Store}
             bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
           />
@@ -266,7 +431,7 @@ const DashboardContent = () => {
         </div>
       </div>
 
-      {/* Additional Metrics */}
+      {/* Performance Metrics */}
       <div className="animate-fade-in" style={{ animationDelay: "0.4s" }}>
         <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
           <div className="h-1 w-12 bg-gradient-to-r from-success to-transparent rounded-full" />
@@ -274,20 +439,20 @@ const DashboardContent = () => {
         </h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <MetricCard
-            title="Total Profit"
-            value="₹0"
+            title="Gross Profit"
+            value={formatCurrency(profitData || 0)}
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
           />
           <MetricCard
-            title="Avg. Profit Margin"
-            value="₹0"
+            title="Profit Margin"
+            value={salesData?.total ? `${(((profitData || 0) / salesData.total) * 100).toFixed(1)}%` : "0%"}
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
           />
           <MetricCard
-            title="Cash in Hand"
-            value="₹0"
+            title="Cash Collection"
+            value={formatCurrency(cashCollection || 0)}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
           />
