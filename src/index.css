@@ -8,14 +8,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 42 47% 97%;
-    --foreground: 240 10% 15%;
+    --background: 0 0% 100%;
+    --foreground: 220 10% 30%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 15%;
+    --card-foreground: 220 10% 30%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 15%;
+    --popover-foreground: 220 10% 30%;
 
     --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
@@ -24,8 +24,8 @@ All colors MUST be HSL.
     --secondary: 270 67% 47%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
+    --muted: 220 5% 96%;
+    --muted-foreground: 220 10% 40%;
 
     --accent: 189 94% 43%;
     --accent-foreground: 0 0% 100%;
@@ -39,8 +39,8 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
+    --border: 220 10% 90%;
+    --input: 220 10% 90%;
     --ring: 239 84% 67%;
 
     --radius: 0.75rem;
@@ -49,28 +49,28 @@ All colors MUST be HSL.
     --gradient-accent: linear-gradient(135deg, hsl(189 94% 43%), hsl(200 98% 39%));
     --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
     --shadow-glow: 0 0 30px hsl(239 84% 67% / 0.3);
-    --shadow-elevated: 0 10px 40px -10px hsl(240 10% 15% / 0.15);
+    --shadow-elevated: 0 10px 40px -10px hsl(220 10% 30% / 0.15);
 
-    --sidebar-background: 220 15% 15%;
-    --sidebar-foreground: 220 10% 90%;
+    --sidebar-background: 220 10% 96%;
+    --sidebar-foreground: 220 10% 25%;
     --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 22%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 10% 22%;
+    --sidebar-accent: 220 10% 92%;
+    --sidebar-accent-foreground: 220 10% 25%;
+    --sidebar-border: 220 10% 88%;
     --sidebar-ring: 239 84% 67%;
-    --sidebar-muted: 220 10% 20%;
+    --sidebar-muted: 220 10% 94%;
   }
 
   .dark {
-    --background: 240 10% 7%;
-    --foreground: 240 5% 96%;
+    --background: 220 10% 12%;
+    --foreground: 220 5% 90%;
 
-    --card: 240 10% 10%;
-    --card-foreground: 240 5% 96%;
+    --card: 220 10% 15%;
+    --card-foreground: 220 5% 90%;
 
-    --popover: 240 10% 10%;
-    --popover-foreground: 240 5% 96%;
+    --popover: 220 10% 15%;
+    --popover-foreground: 220 5% 90%;
 
     --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
@@ -79,8 +79,8 @@ All colors MUST be HSL.
     --secondary: 270 67% 47%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 220 8% 20%;
+    --muted-foreground: 220 5% 65%;
 
     --accent: 189 94% 43%;
     --accent-foreground: 0 0% 100%;
@@ -94,25 +94,25 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
+    --border: 220 8% 25%;
+    --input: 220 8% 25%;
     --ring: 239 84% 67%;
 
     --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(270 67% 47%));
     --gradient-accent: linear-gradient(135deg, hsl(189 94% 43%), hsl(200 98% 39%));
     --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
     --shadow-glow: 0 0 30px hsl(239 84% 67% / 0.4);
-    --shadow-elevated: 0 10px 40px -10px hsl(0 0% 0% / 0.5);
+    --shadow-elevated: 0 10px 40px -10px hsl(220 10% 10% / 0.5);
 
-    --sidebar-background: 220 15% 10%;
-    --sidebar-foreground: 220 10% 90%;
+    --sidebar-background: 220 10% 18%;
+    --sidebar-foreground: 220 10% 25%;
     --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 15% 18%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 10% 16%;
+    --sidebar-accent: 220 10% 22%;
+    --sidebar-accent-foreground: 220 10% 25%;
+    --sidebar-border: 220 10% 25%;
     --sidebar-ring: 239 84% 67%;
-    --sidebar-muted: 220 10% 14%;
+    --sidebar-muted: 220 10% 20%;
   }
 }
 
