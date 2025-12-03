@@ -1225,6 +1225,7 @@ export type Database = {
           bill_barcode_settings: Json | null
           business_name: string | null
           created_at: string | null
+          dashboard_settings: Json | null
           email_id: string | null
           gst_number: string | null
           id: string
@@ -1241,6 +1242,7 @@ export type Database = {
           bill_barcode_settings?: Json | null
           business_name?: string | null
           created_at?: string | null
+          dashboard_settings?: Json | null
           email_id?: string | null
           gst_number?: string | null
           id?: string
@@ -1257,6 +1259,7 @@ export type Database = {
           bill_barcode_settings?: Json | null
           business_name?: string | null
           created_at?: string | null
+          dashboard_settings?: Json | null
           email_id?: string | null
           gst_number?: string | null
           id?: string

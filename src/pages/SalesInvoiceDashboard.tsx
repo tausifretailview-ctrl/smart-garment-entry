@@ -35,8 +35,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 
 interface ColumnSettings {
+  [key: string]: boolean;
   status: boolean;
   delivery: boolean;
   whatsapp: boolean;
@@ -87,19 +89,13 @@ export default function SalesInvoiceDashboard() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [deliveryHistory, setDeliveryHistory] = useState<Record<string, any[]>>({});
   
-  const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
-    const saved = localStorage.getItem('salesInvoiceDashboardColumnSettings');
-    return saved ? JSON.parse(saved) : defaultColumnSettings;
-  });
+  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
+    "sales_invoice_dashboard",
+    defaultColumnSettings
+  );
   
   // Sale returns state
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
-
-  const updateColumnSetting = (key: keyof ColumnSettings, value: boolean) => {
-    const newSettings = { ...columnSettings, [key]: value };
-    setColumnSettings(newSettings);
-    localStorage.setItem('salesInvoiceDashboardColumnSettings', JSON.stringify(newSettings));
-  };
 
   // Payment recording state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);

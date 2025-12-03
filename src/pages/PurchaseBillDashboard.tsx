@@ -25,6 +25,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 
 interface PurchaseItem {
   id: string;
@@ -89,23 +90,19 @@ const PurchaseBillDashboard = () => {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
-  // Column visibility settings
-  const [columnSettings, setColumnSettings] = useState(() => {
-    const saved = localStorage.getItem('purchaseBillColumnSettings');
-    return saved ? JSON.parse(saved) : {
-      status: true,
-      recordPayment: true,
-      modify: true,
-      printBarcodes: true,
-      delete: true
-    };
-  });
-
-  const updateColumnSetting = (column: string, visible: boolean) => {
-    const newSettings = { ...columnSettings, [column]: visible };
-    setColumnSettings(newSettings);
-    localStorage.setItem('purchaseBillColumnSettings', JSON.stringify(newSettings));
+  // Column visibility settings with database persistence
+  const defaultPurchaseColumns = {
+    status: true,
+    recordPayment: true,
+    modify: true,
+    printBarcodes: true,
+    delete: true
   };
+  
+  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
+    "purchase_bill_dashboard",
+    defaultPurchaseColumns
+  );
 
   useEffect(() => {
     fetchBills();
