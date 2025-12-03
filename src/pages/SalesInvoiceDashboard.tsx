@@ -167,9 +167,8 @@ export default function SalesInvoiceDashboard() {
         .eq('sale_type', 'invoice')
         .order('created_at', { ascending: false });
 
-      if (searchQuery) {
-        query = query.or(`sale_number.ilike.%${searchQuery}%,customer_name.ilike.%${searchQuery}%`);
-      }
+      // Note: Basic search query for sale-level fields
+      // Barcode search will be done client-side after fetching sale_items
 
       if (deliveryFilter !== 'all') {
         query = query.eq('delivery_status', deliveryFilter);
@@ -268,10 +267,10 @@ export default function SalesInvoiceDashboard() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedInvoices.size === (invoicesData?.length || 0) && invoicesData && invoicesData.length > 0) {
+    if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
       setSelectedInvoices(new Set());
     } else {
-      setSelectedInvoices(new Set(invoicesData?.map(i => i.id) || []));
+      setSelectedInvoices(new Set(filteredInvoices.map((i: any) => i.id)));
     }
   };
 
@@ -318,10 +317,31 @@ export default function SalesInvoiceDashboard() {
     setExpandedRows(newExpanded);
   };
 
-  const totalPages = Math.ceil((invoicesData?.length || 0) / itemsPerPage);
+  // Client-side filtering with barcode search
+  const filteredInvoices = (invoicesData || []).filter((invoice: any) => {
+    if (!searchQuery) return true;
+    
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Check basic invoice fields
+    const matchesBasicSearch = 
+      invoice.sale_number?.toLowerCase().includes(searchLower) ||
+      invoice.customer_name?.toLowerCase().includes(searchLower) ||
+      invoice.customer_phone?.toLowerCase().includes(searchLower);
+    
+    // Check barcode in sale items
+    const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
+      item.barcode?.toLowerCase().includes(searchLower) ||
+      item.product_name?.toLowerCase().includes(searchLower)
+    );
+    
+    return matchesBasicSearch || matchesBarcodeSearch;
+  });
+
+  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedInvoices = invoicesData?.slice(startIndex, endIndex) || [];
+  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -818,7 +838,7 @@ export default function SalesInvoiceDashboard() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by invoice number or customer..."
+                  placeholder="Search by invoice, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
