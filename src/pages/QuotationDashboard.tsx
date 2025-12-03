@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -58,21 +58,16 @@ export default function QuotationDashboard() {
   });
 
   const { data: quotationsData, isLoading, refetch } = useQuery({
-    queryKey: ['quotations', currentOrganization?.id, statusFilter],
+    queryKey: ['quotations', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('quotations')
         .select(`*, quotation_items (*)`)
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -118,6 +113,9 @@ export default function QuotationDashboard() {
   };
 
   const filteredQuotations = (quotationsData || []).filter((q: any) => {
+    // Apply status filter
+    if (statusFilter !== 'all' && q.status !== statusFilter) return false;
+    // Apply search filter
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
     return q.quotation_number?.toLowerCase().includes(searchLower) ||
@@ -143,9 +141,115 @@ export default function QuotationDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  // Calculate statistics
+  const allQuotations = quotationsData || [];
+  const stats = {
+    total: allQuotations.length,
+    totalValue: allQuotations.reduce((sum: number, q: any) => sum + (q.net_amount || 0), 0),
+    draft: allQuotations.filter((q: any) => q.status === 'draft').length,
+    sent: allQuotations.filter((q: any) => q.status === 'sent').length,
+    confirmed: allQuotations.filter((q: any) => q.status === 'confirmed').length,
+    expired: allQuotations.filter((q: any) => q.status === 'expired').length,
+    conversionRate: allQuotations.length > 0 
+      ? ((allQuotations.filter((q: any) => q.status === 'confirmed').length / allQuotations.length) * 100).toFixed(1)
+      : '0',
+  };
+
+  const handleCardClick = (status: string) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="p-4 space-y-4">
       <BackToDashboard />
+
+      {/* Summary Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('all')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <FileText className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-xl font-bold">{stats.total}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'draft' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('draft')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 rounded-lg">
+              <Clock className="h-5 w-5 text-gray-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Draft</p>
+              <p className="text-xl font-bold">{stats.draft}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'sent' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('sent')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Send className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Sent</p>
+              <p className="text-xl font-bold">{stats.sent}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'confirmed' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('confirmed')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Confirmed</p>
+              <p className="text-xl font-bold">{stats.confirmed}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-lg">
+              <ArrowRight className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Conversion</p>
+              <p className="text-xl font-bold">{stats.conversionRate}%</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <IndianRupee className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Value</p>
+              <p className="text-lg font-bold">₹{stats.totalValue.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
       
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
