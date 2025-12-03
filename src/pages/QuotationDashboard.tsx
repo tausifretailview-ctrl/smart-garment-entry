@@ -13,6 +13,8 @@ import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileTex
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useReactToPrint } from "react-to-print";
+import { QuotationPrint } from "@/components/QuotationPrint";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +38,24 @@ export default function QuotationDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch settings for print
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   const { data: quotationsData, isLoading, refetch } = useQuery({
     queryKey: ['quotations', currentOrganization?.id, statusFilter],
@@ -204,6 +224,9 @@ export default function QuotationDashboard() {
                     <TableCell>{getStatusBadge(quotation.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setQuotationToPrint(quotation)} title="Print">
+                          <Printer className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => navigate('/quotation-entry', { state: { quotationData: quotation } })}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -291,6 +314,87 @@ export default function QuotationDashboard() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Print Preview Dialog */}
+      {quotationToPrint && (
+        <PrintQuotationDialog 
+          quotation={quotationToPrint}
+          settings={settings}
+          onClose={() => setQuotationToPrint(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Print Dialog Component
+function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any; settings: any; onClose: () => void }) {
+  const printRef = useRef<HTMLDivElement>(null);
+  
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Quotation-${quotation.quotation_number}`,
+  });
+
+  const printItems = (quotation.quotation_items || []).map((item: any, index: number) => ({
+    sr: index + 1,
+    particulars: item.product_name,
+    size: item.size,
+    barcode: item.barcode || '',
+    hsn: '',
+    qty: item.quantity,
+    rate: item.unit_price,
+    mrp: item.mrp,
+    discountPercent: item.discount_percent,
+    total: item.line_total,
+  }));
+
+  return (
+    <AlertDialog open={true} onOpenChange={onClose}>
+      <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Print Quotation</AlertDialogTitle>
+        </AlertDialogHeader>
+        
+        <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
+          <QuotationPrint
+            ref={printRef}
+            businessName={settings?.business_name || 'Business Name'}
+            address={settings?.address || ''}
+            mobile={settings?.mobile_number || ''}
+            email={settings?.email_id}
+            gstNumber={settings?.gst_number}
+            logoUrl={settings?.bill_barcode_settings?.logo_url}
+            quotationNumber={quotation.quotation_number}
+            quotationDate={new Date(quotation.quotation_date)}
+            validUntil={quotation.valid_until ? new Date(quotation.valid_until) : undefined}
+            customerName={quotation.customer_name}
+            customerAddress={quotation.customer_address}
+            customerMobile={quotation.customer_phone}
+            customerEmail={quotation.customer_email}
+            items={printItems}
+            grossAmount={quotation.gross_amount}
+            discountAmount={quotation.discount_amount + quotation.flat_discount_amount}
+            taxableAmount={quotation.gross_amount - quotation.discount_amount - quotation.flat_discount_amount}
+            gstAmount={quotation.gst_amount}
+            roundOff={quotation.round_off}
+            netAmount={quotation.net_amount}
+            termsConditions={quotation.terms_conditions}
+            notes={quotation.notes}
+            taxType={quotation.tax_type}
+            format="a5-vertical"
+            colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
+          />
+        </div>
+
+        <AlertDialogFooter>
+          <AlertDialogCancel>Close</AlertDialogCancel>
+          <Button onClick={() => handlePrint()}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
