@@ -927,6 +927,164 @@ export type Database = {
           },
         ]
       }
+      quotation_items: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          discount_percent: number
+          gst_percent: number
+          id: string
+          line_total: number
+          mrp: number
+          product_id: string
+          product_name: string
+          quantity: number
+          quotation_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          gst_percent?: number
+          id?: string
+          line_total: number
+          mrp: number
+          product_id: string
+          product_name: string
+          quantity: number
+          quotation_id: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          gst_percent?: number
+          id?: string
+          line_total?: number
+          mrp?: number
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          quotation_id?: string
+          size?: string
+          unit_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotation_items_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount_amount: number
+          flat_discount_amount: number
+          flat_discount_percent: number
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          organization_id: string
+          quotation_date: string
+          quotation_number: string
+          round_off: number
+          shipping_address: string | null
+          status: string
+          tax_type: string | null
+          terms_conditions: string | null
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id: string
+          quotation_date?: string
+          quotation_number: string
+          round_off?: number
+          shipping_address?: string | null
+          status?: string
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id?: string
+          quotation_date?: string
+          quotation_number?: string
+          round_off?: number
+          shipping_address?: string | null
+          status?: string
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sale_items: {
         Row: {
           barcode: string | null
@@ -982,6 +1140,180 @@ export type Database = {
             columns: ["sale_id"]
             isOneToOne: false
             referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_order_items: {
+        Row: {
+          barcode: string | null
+          created_at: string
+          discount_percent: number
+          fulfilled_qty: number
+          gst_percent: number
+          id: string
+          line_total: number
+          mrp: number
+          order_id: string
+          order_qty: number
+          pending_qty: number
+          product_id: string
+          product_name: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          fulfilled_qty?: number
+          gst_percent?: number
+          id?: string
+          line_total: number
+          mrp: number
+          order_id: string
+          order_qty: number
+          pending_qty: number
+          product_id: string
+          product_name: string
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          created_at?: string
+          discount_percent?: number
+          fulfilled_qty?: number
+          gst_percent?: number
+          id?: string
+          line_total?: number
+          mrp?: number
+          order_id?: string
+          order_qty?: number
+          pending_qty?: number
+          product_id?: string
+          product_name?: string
+          size?: string
+          unit_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "sale_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_orders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          discount_amount: number
+          expected_delivery_date: string | null
+          flat_discount_amount: number
+          flat_discount_percent: number
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          order_date: string
+          order_number: string
+          organization_id: string
+          quotation_id: string | null
+          round_off: number
+          shipping_address: string | null
+          status: string
+          tax_type: string | null
+          terms_conditions: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          order_date?: string
+          order_number: string
+          organization_id: string
+          quotation_id?: string | null
+          round_off?: number
+          shipping_address?: string | null
+          status?: string
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          order_date?: string
+          order_number?: string
+          organization_id?: string
+          quotation_id?: string | null
+          round_off?: number
+          shipping_address?: string | null
+          status?: string
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_orders_quotation_id_fkey"
+            columns: ["quotation_id"]
+            isOneToOne: false
+            referencedRelation: "quotations"
             referencedColumns: ["id"]
           },
         ]
@@ -1637,7 +1969,15 @@ export type Database = {
         Args: { p_date?: string; p_organization_id?: string }
         Returns: string
       }
+      generate_quotation_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_sale_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
+      generate_sale_order_number: {
         Args: { p_organization_id: string }
         Returns: string
       }

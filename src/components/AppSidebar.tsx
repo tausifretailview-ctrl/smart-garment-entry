@@ -51,7 +51,7 @@ export function AppSidebar() {
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
-  const salesPaths = ["/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
+  const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
   const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
@@ -239,6 +239,38 @@ export function AppSidebar() {
                 <SidebarMenu>
                   <SidebarMenuItem>
                     <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/quotation-entry")}>
+                          <NavLink to="/quotation-entry" className="flex items-center gap-3 group">
+                            <FileText className="h-4 w-4 sidebar-icon" />
+                            <span>Quotation Entry</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/quotation-dashboard")}>
+                          <NavLink to="/quotation-dashboard" className="flex items-center gap-3 group">
+                            <BarChart3 className="h-4 w-4 sidebar-icon" />
+                            <span>Quotation Dashboard</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/sale-order-entry")}>
+                          <NavLink to="/sale-order-entry" className="flex items-center gap-3 group">
+                            <PackageCheck className="h-4 w-4 sidebar-icon" />
+                            <span>Sale Order Entry</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/sale-order-dashboard")}>
+                          <NavLink to="/sale-order-dashboard" className="flex items-center gap-3 group">
+                            <BarChart3 className="h-4 w-4 sidebar-icon" />
+                            <span>Sale Order Dashboard</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild isActive={isActive("/pos-sales")}>
                           <NavLink to="/pos-sales" className="flex items-center gap-3 group">

@@ -28,6 +28,10 @@ import SalesInvoice from "./pages/SalesInvoice";
 import SalesInvoiceDashboard from "./pages/SalesInvoiceDashboard";
 import SaleReturnEntry from "./pages/SaleReturnEntry";
 import SaleReturnDashboard from "./pages/SaleReturnDashboard";
+import QuotationEntry from "./pages/QuotationEntry";
+import QuotationDashboard from "./pages/QuotationDashboard";
+import SaleOrderEntry from "./pages/SaleOrderEntry";
+import SaleOrderDashboard from "./pages/SaleOrderDashboard";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";
@@ -225,6 +229,46 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <POSDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quotation-entry"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <QuotationEntry />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quotation-dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <QuotationDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sale-order-entry"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SaleOrderEntry />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sale-order-dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <SaleOrderDashboard />
                   </Layout>
                 </ProtectedRoute>
               }
