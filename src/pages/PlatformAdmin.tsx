@@ -531,7 +531,7 @@ export default function PlatformAdmin() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Login Slug:</span>
-                        <span className="font-medium font-mono text-xs">/org/{org.slug}</span>
+                        <span className="font-medium font-mono text-xs">/{org.slug}</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Users:</span>
@@ -558,7 +558,7 @@ export default function PlatformAdmin() {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  const loginUrl = `${window.location.origin}/org/${org.slug}`;
+                                  const loginUrl = `${window.location.origin}/${org.slug}`;
                                   navigator.clipboard.writeText(loginUrl);
                                   toast.success("Login URL copied to clipboard!");
                                 }}
