@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Shield } from "lucide-react";
+import { Loader2, Shield, Package } from "lucide-react";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -72,19 +72,36 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Shield className="h-6 w-6 text-primary" />
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-background p-4 relative overflow-hidden">
+      {/* Decorative brand color shapes */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+      <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl" />
+      
+      <Card className="w-full max-w-md relative border-t-4 border-t-primary shadow-xl brand-glow">
+        <CardHeader className="text-center pb-2">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+            <Shield className="h-8 w-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl">Smart Inventory</CardTitle>
-          <CardDescription>Platform Admin Login Only</CardDescription>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <div className="bg-primary p-1.5 rounded-lg">
+              <Package className="h-4 w-4 text-primary-foreground" />
+            </div>
+            <CardTitle className="text-2xl font-bold">
+              <span className="text-primary">Smart</span> Inventory
+            </CardTitle>
+          </div>
+          <CardDescription className="text-base">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-medium text-sm">
+              <Shield className="h-3.5 w-3.5" />
+              Platform Admin Login
+            </span>
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="login-email">Email</Label>
+              <Label htmlFor="login-email" className="text-foreground font-medium">Email</Label>
               <Input
                 id="login-email"
                 type="email"
@@ -93,10 +110,11 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
                 required
+                className="h-11 border-2 focus:border-primary transition-colors"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="login-password">Password</Label>
+              <Label htmlFor="login-password" className="text-foreground font-medium">Password</Label>
               <Input
                 id="login-password"
                 type="password"
@@ -105,9 +123,10 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
                 required
+                className="h-11 border-2 focus:border-primary transition-colors"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -118,9 +137,12 @@ const Auth = () => {
               )}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Organization users must login via their organization URL
-          </p>
+          <div className="mt-6 pt-4 border-t border-border">
+            <p className="text-center text-sm text-muted-foreground">
+              Organization users must login via their{" "}
+              <span className="text-primary font-medium">organization URL</span>
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

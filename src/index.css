@@ -155,4 +155,42 @@ All colors MUST be HSL.
   .sidebar-icon:hover {
     @apply scale-110 text-primary animate-icon-bounce;
   }
+
+  /* Brand Color Utilities */
+  .brand-accent {
+    @apply text-primary;
+  }
+  
+  .brand-border {
+    @apply border-primary;
+  }
+  
+  .brand-border-left {
+    @apply border-l-4 border-l-primary;
+  }
+  
+  .brand-border-top {
+    @apply border-t-2 border-t-primary;
+  }
+  
+  .brand-bg-light {
+    @apply bg-primary/5;
+  }
+  
+  .brand-bg-medium {
+    @apply bg-primary/10;
+  }
+  
+  .brand-glow {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+  
+  .brand-glow-strong {
+    box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
+  }
+
+  /* Active state indicator */
+  .active-indicator {
+    @apply relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-primary;
+  }
 }
