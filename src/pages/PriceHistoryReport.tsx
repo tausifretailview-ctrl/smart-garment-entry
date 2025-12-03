@@ -29,6 +29,9 @@ import {
   ShoppingCart,
   Edit,
   History,
+  ArrowUpDown,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 interface PurchaseHistoryItem {
@@ -78,6 +81,30 @@ interface PriceEditItem {
   new_sale_price: number | null;
 }
 
+interface StockMovementItem {
+  id: string;
+  created_at: string;
+  movement_type: string;
+  quantity: number;
+  bill_number: string | null;
+  notes: string | null;
+  barcode: string;
+  product_name: string;
+  size: string;
+}
+
+interface ProductChangeItem {
+  id: string;
+  created_at: string;
+  action: string;
+  user_email: string;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  old_values: any;
+  new_values: any;
+}
+
 interface Supplier {
   id: string;
   supplier_name: string;
@@ -96,6 +123,8 @@ const PriceHistoryReport = () => {
   const [purchaseHistory, setPurchaseHistory] = useState<PurchaseHistoryItem[]>([]);
   const [salesHistory, setSalesHistory] = useState<SalesHistoryItem[]>([]);
   const [priceEdits, setPriceEdits] = useState<PriceEditItem[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovementItem[]>([]);
+  const [productChanges, setProductChanges] = useState<ProductChangeItem[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +136,7 @@ const PriceHistoryReport = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [showPriceChangesOnly, setShowPriceChangesOnly] = useState(false);
+  const [movementTypeFilter, setMovementTypeFilter] = useState<string>("all");
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -119,27 +149,76 @@ const PriceHistoryReport = () => {
     
     setLoading(true);
     try {
-      // Fetch purchase items with bill info
-      const { data: purchaseItems, error: purchaseError } = await supabase
-        .from("purchase_items")
-        .select(`
-          id, barcode, product_name, brand, category, size,
-          pur_price, sale_price, qty, bill_number, created_at,
-          purchase_bills!inner (
-            software_bill_no, supplier_name, bill_date, organization_id
-          )
-        `)
-        .eq("purchase_bills.organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
+      // Fetch all data in parallel
+      const [
+        purchaseResult,
+        salesResult,
+        stockMovementsResult,
+        auditLogsResult,
+        suppliersResult,
+        customersResult,
+      ] = await Promise.all([
+        // Fetch purchase items with bill info
+        supabase
+          .from("purchase_items")
+          .select(`
+            id, barcode, product_name, brand, category, size,
+            pur_price, sale_price, qty, bill_number, created_at,
+            purchase_bills!inner (
+              software_bill_no, supplier_name, bill_date, organization_id
+            )
+          `)
+          .eq("purchase_bills.organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false }),
+        
+        // Fetch sales
+        supabase
+          .from("sales")
+          .select("id, sale_number, sale_date, customer_name, organization_id")
+          .eq("organization_id", currentOrganization.id),
+        
+        // Fetch stock movements
+        supabase
+          .from("stock_movements")
+          .select(`
+            id, movement_type, quantity, bill_number, notes, created_at,
+            product_variants!inner (
+              barcode, size,
+              products!inner (product_name)
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false })
+          .limit(500),
+        
+        // Fetch audit logs for price edits and product changes
+        supabase
+          .from("audit_logs")
+          .select("*")
+          .in("entity_type", ["product_variant", "product"])
+          .order("created_at", { ascending: false })
+          .limit(500),
+        
+        // Fetch suppliers
+        supabase
+          .from("suppliers")
+          .select("id, supplier_name")
+          .eq("organization_id", currentOrganization.id)
+          .order("supplier_name"),
+        
+        // Fetch customers
+        supabase
+          .from("customers")
+          .select("id, customer_name")
+          .eq("organization_id", currentOrganization.id)
+          .order("customer_name"),
+      ]);
 
-      if (purchaseError) throw purchaseError;
-
-      // Get unique barcodes
-      const barcodes = [...new Set((purchaseItems || []).map(p => p.barcode).filter(Boolean))];
+      // Process purchase data
+      const purchaseItems = purchaseResult.data || [];
+      const barcodes = [...new Set(purchaseItems.map(p => p.barcode).filter(Boolean))];
       
-      // Fetch current prices from product_variants
       let currentPricesMap = new Map<string, { sale_price: number; pur_price: number }>();
-      
       if (barcodes.length > 0) {
         const { data: currentPrices } = await supabase
           .from("product_variants")
@@ -156,8 +235,7 @@ const PriceHistoryReport = () => {
         });
       }
 
-      // Merge purchase data
-      const mergedPurchaseData: PurchaseHistoryItem[] = (purchaseItems || []).map(item => {
+      const mergedPurchaseData: PurchaseHistoryItem[] = purchaseItems.map(item => {
         const bills = item.purchase_bills as any;
         const currentPrice = currentPricesMap.get(item.barcode || "");
         
@@ -180,11 +258,10 @@ const PriceHistoryReport = () => {
           current_pur_price: currentPrice?.pur_price ?? null,
         };
       });
-
       setPurchaseHistory(mergedPurchaseData);
 
-      // Fetch sales history
-      const { data: saleItems, error: salesError } = await supabase
+      // Fetch and process sale items
+      const { data: saleItems } = await supabase
         .from("sale_items")
         .select(`
           id, barcode, product_name, size, quantity,
@@ -193,17 +270,8 @@ const PriceHistoryReport = () => {
         `)
         .order("created_at", { ascending: false });
 
-      if (salesError) throw salesError;
-
-      // Fetch sales for organization filtering
-      const { data: sales, error: salesMainError } = await supabase
-        .from("sales")
-        .select("id, sale_number, sale_date, customer_name, organization_id")
-        .eq("organization_id", currentOrganization.id);
-
-      if (salesMainError) throw salesMainError;
-
-      const salesMap = new Map(sales?.map(s => [s.id, s]) || []);
+      const sales = salesResult.data || [];
+      const salesMap = new Map(sales.map(s => [s.id, s]));
       const orgSaleItems = saleItems?.filter(item => salesMap.has(item.sale_id)) || [];
 
       const mergedSalesData: SalesHistoryItem[] = orgSaleItems.map(item => {
@@ -224,50 +292,60 @@ const PriceHistoryReport = () => {
           customer_name: sale?.customer_name || "",
         };
       });
-
       setSalesHistory(mergedSalesData);
 
-      // Fetch price edit history from audit_logs
-      const { data: auditLogs, error: auditError } = await supabase
-        .from("audit_logs")
-        .select("*")
-        .eq("entity_type", "product_variant")
-        .eq("action", "PRICE_CHANGE")
-        .order("created_at", { ascending: false });
+      // Process stock movements
+      const stockMovementsData: StockMovementItem[] = (stockMovementsResult.data || []).map(item => {
+        const variant = item.product_variants as any;
+        return {
+          id: item.id,
+          created_at: item.created_at,
+          movement_type: item.movement_type,
+          quantity: item.quantity,
+          bill_number: item.bill_number,
+          notes: item.notes,
+          barcode: variant?.barcode || "",
+          product_name: variant?.products?.product_name || "",
+          size: variant?.size || "",
+        };
+      });
+      setStockMovements(stockMovementsData);
 
-      if (auditError) throw auditError;
-
-      const priceEditData: PriceEditItem[] = (auditLogs || []).map(log => ({
-        id: log.id,
-        created_at: log.created_at || "",
-        user_email: log.user_email || "System",
-        barcode: (log.old_values as any)?.barcode || "",
-        size: (log.old_values as any)?.size || "",
-        old_pur_price: (log.old_values as any)?.pur_price ?? null,
-        new_pur_price: (log.new_values as any)?.pur_price ?? null,
-        old_sale_price: (log.old_values as any)?.sale_price ?? null,
-        new_sale_price: (log.new_values as any)?.sale_price ?? null,
-      }));
-
+      // Process audit logs
+      const auditLogs = auditLogsResult.data || [];
+      
+      const priceEditData: PriceEditItem[] = auditLogs
+        .filter(log => log.entity_type === "product_variant" && log.action === "PRICE_CHANGE")
+        .map(log => ({
+          id: log.id,
+          created_at: log.created_at || "",
+          user_email: log.user_email || "System",
+          barcode: (log.old_values as any)?.barcode || "",
+          size: (log.old_values as any)?.size || "",
+          old_pur_price: (log.old_values as any)?.pur_price ?? null,
+          new_pur_price: (log.new_values as any)?.pur_price ?? null,
+          old_sale_price: (log.old_values as any)?.sale_price ?? null,
+          new_sale_price: (log.new_values as any)?.sale_price ?? null,
+        }));
       setPriceEdits(priceEditData);
 
-      // Fetch suppliers
-      const { data: suppliersData } = await supabase
-        .from("suppliers")
-        .select("id, supplier_name")
-        .eq("organization_id", currentOrganization.id)
-        .order("supplier_name");
-      
-      setSuppliers(suppliersData || []);
+      const productChangeData: ProductChangeItem[] = auditLogs
+        .filter(log => log.entity_type === "product" && ["CREATE", "UPDATE", "DELETE"].includes(log.action))
+        .map(log => ({
+          id: log.id,
+          created_at: log.created_at || "",
+          action: log.action,
+          user_email: log.user_email || "System",
+          product_name: (log.new_values as any)?.product_name || (log.old_values as any)?.product_name || "",
+          brand: (log.new_values as any)?.brand || (log.old_values as any)?.brand || null,
+          category: (log.new_values as any)?.category || (log.old_values as any)?.category || null,
+          old_values: log.old_values,
+          new_values: log.new_values,
+        }));
+      setProductChanges(productChangeData);
 
-      // Fetch customers
-      const { data: customersData } = await supabase
-        .from("customers")
-        .select("id, customer_name")
-        .eq("organization_id", currentOrganization.id)
-        .order("customer_name");
-
-      setCustomers(customersData || []);
+      setSuppliers(suppliersResult.data || []);
+      setCustomers(customersResult.data || []);
 
     } catch (error) {
       console.error("Error fetching price history:", error);
@@ -342,10 +420,52 @@ const PriceHistoryReport = () => {
     });
   }, [priceEdits, searchTerm, startDate, endDate]);
 
+  // Filter stock movements
+  const filteredStockMovements = useMemo(() => {
+    return stockMovements.filter(item => {
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = 
+          item.barcode?.toLowerCase().includes(search) ||
+          item.product_name?.toLowerCase().includes(search) ||
+          item.bill_number?.toLowerCase().includes(search) ||
+          item.notes?.toLowerCase().includes(search);
+        if (!matchesSearch) return false;
+      }
+
+      if (movementTypeFilter !== "all" && item.movement_type !== movementTypeFilter) return false;
+
+      const moveDate = item.created_at?.split("T")[0] || "";
+      if (startDate && moveDate < startDate) return false;
+      if (endDate && moveDate > endDate) return false;
+
+      return true;
+    });
+  }, [stockMovements, searchTerm, movementTypeFilter, startDate, endDate]);
+
+  // Filter product changes
+  const filteredProductChanges = useMemo(() => {
+    return productChanges.filter(item => {
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = 
+          item.product_name?.toLowerCase().includes(search) ||
+          item.brand?.toLowerCase().includes(search);
+        if (!matchesSearch) return false;
+      }
+
+      const changeDate = item.created_at?.split("T")[0] || "";
+      if (startDate && changeDate < startDate) return false;
+      if (endDate && changeDate > endDate) return false;
+
+      return true;
+    });
+  }, [productChanges, searchTerm, startDate, endDate]);
+
   // Combined history for "All" tab
   const combinedHistory = useMemo(() => {
     const combined: Array<{
-      type: "purchase" | "sale" | "edit";
+      type: "purchase" | "sale" | "edit" | "stock" | "product";
       date: string;
       reference: string;
       barcode: string;
@@ -398,8 +518,36 @@ const PriceHistoryReport = () => {
       });
     });
 
+    filteredStockMovements.forEach(item => {
+      combined.push({
+        type: "stock",
+        date: item.created_at?.split("T")[0] || "",
+        reference: item.bill_number || "-",
+        barcode: item.barcode,
+        product_name: item.product_name,
+        size: item.size,
+        qty: item.quantity,
+        price: item.movement_type,
+        party: item.notes || "-",
+      });
+    });
+
+    filteredProductChanges.forEach(item => {
+      combined.push({
+        type: "product",
+        date: item.created_at?.split("T")[0] || "",
+        reference: item.action,
+        barcode: "-",
+        product_name: item.product_name,
+        size: "-",
+        qty: null,
+        price: "-",
+        party: item.user_email,
+      });
+    });
+
     return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits]);
+  }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
   // Summary statistics
   const stats = useMemo(() => {
@@ -410,10 +558,12 @@ const PriceHistoryReport = () => {
         .map(d => d.barcode)
     ).size;
     
-    const dates = filteredPurchaseData.map(d => d.bill_date).filter(Boolean).sort();
-    const dateRange = dates.length > 0 
-      ? `${format(new Date(dates[0]), "dd MMM")} - ${format(new Date(dates[dates.length - 1]), "dd MMM yyyy")}`
-      : "No data";
+    const stockIn = filteredStockMovements
+      .filter(m => m.quantity > 0)
+      .reduce((sum, m) => sum + m.quantity, 0);
+    const stockOut = filteredStockMovements
+      .filter(m => m.quantity < 0)
+      .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
 
     return { 
       uniqueProducts, 
@@ -421,9 +571,12 @@ const PriceHistoryReport = () => {
       totalPurchases: filteredPurchaseData.length,
       totalSales: filteredSalesData.length,
       totalEdits: filteredPriceEdits.length,
-      dateRange 
+      totalMovements: filteredStockMovements.length,
+      totalProductChanges: filteredProductChanges.length,
+      stockIn,
+      stockOut,
     };
-  }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits]);
+  }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -432,6 +585,7 @@ const PriceHistoryReport = () => {
     setStartDate("");
     setEndDate("");
     setShowPriceChangesOnly(false);
+    setMovementTypeFilter("all");
   };
 
   const getPriceChangeIndicator = (batchPrice: number, currentPrice: number | null) => {
@@ -440,6 +594,42 @@ const PriceHistoryReport = () => {
     if (currentPrice < batchPrice) return { icon: <TrendingDown className="h-4 w-4" />, color: "text-red-600" };
     return { icon: <Minus className="h-4 w-4" />, color: "text-muted-foreground" };
   };
+
+  const getMovementTypeBadge = (type: string) => {
+    const badges: Record<string, { bg: string; text: string; label: string }> = {
+      purchase: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300", label: "Purchase" },
+      sale: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300", label: "Sale" },
+      purchase_return: { bg: "bg-orange-100 dark:bg-orange-900/30", text: "text-orange-700 dark:text-orange-300", label: "Pur Return" },
+      sale_return: { bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-700 dark:text-purple-300", label: "Sale Return" },
+      purchase_increase: { bg: "bg-cyan-100 dark:bg-cyan-900/30", text: "text-cyan-700 dark:text-cyan-300", label: "Pur Increase" },
+      purchase_decrease: { bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-700 dark:text-amber-300", label: "Pur Decrease" },
+      purchase_delete: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300", label: "Pur Delete" },
+      sale_delete: { bg: "bg-pink-100 dark:bg-pink-900/30", text: "text-pink-700 dark:text-pink-300", label: "Sale Delete" },
+    };
+    const badge = badges[type] || { bg: "bg-gray-100 dark:bg-gray-800", text: "text-gray-700 dark:text-gray-300", label: type };
+    return <span className={`px-2 py-1 rounded text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
+  };
+
+  const getActionBadge = (action: string) => {
+    const badges: Record<string, { bg: string; text: string; icon: any }> = {
+      CREATE: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-700 dark:text-green-300", icon: Plus },
+      UPDATE: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-700 dark:text-blue-300", icon: Edit },
+      DELETE: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-700 dark:text-red-300", icon: Trash2 },
+    };
+    const badge = badges[action] || { bg: "bg-gray-100", text: "text-gray-700", icon: Edit };
+    const Icon = badge.icon;
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1 ${badge.bg} ${badge.text}`}>
+        <Icon className="h-3 w-3" />
+        {action}
+      </span>
+    );
+  };
+
+  const movementTypes = useMemo(() => {
+    const types = [...new Set(stockMovements.map(m => m.movement_type))];
+    return types;
+  }, [stockMovements]);
 
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -492,6 +682,32 @@ const PriceHistoryReport = () => {
     const editsWs = XLSX.utils.json_to_sheet(editsData);
     XLSX.utils.book_append_sheet(wb, editsWs, "Price Edits");
 
+    // Stock Movements Sheet
+    const movementsData = filteredStockMovements.map(item => ({
+      "Date": item.created_at ? format(new Date(item.created_at), "dd/MM/yyyy HH:mm") : "",
+      "Type": item.movement_type,
+      "Bill No": item.bill_number || "-",
+      "Barcode": item.barcode,
+      "Product": item.product_name,
+      "Size": item.size,
+      "Qty Change": item.quantity,
+      "Notes": item.notes || "-",
+    }));
+    const movementsWs = XLSX.utils.json_to_sheet(movementsData);
+    XLSX.utils.book_append_sheet(wb, movementsWs, "Stock Movements");
+
+    // Product Changes Sheet
+    const productData = filteredProductChanges.map(item => ({
+      "Date": item.created_at ? format(new Date(item.created_at), "dd/MM/yyyy HH:mm") : "",
+      "Action": item.action,
+      "Product Name": item.product_name,
+      "Brand": item.brand || "-",
+      "Category": item.category || "-",
+      "Changed By": item.user_email,
+    }));
+    const productWs = XLSX.utils.json_to_sheet(productData);
+    XLSX.utils.book_append_sheet(wb, productWs, "Product Changes");
+
     XLSX.writeFile(wb, `Price_History_Report_${format(new Date(), "yyyyMMdd")}.xlsx`);
     toast.success("Exported to Excel");
   };
@@ -509,9 +725,9 @@ const PriceHistoryReport = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Price History Report</h1>
+            <h1 className="text-2xl font-bold">Price & Stock History</h1>
             <p className="text-muted-foreground text-sm">
-              Track prices across purchases, sales & edits
+              Track prices, stock movements & product changes
             </p>
           </div>
         </div>
@@ -532,81 +748,91 @@ const PriceHistoryReport = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6 print:hidden">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6 print:hidden">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
-                <Package className="h-5 w-5 text-blue-500" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-blue-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Purchases</p>
-                <p className="text-2xl font-bold">{stats.totalPurchases}</p>
+                <p className="text-xs text-muted-foreground">Purchases</p>
+                <p className="text-lg font-bold">{stats.totalPurchases}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <ShoppingCart className="h-5 w-5 text-green-500" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-green-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Sales</p>
-                <p className="text-2xl font-bold">{stats.totalSales}</p>
+                <p className="text-xs text-muted-foreground">Sales</p>
+                <p className="text-lg font-bold">{stats.totalSales}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-500/10 rounded-lg">
-                <Edit className="h-5 w-5 text-orange-500" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <Edit className="h-4 w-4 text-orange-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Price Edits</p>
-                <p className="text-2xl font-bold">{stats.totalEdits}</p>
+                <p className="text-xs text-muted-foreground">Price Edits</p>
+                <p className="text-lg font-bold">{stats.totalEdits}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <FileText className="h-5 w-5 text-primary" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <ArrowUpDown className="h-4 w-4 text-purple-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Products</p>
-                <p className="text-2xl font-bold">{stats.uniqueProducts}</p>
+                <p className="text-xs text-muted-foreground">Movements</p>
+                <p className="text-lg font-bold">{stats.totalMovements}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-500/10 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-red-500" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-cyan-500" />
               <div>
-                <p className="text-sm text-muted-foreground">Price Changed</p>
-                <p className="text-2xl font-bold">{stats.productsWithPriceChange}</p>
+                <p className="text-xs text-muted-foreground">Prod Changes</p>
+                <p className="text-lg font-bold">{stats.totalProductChanges}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <Calendar className="h-5 w-5 text-purple-500" />
-              </div>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-green-600" />
               <div>
-                <p className="text-sm text-muted-foreground">Date Range</p>
-                <p className="text-sm font-semibold">{stats.dateRange}</p>
+                <p className="text-xs text-muted-foreground">Stock In</p>
+                <p className="text-lg font-bold">+{stats.stockIn}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <TrendingDown className="h-4 w-4 text-red-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Stock Out</p>
+                <p className="text-lg font-bold">-{stats.stockOut}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-red-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Price Changed</p>
+                <p className="text-lg font-bold">{stats.productsWithPriceChange}</p>
               </div>
             </div>
           </CardContent>
@@ -668,6 +894,25 @@ const PriceHistoryReport = () => {
               </div>
             )}
 
+            {activeTab === "movements" && (
+              <div className="w-[180px]">
+                <Label className="text-xs mb-1">Movement Type</Label>
+                <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {movementTypes.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type.replace(/_/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="w-[140px]">
               <Label className="text-xs mb-1">From Date</Label>
               <Input
@@ -709,10 +954,10 @@ const PriceHistoryReport = () => {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="print:hidden">
+        <TabsList className="print:hidden flex-wrap h-auto gap-1">
           <TabsTrigger value="all" className="gap-2">
             <History className="h-4 w-4" />
-            All History
+            All
           </TabsTrigger>
           <TabsTrigger value="purchases" className="gap-2">
             <Package className="h-4 w-4" />
@@ -725,6 +970,14 @@ const PriceHistoryReport = () => {
           <TabsTrigger value="edits" className="gap-2">
             <Edit className="h-4 w-4" />
             Price Edits
+          </TabsTrigger>
+          <TabsTrigger value="movements" className="gap-2">
+            <ArrowUpDown className="h-4 w-4" />
+            Stock Movements
+          </TabsTrigger>
+          <TabsTrigger value="products" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Product Changes
           </TabsTrigger>
         </TabsList>
 
@@ -743,7 +996,7 @@ const PriceHistoryReport = () => {
                       <TableHead>Product</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead className="text-right">Qty</TableHead>
-                      <TableHead>Price</TableHead>
+                      <TableHead>Price/Info</TableHead>
                       <TableHead>Party/User</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -761,16 +1014,20 @@ const PriceHistoryReport = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      combinedHistory.slice(0, 200).map((item, idx) => (
+                      combinedHistory.slice(0, 300).map((item, idx) => (
                         <TableRow key={idx}>
                           <TableCell>
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
                               item.type === "purchase" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" :
                               item.type === "sale" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
-                              "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                              item.type === "edit" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" :
+                              item.type === "stock" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" :
+                              "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300"
                             }`}>
                               {item.type === "purchase" ? "Purchase" :
-                               item.type === "sale" ? "Sale" : "Edit"}
+                               item.type === "sale" ? "Sale" : 
+                               item.type === "edit" ? "Edit" :
+                               item.type === "stock" ? "Stock" : "Product"}
                             </span>
                           </TableCell>
                           <TableCell className="font-mono text-sm">
@@ -778,11 +1035,16 @@ const PriceHistoryReport = () => {
                           </TableCell>
                           <TableCell className="font-mono text-sm">{item.reference}</TableCell>
                           <TableCell className="font-mono">{item.barcode}</TableCell>
-                          <TableCell>{item.product_name}</TableCell>
+                          <TableCell className="max-w-[150px] truncate">{item.product_name}</TableCell>
                           <TableCell>{item.size}</TableCell>
-                          <TableCell className="text-right">{item.qty ?? "-"}</TableCell>
-                          <TableCell className="font-medium">{item.price}</TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{item.party}</TableCell>
+                          <TableCell className={`text-right font-medium ${
+                            item.qty !== null && item.qty < 0 ? "text-red-600" : 
+                            item.qty !== null && item.qty > 0 ? "text-green-600" : ""
+                          }`}>
+                            {item.qty !== null ? (item.qty > 0 ? `+${item.qty}` : item.qty) : "-"}
+                          </TableCell>
+                          <TableCell className="font-medium text-sm">{item.price}</TableCell>
+                          <TableCell className="text-muted-foreground text-sm max-w-[150px] truncate">{item.party}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -950,7 +1212,7 @@ const PriceHistoryReport = () => {
                     ) : filteredPriceEdits.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No price edit history found. Price changes will appear here when product prices are modified.
+                          No price edit history found
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -964,16 +1226,126 @@ const PriceHistoryReport = () => {
                           <TableCell className="text-right">
                             {item.old_pur_price !== null ? `₹${item.old_pur_price}` : "-"}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right font-medium">
                             {item.new_pur_price !== null ? `₹${item.new_pur_price}` : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             {item.old_sale_price !== null ? `₹${item.old_sale_price}` : "-"}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right font-medium">
                             {item.new_sale_price !== null ? `₹${item.new_sale_price}` : "-"}
                           </TableCell>
-                          <TableCell className="text-muted-foreground text-sm">{item.user_email}</TableCell>
+                          <TableCell className="text-muted-foreground">{item.user_email}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Stock Movements Tab */}
+        <TabsContent value="movements">
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Bill No</TableHead>
+                      <TableHead>Barcode</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead className="text-right">Qty Change</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8">
+                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredStockMovements.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                          No stock movement history found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredStockMovements.map((item) => (
+                        <TableRow key={item.id} className="hover:bg-muted/30">
+                          <TableCell className="font-mono text-sm">
+                            {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
+                          </TableCell>
+                          <TableCell>{getMovementTypeBadge(item.movement_type)}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.bill_number || "-"}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
+                          <TableCell>{item.size}</TableCell>
+                          <TableCell className={`text-right font-bold ${
+                            item.quantity > 0 ? "text-green-600" : "text-red-600"
+                          }`}>
+                            {item.quantity > 0 ? `+${item.quantity}` : item.quantity}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                            {item.notes || "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Product Changes Tab */}
+        <TabsContent value="products">
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Date & Time</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Product Name</TableHead>
+                      <TableHead>Brand</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Changed By</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8">
+                          <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredProductChanges.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No product change history found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredProductChanges.map((item) => (
+                        <TableRow key={item.id} className="hover:bg-muted/30">
+                          <TableCell className="font-mono text-sm">
+                            {item.created_at ? format(new Date(item.created_at), "dd/MM/yy HH:mm") : "-"}
+                          </TableCell>
+                          <TableCell>{getActionBadge(item.action)}</TableCell>
+                          <TableCell className="font-medium">{item.product_name}</TableCell>
+                          <TableCell>{item.brand || "-"}</TableCell>
+                          <TableCell>{item.category || "-"}</TableCell>
+                          <TableCell className="text-muted-foreground">{item.user_email}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -988,8 +1360,12 @@ const PriceHistoryReport = () => {
       {/* Print Styles */}
       <style>{`
         @media print {
-          .print\\:hidden { display: none !important; }
-          .print\\:p-2 { padding: 0.5rem !important; }
+          .print\\:hidden {
+            display: none !important;
+          }
+          .print\\:p-2 {
+            padding: 0.5rem !important;
+          }
         }
       `}</style>
     </div>
