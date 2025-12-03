@@ -46,6 +46,7 @@ import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
+import PriceHistoryReport from "./pages/PriceHistoryReport";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -353,6 +354,18 @@ const App = () => {
                   <Layout>
                     <ItemWiseSalesReport />
                   </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/price-history"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <Layout>
+                      <PriceHistoryReport />
+                    </Layout>
+                  </RoleProtectedRoute>
                 </ProtectedRoute>
               }
             />
