@@ -37,6 +37,7 @@ export default function QuotationDashboard() {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [customerFilter, setCustomerFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [quotationToDelete, setQuotationToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -151,9 +152,19 @@ export default function QuotationDashboard() {
     setExpandedRows(newExpanded);
   };
 
+  // Get unique customers for dropdown
+  const uniqueCustomers = Array.from(
+    new Map((quotationsData || []).map((q: any) => [q.customer_id || q.customer_name, { id: q.customer_id, name: q.customer_name }]))
+  ).map(([_, customer]) => customer).filter((c: any) => c.name);
+
   const filteredQuotations = (quotationsData || []).filter((q: any) => {
     // Apply status filter
     if (statusFilter !== 'all' && q.status !== statusFilter) return false;
+    // Apply customer filter
+    if (customerFilter !== 'all') {
+      if (q.customer_id && q.customer_id !== customerFilter) return false;
+      if (!q.customer_id && q.customer_name !== customerFilter) return false;
+    }
     // Apply date range filter
     if (fromDate) {
       const qDate = new Date(q.quotation_date);
@@ -351,6 +362,19 @@ export default function QuotationDashboard() {
               Clear Dates
             </Button>
           )}
+          <Select value={customerFilter} onValueChange={setCustomerFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Customer" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Customers</SelectItem>
+              {uniqueCustomers.map((customer: any) => (
+                <SelectItem key={customer.id || customer.name} value={customer.id || customer.name}>
+                  {customer.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />
