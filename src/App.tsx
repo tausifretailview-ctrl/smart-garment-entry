@@ -45,6 +45,7 @@ import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
+import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -341,6 +342,16 @@ const App = () => {
                 <ProtectedRoute>
                   <Layout>
                     <DailyCashierReport />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/item-wise-sales"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ItemWiseSalesReport />
                   </Layout>
                 </ProtectedRoute>
               }
