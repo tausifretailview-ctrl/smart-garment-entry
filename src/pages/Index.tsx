@@ -29,13 +29,15 @@ const MetricCard = ({
   value,
   icon: Icon,
   bgColor,
+  onClick,
 }: {
   title: string;
   value: string | number;
   icon: any;
   bgColor: string;
+  onClick?: () => void;
 }) => (
-  <div className="group relative animate-fade-in">
+  <div className="group relative animate-fade-in" onClick={onClick}>
     <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
     
     <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
@@ -347,24 +349,28 @@ const DashboardContent = () => {
             value={formatCurrency(salesData?.total || 0)}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
+            onClick={() => navigate("/sales-invoice-dashboard")}
           />
           <MetricCard
             title="Total Invoices"
             value={salesData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
+            onClick={() => navigate("/sales-invoice-dashboard")}
           />
           <MetricCard
             title="Sold Qty"
             value={salesData?.soldQty || 0}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
+            onClick={() => navigate("/stock-report")}
           />
           <MetricCard
             title="Total Customers"
             value={customersCount || 0}
             icon={Users}
             bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
+            onClick={() => navigate("/customer-master")}
           />
         </div>
       </div>
@@ -381,24 +387,28 @@ const DashboardContent = () => {
             value={formatCurrency(purchaseData?.total || 0)}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
+            onClick={() => navigate("/purchase-bill-dashboard")}
           />
           <MetricCard
             title="Total Bills"
             value={purchaseData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+            onClick={() => navigate("/purchase-bill-dashboard")}
           />
           <MetricCard
             title="Purchase Qty"
             value={purchaseData?.purchaseQty || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900"
+            onClick={() => navigate("/stock-report")}
           />
           <MetricCard
             title="Total Suppliers"
             value={suppliersCount || 0}
             icon={Store}
             bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
+            onClick={() => navigate("/supplier-master")}
           />
         </div>
       </div>
@@ -415,18 +425,21 @@ const DashboardContent = () => {
             value={productsCount || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
+            onClick={() => navigate("/product-dashboard")}
           />
           <MetricCard
             title="Stock Qty"
             value={stockData || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+            onClick={() => navigate("/stock-report")}
           />
           <MetricCard
             title="Stock Value"
             value={formatCurrency(stockValue || 0)}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
+            onClick={() => navigate("/stock-report")}
           />
         </div>
       </div>
@@ -443,18 +456,21 @@ const DashboardContent = () => {
             value={formatCurrency(profitData || 0)}
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+            onClick={() => navigate("/daily-cashier-report")}
           />
           <MetricCard
             title="Profit Margin"
             value={salesData?.total ? `${(((profitData || 0) / salesData.total) * 100).toFixed(1)}%` : "0%"}
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
+            onClick={() => navigate("/daily-cashier-report")}
           />
           <MetricCard
             title="Cash Collection"
             value={formatCurrency(cashCollection || 0)}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
+            onClick={() => navigate("/payments-dashboard")}
           />
         </div>
       </div>
