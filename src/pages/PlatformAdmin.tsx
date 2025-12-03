@@ -11,13 +11,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, Trash2, UserX } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, Trash2, UserX, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Organization {
   id: string;
   name: string;
+  slug: string;
   subscription_tier: string;
   enabled_features: string[];
   created_at: string;
@@ -528,6 +530,10 @@ export default function PlatformAdmin() {
                         <span className="font-medium font-mono">{org.organization_number}0001001</span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">Login Slug:</span>
+                        <span className="font-medium font-mono text-xs">/org/{org.slug}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Users:</span>
                         <span className="font-medium">{orgMembers.length}</span>
                       </div>
@@ -545,6 +551,24 @@ export default function PlatformAdmin() {
                           <Users className="h-3 w-3 mr-1" />
                           Assign User
                         </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const loginUrl = `${window.location.origin}/org/${org.slug}`;
+                                  navigator.clipboard.writeText(loginUrl);
+                                  toast.success("Login URL copied to clipboard!");
+                                }}
+                              >
+                                <Link2 className="h-3 w-3" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Copy Login URL</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         <Button
                           size="sm"
                           variant="outline"

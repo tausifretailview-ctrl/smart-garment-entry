@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Building2, Crown, Users, Plus, Loader2, UserX } from "lucide-react";
+import { Building2, Crown, Users, Plus, Loader2, UserX, Copy } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const AVAILABLE_FEATURES = [
@@ -331,6 +331,27 @@ export default function OrganizationManagement() {
                     <SelectItem value="enterprise">Enterprise</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Login URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={`${window.location.origin}/org/${currentOrganization.slug}`}
+                    readOnly
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/org/${currentOrganization.slug}`);
+                      toast.success("Login URL copied to clipboard!");
+                    }}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Share this URL with users to login to this organization</p>
               </div>
 
               <Button onClick={handleSaveSettings}>Save Changes</Button>
