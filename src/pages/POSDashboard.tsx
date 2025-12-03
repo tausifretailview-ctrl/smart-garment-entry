@@ -35,6 +35,7 @@ import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useQuery } from "@tanstack/react-query";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 
 interface SaleItem {
   id: string;
@@ -102,25 +103,21 @@ const POSDashboard = () => {
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   
-  // Column visibility state with localStorage persistence
-  const [columnSettings, setColumnSettings] = useState(() => {
-    const saved = localStorage.getItem('pos-dashboard-columns');
-    return saved ? JSON.parse(saved) : {
-      status: true,
-      refund: true,
-      whatsapp: true,
-      copyLink: true,
-      preview: true,
-      print: true,
-      modify: true,
-    };
-  });
-
-  const updateColumnSetting = (key: string, value: boolean) => {
-    const newSettings = { ...columnSettings, [key]: value };
-    setColumnSettings(newSettings);
-    localStorage.setItem('pos-dashboard-columns', JSON.stringify(newSettings));
+  // Column visibility state with database persistence
+  const defaultPosColumns = {
+    status: true,
+    refund: true,
+    whatsapp: true,
+    copyLink: true,
+    preview: true,
+    print: true,
+    modify: true,
   };
+  
+  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
+    "pos_dashboard",
+    defaultPosColumns
+  );
 
   // Payment recording state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);

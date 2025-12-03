@@ -22,6 +22,7 @@ import { useReactToPrint } from "react-to-print";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { Layout } from "@/components/Layout";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 
 interface Invoice {
   id: string;
@@ -40,6 +41,7 @@ interface Invoice {
 }
 
 interface ColumnSettings {
+  [key: string]: boolean;
   saleNumber: boolean;
   customer: boolean;
   saleDate: boolean;
@@ -88,16 +90,10 @@ export default function PaymentsDashboard() {
   
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const [columnSettings, setColumnSettings] = useState<ColumnSettings>(() => {
-    const saved = localStorage.getItem('paymentsDashboardColumnSettings');
-    return saved ? JSON.parse(saved) : defaultColumnSettings;
-  });
-
-  const updateColumnSetting = (key: keyof ColumnSettings, value: boolean) => {
-    const newSettings = { ...columnSettings, [key]: value };
-    setColumnSettings(newSettings);
-    localStorage.setItem('paymentsDashboardColumnSettings', JSON.stringify(newSettings));
-  };
+  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
+    "payments_dashboard",
+    defaultColumnSettings
+  );
 
   // Fetch company settings for receipt branding
   const { data: settings } = useQuery({
@@ -636,7 +632,7 @@ Thank you for your business!`;
                             type="checkbox"
                             id={key}
                             checked={value}
-                            onChange={(e) => updateColumnSetting(key as keyof ColumnSettings, e.target.checked)}
+                            onChange={(e) => updateColumnSetting(key, e.target.checked)}
                             className="h-4 w-4"
                           />
                           <Label htmlFor={key} className="cursor-pointer capitalize">
