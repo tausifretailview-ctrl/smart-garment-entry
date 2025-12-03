@@ -104,7 +104,7 @@ export default function QuotationEntry() {
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
-  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -178,7 +178,7 @@ export default function QuotationEntry() {
       setQuotationDate(new Date(quotationData.quotation_date));
       setValidUntil(quotationData.valid_until ? new Date(quotationData.valid_until) : new Date());
       setSelectedCustomerId(quotationData.customer_id || "");
-      setTaxType(quotationData.tax_type || "exclusive");
+      setTaxType(quotationData.tax_type || "inclusive");
       setTermsConditions(quotationData.terms_conditions || "");
       setNotes(quotationData.notes || "");
       setShippingAddress(quotationData.shipping_address || "");

@@ -123,7 +123,7 @@ export default function SalesInvoice() {
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
-  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern" | "minimal">("classic");
   const [showPreview, setShowPreview] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
