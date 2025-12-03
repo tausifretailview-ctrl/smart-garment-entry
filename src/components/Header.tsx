@@ -34,7 +34,7 @@ export const Header = () => {
         <div className="flex items-center gap-3">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent/20">
+              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -44,7 +44,7 @@ export const Header = () => {
                   <Button
                     key={action.path}
                     variant="ghost"
-                    className="justify-start text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary"
+                    className="justify-start text-sidebar-foreground hover:bg-primary/10 hover:text-primary"
                     onClick={() => {
                       navigate(action.path);
                       setMobileMenuOpen(false);
@@ -63,28 +63,31 @@ export const Header = () => {
             className="flex items-center gap-2 group"
           >
             <div className="relative">
-              <div className="absolute inset-0 bg-sidebar-primary rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-              <div className="relative bg-sidebar-primary p-2 rounded-lg">
-                <Package className="h-5 w-5 text-sidebar-primary-foreground" />
+              <div className="absolute inset-0 bg-primary rounded-lg blur-md opacity-60 group-hover:opacity-80 transition-opacity" />
+              <div className="relative bg-primary p-2 rounded-lg shadow-lg">
+                <Package className="h-5 w-5 text-primary-foreground" />
               </div>
             </div>
-            <span className="font-display text-lg font-bold text-sidebar-primary hidden sm:block">
-              Smart Inventory
-            </span>
+            <div className="hidden sm:flex flex-col items-start">
+              <span className="font-display text-lg font-bold text-primary leading-tight">
+                Smart Inventory
+              </span>
+              <span className="text-[10px] text-muted-foreground -mt-0.5">Business Management</span>
+            </div>
           </button>
         </div>
 
         {/* Quick Actions - Desktop */}
-        <div className="hidden lg:flex items-center gap-2">
+        <div className="hidden lg:flex items-center gap-1">
           {quickActions.map((action) => (
             <Button
               key={action.path}
               variant="ghost"
               size="sm"
               onClick={() => navigate(action.path)}
-              className="text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary"
+              className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary transition-all"
             >
-              <action.icon className="h-4 w-4 mr-2" />
+              <action.icon className="h-4 w-4 mr-2 text-primary" />
               {action.label}
             </Button>
           ))}
@@ -93,7 +96,7 @@ export const Header = () => {
         {/* Right Side */}
         <div className="flex items-center gap-3">
           {/* Search */}
-          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary">
+          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
             <Search className="h-5 w-5" />
           </Button>
 
@@ -101,17 +104,17 @@ export const Header = () => {
           <OrganizationSelector />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary">
+          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
             <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full animate-pulse" />
+            <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
           </Button>
 
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-sidebar-accent/20">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 ring-2 ring-transparent hover:ring-primary/30 transition-all">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
@@ -122,14 +125,14 @@ export const Header = () => {
                 <p className="text-sm font-medium">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/profile")}>
+              <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
                 Profile Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/settings")}>
+              <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
                 App Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+              <DropdownMenuItem onClick={() => signOut()} className="text-destructive cursor-pointer">
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>

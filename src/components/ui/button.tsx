@@ -17,6 +17,8 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         success: "bg-gradient-to-r from-success to-success/90 text-success-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
         accent: "bg-gradient-to-r from-accent to-accent/90 text-accent-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        brand: "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        "brand-outline": "border-2 border-primary bg-transparent text-primary hover:bg-primary/10 hover:scale-[1.02] active:scale-[0.98]",
       },
       size: {
         default: "h-10 px-4 py-2",
