@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -91,21 +91,16 @@ export default function SaleOrderDashboard() {
   });
 
   const { data: ordersData, isLoading, refetch } = useQuery({
-    queryKey: ['sale-orders', currentOrganization?.id, statusFilter],
+    queryKey: ['sale-orders', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('sale_orders')
         .select(`*, sale_order_items (*)`)
         .eq('organization_id', currentOrganization.id)
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -295,6 +290,9 @@ export default function SaleOrderDashboard() {
   };
 
   const filteredOrders = (ordersData || []).filter((o: any) => {
+    // Apply status filter
+    if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    // Apply search filter
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
     return o.order_number?.toLowerCase().includes(searchLower) ||
@@ -319,9 +317,120 @@ export default function SaleOrderDashboard() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  // Calculate statistics
+  const allOrders = ordersData || [];
+  const stats = {
+    total: allOrders.length,
+    totalValue: allOrders.reduce((sum: number, o: any) => sum + (o.net_amount || 0), 0),
+    pending: allOrders.filter((o: any) => o.status === 'pending').length,
+    partial: allOrders.filter((o: any) => o.status === 'partial').length,
+    confirmed: allOrders.filter((o: any) => o.status === 'confirmed').length,
+    pendingItems: allOrders.reduce((sum: number, o: any) => {
+      return sum + (o.sale_order_items?.reduce((s: number, i: any) => s + (i.pending_qty || 0), 0) || 0);
+    }, 0),
+    pendingValue: allOrders
+      .filter((o: any) => o.status === 'pending' || o.status === 'partial')
+      .reduce((sum: number, o: any) => sum + (o.net_amount || 0), 0),
+    conversionRate: allOrders.length > 0 
+      ? ((allOrders.filter((o: any) => o.status === 'confirmed').length / allOrders.length) * 100).toFixed(1)
+      : '0',
+  };
+
+  const handleCardClick = (status: string) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
+  };
+
   return (
     <div className="p-4 space-y-4">
       <BackToDashboard />
+
+      {/* Summary Statistics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('all')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <ClipboardList className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Orders</p>
+              <p className="text-xl font-bold">{stats.total}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('pending')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-yellow-100 rounded-lg">
+              <Clock className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-xl font-bold">{stats.pending}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'partial' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('partial')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 rounded-lg">
+              <Package className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Partial</p>
+              <p className="text-xl font-bold">{stats.partial}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card 
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'confirmed' ? 'ring-2 ring-primary' : ''}`}
+          onClick={() => handleCardClick('confirmed')}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Confirmed</p>
+              <p className="text-xl font-bold">{stats.confirmed}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-100 rounded-lg">
+              <AlertTriangle className="h-5 w-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Pending Items</p>
+              <p className="text-xl font-bold">{stats.pendingItems}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <IndianRupee className="h-5 w-5 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Pending Value</p>
+              <p className="text-lg font-bold">₹{stats.pendingValue.toLocaleString('en-IN')}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
       
       <Card className="p-6">
         <div className="flex items-center justify-between mb-6">
