@@ -81,6 +81,20 @@ export default function ItemWiseSalesReport() {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
+      // First get sales within date range for the organization
+      const { data: salesData, error: salesError } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", dateRange.from.toISOString())
+        .lte("sale_date", dateRange.to.toISOString());
+
+      if (salesError) throw salesError;
+      if (!salesData || salesData.length === 0) return [];
+
+      const saleIds = salesData.map((s) => s.id);
+
+      // Then get sale items for those sales
       const { data, error } = await supabase
         .from("sale_items")
         .select(`
@@ -92,19 +106,13 @@ export default function ItemWiseSalesReport() {
           line_total,
           product_id,
           sale_id,
-          sales!inner (
-            sale_date,
-            organization_id
-          ),
           products:product_id (
             brand,
             category,
             color
           )
         `)
-        .eq("sales.organization_id", currentOrganization.id)
-        .gte("sales.sale_date", dateRange.from.toISOString())
-        .lte("sales.sale_date", dateRange.to.toISOString());
+        .in("sale_id", saleIds);
 
       if (error) throw error;
       return data || [];
