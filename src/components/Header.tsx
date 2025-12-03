@@ -28,23 +28,23 @@ export const Header = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-gradient-to-r from-background via-background to-primary/5 backdrop-blur-lg supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="container flex h-16 items-center justify-between px-4">
         {/* Logo */}
         <div className="flex items-center gap-3">
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent/20">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[300px]">
+            <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground border-sidebar-border">
               <nav className="flex flex-col gap-4 mt-8">
                 {quickActions.map((action) => (
                   <Button
                     key={action.path}
                     variant="ghost"
-                    className="justify-start"
+                    className="justify-start text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary"
                     onClick={() => {
                       navigate(action.path);
                       setMobileMenuOpen(false);
@@ -63,12 +63,12 @@ export const Header = () => {
             className="flex items-center gap-2 group"
           >
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-primary to-secondary rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
-              <div className="relative bg-gradient-to-br from-primary to-secondary p-2 rounded-lg">
-                <Package className="h-5 w-5 text-white" />
+              <div className="absolute inset-0 bg-sidebar-primary rounded-lg blur-md opacity-50 group-hover:opacity-75 transition-opacity" />
+              <div className="relative bg-sidebar-primary p-2 rounded-lg">
+                <Package className="h-5 w-5 text-sidebar-primary-foreground" />
               </div>
             </div>
-            <span className="font-display text-lg font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent hidden sm:block">
+            <span className="font-display text-lg font-bold text-sidebar-primary hidden sm:block">
               Smart Inventory
             </span>
           </button>
@@ -82,7 +82,7 @@ export const Header = () => {
               variant="ghost"
               size="sm"
               onClick={() => navigate(action.path)}
-              className="hover:bg-primary/10"
+              className="text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary"
             >
               <action.icon className="h-4 w-4 mr-2" />
               {action.label}
@@ -93,7 +93,7 @@ export const Header = () => {
         {/* Right Side */}
         <div className="flex items-center gap-3">
           {/* Search */}
-          <Button variant="ghost" size="icon" className="hidden md:flex">
+          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary">
             <Search className="h-5 w-5" />
           </Button>
 
@@ -101,7 +101,7 @@ export const Header = () => {
           <OrganizationSelector />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
+          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-sidebar-accent/20 hover:text-sidebar-primary">
             <Bell className="h-5 w-5" />
             <span className="absolute top-1 right-1 h-2 w-2 bg-destructive rounded-full animate-pulse" />
           </Button>
@@ -109,9 +109,9 @@ export const Header = () => {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-sidebar-accent/20">
                 <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-secondary text-white text-xs font-semibold">
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-semibold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
