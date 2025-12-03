@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle } from "lucide-react";
+import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -45,6 +45,8 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { useReactToPrint } from "react-to-print";
+import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 
 interface LineItem {
   id: string;
@@ -109,6 +111,29 @@ export default function SaleOrderEntry() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [quotationId, setQuotationId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
+  const [printData, setPrintData] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch settings for print
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `SaleOrder_${orderNumber}`,
+  });
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -483,11 +508,46 @@ export default function SaleOrderEntry() {
       if (itemsError) throw itemsError;
 
       toast({ title: "Success", description: `Sale Order ${orderNumber} saved` });
-      navigate('/sale-order-dashboard');
+      return { success: true, orderId };
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
+      return { success: false };
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndPrint = async () => {
+    const result = await handleSaveOrder();
+    if (result.success) {
+      // Prepare print data
+      const printItems = filledItems.map((item, index) => ({
+        sr: index + 1,
+        particulars: item.productName,
+        size: item.size,
+        barcode: item.barcode,
+        hsn: '',
+        qty: item.orderQty,
+        rate: item.salePrice,
+        mrp: item.mrp,
+        discountPercent: item.discountPercent,
+        total: item.lineTotal,
+      }));
+
+      setPrintData({
+        items: printItems,
+        grossAmount,
+        discountAmount: totalDiscount,
+        taxableAmount: grossAmount - totalDiscount,
+        gstAmount: totalGST,
+        roundOff: 0,
+        netAmount,
+      });
+
+      setTimeout(() => {
+        handlePrint();
+        navigate('/sale-order-dashboard');
+      }, 100);
     }
   };
 
@@ -728,12 +788,48 @@ export default function SaleOrderEntry() {
 
         {/* Actions */}
         <div className="mt-6 flex gap-4">
-          <Button onClick={handleSaveOrder} disabled={isSaving} className="flex-1">
+          <Button onClick={() => handleSaveOrder().then(r => r.success && navigate('/sale-order-dashboard'))} disabled={isSaving} className="flex-1">
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : 'Book Sale Order'}
           </Button>
+          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="outline" className="flex-1">
+            <Printer className="mr-2 h-4 w-4" />
+            Save & Print
+          </Button>
         </div>
       </Card>
+
+      {/* Print Component (hidden) */}
+      <div className="hidden">
+        <SaleOrderPrint
+          ref={printRef}
+          businessName={settings?.business_name || ''}
+          address={settings?.address || ''}
+          mobile={settings?.mobile_number || ''}
+          email={settings?.email_id || ''}
+          gstNumber={settings?.gst_number || ''}
+          logoUrl=""
+          orderNumber={orderNumber}
+          orderDate={orderDate}
+          expectedDeliveryDate={expectedDelivery}
+          status="pending"
+          customerName={selectedCustomer?.customer_name || 'Walk in Customer'}
+          customerAddress={selectedCustomer?.address}
+          customerMobile={selectedCustomer?.phone}
+          customerEmail={selectedCustomer?.email}
+          customerGSTIN={selectedCustomer?.gst_number}
+          items={printData?.items || []}
+          grossAmount={printData?.grossAmount || 0}
+          discountAmount={printData?.discountAmount || 0}
+          taxableAmount={printData?.taxableAmount || 0}
+          gstAmount={printData?.gstAmount || 0}
+          roundOff={0}
+          netAmount={printData?.netAmount || 0}
+          termsConditions={termsConditions}
+          notes={notes}
+          taxType={taxType}
+        />
+      </div>
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Plus, X, Search, Save, FileText } from "lucide-react";
+import { CalendarIcon, Plus, X, Search, Save, FileText, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -44,6 +44,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { useReactToPrint } from "react-to-print";
+import { QuotationPrint } from "@/components/QuotationPrint";
 
 interface LineItem {
   id: string;
@@ -105,6 +107,29 @@ export default function QuotationEntry() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
+  const [printData, setPrintData] = useState<any>(null);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  // Fetch settings for print
+  const { data: settings } = useQuery({
+    queryKey: ['settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      const { data, error } = await supabase
+        .from('settings')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Quotation_${quotationNumber}`,
+  });
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -414,11 +439,46 @@ export default function QuotationEntry() {
       if (itemsError) throw itemsError;
 
       toast({ title: "Success", description: `Quotation ${quotationNumber} saved` });
-      navigate('/quotation-dashboard');
+      return { success: true, quotationId };
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
+      return { success: false };
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveAndPrint = async () => {
+    const result = await handleSaveQuotation();
+    if (result.success) {
+      // Prepare print data
+      const printItems = filledItems.map((item, index) => ({
+        sr: index + 1,
+        particulars: item.productName,
+        size: item.size,
+        barcode: item.barcode,
+        hsn: '',
+        qty: item.quantity,
+        rate: item.salePrice,
+        mrp: item.mrp,
+        discountPercent: item.discountPercent,
+        total: item.lineTotal,
+      }));
+
+      setPrintData({
+        items: printItems,
+        grossAmount,
+        discountAmount: totalDiscount,
+        taxableAmount: grossAmount - totalDiscount,
+        gstAmount: totalGST,
+        roundOff: 0,
+        netAmount,
+      });
+
+      setTimeout(() => {
+        handlePrint();
+        navigate('/quotation-dashboard');
+      }, 100);
     }
   };
 
@@ -642,12 +702,47 @@ export default function QuotationEntry() {
 
         {/* Actions */}
         <div className="mt-6 flex gap-4">
-          <Button onClick={handleSaveQuotation} disabled={isSaving} className="flex-1">
+          <Button onClick={() => handleSaveQuotation().then(r => r.success && navigate('/quotation-dashboard'))} disabled={isSaving} className="flex-1">
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : 'Save Quotation'}
           </Button>
+          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="outline" className="flex-1">
+            <Printer className="mr-2 h-4 w-4" />
+            Save & Print
+          </Button>
         </div>
       </Card>
+
+      {/* Print Component (hidden) */}
+      <div className="hidden">
+        <QuotationPrint
+          ref={printRef}
+          businessName={settings?.business_name || ''}
+          address={settings?.address || ''}
+          mobile={settings?.mobile_number || ''}
+          email={settings?.email_id || ''}
+          gstNumber={settings?.gst_number || ''}
+          logoUrl=""
+          quotationNumber={quotationNumber}
+          quotationDate={quotationDate}
+          validUntil={validUntil}
+          customerName={selectedCustomer?.customer_name || 'Walk in Customer'}
+          customerAddress={selectedCustomer?.address}
+          customerMobile={selectedCustomer?.phone}
+          customerEmail={selectedCustomer?.email}
+          customerGSTIN={selectedCustomer?.gst_number}
+          items={printData?.items || []}
+          grossAmount={printData?.grossAmount || 0}
+          discountAmount={printData?.discountAmount || 0}
+          taxableAmount={printData?.taxableAmount || 0}
+          gstAmount={printData?.gstAmount || 0}
+          roundOff={0}
+          netAmount={printData?.netAmount || 0}
+          termsConditions={termsConditions}
+          notes={notes}
+          taxType={taxType}
+        />
+      </div>
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
