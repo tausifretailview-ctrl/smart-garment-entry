@@ -33,6 +33,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PurchaseHistoryItem {
   id: string;
@@ -747,129 +748,192 @@ const PriceHistoryReport = () => {
         </div>
       </div>
 
-      {/* Summary Cards - Clickable */}
+      {/* Summary Cards - Clickable with Tooltips */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-6 print:hidden">
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-blue-500/50"
-          onClick={() => setActiveTab("purchases")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-blue-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Purchases</p>
-                <p className="text-lg font-bold">{stats.totalPurchases}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-500/50"
-          onClick={() => setActiveTab("sales")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-green-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Sales</p>
-                <p className="text-lg font-bold">{stats.totalSales}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-orange-500/50"
-          onClick={() => setActiveTab("edits")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <Edit className="h-4 w-4 text-orange-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Price Edits</p>
-                <p className="text-lg font-bold">{stats.totalEdits}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-purple-500/50"
-          onClick={() => setActiveTab("movements")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <ArrowUpDown className="h-4 w-4 text-purple-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Movements</p>
-                <p className="text-lg font-bold">{stats.totalMovements}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-cyan-500/50"
-          onClick={() => setActiveTab("products")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-cyan-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Prod Changes</p>
-                <p className="text-lg font-bold">{stats.totalProductChanges}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-600/50"
-          onClick={() => {
-            setActiveTab("movements");
-            setMovementTypeFilter("purchase");
-          }}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              <div>
-                <p className="text-xs text-muted-foreground">Stock In</p>
-                <p className="text-lg font-bold text-green-600">+{stats.stockIn}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-red-500/50"
-          onClick={() => {
-            setActiveTab("movements");
-            setMovementTypeFilter("sale");
-          }}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Stock Out</p>
-                <p className="text-lg font-bold text-red-500">-{stats.stockOut}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card 
-          className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-amber-500/50"
-          onClick={() => {
-            setActiveTab("purchases");
-            setShowPriceChangesOnly(true);
-          }}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-amber-500" />
-              <div>
-                <p className="text-xs text-muted-foreground">Price Changed</p>
-                <p className="text-lg font-bold text-amber-600">{stats.productsWithPriceChange}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-blue-500/50"
+              onClick={() => setActiveTab("purchases")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Purchases</p>
+                    <p className="text-lg font-bold">{stats.totalPurchases}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View all purchase entries with prices and quantities</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-500/50"
+              onClick={() => setActiveTab("sales")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="h-4 w-4 text-green-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Sales</p>
+                    <p className="text-lg font-bold">{stats.totalSales}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View all sales transactions with customer details</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-orange-500/50"
+              onClick={() => setActiveTab("edits")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <Edit className="h-4 w-4 text-orange-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Price Edits</p>
+                    <p className="text-lg font-bold">{stats.totalEdits}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View price change history (old → new prices)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-purple-500/50"
+              onClick={() => setActiveTab("movements")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Movements</p>
+                    <p className="text-lg font-bold">{stats.totalMovements}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View all stock movements (purchases, sales, returns)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-cyan-500/50"
+              onClick={() => setActiveTab("products")}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-cyan-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Prod Changes</p>
+                    <p className="text-lg font-bold">{stats.totalProductChanges}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View product create/update/delete history</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-green-600/50"
+              onClick={() => {
+                setActiveTab("movements");
+                setMovementTypeFilter("purchase");
+              }}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Stock In</p>
+                    <p className="text-lg font-bold text-green-600">+{stats.stockIn}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View stock additions (purchases, returns received)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-red-500/50"
+              onClick={() => {
+                setActiveTab("movements");
+                setMovementTypeFilter("sale");
+              }}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Stock Out</p>
+                    <p className="text-lg font-bold text-red-500">-{stats.stockOut}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View stock deductions (sales, returns sent)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Card 
+              className="cursor-pointer hover:bg-muted/50 transition-colors border-2 hover:border-amber-500/50"
+              onClick={() => {
+                setActiveTab("purchases");
+                setShowPriceChangesOnly(true);
+              }}
+            >
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-amber-500" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Price Changed</p>
+                    <p className="text-lg font-bold text-amber-600">{stats.productsWithPriceChange}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>View products where purchase price changed over time</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {/* Filters */}
