@@ -15,6 +15,26 @@ interface Invoice {
   due_date?: string;
 }
 
+interface Quotation {
+  quotation_number: string;
+  customer_name: string;
+  customer_phone: string;
+  quotation_date: string;
+  net_amount: number;
+  valid_until?: string;
+  status: string;
+}
+
+interface SaleOrder {
+  order_number: string;
+  customer_name: string;
+  customer_phone: string;
+  order_date: string;
+  net_amount: number;
+  status: string;
+  expected_delivery_date?: string;
+}
+
 export const useWhatsAppTemplates = () => {
   const { currentOrganization } = useOrganization();
 
@@ -88,9 +108,80 @@ ${items || ""}
 Thank you for your business!`;
   };
 
+  const formatQuotationMessage = (quotation: Quotation, items?: string) => {
+    const template = getTemplate("quotation");
+    let message = template?.message_template || getDefaultQuotationMessage(quotation, items);
+
+    message = message
+      .replace(/{customer_name}/g, quotation.customer_name || "Customer")
+      .replace(/{quotation_number}/g, quotation.quotation_number)
+      .replace(/{quotation_date}/g, format(new Date(quotation.quotation_date), "dd MMM yyyy"))
+      .replace(/{amount}/g, `₹${Number(quotation.net_amount).toLocaleString("en-IN")}`)
+      .replace(/{valid_until}/g, quotation.valid_until ? format(new Date(quotation.valid_until), "dd MMM yyyy") : "Not specified")
+      .replace(/{status}/g, quotation.status)
+      .replace(/{quotation_items}/g, items || "");
+
+    return message;
+  };
+
+  const getDefaultQuotationMessage = (quotation: Quotation, items?: string) => {
+    return `Hello ${quotation.customer_name},
+
+Thank you for your interest! 📝
+
+Here is your quotation:
+📋 Quotation No: ${quotation.quotation_number}
+📅 Date: ${format(new Date(quotation.quotation_date), "dd MMM yyyy")}
+💰 Total Amount: ₹${Number(quotation.net_amount).toLocaleString("en-IN")}
+📅 Valid Until: ${quotation.valid_until ? format(new Date(quotation.valid_until), "dd MMM yyyy") : "Not specified"}
+
+${items || ""}
+
+Please let us know if you'd like to proceed with this order.
+
+Thank you!`;
+  };
+
+  const formatSaleOrderMessage = (order: SaleOrder, items?: string) => {
+    const template = getTemplate("sale_order");
+    let message = template?.message_template || getDefaultSaleOrderMessage(order, items);
+
+    message = message
+      .replace(/{customer_name}/g, order.customer_name || "Customer")
+      .replace(/{order_number}/g, order.order_number)
+      .replace(/{order_date}/g, format(new Date(order.order_date), "dd MMM yyyy"))
+      .replace(/{amount}/g, `₹${Number(order.net_amount).toLocaleString("en-IN")}`)
+      .replace(/{status}/g, order.status)
+      .replace(/{expected_delivery}/g, order.expected_delivery_date ? format(new Date(order.expected_delivery_date), "dd MMM yyyy") : "To be confirmed")
+      .replace(/{order_items}/g, items || "");
+
+    return message;
+  };
+
+  const getDefaultSaleOrderMessage = (order: SaleOrder, items?: string) => {
+    return `Hello ${order.customer_name},
+
+Your order has been confirmed! 🎉
+
+Order Details:
+📋 Order No: ${order.order_number}
+📅 Date: ${format(new Date(order.order_date), "dd MMM yyyy")}
+💰 Total Amount: ₹${Number(order.net_amount).toLocaleString("en-IN")}
+📦 Status: ${order.status}
+📅 Expected Delivery: ${order.expected_delivery_date ? format(new Date(order.expected_delivery_date), "dd MMM yyyy") : "To be confirmed"}
+
+${items || ""}
+
+We will update you once it's ready for delivery.
+
+Thank you for your order!`;
+  };
+
   return {
     templates,
     getTemplate,
     formatMessage,
+    formatQuotationMessage,
+    formatSaleOrderMessage,
   };
 };

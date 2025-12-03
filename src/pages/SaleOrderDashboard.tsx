@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle } from "lucide-react";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +74,7 @@ export default function SaleOrderDashboard() {
   const [conversionItems, setConversionItems] = useState<ConversionItem[]>([]);
   const [isConverting, setIsConverting] = useState(false);
   const [orderToPrint, setOrderToPrint] = useState<any>(null);
+  const { formatSaleOrderMessage } = useWhatsAppTemplates();
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -106,6 +108,38 @@ export default function SaleOrderDashboard() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  const handleWhatsAppShare = (order: any) => {
+    if (!order.customer_phone) {
+      toast({ title: "Error", description: "Customer phone number not available", variant: "destructive" });
+      return;
+    }
+
+    // Format items for message
+    const itemsText = order.sale_order_items?.map((item: any, index: number) => 
+      `${index + 1}. ${item.product_name} (${item.size}) x ${item.order_qty} = ₹${item.line_total?.toFixed(2)}`
+    ).join('\n') || '';
+
+    const message = formatSaleOrderMessage({
+      order_number: order.order_number,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+      order_date: order.order_date,
+      net_amount: order.net_amount,
+      status: order.status,
+      expected_delivery_date: order.expected_delivery_date,
+    }, itemsText);
+
+    // Copy message to clipboard
+    navigator.clipboard.writeText(message);
+
+    // Open WhatsApp
+    const phone = order.customer_phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    toast({ title: "WhatsApp", description: "Message copied to clipboard - paste with Ctrl+V if it doesn't auto-fill" });
+  };
 
   // Fetch current stock for conversion
   const fetchStockForConversion = async (order: any) => {
@@ -515,6 +549,9 @@ export default function SaleOrderDashboard() {
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(order)} title="WhatsApp">
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => setOrderToPrint(order)} title="Print">
                             <Printer className="h-4 w-4" />
                           </Button>

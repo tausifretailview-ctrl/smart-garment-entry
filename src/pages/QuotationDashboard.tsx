@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle } from "lucide-react";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +41,7 @@ export default function QuotationDashboard() {
   const [itemsPerPage] = useState(10);
   const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const { formatQuotationMessage } = useWhatsAppTemplates();
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -100,6 +102,38 @@ export default function QuotationDashboard() {
         quotationData: quotation 
       } 
     });
+  };
+
+  const handleWhatsAppShare = (quotation: any) => {
+    if (!quotation.customer_phone) {
+      toast({ title: "Error", description: "Customer phone number not available", variant: "destructive" });
+      return;
+    }
+
+    // Format items for message
+    const itemsText = quotation.quotation_items?.map((item: any, index: number) => 
+      `${index + 1}. ${item.product_name} (${item.size}) x ${item.quantity} = ₹${item.line_total?.toFixed(2)}`
+    ).join('\n') || '';
+
+    const message = formatQuotationMessage({
+      quotation_number: quotation.quotation_number,
+      customer_name: quotation.customer_name,
+      customer_phone: quotation.customer_phone,
+      quotation_date: quotation.quotation_date,
+      net_amount: quotation.net_amount,
+      valid_until: quotation.valid_until,
+      status: quotation.status,
+    }, itemsText);
+
+    // Copy message to clipboard
+    navigator.clipboard.writeText(message);
+
+    // Open WhatsApp
+    const phone = quotation.customer_phone.replace(/\D/g, '');
+    const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+
+    toast({ title: "WhatsApp", description: "Message copied to clipboard - paste with Ctrl+V if it doesn't auto-fill" });
   };
 
   const toggleExpanded = (id: string) => {
@@ -328,6 +362,9 @@ export default function QuotationDashboard() {
                     <TableCell>{getStatusBadge(quotation.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(quotation)} title="WhatsApp">
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => setQuotationToPrint(quotation)} title="Print">
                           <Printer className="h-4 w-4" />
                         </Button>
