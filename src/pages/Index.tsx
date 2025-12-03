@@ -391,7 +391,7 @@ const DashboardContent = () => {
             value={customersCount || 0}
             icon={Users}
             bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
-            onClick={() => navigate("/customer-master")}
+            onClick={() => navigate("/customers")}
             tooltip="Total registered customers. Click to manage customers."
           />
         </div>
@@ -409,7 +409,7 @@ const DashboardContent = () => {
             value={formatCurrency(purchaseData?.total || 0)}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
-            onClick={() => navigate("/purchase-bill-dashboard")}
+            onClick={() => navigate("/purchase-bills")}
             tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
           />
           <MetricCard
@@ -417,7 +417,7 @@ const DashboardContent = () => {
             value={purchaseData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
-            onClick={() => navigate("/purchase-bill-dashboard")}
+            onClick={() => navigate("/purchase-bills")}
             tooltip="Number of purchase bills recorded. Click to view all bills."
           />
           <MetricCard
@@ -433,7 +433,7 @@ const DashboardContent = () => {
             value={suppliersCount || 0}
             icon={Store}
             bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
-            onClick={() => navigate("/supplier-master")}
+            onClick={() => navigate("/suppliers")}
             tooltip="Total registered suppliers. Click to manage suppliers."
           />
         </div>
@@ -451,7 +451,7 @@ const DashboardContent = () => {
             value={productsCount || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
-            onClick={() => navigate("/product-dashboard")}
+            onClick={() => navigate("/products")}
             tooltip="Total unique products in inventory. Click to view Product Dashboard."
           />
           <MetricCard
