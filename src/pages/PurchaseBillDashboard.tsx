@@ -568,11 +568,23 @@ const PurchaseBillDashboard = () => {
   };
 
   const filteredBills = bills.filter((bill) => {
-    const matchesSearch =
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Check basic bill fields
+    const matchesBasicSearch =
       searchQuery === "" ||
-      bill.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bill.supplier_invoice_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      bill.software_bill_no?.toLowerCase().includes(searchQuery.toLowerCase());
+      bill.supplier_name.toLowerCase().includes(searchLower) ||
+      bill.supplier_invoice_no?.toLowerCase().includes(searchLower) ||
+      bill.software_bill_no?.toLowerCase().includes(searchLower);
+    
+    // Check barcode in bill items
+    const items = billItems[bill.id] || [];
+    const matchesBarcodeSearch = searchQuery !== "" && items.some(item => 
+      item.barcode?.toLowerCase().includes(searchLower) ||
+      item.product_name?.toLowerCase().includes(searchLower)
+    );
+    
+    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
     const billDate = new Date(bill.bill_date);
     const matchesStartDate = !startDate || billDate >= new Date(startDate);
@@ -777,7 +789,7 @@ const PurchaseBillDashboard = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by bill no, supplier, invoice..."
+                    placeholder="Search by bill no, supplier, barcode..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"

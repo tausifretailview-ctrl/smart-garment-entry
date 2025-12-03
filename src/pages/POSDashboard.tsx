@@ -760,9 +760,21 @@ const POSDashboard = () => {
   };
 
   const filteredSales = sales.filter((sale) => {
-    const matchesSearch =
-      sale.sale_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.customer_name.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Check basic sale fields
+    const matchesBasicSearch =
+      sale.sale_number.toLowerCase().includes(searchLower) ||
+      sale.customer_name.toLowerCase().includes(searchLower);
+    
+    // Check barcode in sale items
+    const items = saleItems[sale.id] || [];
+    const matchesBarcodeSearch = items.some(item => 
+      item.barcode?.toLowerCase().includes(searchLower) ||
+      item.product_name?.toLowerCase().includes(searchLower)
+    );
+    
+    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
     // Normalize dates to yyyy-MM-dd format for accurate comparison
     const saleDateStr = sale.sale_date.split('T')[0]; // Extract date part only
@@ -899,7 +911,7 @@ const POSDashboard = () => {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by sale number or customer..."
+                  placeholder="Search by sale number, customer, barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"

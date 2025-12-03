@@ -384,11 +384,22 @@ const ProductDashboard = () => {
     searchQuery !== "";
 
   const filteredRows = productRows.filter((row) => {
-    // Search filter
-    const matchesSearch = 
-      row.product_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      row.brand?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      row.category?.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Search filter - includes barcode search in variants
+    const matchesBasicSearch = 
+      row.product_name.toLowerCase().includes(searchLower) ||
+      row.brand?.toLowerCase().includes(searchLower) ||
+      row.category?.toLowerCase().includes(searchLower) ||
+      row.color?.toLowerCase().includes(searchLower) ||
+      row.style?.toLowerCase().includes(searchLower);
+    
+    // Check barcode in variants
+    const matchesBarcodeSearch = row.variants.some(variant => 
+      variant.barcode?.toLowerCase().includes(searchLower)
+    );
+    
+    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
     
     if (!matchesSearch) return false;
 
@@ -567,7 +578,7 @@ const ProductDashboard = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search List..."
+                    placeholder="Search by name, brand, barcode..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"
