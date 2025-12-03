@@ -56,6 +56,7 @@ export default function StockReport() {
   const [loading, setLoading] = useState(true);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState("all");
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -302,8 +303,22 @@ export default function StockReport() {
         <p className="text-muted-foreground">Monitor inventory levels and stock movements</p>
       </div>
 
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by product name, barcode, brand, color, size, bill number..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 h-11"
+        />
+      </div>
+
       <div className="grid gap-4 md:grid-cols-4 mb-6">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          onClick={() => setActiveTab("all")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Stock</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
@@ -314,18 +329,24 @@ export default function StockReport() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow hover:border-destructive"
+          onClick={() => setActiveTab("low")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{lowStockItems.length}</div>
+            <div className="text-2xl font-bold text-destructive">{lowStockItems.length}</div>
             <p className="text-xs text-muted-foreground">Below {lowStockThreshold} units</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          onClick={() => setActiveTab("batch")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Batches</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
@@ -336,7 +357,10 @@ export default function StockReport() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          onClick={() => setActiveTab("movements")}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Recent Movements</CardTitle>
             <History className="h-4 w-4 text-muted-foreground" />
@@ -349,16 +373,16 @@ export default function StockReport() {
       </div>
 
       {lowStockItems.length > 0 && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="cursor-pointer" onClick={() => setActiveTab("low")}>
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Low Stock Alert</AlertTitle>
           <AlertDescription>
-            {lowStockItems.length} product variant{lowStockItems.length > 1 ? 's' : ''} {lowStockItems.length > 1 ? 'are' : 'is'} running low on stock
+            {lowStockItems.length} product variant{lowStockItems.length > 1 ? 's' : ''} {lowStockItems.length > 1 ? 'are' : 'is'} running low on stock. Click to view details.
           </AlertDescription>
         </Alert>
       )}
 
-      <Tabs defaultValue="all" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList>
           <TabsTrigger value="all">All Stock</TabsTrigger>
           <TabsTrigger value="low">Low Stock</TabsTrigger>
