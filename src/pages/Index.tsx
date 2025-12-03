@@ -22,6 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
 
 const MetricCard = ({
@@ -30,40 +36,51 @@ const MetricCard = ({
   icon: Icon,
   bgColor,
   onClick,
+  tooltip,
 }: {
   title: string;
   value: string | number;
   icon: any;
   bgColor: string;
   onClick?: () => void;
+  tooltip?: string;
 }) => (
-  <div className="group relative animate-fade-in" onClick={onClick}>
-    <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
-    
-    <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
-      <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-display font-semibold tracking-wide group-hover:text-primary transition-colors duration-300">
-          {title}
-        </CardTitle>
-        <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
-          <div className="absolute inset-0 rounded-xl bg-primary/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <Icon className="h-5 w-5 text-primary relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
-        </div>
-      </CardHeader>
-      
-      <CardContent>
-        <div className="text-3xl font-display font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent group-hover:from-primary group-hover:to-secondary transition-all duration-500">
-          {value}
-        </div>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <div className="group relative animate-fade-in" onClick={onClick}>
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
         
-        <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary via-secondary to-accent rounded-full transition-all duration-500 shadow-glow" />
-      </CardContent>
-      
-      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-    </Card>
-  </div>
+        <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
+          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-display font-semibold tracking-wide group-hover:text-primary transition-colors duration-300">
+              {title}
+            </CardTitle>
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:from-primary/20 group-hover:to-secondary/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <div className="absolute inset-0 rounded-xl bg-primary/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <Icon className="h-5 w-5 text-primary relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
+            </div>
+          </CardHeader>
+          
+          <CardContent>
+            <div className="text-3xl font-display font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent group-hover:from-primary group-hover:to-secondary transition-all duration-500">
+              {value}
+            </div>
+            
+            <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary via-secondary to-accent rounded-full transition-all duration-500 shadow-glow" />
+          </CardContent>
+          
+          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        </Card>
+      </div>
+    </TooltipTrigger>
+    {tooltip && (
+      <TooltipContent side="bottom" className="max-w-[200px]">
+        <p className="text-sm">{tooltip}</p>
+      </TooltipContent>
+    )}
+  </Tooltip>
 );
 
 type DateRangeType = "monthly" | "quarterly" | "yearly";
@@ -309,6 +326,7 @@ const DashboardContent = () => {
   };
 
   return (
+    <TooltipProvider>
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
         <div>
@@ -350,6 +368,7 @@ const DashboardContent = () => {
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
             onClick={() => navigate("/sales-invoice-dashboard")}
+            tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
           />
           <MetricCard
             title="Total Invoices"
@@ -357,6 +376,7 @@ const DashboardContent = () => {
             icon={FileText}
             bgColor="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
             onClick={() => navigate("/sales-invoice-dashboard")}
+            tooltip="Number of sales invoices generated. Click to view all invoices."
           />
           <MetricCard
             title="Sold Qty"
@@ -364,6 +384,7 @@ const DashboardContent = () => {
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
             onClick={() => navigate("/stock-report")}
+            tooltip="Total quantity of items sold. Click to view Stock Report."
           />
           <MetricCard
             title="Total Customers"
@@ -371,6 +392,7 @@ const DashboardContent = () => {
             icon={Users}
             bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
             onClick={() => navigate("/customer-master")}
+            tooltip="Total registered customers. Click to manage customers."
           />
         </div>
       </div>
@@ -388,6 +410,7 @@ const DashboardContent = () => {
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
             onClick={() => navigate("/purchase-bill-dashboard")}
+            tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
           />
           <MetricCard
             title="Total Bills"
@@ -395,6 +418,7 @@ const DashboardContent = () => {
             icon={FileText}
             bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
             onClick={() => navigate("/purchase-bill-dashboard")}
+            tooltip="Number of purchase bills recorded. Click to view all bills."
           />
           <MetricCard
             title="Purchase Qty"
@@ -402,6 +426,7 @@ const DashboardContent = () => {
             icon={Package}
             bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900"
             onClick={() => navigate("/stock-report")}
+            tooltip="Total quantity of items purchased. Click to view Stock Report."
           />
           <MetricCard
             title="Total Suppliers"
@@ -409,6 +434,7 @@ const DashboardContent = () => {
             icon={Store}
             bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
             onClick={() => navigate("/supplier-master")}
+            tooltip="Total registered suppliers. Click to manage suppliers."
           />
         </div>
       </div>
@@ -426,6 +452,7 @@ const DashboardContent = () => {
             icon={Package}
             bgColor="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
             onClick={() => navigate("/product-dashboard")}
+            tooltip="Total unique products in inventory. Click to view Product Dashboard."
           />
           <MetricCard
             title="Stock Qty"
@@ -433,6 +460,7 @@ const DashboardContent = () => {
             icon={Package}
             bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
             onClick={() => navigate("/stock-report")}
+            tooltip="Total items in stock across all variants. Click to view Stock Report."
           />
           <MetricCard
             title="Stock Value"
@@ -440,6 +468,7 @@ const DashboardContent = () => {
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
             onClick={() => navigate("/stock-report")}
+            tooltip="Total value of current inventory at sale price. Click to view details."
           />
         </div>
       </div>
@@ -457,6 +486,7 @@ const DashboardContent = () => {
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
             onClick={() => navigate("/daily-cashier-report")}
+            tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
           />
           <MetricCard
             title="Profit Margin"
@@ -464,6 +494,7 @@ const DashboardContent = () => {
             icon={TrendingUp}
             bgColor="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
             onClick={() => navigate("/daily-cashier-report")}
+            tooltip="Percentage of profit relative to total sales. Click to view details."
           />
           <MetricCard
             title="Cash Collection"
@@ -471,6 +502,7 @@ const DashboardContent = () => {
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
             onClick={() => navigate("/payments-dashboard")}
+            tooltip="Total cash collected from sales. Click to view Payments Dashboard."
           />
         </div>
       </div>
@@ -478,6 +510,7 @@ const DashboardContent = () => {
       {/* Charts Section */}
       <StatsChartsSection />
     </div>
+    </TooltipProvider>
   );
 };
 
