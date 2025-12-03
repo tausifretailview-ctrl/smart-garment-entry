@@ -95,7 +95,7 @@ export default function ItemWiseSalesReport() {
       const saleIds = salesData.map((s) => s.id);
 
       // Then get sale items for those sales
-      const { data, error } = await supabase
+      const { data: saleItemsData, error: saleItemsError } = await supabase
         .from("sale_items")
         .select(`
           barcode,
@@ -105,17 +105,37 @@ export default function ItemWiseSalesReport() {
           unit_price,
           line_total,
           product_id,
-          sale_id,
-          products:product_id (
-            brand,
-            category,
-            color
-          )
+          sale_id
         `)
         .in("sale_id", saleIds);
 
-      if (error) throw error;
-      return data || [];
+      if (saleItemsError) throw saleItemsError;
+      if (!saleItemsData || saleItemsData.length === 0) return [];
+
+      // Get unique product IDs and fetch product details
+      const productIds = [...new Set(saleItemsData.map(item => item.product_id).filter(Boolean))];
+      
+      let productsMap: Record<string, { brand: string | null; category: string | null; color: string | null }> = {};
+      
+      if (productIds.length > 0) {
+        const { data: productsData } = await supabase
+          .from("products")
+          .select("id, brand, category, color")
+          .in("id", productIds);
+        
+        if (productsData) {
+          productsMap = productsData.reduce((acc, p) => {
+            acc[p.id] = { brand: p.brand, category: p.category, color: p.color };
+            return acc;
+          }, {} as Record<string, { brand: string | null; category: string | null; color: string | null }>);
+        }
+      }
+
+      // Merge product details into sale items
+      return saleItemsData.map(item => ({
+        ...item,
+        products: item.product_id ? productsMap[item.product_id] || null : null
+      }));
     },
     enabled: !!currentOrganization?.id,
   });
