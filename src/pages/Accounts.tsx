@@ -131,7 +131,49 @@ export default function Accounts() {
     enabled: !!referenceId && referenceType === "supplier",
   });
 
-  // Fetch customers
+  // Fetch customers with outstanding balance only (for payment receipt)
+  const { data: customersWithBalance } = useQuery({
+    queryKey: ["customers-with-balance", currentOrganization?.id],
+    queryFn: async () => {
+      // First get all customers
+      const { data: allCustomers, error: custError } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("organization_id", currentOrganization?.id)
+        .order("customer_name");
+      if (custError) throw custError;
+
+      // Get customers with pending/partial invoices
+      const { data: pendingInvoices, error: invError } = await supabase
+        .from("sales")
+        .select("customer_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization?.id)
+        .in("payment_status", ["pending", "partial"]);
+      if (invError) throw invError;
+
+      // Calculate balance per customer
+      const customerBalances = new Map<string, number>();
+      pendingInvoices?.forEach((inv) => {
+        if (inv.customer_id) {
+          const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
+          customerBalances.set(
+            inv.customer_id,
+            (customerBalances.get(inv.customer_id) || 0) + balance
+          );
+        }
+      });
+
+      // Filter customers with balance > 0
+      return allCustomers?.filter((c) => customerBalances.has(c.id) && customerBalances.get(c.id)! > 0)
+        .map((c) => ({
+          ...c,
+          outstandingBalance: customerBalances.get(c.id) || 0,
+        })) || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch all customers (for other purposes like ledger)
   const { data: customers } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
@@ -683,9 +725,14 @@ export default function Accounts() {
                           <SelectValue placeholder="Select customer" />
                         </SelectTrigger>
                         <SelectContent>
-                          {customers?.map((customer) => (
+                          {customersWithBalance?.length === 0 && (
+                            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                              No customers with outstanding balance
+                            </div>
+                          )}
+                          {customersWithBalance?.map((customer) => (
                             <SelectItem key={customer.id} value={customer.id}>
-                              {customer.customer_name}
+                              {customer.customer_name} - ₹{customer.outstandingBalance.toFixed(2)}
                             </SelectItem>
                           ))}
                         </SelectContent>
