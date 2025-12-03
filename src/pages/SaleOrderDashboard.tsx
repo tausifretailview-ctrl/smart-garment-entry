@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +77,8 @@ export default function SaleOrderDashboard() {
   const [isConverting, setIsConverting] = useState(false);
   const [orderToPrint, setOrderToPrint] = useState<any>(null);
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -326,6 +330,17 @@ export default function SaleOrderDashboard() {
   const filteredOrders = (ordersData || []).filter((o: any) => {
     // Apply status filter
     if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+    // Apply date range filter
+    if (fromDate) {
+      const oDate = new Date(o.order_date);
+      if (oDate < fromDate) return false;
+    }
+    if (toDate) {
+      const oDate = new Date(o.order_date);
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (oDate > endOfDay) return false;
+    }
     // Apply search filter
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
@@ -479,8 +494,8 @@ export default function SaleOrderDashboard() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by order no, customer..."
@@ -489,6 +504,33 @@ export default function SaleOrderDashboard() {
               className="pl-10"
             />
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {fromDate ? format(fromDate, "dd/MM/yy") : "From Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {toDate ? format(toDate, "dd/MM/yy") : "To Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          {(fromDate || toDate) && (
+            <Button variant="ghost" size="sm" onClick={() => { setFromDate(undefined); setToDate(undefined); }}>
+              Clear Dates
+            </Button>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />

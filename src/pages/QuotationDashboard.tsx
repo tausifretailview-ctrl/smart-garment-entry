@@ -9,13 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from "react-to-print";
 import { QuotationPrint } from "@/components/QuotationPrint";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +45,8 @@ export default function QuotationDashboard() {
   const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const { formatQuotationMessage } = useWhatsAppTemplates();
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -149,6 +154,17 @@ export default function QuotationDashboard() {
   const filteredQuotations = (quotationsData || []).filter((q: any) => {
     // Apply status filter
     if (statusFilter !== 'all' && q.status !== statusFilter) return false;
+    // Apply date range filter
+    if (fromDate) {
+      const qDate = new Date(q.quotation_date);
+      if (qDate < fromDate) return false;
+    }
+    if (toDate) {
+      const qDate = new Date(q.quotation_date);
+      const endOfDay = new Date(toDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (qDate > endOfDay) return false;
+    }
     // Apply search filter
     if (!searchQuery) return true;
     const searchLower = searchQuery.toLowerCase();
@@ -298,8 +314,8 @@ export default function QuotationDashboard() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-4 mb-6">
+          <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by quotation no, customer..."
@@ -308,6 +324,33 @@ export default function QuotationDashboard() {
               className="pl-10"
             />
           </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !fromDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {fromDate ? format(fromDate, "dd/MM/yy") : "From Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-[140px] justify-start text-left font-normal", !toDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {toDate ? format(toDate, "dd/MM/yy") : "To Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus className="pointer-events-auto" />
+            </PopoverContent>
+          </Popover>
+          {(fromDate || toDate) && (
+            <Button variant="ghost" size="sm" onClick={() => { setFromDate(undefined); setToDate(undefined); }}>
+              Clear Dates
+            </Button>
+          )}
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Status" />
