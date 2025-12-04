@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice } from "@/utils/purchaseCodeEncoder";
@@ -1634,21 +1634,35 @@ export default function BarcodePrinting() {
 
   const handleEditPreset = () => {
     if (!selectedPreset) {
-      toast.error("Please select a preset to edit");
+      toast.error("Please select a preset to rename");
       return;
     }
 
-    const preset = savedPresets.find(p => p.name === selectedPreset);
-    if (preset) {
-      setCustomWidth(preset.width);
-      setCustomHeight(preset.height);
-      setCustomCols(preset.cols);
-      setCustomRows(preset.rows);
-      setCustomGap(preset.gap);
-      setPrintScale(preset.scale || 100);
-      setNewPresetName(preset.name);
-      setIsEditingPreset(true);
-      setIsSaveDialogOpen(true);
+    // Use current form values, just set the name for renaming
+    setNewPresetName(selectedPreset);
+    setIsEditingPreset(true);
+    setIsSaveDialogOpen(true);
+  };
+
+  const handleQuickUpdatePreset = async () => {
+    if (!selectedPreset) {
+      toast.error("Please select a preset to update");
+      return;
+    }
+
+    const updatedPreset: CustomPreset = {
+      name: selectedPreset,
+      width: customWidth,
+      height: customHeight,
+      cols: customCols,
+      rows: customRows,
+      gap: customGap,
+      scale: printScale,
+    };
+
+    const success = await saveCustomToDb(updatedPreset);
+    if (success) {
+      toast.success(`Preset "${selectedPreset}" updated`);
     }
   };
 
@@ -3023,13 +3037,23 @@ export default function BarcodePrinting() {
                     <>
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        onClick={handleEditPreset}
-                        title="Edit this preset"
+                        variant="default"
+                        onClick={handleQuickUpdatePreset}
+                        title="Update preset with current values"
                         className="gap-2"
                       >
                         <Save className="h-4 w-4" />
-                        Edit
+                        Update
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={handleEditPreset}
+                        title="Rename this preset"
+                        className="gap-2"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Rename
                       </Button>
                       <Button 
                         size="sm" 
