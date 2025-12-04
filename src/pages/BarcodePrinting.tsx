@@ -2477,12 +2477,12 @@ export default function BarcodePrinting() {
         gap: baseDimensions.gap * scaleFactor
       };
       
-      // Calculate how many rows fit on one page
+      // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
       const availableHeight = 297 - topOffset - bottomOffset - 10; // A4 height with margins
-      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
-      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+      const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
+      const labelsPerPage = baseDimensions.cols * Math.max(1, rowsPerPage);
       
-      // Calculate number of pages needed (only create pages with actual labels)
+      // Calculate number of pages needed based on actual labels only
       const numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
       
       // Don't create PDF if no labels
@@ -2518,12 +2518,26 @@ export default function BarcodePrinting() {
 
       // Process each page
       for (let page = 0; page < numPages; page++) {
+        // Calculate labels for this page
+        const startIdx = page * labelsPerPage;
+        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
+        
+        // Skip if no labels for this page
+        if (startIdx >= allLabels.length) {
+          continue;
+        }
+
         if (page > 0) {
           pdf.addPage();
         }
 
         // Clear temp container
         tempContainer.innerHTML = "";
+
+        // Calculate actual rows on this page for height calculation
+        const labelsOnThisPage = endIdx - startIdx;
+        const rowsOnThisPage = Math.ceil(labelsOnThisPage / dimensions.cols);
+        const actualContentHeight = topOffset + (rowsOnThisPage * (dimensions.height + dimensions.gap)) + bottomOffset + 5;
 
         // Create grid for this page
         const gridDiv = document.createElement("div");
@@ -2538,11 +2552,9 @@ export default function BarcodePrinting() {
           padding-bottom: ${bottomOffset}mm;
           padding-right: ${rightOffset}mm;
           width: 210mm;
+          height: ${Math.min(actualContentHeight, 297)}mm;
+          overflow: hidden;
         `;
-
-        // Add labels for this page
-        const startIdx = page * labelsPerPage;
-        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
         
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
@@ -2601,17 +2613,18 @@ export default function BarcodePrinting() {
         // Wait a bit for barcodes to render
         await new Promise(resolve => setTimeout(resolve, 200));
 
-        // Capture this page with high quality
+        // Capture this page with high quality - only capture actual content height
+        const captureHeight = Math.min(actualContentHeight, 297);
         const canvas = await html2canvas(tempContainer, {
           scale: 3, // Higher scale for better quality
           backgroundColor: "#ffffff",
           logging: false,
           width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
-          height: 297 * 3.78,
+          height: captureHeight * 3.78,
         });
 
         const imgData = canvas.toDataURL("image/png");
-        pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
+        pdf.addImage(imgData, "PNG", 0, 0, 210, captureHeight);
       }
 
       // Clean up
