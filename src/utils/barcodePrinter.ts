@@ -68,21 +68,29 @@ const getLabelHTML = (
 ): string => {
   const barcode = item.barcode;
   
-  // Use default config if not provided
-  const config = labelConfig || {
-    brand: { show: false, fontSize: 8, bold: true },
-    productName: { show: true, fontSize: 11, bold: true },
-    color: { show: true, fontSize: 10, bold: true },
-    style: { show: true, fontSize: 10, bold: true },
-    size: { show: true, fontSize: 10, bold: true },
-    price: { show: true, fontSize: 11, bold: true },
-    barcode: { show: true, fontSize: 8, bold: false },
-    barcodeText: { show: true, fontSize: 9, bold: true },
-    billNumber: { show: false, fontSize: 7, bold: false },
-    supplierCode: { show: true, fontSize: 7, bold: false },
-    purchaseCode: { show: false, fontSize: 7, bold: false },
+  // Use default config if not provided, with fallbacks for missing fields
+  const defaultConfig = {
+    brand: { show: false, fontSize: 8, bold: true, textAlign: 'center' as const },
+    productName: { show: true, fontSize: 11, bold: true, textAlign: 'center' as const },
+    color: { show: true, fontSize: 10, bold: true, textAlign: 'center' as const },
+    style: { show: true, fontSize: 10, bold: true, textAlign: 'center' as const },
+    size: { show: true, fontSize: 10, bold: true, textAlign: 'center' as const },
+    price: { show: true, fontSize: 11, bold: true, textAlign: 'center' as const },
+    barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' as const },
+    barcodeText: { show: true, fontSize: 9, bold: true, textAlign: 'center' as const },
+    billNumber: { show: false, fontSize: 7, bold: false, textAlign: 'center' as const },
+    supplierCode: { show: true, fontSize: 7, bold: false, textAlign: 'center' as const },
+    purchaseCode: { show: true, fontSize: 7, bold: false, textAlign: 'center' as const },
     fieldOrder: []
   };
+  
+  // Merge with defaults to handle old templates missing purchaseCode config
+  const config = labelConfig ? {
+    ...defaultConfig,
+    ...labelConfig,
+    purchaseCode: labelConfig.purchaseCode || defaultConfig.purchaseCode,
+    supplierCode: labelConfig.supplierCode || defaultConfig.supplierCode,
+  } : defaultConfig;
   
   let html = '';
   
