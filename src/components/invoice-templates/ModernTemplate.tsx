@@ -21,6 +21,7 @@ interface ModernTemplateProps {
     size: string;
     qty: number;
     rate: number;
+    mrp?: number;
     discPercent?: number;
     total: number;
   }>;
@@ -28,6 +29,8 @@ interface ModernTemplateProps {
   discount: number;
   totalTax: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   termsConditions?: string[];
   productDetailsSettings?: {
@@ -54,6 +57,8 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   discount,
   totalTax,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   termsConditions,
   productDetailsSettings,
@@ -130,6 +135,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
               <th style={{ padding: '12px', textAlign: 'left' }}>DESCRIPTION</th>
               <th style={{ padding: '12px', textAlign: 'center' }}>SIZE</th>
               <th style={{ padding: '12px', textAlign: 'right' }}>QTY</th>
+              {showMRP && <th style={{ padding: '12px', textAlign: 'right' }}>MRP</th>}
               <th style={{ padding: '12px', textAlign: 'right' }}>RATE</th>
               <th style={{ padding: '12px', textAlign: 'right', borderRadius: '0 8px 0 0' }}>AMOUNT</th>
             </tr>
@@ -151,6 +157,15 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
                   </td>
                   <td style={{ padding: '12px', textAlign: 'center' }}>{item.size}</td>
                   <td style={{ padding: '12px', textAlign: 'right' }}>{item.qty}</td>
+                  {showMRP && (
+                    <td style={{ padding: '12px', textAlign: 'right' }}>
+                      {item.mrp && item.mrp > item.rate ? (
+                        <span style={{ textDecoration: 'line-through', color: '#999' }}>₹{item.mrp.toFixed(2)}</span>
+                      ) : (
+                        <span>₹{(item.mrp || item.rate).toFixed(2)}</span>
+                      )}
+                    </td>
+                  )}
                   <td style={{ padding: '12px', textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
                   <td style={{ padding: '12px', textAlign: 'right', fontWeight: '500' }}>₹{item.total.toFixed(2)}</td>
                 </tr>
@@ -188,6 +203,20 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
               <span>TOTAL:</span>
               <span>₹{grandTotal.toFixed(2)}</span>
             </div>
+            {totalSavings > 0 && (
+              <div style={{ 
+                padding: '12px', 
+                backgroundColor: '#d4edda', 
+                color: '#155724', 
+                display: 'flex', 
+                justifyContent: 'space-between',
+                fontWeight: 'bold',
+                borderRadius: '0 0 8px 8px'
+              }}>
+                <span>You Saved:</span>
+                <span>₹{totalSavings.toFixed(2)}</span>
+              </div>
+            )}
           </div>
         </div>
 

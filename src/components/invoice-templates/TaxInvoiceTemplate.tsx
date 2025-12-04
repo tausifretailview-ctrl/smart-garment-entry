@@ -9,6 +9,7 @@ interface InvoiceItem {
   sp: number;
   qty: number;
   rate: number;
+  mrp?: number;
   total: number;
   brand?: string;
   category?: string;
@@ -40,6 +41,8 @@ interface TaxInvoiceTemplateProps {
   totalTax: number;
   roundOff: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   declarationText?: string;
   termsConditions?: string[];
@@ -81,6 +84,8 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   totalTax,
   roundOff,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   declarationText,
   termsConditions,
@@ -181,6 +186,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
             <th style={{ textAlign: 'left', padding: '4px', border: '1px solid #000' }}>Description</th>
             <th style={{ textAlign: 'center', padding: '4px', border: '1px solid #000', width: '40px' }}>HSN</th>
             <th style={{ textAlign: 'center', padding: '4px', border: '1px solid #000', width: '30px' }}>Qty</th>
+            {showMRP && <th style={{ textAlign: 'right', padding: '4px', border: '1px solid #000', width: '45px' }}>MRP</th>}
             <th style={{ textAlign: 'right', padding: '4px', border: '1px solid #000', width: '50px' }}>Rate</th>
             <th style={{ textAlign: 'right', padding: '4px', border: '1px solid #000', width: '60px' }}>Amount</th>
           </tr>
@@ -194,6 +200,15 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
               </td>
               <td style={{ textAlign: 'center', padding: '4px', border: '1px solid #000' }}>{item.hsn}</td>
               <td style={{ textAlign: 'center', padding: '4px', border: '1px solid #000' }}>{item.qty}</td>
+              {showMRP && (
+                <td style={{ textAlign: 'right', padding: '4px', border: '1px solid #000' }}>
+                  {item.mrp && item.mrp > item.rate ? (
+                    <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(item.mrp)}</span>
+                  ) : (
+                    <span>{formatCurrency(item.mrp || item.rate)}</span>
+                  )}
+                </td>
+              )}
               <td style={{ textAlign: 'right', padding: '4px', border: '1px solid #000' }}>{formatCurrency(item.rate)}</td>
               <td style={{ textAlign: 'right', padding: '4px', border: '1px solid #000', fontWeight: 'bold' }}>{formatCurrency(item.total)}</td>
             </tr>
@@ -274,6 +289,12 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
             <span>GRAND TOTAL:</span>
             <span>{formatCurrency(grandTotal)}</span>
           </div>
+          {totalSavings > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', color: '#155724', fontWeight: 'bold', fontSize: '9px' }}>
+              <span>You Saved:</span>
+              <span>{formatCurrency(totalSavings)}</span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -1227,6 +1227,7 @@ Thank you for choosing us!`;
                       <TableHead>Product</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead className="w-[100px]">Qty</TableHead>
+                      <TableHead className="w-[100px]">MRP</TableHead>
                       <TableHead className="w-[120px]">Price</TableHead>
                       <TableHead className="w-[100px]">Disc%</TableHead>
                       <TableHead className="w-[120px]">Disc Amt</TableHead>
@@ -1253,6 +1254,15 @@ Thank you for choosing us!`;
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          {item.productId ? (
+                            item.mrp > item.salePrice ? (
+                              <span className="line-through text-muted-foreground">₹{item.mrp.toFixed(2)}</span>
+                            ) : (
+                              <span>₹{item.mrp.toFixed(2)}</span>
+                            )
+                          ) : '-'}
                         </TableCell>
                         <TableCell>{item.productId ? `₹${item.salePrice.toFixed(2)}` : '-'}</TableCell>
                         <TableCell>

@@ -21,6 +21,7 @@ interface MinimalTemplateProps {
     size: string;
     qty: number;
     rate: number;
+    mrp?: number;
     discPercent?: number;
     total: number;
   }>;
@@ -28,6 +29,8 @@ interface MinimalTemplateProps {
   discount: number;
   totalTax: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   termsConditions?: string[];
   productDetailsSettings?: {
@@ -54,6 +57,8 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   discount,
   totalTax,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   termsConditions,
   productDetailsSettings,
@@ -118,6 +123,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
           <tr style={{ borderTop: '2px solid #000', borderBottom: '2px solid #000' }}>
             <th style={{ padding: '10px 0', textAlign: 'left', fontWeight: 'normal' }}>Description</th>
             <th style={{ padding: '10px 0', textAlign: 'center', width: '60px', fontWeight: 'normal' }}>Qty</th>
+            {showMRP && <th style={{ padding: '10px 0', textAlign: 'right', width: '70px', fontWeight: 'normal' }}>MRP</th>}
             <th style={{ padding: '10px 0', textAlign: 'right', width: '80px', fontWeight: 'normal' }}>Rate</th>
             <th style={{ padding: '10px 0', textAlign: 'right', width: '100px', fontWeight: 'normal' }}>Amount</th>
           </tr>
@@ -134,6 +140,15 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
                   )}
                 </td>
                 <td style={{ padding: '10px 0', textAlign: 'center' }}>{item.qty}</td>
+                {showMRP && (
+                  <td style={{ padding: '10px 0', textAlign: 'right' }}>
+                    {item.mrp && item.mrp > item.rate ? (
+                      <span style={{ textDecoration: 'line-through', color: '#999' }}>₹{item.mrp.toFixed(2)}</span>
+                    ) : (
+                      <span>₹{(item.mrp || item.rate).toFixed(2)}</span>
+                    )}
+                  </td>
+                )}
                 <td style={{ padding: '10px 0', textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
                 <td style={{ padding: '10px 0', textAlign: 'right' }}>₹{item.total.toFixed(2)}</td>
               </tr>
@@ -171,6 +186,18 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
             <span>Total</span>
             <span>₹{grandTotal.toFixed(2)}</span>
           </div>
+          {totalSavings > 0 && (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              padding: '6px 0', 
+              color: '#155724',
+              fontWeight: 'bold'
+            }}>
+              <span>You Saved</span>
+              <span>₹{totalSavings.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </div>
 
