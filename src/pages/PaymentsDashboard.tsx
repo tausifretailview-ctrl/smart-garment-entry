@@ -233,7 +233,7 @@ export default function PaymentsDashboard() {
       due_date: invoice.due_date,
     });
 
-    sendWhatsApp(invoice.customer_phone, reminderMessage, false);
+    sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
 
   const openPaymentDialog = (invoice: Invoice) => {
