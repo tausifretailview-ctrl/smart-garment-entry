@@ -566,6 +566,10 @@ const PriceHistoryReport = () => {
       .filter(m => m.quantity < 0)
       .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
 
+    // Total quantities
+    const totalPurchaseQty = filteredPurchaseData.reduce((sum, d) => sum + (d.qty || 0), 0);
+    const totalSalesQty = filteredSalesData.reduce((sum, d) => sum + (d.quantity || 0), 0);
+
     return { 
       uniqueProducts, 
       productsWithPriceChange, 
@@ -576,6 +580,8 @@ const PriceHistoryReport = () => {
       totalProductChanges: filteredProductChanges.length,
       stockIn,
       stockOut,
+      totalPurchaseQty,
+      totalSalesQty,
     };
   }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
@@ -762,6 +768,7 @@ const PriceHistoryReport = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Purchases</p>
                     <p className="text-lg font-bold">{stats.totalPurchases}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {stats.totalPurchaseQty}</p>
                   </div>
                 </div>
               </CardContent>
@@ -784,6 +791,7 @@ const PriceHistoryReport = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Sales</p>
                     <p className="text-lg font-bold">{stats.totalSales}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {stats.totalSalesQty}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1214,6 +1222,13 @@ const PriceHistoryReport = () => {
                         );
                       })
                     )}
+                    {filteredPurchaseData.length > 0 && (
+                      <TableRow className="bg-muted/50 font-bold border-t-2">
+                        <TableCell colSpan={6} className="text-right">Total:</TableCell>
+                        <TableCell className="text-right">{stats.totalPurchaseQty}</TableCell>
+                        <TableCell colSpan={4}></TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -1273,6 +1288,13 @@ const PriceHistoryReport = () => {
                           <TableCell className="text-right font-medium">₹{item.line_total}</TableCell>
                         </TableRow>
                       ))
+                    )}
+                    {filteredSalesData.length > 0 && (
+                      <TableRow className="bg-muted/50 font-bold border-t-2">
+                        <TableCell colSpan={6} className="text-right">Total:</TableCell>
+                        <TableCell className="text-right">{stats.totalSalesQty}</TableCell>
+                        <TableCell colSpan={4}></TableCell>
+                      </TableRow>
                     )}
                   </TableBody>
                 </Table>
@@ -1395,6 +1417,17 @@ const PriceHistoryReport = () => {
                           </TableCell>
                         </TableRow>
                       ))
+                    )}
+                    {filteredStockMovements.length > 0 && (
+                      <TableRow className="bg-muted/50 font-bold border-t-2">
+                        <TableCell colSpan={6} className="text-right">Total:</TableCell>
+                        <TableCell className="text-right">
+                          <span className="text-green-600">+{stats.stockIn}</span>
+                          {" / "}
+                          <span className="text-red-600">-{stats.stockOut}</span>
+                        </TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
                     )}
                   </TableBody>
                 </Table>
