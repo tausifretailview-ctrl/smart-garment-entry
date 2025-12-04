@@ -337,7 +337,7 @@ export default function POSSales() {
     refetchInterval: 30000, // Auto-refetch every 30 seconds
   });
 
-  // Fetch all products with variants and batch stock (only with available stock)
+  // Fetch all products with variants and batch stock (only with available stock for goods, all for service/combo)
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
@@ -360,14 +360,25 @@ export default function POSSales() {
       
       if (productsError) throw productsError;
       
-      // Filter out products with no variants or all variants with stock_qty <= 0
+      // Filter products: service/combo always shown, goods only with available stock
       return products?.filter((product: any) => {
+        // Service and combo products are always available (no stock tracking)
+        if (product.product_type === 'service' || product.product_type === 'combo') {
+          return product.product_variants?.length > 0;
+        }
+        // Goods products require available stock
         const hasAvailableStock = product.product_variants?.some((v: any) => v.stock_qty > 0);
         return hasAvailableStock;
-      }).map((product: any) => ({
-        ...product,
-        product_variants: product.product_variants?.filter((v: any) => v.stock_qty > 0)
-      })) || [];
+      }).map((product: any) => {
+        // Service/combo: keep all variants, goods: filter by stock
+        if (product.product_type === 'service' || product.product_type === 'combo') {
+          return product;
+        }
+        return {
+          ...product,
+          product_variants: product.product_variants?.filter((v: any) => v.stock_qty > 0)
+        };
+      }) || [];
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000, // Cache for 30 seconds
