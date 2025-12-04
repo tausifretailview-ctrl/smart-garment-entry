@@ -632,8 +632,15 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="w-auto">
-            <TabsTrigger value="company">Profile</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+            <TabsTrigger value="company">Company</TabsTrigger>
+            <TabsTrigger value="branding">Branding</TabsTrigger>
+            <TabsTrigger value="product">Product</TabsTrigger>
+            <TabsTrigger value="purchase">Purchase</TabsTrigger>
+            <TabsTrigger value="sale">Sale</TabsTrigger>
+            <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="users">User Rights</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
