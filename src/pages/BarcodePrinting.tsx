@@ -1021,7 +1021,15 @@ export default function BarcodePrinting() {
         setCustomWidth(defaultFormat.customDimensions.width);
         setCustomHeight(defaultFormat.customDimensions.height);
         setCustomCols(defaultFormat.customDimensions.cols);
+        setCustomRows(defaultFormat.customDimensions.rows || 10);
         setCustomGap(defaultFormat.customDimensions.gap);
+        if (defaultFormat.customDimensions.scale) {
+          setPrintScale(defaultFormat.customDimensions.scale);
+        }
+      }
+      // Load custom preset name if saved
+      if (defaultFormat.customPresetName && defaultFormat.sheetType === "custom") {
+        setSelectedPreset(defaultFormat.customPresetName);
       }
     }
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]);
@@ -2061,11 +2069,14 @@ export default function BarcodePrinting() {
       bottomOffset,
       rightOffset,
       printScale,
+      customPresetName: sheetType === "custom" && selectedPreset ? selectedPreset : undefined,
       customDimensions: sheetType === "custom" ? {
         width: customWidth,
         height: customHeight,
         cols: customCols,
+        rows: customRows,
         gap: customGap,
+        scale: printScale,
       } : undefined,
     };
 
