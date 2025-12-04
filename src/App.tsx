@@ -221,7 +221,9 @@ const App = () => {
               path="/pos-sales"
               element={
                 <ProtectedRoute>
-                  <POSSales />
+                  <FullScreenLayout>
+                    <POSSales />
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -444,7 +446,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Accounts />
+                    <Layout>
+                      <Accounts />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -453,7 +457,9 @@ const App = () => {
               path="/delivery-dashboard"
               element={
                 <ProtectedRoute>
-                  <DeliveryDashboard />
+                  <Layout>
+                    <DeliveryDashboard />
+                  </Layout>
                 </ProtectedRoute>
               }
             />
@@ -462,7 +468,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <PaymentsDashboard />
+                    <Layout>
+                      <PaymentsDashboard />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -472,7 +480,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin"]}>
-                    <UserRights />
+                    <Layout>
+                      <UserRights />
+                    </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
