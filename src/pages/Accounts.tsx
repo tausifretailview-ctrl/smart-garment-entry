@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { Layout } from "@/components/Layout";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -558,8 +557,7 @@ export default function Accounts() {
   };
 
   return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
         <BackToDashboard />
 
         <div className="flex items-center justify-between">
@@ -1662,6 +1660,5 @@ export default function Accounts() {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
   );
 }
