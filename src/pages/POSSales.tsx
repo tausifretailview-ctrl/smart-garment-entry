@@ -1358,7 +1358,7 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2">
+      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-24 z-20">
         <Button
           onClick={handleNewInvoice}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs"
