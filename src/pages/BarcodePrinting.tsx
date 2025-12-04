@@ -83,6 +83,7 @@ interface CustomPreset {
   cols: number;
   rows: number;
   gap: number;
+  scale?: number;
 }
 
 interface LabelFieldConfig {
@@ -1614,6 +1615,7 @@ export default function BarcodePrinting() {
       cols: customCols,
       rows: customRows,
       gap: customGap,
+      scale: printScale,
     };
 
     const success = await saveCustomToDb(newPreset);
@@ -1643,6 +1645,7 @@ export default function BarcodePrinting() {
       setCustomCols(preset.cols);
       setCustomRows(preset.rows);
       setCustomGap(preset.gap);
+      setPrintScale(preset.scale || 100);
       setNewPresetName(preset.name);
       setIsEditingPreset(true);
       setIsSaveDialogOpen(true);
@@ -1657,6 +1660,7 @@ export default function BarcodePrinting() {
       setCustomCols(preset.cols);
       setCustomRows(preset.rows);
       setCustomGap(preset.gap);
+      setPrintScale(preset.scale || 100);
       setSelectedPreset(presetName);
       toast.success(`Loaded preset "${presetName}"`);
     }
@@ -1700,6 +1704,12 @@ export default function BarcodePrinting() {
       a4_12x4: 12,
     };
     setCustomRows(rowsMap[sheetType] || 12);
+    
+    // Set scale based on preset type
+    const scaleMap: Record<string, number> = {
+      novajet40: 150,
+    };
+    setPrintScale(scaleMap[sheetType] || 100);
     
     setSheetType("custom");
     toast.success("Preset copied to custom. You can now edit and save it.");
@@ -2935,6 +2945,19 @@ export default function BarcodePrinting() {
                     placeholder="e.g., 2"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="printScaleCustom">Print Scale (%)</Label>
+                  <Input
+                    id="printScaleCustom"
+                    type="number"
+                    min="50"
+                    max="200"
+                    value={printScale}
+                    onChange={(e) => setPrintScale(Math.max(50, Math.min(200, parseInt(e.target.value) || 100)))}
+                    placeholder="e.g., 100"
+                  />
+                  <p className="text-xs text-muted-foreground">100% = normal, 150% = larger</p>
+                </div>
               </div>
               
               {/* Preset Management */}
@@ -2977,6 +3000,7 @@ export default function BarcodePrinting() {
                              <li>Columns: {customCols}</li>
                              <li>Rows: {customRows}</li>
                              <li>Gap: {customGap}mm</li>
+                             <li>Print Scale: {printScale}%</li>
                              <li>Total labels per sheet: {customCols * customRows}</li>
                            </ul>
                          </div>

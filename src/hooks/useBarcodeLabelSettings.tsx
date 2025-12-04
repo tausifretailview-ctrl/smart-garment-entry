@@ -49,6 +49,7 @@ interface CustomPreset {
   cols: number;
   rows: number;
   gap: number;
+  scale?: number;
 }
 
 interface DefaultFormat {
