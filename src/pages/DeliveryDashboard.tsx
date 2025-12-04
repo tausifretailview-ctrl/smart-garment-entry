@@ -282,12 +282,19 @@ const DeliveryDashboard = () => {
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://wa.me/${phone}?text=${encodedMessage}`;
     
-    // Copy to clipboard as fallback
+    // Copy to clipboard as fallback with improved UX
+    const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
+    const shortcut = isMac ? "Cmd+V" : "Ctrl+V";
+    
     navigator.clipboard.writeText(message).then(() => {
-      toast.success("Message copied to clipboard! Opening WhatsApp...");
+      toast.success(`✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill`, { duration: 5000 });
+    }).catch(() => {
+      toast.warning("Couldn't copy to clipboard automatically");
     });
     
-    window.location.href = whatsappUrl;
+    setTimeout(() => {
+      window.location.href = whatsappUrl;
+    }, 300);
   };
 
   return (

@@ -14,6 +14,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import {
   Command,
   CommandEmpty,
@@ -973,6 +974,8 @@ export default function POSSales() {
     setSavedInvoiceData(null);
   };
 
+  const { sendWhatsApp } = useWhatsAppSend();
+
   const handleWhatsAppShare = (useCurrentData: boolean = false) => {
     const phone = useCurrentData ? customerPhone : savedInvoiceData?.customerPhone;
     const invoiceNo = useCurrentData ? currentInvoiceNumber : savedInvoiceData?.invoiceNumber;
@@ -1004,35 +1007,7 @@ export default function POSSales() {
     
     const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment Method: ${(method || 'cash').toUpperCase()}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
 
-    const phoneNumber = phone.replace(/\D/g, '');
-    // Add country code 91 for India if not present - check if already 12 digits with 91 prefix
-    let formattedPhone = phoneNumber;
-    if (phoneNumber.length === 10) {
-      formattedPhone = `91${phoneNumber}`;
-    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
-      formattedPhone = phoneNumber;
-    } else if (phoneNumber.length === 11 && phoneNumber.startsWith('91')) {
-      // Handle case where 91 was added to a 9-digit number incorrectly
-      formattedPhone = phoneNumber;
-    } else if (!phoneNumber.startsWith('91')) {
-      formattedPhone = `91${phoneNumber}`;
-    }
-    
-    // Use wa.me for better message auto-fill compatibility
-    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    
-    console.log('WhatsApp Debug - Original Phone:', phone);
-    console.log('WhatsApp Debug - Formatted Phone:', formattedPhone);
-    console.log('WhatsApp Debug - URL:', whatsappUrl);
-    
-    // Open WhatsApp in new tab
-    window.open(whatsappUrl, '_blank');
-    
-    toast({
-      title: "WhatsApp Opened",
-      description: "Invoice message ready to send via WhatsApp",
-    });
+    sendWhatsApp(phone, message);
   };
 
   const handlePrintInvoice = async () => {
