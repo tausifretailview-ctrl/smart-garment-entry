@@ -1957,6 +1957,26 @@ export type Database = {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
       }
+      detect_stock_discrepancies: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          barcode: string
+          calculated_stock_qty: number
+          current_stock_qty: number
+          discrepancy: number
+          opening_qty: number
+          product_name: string
+          size: string
+          variant_id: string
+        }[]
+      }
+      fix_stock_discrepancies: {
+        Args: { p_organization_id?: string }
+        Returns: {
+          details: Json
+          fixed_count: number
+        }[]
+      }
       generate_next_barcode: {
         Args: { p_organization_id: string }
         Returns: string
