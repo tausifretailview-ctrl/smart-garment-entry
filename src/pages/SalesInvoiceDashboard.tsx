@@ -36,6 +36,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 
 interface ColumnSettings {
   [key: string]: boolean;
@@ -64,6 +65,7 @@ export default function SalesInvoiceDashboard() {
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
+  const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const [searchQuery, setSearchQuery] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -455,48 +457,12 @@ export default function SalesInvoiceDashboard() {
       payment_status: invoice.payment_status,
     }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`);
 
-    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
-    // Add country code 91 for India if not present
-    let formattedPhone = phoneNumber;
-    if (phoneNumber.length === 10) {
-      formattedPhone = `91${phoneNumber}`;
-    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
-      formattedPhone = phoneNumber;
-    } else if (!phoneNumber.startsWith('91')) {
-      formattedPhone = `91${phoneNumber}`;
-    }
-    
-    const encodedMessage = encodeURIComponent(templateMessage).replace(/%20/g, '+');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    
-    // Copy message to clipboard
-    navigator.clipboard.writeText(templateMessage);
-    
-    // Open WhatsApp
-    window.location.href = whatsappUrl;
-    
-    toast({
-      title: "WhatsApp Opened",
-      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
-    });
+    sendWhatsApp(invoice.customer_phone, templateMessage, false);
   };
 
   const handleCopyLink = async (invoice: any) => {
     const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
-    
-    try {
-      await navigator.clipboard.writeText(invoiceUrl);
-      toast({
-        title: "Link Copied",
-        description: "Invoice link copied to clipboard",
-      });
-    } catch (err) {
-      toast({
-        title: "Copy Failed",
-        description: "Please copy manually: " + invoiceUrl,
-        variant: "destructive",
-      });
-    }
+    copyInvoiceLink(invoiceUrl);
   };
 
   const handlePaymentReminder = (invoice: any) => {
@@ -521,30 +487,7 @@ export default function SalesInvoiceDashboard() {
       due_date: invoice.due_date,
     });
 
-    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
-    // Add country code 91 for India if not present
-    let formattedPhone = phoneNumber;
-    if (phoneNumber.length === 10) {
-      formattedPhone = `91${phoneNumber}`;
-    } else if (phoneNumber.length === 12 && phoneNumber.startsWith('91')) {
-      formattedPhone = phoneNumber;
-    } else if (!phoneNumber.startsWith('91')) {
-      formattedPhone = `91${phoneNumber}`;
-    }
-    
-    const encodedMessage = encodeURIComponent(reminderMessage).replace(/%20/g, '+');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    
-    // Copy message to clipboard
-    navigator.clipboard.writeText(reminderMessage);
-    
-    // Open WhatsApp
-    window.location.href = whatsappUrl;
-    
-    toast({
-      title: "Payment Reminder Sent",
-      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
-    });
+    sendWhatsApp(invoice.customer_phone, reminderMessage, false);
   };
 
   const openPaymentDialog = (invoice: any) => {
@@ -688,19 +631,7 @@ export default function SalesInvoiceDashboard() {
 
     const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
-    const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
-    let formattedPhone = phoneNumber.length === 10 ? `91${phoneNumber}` : phoneNumber;
-    
-    const encodedMessage = encodeURIComponent(message).replace(/%20/g, '+');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    
-    navigator.clipboard.writeText(message);
-    window.location.href = whatsappUrl;
-    
-    toast({
-      title: "WhatsApp Opened",
-      description: "Receipt message copied! Paste with Ctrl+V if needed",
-    });
+    sendWhatsApp(receiptData.customerPhone, message, false);
   };
 
   const openStatusDialog = async (invoice: any) => {

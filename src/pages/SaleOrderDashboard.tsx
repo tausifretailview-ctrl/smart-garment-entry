@@ -135,15 +135,21 @@ export default function SaleOrderDashboard() {
       expected_delivery_date: order.expected_delivery_date,
     }, itemsText);
 
-    // Copy message to clipboard
-    navigator.clipboard.writeText(message);
+    // Copy to clipboard with improved UX
+    const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
+    const shortcut = isMac ? "Cmd+V" : "Ctrl+V";
+    
+    navigator.clipboard.writeText(message).then(() => {
+      toast({ title: "WhatsApp", description: `✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill` });
+    });
 
     // Open WhatsApp
     const phone = order.customer_phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-
-    toast({ title: "WhatsApp", description: "Message copied to clipboard - paste with Ctrl+V if it doesn't auto-fill" });
+    
+    setTimeout(() => {
+      window.open(whatsappUrl, '_blank');
+    }, 300);
   };
 
   // Fetch current stock for conversion

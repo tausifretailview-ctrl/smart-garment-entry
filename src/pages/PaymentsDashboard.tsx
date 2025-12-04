@@ -13,6 +13,7 @@ import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, Aler
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
@@ -231,24 +232,7 @@ export default function PaymentsDashboard() {
       due_date: invoice.due_date,
     });
 
-    const phoneNumber = invoice.customer_phone.replace(/\D/g, '');
-    let formattedPhone = phoneNumber;
-    if (phoneNumber.length === 10) {
-      formattedPhone = `91${phoneNumber}`;
-    } else if (!phoneNumber.startsWith('91')) {
-      formattedPhone = `91${phoneNumber}`;
-    }
-    
-    const encodedMessage = encodeURIComponent(reminderMessage).replace(/%20/g, '+');
-    const whatsappUrl = `https://wa.me/${formattedPhone}?text=${encodedMessage}`;
-    
-    navigator.clipboard.writeText(reminderMessage);
-    window.location.href = whatsappUrl;
-    
-    toast({
-      title: "Payment Reminder Sent",
-      description: "Message copied to clipboard! Paste with Ctrl+V if it doesn't auto-fill",
-    });
+    sendWhatsApp(invoice.customer_phone, reminderMessage, false);
   };
 
   const openPaymentDialog = (invoice: Invoice) => {

@@ -534,9 +534,18 @@ export default function Accounts() {
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     const waUrl = `https://wa.me/${phoneNumber.startsWith('91') ? phoneNumber : '91' + phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    navigator.clipboard.writeText(message);
-    toast.success("WhatsApp opened! Message copied to clipboard - paste with Ctrl+V if it doesn't auto-fill");
-    window.open(waUrl, '_blank');
+    const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
+    const shortcut = isMac ? "Cmd+V" : "Ctrl+V";
+    
+    navigator.clipboard.writeText(message).then(() => {
+      toast.success(`✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill`, { duration: 5000 });
+    }).catch(() => {
+      toast.warning("Couldn't copy to clipboard automatically");
+    });
+    
+    setTimeout(() => {
+      window.open(waUrl, '_blank');
+    }, 300);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
