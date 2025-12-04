@@ -566,9 +566,11 @@ const PriceHistoryReport = () => {
       .filter(m => m.quantity < 0)
       .reduce((sum, m) => sum + Math.abs(m.quantity), 0);
 
-    // Total quantities
+    // Total quantities and amounts
     const totalPurchaseQty = filteredPurchaseData.reduce((sum, d) => sum + (d.qty || 0), 0);
+    const totalPurchaseAmount = filteredPurchaseData.reduce((sum, d) => sum + ((d.qty || 0) * (d.pur_price || 0)), 0);
     const totalSalesQty = filteredSalesData.reduce((sum, d) => sum + (d.quantity || 0), 0);
+    const totalSalesAmount = filteredSalesData.reduce((sum, d) => sum + (d.line_total || 0), 0);
 
     return { 
       uniqueProducts, 
@@ -581,7 +583,9 @@ const PriceHistoryReport = () => {
       stockIn,
       stockOut,
       totalPurchaseQty,
+      totalPurchaseAmount,
       totalSalesQty,
+      totalSalesAmount,
     };
   }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
@@ -768,7 +772,7 @@ const PriceHistoryReport = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Purchases</p>
                     <p className="text-lg font-bold">{stats.totalPurchases}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {stats.totalPurchaseQty}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {stats.totalPurchaseQty} | ₹{stats.totalPurchaseAmount.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -791,7 +795,7 @@ const PriceHistoryReport = () => {
                   <div>
                     <p className="text-xs text-muted-foreground">Sales</p>
                     <p className="text-lg font-bold">{stats.totalSales}</p>
-                    <p className="text-xs text-muted-foreground">Qty: {stats.totalSalesQty}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {stats.totalSalesQty} | ₹{stats.totalSalesAmount.toLocaleString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -1226,7 +1230,9 @@ const PriceHistoryReport = () => {
                       <TableRow className="bg-muted/50 font-bold border-t-2">
                         <TableCell colSpan={6} className="text-right">Total:</TableCell>
                         <TableCell className="text-right">{stats.totalPurchaseQty}</TableCell>
-                        <TableCell colSpan={4}></TableCell>
+                        <TableCell colSpan={2}></TableCell>
+                        <TableCell className="text-right">₹{stats.totalPurchaseAmount.toLocaleString()}</TableCell>
+                        <TableCell></TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -1293,7 +1299,8 @@ const PriceHistoryReport = () => {
                       <TableRow className="bg-muted/50 font-bold border-t-2">
                         <TableCell colSpan={6} className="text-right">Total:</TableCell>
                         <TableCell className="text-right">{stats.totalSalesQty}</TableCell>
-                        <TableCell colSpan={4}></TableCell>
+                        <TableCell colSpan={3}></TableCell>
+                        <TableCell className="text-right">₹{stats.totalSalesAmount.toLocaleString()}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
