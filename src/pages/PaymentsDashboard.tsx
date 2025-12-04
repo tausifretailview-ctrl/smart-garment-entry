@@ -72,6 +72,7 @@ export default function PaymentsDashboard() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
+  const { sendWhatsApp } = useWhatsAppSend();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
