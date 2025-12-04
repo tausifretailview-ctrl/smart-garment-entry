@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
-import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -408,8 +407,7 @@ export default function SaleReturnEntry() {
   const totals = calculateTotals();
 
   return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Sale Return Entry</h1>
           <Button variant="outline" onClick={() => navigate("/sale-returns")}>
@@ -649,6 +647,5 @@ export default function SaleReturnEntry() {
           </Button>
         </div>
       </div>
-    </Layout>
   );
 }

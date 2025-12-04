@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
-import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -179,8 +178,7 @@ export default function SaleReturnDashboard() {
   const totalValue = filteredReturns.reduce((sum, ret) => sum + ret.net_amount, 0);
 
   return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Sale Returns</h1>
           <Button onClick={() => navigate("/sale-return-entry")}>
@@ -372,6 +370,5 @@ export default function SaleReturnDashboard() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }

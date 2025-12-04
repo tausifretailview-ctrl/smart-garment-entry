@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
-import { Layout } from "@/components/Layout";
 import { useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -298,8 +297,7 @@ const DeliveryDashboard = () => {
   };
 
   return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Delivery Dashboard</h1>
@@ -614,7 +612,6 @@ const DeliveryDashboard = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </Layout>
   );
 };
 

@@ -23,7 +23,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Barcode } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Layout } from "@/components/Layout";
 import { format } from "date-fns";
 
 interface MovementRecord {
@@ -222,18 +221,15 @@ const ProductTrackingReport = () => {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="p-8 space-y-6">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-[400px]" />
-        </div>
-      </Layout>
+      <div className="p-8 space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-[400px]" />
+      </div>
     );
   }
 
   return (
-    <Layout>
-      <div className="p-8 space-y-6">
+    <div className="p-8 space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent flex items-center gap-2">
@@ -464,7 +460,6 @@ const ProductTrackingReport = () => {
           )}
         </Card>
       </div>
-    </Layout>
   );
 };
 
