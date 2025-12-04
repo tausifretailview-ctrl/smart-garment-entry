@@ -301,5 +301,168 @@ export const useSaveSale = () => {
     }
   };
 
-  return { saveSale, isSaving };
+  // Update an existing sale (for edit mode)
+  // Stock is automatically handled by database triggers when sale_items are deleted/inserted
+  const updateSale = async (
+    saleId: string,
+    saleData: SaleData,
+    paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
+    paymentBreakdown?: {
+      cashAmount: number;
+      cardAmount: number;
+      upiAmount: number;
+      totalPaid: number;
+      refundAmount: number;
+    }
+  ) => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to update sales",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (saleData.items.length === 0) {
+      toast({
+        title: "Error",
+        description: "Cannot save sale with no items",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Calculate payment status and amounts
+      let cashAmt = 0;
+      let cardAmt = 0;
+      let upiAmt = 0;
+      let paidAmt = 0;
+      let refundAmt = 0;
+      let payStatus = 'completed';
+      let finalPaymentMethod = paymentMethod;
+
+      if (paymentBreakdown) {
+        cashAmt = paymentBreakdown.cashAmount;
+        cardAmt = paymentBreakdown.cardAmount;
+        upiAmt = paymentBreakdown.upiAmount;
+        paidAmt = paymentBreakdown.totalPaid;
+        refundAmt = paymentBreakdown.refundAmount;
+        finalPaymentMethod = 'multiple';
+        
+        if (paidAmt >= saleData.netAmount) {
+          payStatus = 'completed';
+        } else if (paidAmt > 0) {
+          payStatus = 'partial';
+        } else {
+          payStatus = 'pending';
+        }
+      } else {
+        paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
+        payStatus = paymentMethod === 'pay_later' ? 'pending' : 'completed';
+        
+        if (paymentMethod === 'cash') {
+          cashAmt = saleData.netAmount;
+        } else if (paymentMethod === 'card') {
+          cardAmt = saleData.netAmount;
+        } else if (paymentMethod === 'upi') {
+          upiAmt = saleData.netAmount;
+        }
+      }
+
+      if (saleData.refundAmount) {
+        refundAmt = saleData.refundAmount;
+      }
+
+      // Step 1: Delete existing sale_items (triggers stock restoration via handle_sale_item_delete)
+      const { error: deleteError } = await (supabase as any)
+        .from('sale_items')
+        .delete()
+        .eq('sale_id', saleId);
+
+      if (deleteError) throw deleteError;
+
+      // Step 2: Insert new sale_items (triggers stock deduction via update_stock_on_sale)
+      const saleItems = saleData.items.map((item) => ({
+        sale_id: saleId,
+        product_id: item.productId,
+        variant_id: item.variantId,
+        product_name: item.productName,
+        size: item.size,
+        barcode: item.barcode,
+        quantity: item.quantity,
+        unit_price: item.unitCost,
+        mrp: item.mrp,
+        gst_percent: item.gstPer,
+        discount_percent: item.discountPercent,
+        line_total: item.netAmount,
+      }));
+
+      const { error: itemsError } = await (supabase as any)
+        .from('sale_items')
+        .insert(saleItems);
+
+      if (itemsError) throw itemsError;
+
+      // Step 3: Update the sales record
+      const { data: sale, error: saleError } = await (supabase as any)
+        .from('sales')
+        .update({
+          customer_id: saleData.customerId || null,
+          customer_name: saleData.customerName,
+          customer_phone: saleData.customerPhone || null,
+          gross_amount: saleData.grossAmount,
+          discount_amount: saleData.discountAmount,
+          flat_discount_percent: saleData.flatDiscountPercent,
+          flat_discount_amount: saleData.flatDiscountAmount,
+          sale_return_adjust: saleData.saleReturnAdjust,
+          round_off: saleData.roundOff,
+          net_amount: saleData.netAmount,
+          payment_method: finalPaymentMethod,
+          payment_status: payStatus,
+          paid_amount: paidAmt,
+          cash_amount: cashAmt,
+          card_amount: cardAmt,
+          upi_amount: upiAmt,
+          refund_amount: refundAmt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', saleId)
+        .select()
+        .single();
+
+      if (saleError) throw saleError;
+
+      toast({
+        title: "Sale updated successfully",
+        description: `Sale ${sale.sale_number} has been updated`,
+      });
+
+      return sale;
+    } catch (error: any) {
+      console.error('Error updating sale:', error);
+      toast({
+        title: "Error updating sale",
+        description: error.message || "An error occurred while updating the sale",
+        variant: "destructive",
+      });
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return { saveSale, updateSale, isSaving };
 };
