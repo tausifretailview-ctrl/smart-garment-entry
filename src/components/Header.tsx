@@ -1,4 +1,5 @@
-import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp } from "lucide-react";
+import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp, Download } from "lucide-react";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { Button } from "@/components/ui/button";
 import { OrganizationSelector } from "@/components/OrganizationSelector";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +21,7 @@ export const Header = () => {
   const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isInstallable, promptInstall } = useInstallPrompt();
 
   const handleSignOut = async () => {
     // Store the current organization slug before signing out
@@ -113,6 +115,20 @@ export const Header = () => {
           <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
             <Search className="h-5 w-5" />
           </Button>
+
+          {/* Install App Button */}
+          {isInstallable && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={promptInstall}
+              className="relative text-sidebar-foreground hover:bg-primary/10 hover:text-primary"
+              title="Install App"
+            >
+              <Download className="h-5 w-5" />
+              <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
+            </Button>
+          )}
 
           {/* Organization Selector */}
           <OrganizationSelector />
