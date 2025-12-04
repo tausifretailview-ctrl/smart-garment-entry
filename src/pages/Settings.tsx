@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { WhatsAppTemplateSettings } from "@/components/WhatsAppTemplateSettings";
+import { StockReconciliation } from "@/components/StockReconciliation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
@@ -2394,6 +2395,11 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Stock Reconciliation Tool */}
+            <div className="mt-6">
+              <StockReconciliation />
+            </div>
           </TabsContent>
 
           <TabsContent value="users">
