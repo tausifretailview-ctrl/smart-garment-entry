@@ -30,6 +30,7 @@ interface PurchaseReturnItem {
 
 interface PurchaseReturn {
   id: string;
+  return_number?: string;
   return_date: string;
   supplier_name: string;
   supplier_id?: string;
@@ -265,7 +266,8 @@ const PurchaseReturnDashboard = () => {
   const filteredReturns = returns.filter(ret => {
     const matchesSearch = 
       ret.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ret.original_bill_number?.toLowerCase().includes(searchQuery.toLowerCase());
+      ret.original_bill_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ret.return_number?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesDateRange = 
       (!startDate || ret.return_date >= startDate) &&
@@ -360,7 +362,7 @@ const PurchaseReturnDashboard = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by supplier or bill number..."
+                placeholder="Search by return no., supplier or bill number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
@@ -437,6 +439,7 @@ const PurchaseReturnDashboard = () => {
                         className="rounded"
                       />
                     </TableHead>
+                    <TableHead>Return No.</TableHead>
                     <TableHead>Return Date</TableHead>
                     <TableHead>Supplier</TableHead>
                     <TableHead>Original Bill</TableHead>
@@ -458,6 +461,11 @@ const PurchaseReturnDashboard = () => {
                             onChange={() => toggleSelectReturn(returnRecord.id)}
                             className="rounded"
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className="font-medium">
+                            {returnRecord.return_number || "-"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {format(new Date(returnRecord.return_date), "dd MMM yyyy")}

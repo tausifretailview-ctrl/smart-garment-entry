@@ -58,6 +58,7 @@ const PurchaseReturnEntry = () => {
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
+  const [returnNumber, setReturnNumber] = useState("");
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -65,6 +66,23 @@ const PurchaseReturnEntry = () => {
     original_bill_number: "",
     notes: "",
   });
+
+  // Generate return number on mount
+  useEffect(() => {
+    const generateReturnNumber = async () => {
+      if (!currentOrganization?.id) return;
+      try {
+        const { data, error } = await supabase.rpc("generate_purchase_return_number", {
+          p_organization_id: currentOrganization.id,
+        });
+        if (error) throw error;
+        setReturnNumber(data || "");
+      } catch (error) {
+        console.error("Error generating return number:", error);
+      }
+    };
+    generateReturnNumber();
+  }, [currentOrganization?.id]);
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -237,7 +255,7 @@ const PurchaseReturnEntry = () => {
 
     setLoading(true);
     try {
-      // Insert purchase return header
+      // Insert purchase return header with return number
       const { data: returnRecord, error: returnError } = await supabase
         .from("purchase_returns" as any)
         .insert({
@@ -250,6 +268,7 @@ const PurchaseReturnEntry = () => {
           gst_amount: gstAmount,
           net_amount: netAmount,
           notes: returnData.notes || null,
+          return_number: returnNumber,
         })
         .select()
         .single();
@@ -312,7 +331,16 @@ const PurchaseReturnEntry = () => {
             <CardTitle>Return Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Return No.</Label>
+                <Input
+                  value={returnNumber}
+                  readOnly
+                  className="bg-muted font-medium"
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label>Supplier *</Label>
                 <Select value={returnData.supplier_id} onValueChange={handleSupplierChange}>
