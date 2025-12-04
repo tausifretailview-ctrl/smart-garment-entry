@@ -125,8 +125,8 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
 
   const cellStyle: React.CSSProperties = {
     border: '1px solid #000',
-    padding: '4px 6px',
-    fontSize: '9pt',
+    padding: '2px 4px',
+    fontSize: '8pt',
   };
 
   const headerCellStyle: React.CSSProperties = {
@@ -139,7 +139,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   return (
     <div style={{
       width: '210mm',
-      minHeight: '297mm',
+      height: '277mm',
       margin: '0 auto',
       padding: '10mm',
       fontFamily: "'Arial', sans-serif",
@@ -147,6 +147,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
       backgroundColor: '#fff',
       color: '#000',
       boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
       {/* Custom Header Text (e.g., ||SHREE||) */}
       {customHeaderText && (
@@ -339,9 +340,9 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             })}
             
             {/* Empty rows for minimum item display */}
-            {Array.from({ length: Math.max(0, 8 - items.length) }).map((_, index) => (
+            {Array.from({ length: Math.max(0, 2 - items.length) }).map((_, index) => (
               <tr key={`empty-${index}`}>
-                <td style={{ ...cellStyle, height: '20px' }}>&nbsp;</td>
+                <td style={{ ...cellStyle, height: '16px' }}>&nbsp;</td>
                 <td style={cellStyle}>&nbsp;</td>
                 {showHSN && <td style={cellStyle}>&nbsp;</td>}
                 <td style={cellStyle}>&nbsp;</td>
@@ -450,17 +451,17 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
         <div style={{ 
           display: 'flex', 
           borderTop: '2px solid #000',
-          minHeight: '100px'
+          minHeight: '70px'
         }}>
           {/* Bank Details - Left */}
           {showBankDetails && bankDetails && (
             <div style={{ 
               flex: 1, 
-              padding: '10px',
+              padding: '6px 8px',
               borderRight: '1px solid #000',
-              fontSize: '9pt'
+              fontSize: '8pt'
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Bank Account Details:</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Bank Account Details:</div>
               {bankDetails.bank_name && <div>BANK NAME: {bankDetails.bank_name}</div>}
               {bankDetails.account_number && <div>A/c: {bankDetails.account_number}</div>}
               {bankDetails.ifsc_code && <div>IFSC: {bankDetails.ifsc_code}</div>}
@@ -470,24 +471,24 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
 
           {/* QR Code - Center */}
           <div style={{ 
-            width: '120px', 
-            padding: '10px',
+            width: '90px', 
+            padding: '6px',
             borderRight: '1px solid #000',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
             {qrCodeUrl ? (
-              <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '100px', height: '100px' }} />
+              <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '70px', height: '70px' }} />
             ) : (
               <div style={{ 
-                width: '80px', 
-                height: '80px', 
+                width: '60px', 
+                height: '60px', 
                 border: '1px dashed #999',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '8pt',
+                fontSize: '7pt',
                 color: '#999'
               }}>
                 QR CODE
@@ -497,22 +498,20 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
 
           {/* Signature Section - Right */}
           <div style={{ 
-            width: '180px', 
-            padding: '10px',
+            width: '160px', 
+            padding: '6px 8px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            fontSize: '9pt'
+            fontSize: '8pt',
+            textAlign: 'right'
           }}>
-            <div style={{ textAlign: 'center', fontWeight: 'bold' }}>
+            <div style={{ fontWeight: 'bold' }}>
               FOR {businessName.toUpperCase()}
             </div>
-            <div style={{ flex: 1 }}></div>
-            <div style={{ textAlign: 'center', borderTop: '1px solid #000', paddingTop: '5px' }}>
+            <div style={{ flex: 1, minHeight: '30px' }}></div>
+            <div style={{ borderTop: '1px solid #000', paddingTop: '3px' }}>
               AUTHORISED SIGNATORY
-            </div>
-            <div style={{ marginTop: '20px', borderTop: '1px dashed #000', paddingTop: '5px', textAlign: 'center' }}>
-              CUSTOMER'S SEAL & SIGNATURE
             </div>
           </div>
         </div>
@@ -520,12 +519,12 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
         {/* Terms & Conditions */}
         {termsConditions && termsConditions.length > 0 && (
           <div style={{ 
-            borderTop: '2px solid #000',
-            padding: '10px',
-            fontSize: '8pt'
+            borderTop: '1px solid #000',
+            padding: '6px 8px',
+            fontSize: '7pt'
           }}>
-            <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>Terms & Conditions:</div>
-            <ol style={{ margin: 0, paddingLeft: '20px' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Terms & Conditions:</div>
+            <ol style={{ margin: 0, paddingLeft: '15px' }}>
               {termsConditions.map((term, index) => (
                 <li key={index}>{term}</li>
               ))}
@@ -537,8 +536,8 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
       {/* Footer - Thank You */}
       <div style={{ 
         textAlign: 'center', 
-        marginTop: '10px',
-        fontSize: '10pt',
+        marginTop: '5px',
+        fontSize: '9pt',
         fontWeight: 'bold'
       }}>
         Thank you for your business!
