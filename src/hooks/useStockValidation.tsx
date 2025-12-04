@@ -35,7 +35,8 @@ export const useStockValidation = () => {
           stock_qty,
           size,
           products (
-            product_name
+            product_name,
+            product_type
           )
         `)
         .eq("id", variantId)
@@ -43,8 +44,20 @@ export const useStockValidation = () => {
 
       if (error) throw error;
 
-      const availableStock = variant.stock_qty || 0;
       const productName = (variant.products as any)?.product_name || "Product";
+      const productType = (variant.products as any)?.product_type || "goods";
+
+      // Service and combo products don't track stock - always available
+      if (productType === 'service' || productType === 'combo') {
+        return {
+          isAvailable: true,
+          availableStock: 999999, // Unlimited for services
+          productName,
+          size: variant.size,
+        };
+      }
+
+      const availableStock = variant.stock_qty || 0;
 
       return {
         isAvailable: availableStock >= requestedQty,

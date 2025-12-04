@@ -593,6 +593,7 @@ export type Database = {
           image_url: string | null
           organization_id: string | null
           product_name: string
+          product_type: string
           size_group_id: string | null
           status: string | null
           style: string | null
@@ -611,6 +612,7 @@ export type Database = {
           image_url?: string | null
           organization_id?: string | null
           product_name: string
+          product_type?: string
           size_group_id?: string | null
           status?: string | null
           style?: string | null
@@ -629,6 +631,7 @@ export type Database = {
           image_url?: string | null
           organization_id?: string | null
           product_name?: string
+          product_type?: string
           size_group_id?: string | null
           status?: string | null
           style?: string | null
