@@ -86,7 +86,7 @@
 
   /* Ensure good contrast for black and white printing */
   * {
-    color-adjust: exact;
+    print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
 }
