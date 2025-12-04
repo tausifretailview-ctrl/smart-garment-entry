@@ -560,7 +560,7 @@ const POSDashboard = () => {
       payment_status: sale.payment_status,
     }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`);
 
-    sendWhatsApp(sale.customer_phone, templateMessage, false);
+    sendWhatsApp(sale.customer_phone, templateMessage);
   };
 
   const handleCopyLink = async (sale: Sale, event: React.MouseEvent) => {
@@ -710,7 +710,7 @@ const POSDashboard = () => {
 
     const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
-    sendWhatsApp(receiptData.customerPhone, message, false);
+    sendWhatsApp(receiptData.customerPhone, message);
   };
 
   const filteredSales = sales.filter((sale) => {

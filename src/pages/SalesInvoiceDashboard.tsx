@@ -457,7 +457,7 @@ export default function SalesInvoiceDashboard() {
       payment_status: invoice.payment_status,
     }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`);
 
-    sendWhatsApp(invoice.customer_phone, templateMessage, false);
+    sendWhatsApp(invoice.customer_phone, templateMessage);
   };
 
   const handleCopyLink = async (invoice: any) => {
@@ -487,7 +487,7 @@ export default function SalesInvoiceDashboard() {
       due_date: invoice.due_date,
     });
 
-    sendWhatsApp(invoice.customer_phone, reminderMessage, false);
+    sendWhatsApp(invoice.customer_phone, reminderMessage);
   };
 
   const openPaymentDialog = (invoice: any) => {
@@ -631,7 +631,7 @@ export default function SalesInvoiceDashboard() {
 
     const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMode.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
-    sendWhatsApp(receiptData.customerPhone, message, false);
+    sendWhatsApp(receiptData.customerPhone, message);
   };
 
   const openStatusDialog = async (invoice: any) => {
