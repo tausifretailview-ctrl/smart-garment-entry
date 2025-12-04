@@ -10,10 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
+
+type ProductType = 'goods' | 'service' | 'combo';
 
 interface SizeGroup {
   id: string;
@@ -31,6 +34,7 @@ interface ProductVariant {
 }
 
 interface ProductForm {
+  product_type: ProductType;
   product_name: string;
   category: string;
   brand: string;
@@ -64,6 +68,7 @@ const ProductEntry = () => {
   const [importLoading, setImportLoading] = useState(false);
   
   const [formData, setFormData] = useState<ProductForm>({
+    product_type: "goods",
     product_name: "",
     category: "",
     brand: "",
@@ -180,6 +185,7 @@ const ProductEntry = () => {
       if (product) {
         // Set form data
         setFormData({
+          product_type: (product.product_type as ProductType) || "goods",
           product_name: product.product_name || "",
           category: product.category || "",
           brand: product.brand || "",
@@ -317,6 +323,21 @@ const ProductEntry = () => {
   };
 
   const handleGenerateSizeVariants = () => {
+    // For service type, auto-generate a single "Standard" variant
+    if (formData.product_type === 'service') {
+      const newVariants: ProductVariant[] = [{
+        size: "Standard",
+        pur_price: formData.default_pur_price ?? 0,
+        sale_price: formData.default_sale_price ?? 0,
+        barcode: "",
+        active: true,
+        opening_qty: 0,
+      }];
+      setVariants(newVariants);
+      setShowVariants(true);
+      return;
+    }
+
     const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
     if (!selectedGroup) {
       toast({
@@ -664,6 +685,7 @@ const ProductEntry = () => {
 
         // Reset form (only if not navigating back)
         setFormData({
+          product_type: "goods",
           product_name: "",
           category: "",
           brand: "",
@@ -931,6 +953,36 @@ const ProductEntry = () => {
               </div>
             </div>
 
+            {/* Product Type Selection */}
+            <div className="space-y-2">
+              <Label>Product Type *</Label>
+              <RadioGroup
+                value={formData.product_type}
+                onValueChange={(value: ProductType) =>
+                  setFormData({ ...formData, product_type: value, size_group_id: value === 'service' ? '' : formData.size_group_id })
+                }
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="goods" id="type-goods" />
+                  <Label htmlFor="type-goods" className="font-normal cursor-pointer">Goods</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="service" id="type-service" />
+                  <Label htmlFor="type-service" className="font-normal cursor-pointer">Service</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="combo" id="type-combo" />
+                  <Label htmlFor="type-combo" className="font-normal cursor-pointer">Combo</Label>
+                </div>
+              </RadioGroup>
+              <p className="text-xs text-muted-foreground">
+                {formData.product_type === 'goods' && "Goods - Physical items with stock tracking"}
+                {formData.product_type === 'service' && "Service - No stock tracking, for invoicing only"}
+                {formData.product_type === 'combo' && "Combo - Bundle of multiple products"}
+              </p>
+            </div>
+
             {/* Product Details Form */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
@@ -1010,26 +1062,29 @@ const ProductEntry = () => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="size_group">Size Group</Label>
-                <Select
-                  value={formData.size_group_id}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, size_group_id: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select size group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizeGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.group_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Size Group - Hidden for service type */}
+              {formData.product_type !== 'service' && (
+                <div className="space-y-2">
+                  <Label htmlFor="size_group">Size Group</Label>
+                  <Select
+                    value={formData.size_group_id}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, size_group_id: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select size group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sizeGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.group_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {(fieldSettings?.hsn_code?.enabled ?? true) && (
                 <div className="space-y-2">
@@ -1125,12 +1180,12 @@ const ProductEntry = () => {
             <div className="flex justify-start">
               <Button
                 onClick={handleGenerateSizeVariants}
-                disabled={!formData.size_group_id}
+                disabled={formData.product_type !== 'service' && !formData.size_group_id}
                 variant="secondary"
                 className="gap-2"
               >
                 <Package className="h-4 w-4" />
-                Generate Size Variants
+                {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
               </Button>
             </div>
 
@@ -1138,7 +1193,9 @@ const ProductEntry = () => {
             {showVariants && variants.length > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Size Variants</h3>
+                  <h3 className="text-lg font-semibold">
+                    {formData.product_type === 'service' ? 'Service Details' : 'Size Variants'}
+                  </h3>
                   <Button
                     onClick={handleAutoGenerateBarcodes}
                     size="sm"
@@ -1153,11 +1210,11 @@ const ProductEntry = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Size</TableHead>
+                        <TableHead>{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
                         <TableHead>Purchase Price</TableHead>
                         <TableHead>Sale Price</TableHead>
                         <TableHead>Barcode</TableHead>
-                        <TableHead>Opening Qty</TableHead>
+                        {formData.product_type !== 'service' && <TableHead>Opening Qty</TableHead>}
                         <TableHead className="text-center">Active</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1211,23 +1268,25 @@ const ProductEntry = () => {
                               placeholder="Scan or enter barcode"
                             />
                           </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={variant.opening_qty}
-                              onChange={(e) =>
-                                handleVariantChange(
-                                  index,
-                                  "opening_qty",
-                                  parseInt(e.target.value) || 0
-                                )
-                              }
-                              className="w-28"
-                              placeholder="0"
-                            />
-                          </TableCell>
+                          {formData.product_type !== 'service' && (
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={variant.opening_qty}
+                                onChange={(e) =>
+                                  handleVariantChange(
+                                    index,
+                                    "opening_qty",
+                                    parseInt(e.target.value) || 0
+                                  )
+                                }
+                                className="w-28"
+                                placeholder="0"
+                              />
+                            </TableCell>
+                          )}
                           <TableCell className="text-center">
                             <Switch
                               checked={variant.active}
