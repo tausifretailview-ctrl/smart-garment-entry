@@ -2,6 +2,7 @@ import { Bell, Menu, Search, ShoppingCart, Package, TrendingUp } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { OrganizationSelector } from "@/components/OrganizationSelector";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -16,8 +17,21 @@ import { useState } from "react";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
+  const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleSignOut = async () => {
+    // Store the current organization slug before signing out
+    const orgSlug = currentOrganization?.slug;
+    await signOut();
+    // Redirect to organization login URL if available, otherwise default auth
+    if (orgSlug) {
+      navigate(`/${orgSlug}`);
+    } else {
+      navigate('/auth');
+    }
+  };
 
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
@@ -132,7 +146,7 @@ export const Header = () => {
                 App Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()} className="text-destructive cursor-pointer">
+              <DropdownMenuItem onClick={handleSignOut} className="text-destructive cursor-pointer">
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
