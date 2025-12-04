@@ -9,6 +9,7 @@ interface InvoiceItem {
   sp: number;
   qty: number;
   rate: number;
+  mrp?: number;
   total: number;
   brand?: string;
   category?: string;
@@ -36,6 +37,8 @@ interface DetailedTemplateProps {
   taxableAmount: number;
   totalTax: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   amountPaid?: number;
   balanceDue?: number;
@@ -70,6 +73,8 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   taxableAmount,
   totalTax,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   amountPaid,
   balanceDue,
@@ -182,6 +187,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
             <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>Barcode</th>
             <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>HSN</th>
             <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>Qty</th>
+            {showMRP && <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>MRP</th>}
             <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>Rate</th>
             <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>Amount</th>
           </tr>
@@ -203,6 +209,15 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
               <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd', fontSize: '8px' }}>{item.barcode}</td>
               <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>{item.hsn}</td>
               <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{item.qty}</td>
+              {showMRP && (
+                <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>
+                  {item.mrp && item.mrp > item.rate ? (
+                    <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(item.mrp)}</span>
+                  ) : (
+                    <span>{formatCurrency(item.mrp || item.rate)}</span>
+                  )}
+                </td>
+              )}
               <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{formatCurrency(item.rate)}</td>
               <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd', fontWeight: 'bold' }}>{formatCurrency(item.total)}</td>
             </tr>
@@ -235,6 +250,12 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
             <span>GRAND TOTAL:</span>
             <span>{formatCurrency(grandTotal)}</span>
           </div>
+          {totalSavings > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', backgroundColor: '#d4edda', color: '#155724', fontWeight: 'bold', fontSize: '10px' }}>
+              <span>You Saved:</span>
+              <span>{formatCurrency(totalSavings)}</span>
+            </div>
+          )}
         </div>
       </div>
 

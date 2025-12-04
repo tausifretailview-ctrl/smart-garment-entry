@@ -21,6 +21,7 @@ interface ClassicTemplateProps {
     size: string;
     qty: number;
     rate: number;
+    mrp?: number;
     discPercent?: number;
     total: number;
   }>;
@@ -28,6 +29,8 @@ interface ClassicTemplateProps {
   discount: number;
   totalTax: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   termsConditions?: string[];
   productDetailsSettings?: {
@@ -54,6 +57,8 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   discount,
   totalTax,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   termsConditions,
   productDetailsSettings,
@@ -145,7 +150,8 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
             <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #2c3e50' }}>Description</th>
             <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #2c3e50' }}>Size</th>
             <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Qty</th>
-            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2px3e50' }}>Rate</th>
+            {showMRP && <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>MRP</th>}
+            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Rate</th>
             <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #2c3e50' }}>Amount</th>
           </tr>
         </thead>
@@ -163,6 +169,15 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                 </td>
                 <td style={{ padding: '10px', textAlign: 'center' }}>{item.size}</td>
                 <td style={{ padding: '10px', textAlign: 'right' }}>{item.qty}</td>
+                {showMRP && (
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    {item.mrp && item.mrp > item.rate ? (
+                      <span style={{ textDecoration: 'line-through', color: '#999' }}>₹{item.mrp.toFixed(2)}</span>
+                    ) : (
+                      <span>₹{(item.mrp || item.rate).toFixed(2)}</span>
+                    )}
+                  </td>
+                )}
                 <td style={{ padding: '10px', textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
                 <td style={{ padding: '10px', textAlign: 'right' }}>₹{item.total.toFixed(2)}</td>
               </tr>
@@ -192,6 +207,12 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
             <span>Total Amount:</span>
             <span>₹{grandTotal.toFixed(2)}</span>
           </div>
+          {totalSavings > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', backgroundColor: '#d4edda', color: '#155724', fontWeight: 'bold' }}>
+              <span>You Saved:</span>
+              <span>₹{totalSavings.toFixed(2)}</span>
+            </div>
+          )}
         </div>
       </div>
 

@@ -22,6 +22,7 @@ interface StockItem {
   purchase_qty: number;
   sales_qty: number;
   sale_price: number;
+  mrp: number | null;
   barcode: string;
 }
 
@@ -97,6 +98,7 @@ export default function StockReport() {
           stock_qty,
           opening_qty,
           sale_price,
+          mrp,
           barcode,
           products (
             product_name,
@@ -147,6 +149,7 @@ export default function StockReport() {
           purchase_qty: movements.purchase,
           sales_qty: movements.sales,
           sale_price: item.sale_price,
+          mrp: item.mrp || null,
           barcode: item.barcode || "",
         };
       }) || [];
@@ -411,6 +414,7 @@ export default function StockReport() {
                       <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
                       <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
                       <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
+                      <TableHead className="text-right">MRP</TableHead>
                       <TableHead className="text-right">Sale Price</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -441,7 +445,23 @@ export default function StockReport() {
                           <TableCell className="text-right bg-primary/10 font-bold text-primary">
                             {item.stock_qty}
                           </TableCell>
-                          <TableCell className="text-right">₹{item.sale_price}</TableCell>
+                          <TableCell className="text-right">
+                            {item.mrp ? (
+                              <span>₹{item.mrp}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex flex-col items-end">
+                              <span>₹{item.sale_price}</span>
+                              {item.mrp && item.mrp > item.sale_price && (
+                                <span className="text-xs text-green-600">
+                                  {Math.round(((item.mrp - item.sale_price) / item.mrp) * 100)}% off
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {item.stock_qty === 0 ? (
                               <Badge variant="destructive">Out of Stock</Badge>

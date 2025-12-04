@@ -9,6 +9,7 @@ interface InvoiceItem {
   sp: number;
   qty: number;
   rate: number;
+  mrp?: number;
   total: number;
   brand?: string;
   category?: string;
@@ -32,6 +33,8 @@ interface CompactTemplateProps {
   subtotal: number;
   discount: number;
   grandTotal: number;
+  totalSavings?: number;
+  showMRP?: boolean;
   paymentMethod?: string;
   cashAmount?: number;
   cardAmount?: number;
@@ -60,6 +63,8 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   subtotal,
   discount,
   grandTotal,
+  totalSavings = 0,
+  showMRP = false,
   paymentMethod,
   cashAmount,
   cardAmount,
@@ -143,6 +148,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
           <tr style={{ borderTop: '1px solid #000', borderBottom: '1px solid #000' }}>
             <th style={{ textAlign: 'left', padding: '3px 2px' }}>Item</th>
             <th style={{ textAlign: 'center', padding: '3px 2px', width: '35px' }}>Qty</th>
+            {showMRP && <th style={{ textAlign: 'right', padding: '3px 2px', width: '45px' }}>MRP</th>}
             <th style={{ textAlign: 'right', padding: '3px 2px', width: '50px' }}>Rate</th>
             <th style={{ textAlign: 'right', padding: '3px 2px', width: '55px' }}>Amount</th>
           </tr>
@@ -155,6 +161,15 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
                 {item.size && ` (${item.size})`}
               </td>
               <td style={{ textAlign: 'center', padding: '3px 2px' }}>{item.qty}</td>
+              {showMRP && (
+                <td style={{ textAlign: 'right', padding: '3px 2px' }}>
+                  {item.mrp && item.mrp > item.rate ? (
+                    <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '8px' }}>{formatCurrency(item.mrp)}</span>
+                  ) : (
+                    <span>{formatCurrency(item.mrp || item.rate)}</span>
+                  )}
+                </td>
+              )}
               <td style={{ textAlign: 'right', padding: '3px 2px' }}>{formatCurrency(item.rate)}</td>
               <td style={{ textAlign: 'right', padding: '3px 2px', fontWeight: 'bold' }}>{formatCurrency(item.total)}</td>
             </tr>
@@ -178,6 +193,12 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
           <span>TOTAL:</span>
           <span>{formatCurrency(grandTotal)}</span>
         </div>
+        {totalSavings > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', color: '#155724', fontWeight: 'bold', fontSize: '10px' }}>
+            <span>You Saved:</span>
+            <span>{formatCurrency(totalSavings)}</span>
+          </div>
+        )}
       </div>
 
       {/* Payment Method */}

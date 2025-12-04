@@ -571,6 +571,10 @@ const PriceHistoryReport = () => {
     const totalPurchaseAmount = filteredPurchaseData.reduce((sum, d) => sum + ((d.qty || 0) * (d.pur_price || 0)), 0);
     const totalSalesQty = filteredSalesData.reduce((sum, d) => sum + (d.quantity || 0), 0);
     const totalSalesAmount = filteredSalesData.reduce((sum, d) => sum + (d.line_total || 0), 0);
+    
+    // MRP and savings calculations
+    const totalMRPAmount = filteredSalesData.reduce((sum, d) => sum + ((d.mrp || d.unit_price) * (d.quantity || 0)), 0);
+    const totalSavings = totalMRPAmount - filteredSalesData.reduce((sum, d) => sum + ((d.unit_price || 0) * (d.quantity || 0)), 0);
 
     return { 
       uniqueProducts, 
@@ -586,6 +590,8 @@ const PriceHistoryReport = () => {
       totalPurchaseAmount,
       totalSalesQty,
       totalSalesAmount,
+      totalMRPAmount,
+      totalSavings,
     };
   }, [filteredPurchaseData, filteredSalesData, filteredPriceEdits, filteredStockMovements, filteredProductChanges]);
 
@@ -1261,6 +1267,7 @@ const PriceHistoryReport = () => {
                       <TableHead className="text-right">MRP</TableHead>
                       <TableHead className="text-right">Disc %</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Savings</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1277,23 +1284,37 @@ const PriceHistoryReport = () => {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredSalesData.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-muted/30">
-                          <TableCell className="font-mono text-sm">
-                            {item.sale_date ? format(new Date(item.sale_date), "dd/MM/yy") : "-"}
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">{item.sale_number}</TableCell>
-                          <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
-                          <TableCell>{item.size}</TableCell>
-                          <TableCell>{item.customer_name}</TableCell>
-                          <TableCell className="text-right">{item.quantity}</TableCell>
-                          <TableCell className="text-right">₹{item.unit_price}</TableCell>
-                          <TableCell className="text-right">₹{item.mrp}</TableCell>
-                          <TableCell className="text-right">{item.discount_percent}%</TableCell>
-                          <TableCell className="text-right font-medium">₹{item.line_total}</TableCell>
-                        </TableRow>
-                      ))
+                      filteredSalesData.map((item) => {
+                        const itemSavings = item.mrp > item.unit_price 
+                          ? (item.mrp - item.unit_price) * item.quantity 
+                          : 0;
+                        return (
+                          <TableRow key={item.id} className="hover:bg-muted/30">
+                            <TableCell className="font-mono text-sm">
+                              {item.sale_date ? format(new Date(item.sale_date), "dd/MM/yy") : "-"}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{item.sale_number}</TableCell>
+                            <TableCell className="font-mono text-sm">{item.barcode}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{item.product_name}</TableCell>
+                            <TableCell>{item.size}</TableCell>
+                            <TableCell>{item.customer_name}</TableCell>
+                            <TableCell className="text-right">{item.quantity}</TableCell>
+                            <TableCell className="text-right">₹{item.unit_price}</TableCell>
+                            <TableCell className="text-right">
+                              {item.mrp > item.unit_price ? (
+                                <span className="line-through text-muted-foreground">₹{item.mrp}</span>
+                              ) : (
+                                <span>₹{item.mrp}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">{item.discount_percent}%</TableCell>
+                            <TableCell className="text-right font-medium">₹{item.line_total}</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">
+                              {itemSavings > 0 ? `₹${itemSavings}` : '-'}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                     {filteredSalesData.length > 0 && (
                       <TableRow className="bg-muted/50 font-bold border-t-2">
@@ -1301,6 +1322,7 @@ const PriceHistoryReport = () => {
                         <TableCell className="text-right">{stats.totalSalesQty}</TableCell>
                         <TableCell colSpan={3}></TableCell>
                         <TableCell className="text-right">₹{stats.totalSalesAmount.toLocaleString()}</TableCell>
+                        <TableCell className="text-right text-green-600">₹{stats.totalSavings.toLocaleString()}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
