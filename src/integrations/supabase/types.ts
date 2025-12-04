@@ -891,6 +891,7 @@ export type Database = {
           organization_id: string
           original_bill_number: string | null
           return_date: string
+          return_number: string | null
           supplier_id: string | null
           supplier_name: string
           updated_at: string
@@ -905,6 +906,7 @@ export type Database = {
           organization_id: string
           original_bill_number?: string | null
           return_date?: string
+          return_number?: string | null
           supplier_id?: string | null
           supplier_name: string
           updated_at?: string
@@ -919,6 +921,7 @@ export type Database = {
           organization_id?: string
           original_bill_number?: string | null
           return_date?: string
+          return_number?: string | null
           supplier_id?: string | null
           supplier_name?: string
           updated_at?: string
@@ -1993,6 +1996,10 @@ export type Database = {
       }
       generate_purchase_bill_number: {
         Args: { p_date?: string; p_organization_id?: string }
+        Returns: string
+      }
+      generate_purchase_return_number: {
+        Args: { p_organization_id: string }
         Returns: string
       }
       generate_quotation_number: {
