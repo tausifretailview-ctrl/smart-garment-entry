@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
+import { FullScreenLayout } from "@/components/FullScreenLayout";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import Index from "./pages/Index";
 import ProductDashboard from "./pages/ProductDashboard";
@@ -120,9 +121,9 @@ const App = () => {
               path="/product-entry"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <ProductEntry />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -131,9 +132,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
+                    <FullScreenLayout>
                       <PurchaseEntry />
-                    </Layout>
+                    </FullScreenLayout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -167,9 +168,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
+                    <FullScreenLayout>
                       <PurchaseReturnEntry />
-                    </Layout>
+                    </FullScreenLayout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -178,9 +179,9 @@ const App = () => {
               path="/barcode-printing"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <BarcodePrinting />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -238,9 +239,9 @@ const App = () => {
               path="/quotation-entry"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <QuotationEntry />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -258,9 +259,9 @@ const App = () => {
               path="/sale-order-entry"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <SaleOrderEntry />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -278,9 +279,9 @@ const App = () => {
               path="/sales-invoice"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <SalesInvoice />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -298,9 +299,9 @@ const App = () => {
               path="/sale-return-entry"
               element={
                 <ProtectedRoute>
-                  <Layout>
+                  <FullScreenLayout>
                     <SaleReturnEntry />
-                  </Layout>
+                  </FullScreenLayout>
                 </ProtectedRoute>
               }
             />
@@ -319,9 +320,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
+                    <FullScreenLayout>
                       <CustomerMaster />
-                    </Layout>
+                    </FullScreenLayout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -331,9 +332,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
+                    <FullScreenLayout>
                       <SupplierMaster />
-                    </Layout>
+                    </FullScreenLayout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
@@ -343,9 +344,9 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
+                    <FullScreenLayout>
                       <EmployeeMaster />
-                    </Layout>
+                    </FullScreenLayout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
               }
