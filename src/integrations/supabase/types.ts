@@ -525,6 +525,7 @@ export type Database = {
           barcode: string | null
           created_at: string | null
           id: string
+          mrp: number | null
           opening_qty: number | null
           organization_id: string
           product_id: string
@@ -539,6 +540,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string | null
           id?: string
+          mrp?: number | null
           opening_qty?: number | null
           organization_id: string
           product_id: string
@@ -553,6 +555,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string | null
           id?: string
+          mrp?: number | null
           opening_qty?: number | null
           organization_id?: string
           product_id?: string

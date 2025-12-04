@@ -82,6 +82,7 @@ interface ProfessionalTemplateProps {
   showPartyBalance?: boolean;
   showTaxDetails?: boolean;
   showYouSaved?: boolean;
+  totalSavings?: number; // MRP - Sale Price savings
   amountWithGrouping?: boolean;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
   colorScheme?: string;
@@ -134,6 +135,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   showPartyBalance = false,
   showTaxDetails = true,
   showYouSaved = false,
+  totalSavings = 0,
   amountWithGrouping = true,
   format = 'a5-vertical',
   colorScheme = 'blue'
@@ -495,10 +497,10 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <span>{formatCurrency(balanceDue)}</span>
             </div>
           )}
-          {showYouSaved && discount > 0 && (
+          {showYouSaved && (discount > 0 || totalSavings > 0) && (
             <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0', fontSize: isA4 ? '9pt' : '8pt', color: '#15803d', fontWeight: 'bold' }}>
               <span>You Saved:</span>
-              <span>{formatCurrency(discount)}</span>
+              <span>{formatCurrency(discount + totalSavings)}</span>
             </div>
           )}
         </div>

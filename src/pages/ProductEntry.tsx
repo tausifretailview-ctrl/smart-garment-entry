@@ -28,6 +28,7 @@ interface ProductVariant {
   size: string;
   pur_price: number;
   sale_price: number;
+  mrp: number | null;
   barcode: string;
   active: boolean;
   opening_qty: number;
@@ -63,6 +64,7 @@ const ProductEntry = () => {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [fieldSettings, setFieldSettings] = useState<any>(null);
+  const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
@@ -131,12 +133,14 @@ const ProductEntry = () => {
         }
       }
       
-      // Apply default GST tax rate
+      // Apply default GST tax rate and show_mrp setting
       if (typeof data.purchase_settings === 'object' && data.purchase_settings !== null) {
         const purchaseSettings = data.purchase_settings as any;
         if (purchaseSettings.default_tax_rate !== undefined && !editingProductId) {
           setFormData(prev => ({ ...prev, gst_per: purchaseSettings.default_tax_rate }));
         }
+        // Set show_mrp from purchase settings
+        setShowMrp(purchaseSettings.show_mrp || false);
       }
     }
   };
@@ -211,6 +215,7 @@ const ProductEntry = () => {
             size: v.size,
             pur_price: v.pur_price || 0,
             sale_price: v.sale_price || 0,
+            mrp: v.mrp || null,
             barcode: v.barcode || "",
             active: v.active !== false,
             opening_qty: v.opening_qty || 0,
@@ -329,6 +334,7 @@ const ProductEntry = () => {
         size: "Standard",
         pur_price: formData.default_pur_price ?? 0,
         sale_price: formData.default_sale_price ?? 0,
+        mrp: null,
         barcode: "",
         active: true,
         opening_qty: 0,
@@ -352,6 +358,7 @@ const ProductEntry = () => {
       size,
       pur_price: formData.default_pur_price ?? 0,
       sale_price: formData.default_sale_price ?? 0,
+      mrp: null,
       barcode: "",
       active: true,
       opening_qty: 0,
@@ -564,6 +571,7 @@ const ProductEntry = () => {
                 size: v.size,
                 pur_price: v.pur_price,
                 sale_price: v.sale_price,
+                mrp: v.mrp,
                 barcode: v.barcode,
                 active: v.active,
                 opening_qty: v.opening_qty,
@@ -610,6 +618,7 @@ const ProductEntry = () => {
             size: v.size,
             pur_price: v.pur_price,
             sale_price: v.sale_price,
+            mrp: v.mrp,
             barcode: v.barcode,
             active: v.active,
             opening_qty: v.opening_qty,
@@ -1213,90 +1222,131 @@ const ProductEntry = () => {
                         <TableHead>{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
                         <TableHead>Purchase Price</TableHead>
                         <TableHead>Sale Price</TableHead>
+                        {showMrp && <TableHead>MRP</TableHead>}
+                        {showMrp && <TableHead>Discount</TableHead>}
                         <TableHead>Barcode</TableHead>
                         {formData.product_type !== 'service' && <TableHead>Opening Qty</TableHead>}
                         <TableHead className="text-center">Active</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {variants.map((variant, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="font-medium">{variant.size}</TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={variant.pur_price}
-                              onChange={(e) =>
-                                handleVariantChange(
-                                  index,
-                                  "pur_price",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              className="w-32"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={variant.sale_price}
-                              onChange={(e) =>
-                                handleVariantChange(
-                                  index,
-                                  "sale_price",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              className="w-32"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={variant.barcode}
-                              onChange={(e) =>
-                                handleVariantChange(
-                                  index,
-                                  "barcode",
-                                  e.target.value
-                                )
-                              }
-                              className="w-40"
-                              placeholder="Scan or enter barcode"
-                            />
-                          </TableCell>
-                          {formData.product_type !== 'service' && (
+                      {variants.map((variant, index) => {
+                        const discount = variant.mrp && variant.mrp > variant.sale_price 
+                          ? variant.mrp - variant.sale_price 
+                          : 0;
+                        const discountPercent = variant.mrp && variant.mrp > 0 
+                          ? ((discount / variant.mrp) * 100).toFixed(0) 
+                          : 0;
+                        
+                        return (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{variant.size}</TableCell>
                             <TableCell>
                               <Input
                                 type="number"
                                 min="0"
-                                step="1"
-                                value={variant.opening_qty}
+                                step="0.01"
+                                value={variant.pur_price}
                                 onChange={(e) =>
                                   handleVariantChange(
                                     index,
-                                    "opening_qty",
-                                    parseInt(e.target.value) || 0
+                                    "pur_price",
+                                    parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-28"
-                                placeholder="0"
+                                className="w-32"
                               />
                             </TableCell>
-                          )}
-                          <TableCell className="text-center">
-                            <Switch
-                              checked={variant.active}
-                              onCheckedChange={(checked) =>
-                                handleVariantChange(index, "active", checked)
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={variant.sale_price}
+                                onChange={(e) =>
+                                  handleVariantChange(
+                                    index,
+                                    "sale_price",
+                                    parseFloat(e.target.value) || 0
+                                  )
+                                }
+                                className="w-32"
+                              />
+                            </TableCell>
+                            {showMrp && (
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={variant.mrp || ""}
+                                  onChange={(e) =>
+                                    handleVariantChange(
+                                      index,
+                                      "mrp",
+                                      e.target.value ? parseFloat(e.target.value) : null
+                                    )
+                                  }
+                                  className="w-28"
+                                  placeholder="MRP"
+                                />
+                              </TableCell>
+                            )}
+                            {showMrp && (
+                              <TableCell>
+                                {discount > 0 ? (
+                                  <span className="text-green-600 font-medium">
+                                    ₹{discount.toFixed(0)} ({discountPercent}%)
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
+                            <TableCell>
+                              <Input
+                                value={variant.barcode}
+                                onChange={(e) =>
+                                  handleVariantChange(
+                                    index,
+                                    "barcode",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-40"
+                                placeholder="Scan or enter barcode"
+                              />
+                            </TableCell>
+                            {formData.product_type !== 'service' && (
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={variant.opening_qty}
+                                  onChange={(e) =>
+                                    handleVariantChange(
+                                      index,
+                                      "opening_qty",
+                                      parseInt(e.target.value) || 0
+                                    )
+                                  }
+                                  className="w-28"
+                                  placeholder="0"
+                                />
+                              </TableCell>
+                            )}
+                            <TableCell className="text-center">
+                              <Switch
+                                checked={variant.active}
+                                onCheckedChange={(checked) =>
+                                  handleVariantChange(index, "active", checked)
+                                }
+                              />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
