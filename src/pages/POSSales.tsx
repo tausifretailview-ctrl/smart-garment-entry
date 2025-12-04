@@ -69,7 +69,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { saveSale, isSaving } = useSaveSale();
+  const { saveSale, updateSale, isSaving } = useSaveSale();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -619,13 +619,16 @@ export default function POSSales() {
       netAmount: finalAmount,
     };
 
-    const result = await saveSale(saleData, forcePaymentMethod || paymentMethod);
+    // Use updateSale if editing existing sale, otherwise create new
+    const result = currentSaleId 
+      ? await updateSale(currentSaleId, saleData, forcePaymentMethod || paymentMethod)
+      : await saveSale(saleData, forcePaymentMethod || paymentMethod);
     
     if (result) {
       // Store invoice number for printing
       setCurrentInvoiceNumber(result.sale_number);
       
-      // Refetch today's sales to include the new invoice
+      // Refetch today's sales to include the new/updated invoice
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
       // Reset to show the newly saved invoice (index 0, as sales are sorted by created_at desc)
@@ -633,8 +636,8 @@ export default function POSSales() {
       setCurrentSaleId(result.id);
       
       toast({
-        title: "Sale Saved",
-        description: `Invoice ${result.sale_number} saved successfully`,
+        title: currentSaleId ? "Sale Updated" : "Sale Saved",
+        description: `Invoice ${result.sale_number} ${currentSaleId ? 'updated' : 'saved'} successfully`,
       });
       
       // Clear cart on success
@@ -646,6 +649,7 @@ export default function POSSales() {
       setSaleReturnAdjust(0);
       setRoundOff(0);
       setSearchInput("");
+      setCurrentSaleId(null); // Reset edit mode
     }
   };
 
@@ -697,19 +701,23 @@ export default function POSSales() {
       netAmount: finalAmount,
     };
 
-    const result = await saveSale(saleData, method);
+    // Use updateSale if editing existing sale, otherwise create new
+    const result = currentSaleId 
+      ? await updateSale(currentSaleId, saleData, method)
+      : await saveSale(saleData, method);
     
     if (result) {
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
+      const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
       // Refetch today's sales
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
       toast({
-        title: "Sale Saved",
-        description: `Invoice ${result.sale_number} saved with ${method.toUpperCase()} payment`,
+        title: wasEditing ? "Sale Updated" : "Sale Saved",
+        description: `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with ${method.toUpperCase()} payment`,
       });
       
       // Store invoice data and show print dialog
@@ -727,6 +735,11 @@ export default function POSSales() {
         roundOff: roundOff,
       });
       setShowPrintConfirmDialog(true);
+      
+      // Reset edit mode after successful save
+      if (wasEditing) {
+        setCurrentSaleId(null);
+      }
     }
   };
 
@@ -796,11 +809,16 @@ export default function POSSales() {
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? 'refund' : 'multiple';
-    const result = await saveSale(saleData, paymentMethodType as any, paymentData);
+    
+    // Use updateSale if editing existing sale, otherwise create new
+    const result = currentSaleId 
+      ? await updateSale(currentSaleId, saleData, paymentMethodType as any, paymentData)
+      : await saveSale(saleData, paymentMethodType as any, paymentData);
     
     if (result) {
       // Store invoice number and sale ID for printing
       setCurrentInvoiceNumber(result.sale_number);
+      const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
       // Refetch today's sales
@@ -808,13 +826,12 @@ export default function POSSales() {
       
       const isRefund = paymentData.refundAmount > 0;
       const balanceAmount = isRefund ? 0 : finalAmount - paymentData.totalPaid;
-      const paymentStatus = balanceAmount > 0 ? 'partial' : 'completed';
       
       toast({
-        title: "Sale Saved",
+        title: wasEditing ? "Sale Updated" : "Sale Saved",
         description: isRefund 
-          ? `Invoice ${result.sale_number} saved with refund of ₹${paymentData.refundAmount.toFixed(2)}`
-          : `Invoice ${result.sale_number} saved with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
+          ? `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with refund of ₹${paymentData.refundAmount.toFixed(2)}`
+          : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
       });
       
       // Store invoice data and show print dialog
@@ -834,6 +851,11 @@ export default function POSSales() {
         refundAmount: paymentData.refundAmount,
       });
       setShowPrintConfirmDialog(true);
+      
+      // Reset edit mode after successful save
+      if (wasEditing) {
+        setCurrentSaleId(null);
+      }
     }
   };
 
