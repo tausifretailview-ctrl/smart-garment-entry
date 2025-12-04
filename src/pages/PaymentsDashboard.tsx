@@ -22,7 +22,6 @@ import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { Layout } from "@/components/Layout";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 
 interface Invoice {
