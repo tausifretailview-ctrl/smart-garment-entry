@@ -703,7 +703,16 @@ export default function PlatformAdmin() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Barcode Series:</span>
-                        <span className="font-medium font-mono">{org.organization_number}0001001</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium font-mono">
+                            {org.organization_number >= 10 
+                              ? `${org.organization_number}0001001` 
+                              : `${org.organization_number}0001001`}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {org.organization_number >= 10 ? '9-digit' : '8-digit'}
+                          </Badge>
+                        </div>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Login Slug:</span>
