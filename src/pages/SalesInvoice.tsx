@@ -682,7 +682,42 @@ Thank you for choosing us!`;
     setIsSaving(true);
     try {
       if (editingInvoiceId) {
-        // Update existing invoice
+        // Update existing invoice - correct order for stock triggers:
+        // 1. Delete sale_items (triggers stock restoration via handle_sale_item_delete)
+        // 2. Insert new sale_items (triggers stock deduction via update_stock_on_sale)
+        // 3. Update sales record
+        
+        // Step 1: Delete existing sale items (triggers stock restoration)
+        const { error: deleteError } = await supabase
+          .from('sale_items')
+          .delete()
+          .eq('sale_id', editingInvoiceId);
+
+        if (deleteError) throw deleteError;
+
+        // Step 2: Insert updated sale items (triggers stock deduction)
+        const saleItems = filledItems.map(item => ({
+          sale_id: editingInvoiceId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode || null,
+          quantity: item.quantity,
+          unit_price: item.salePrice,
+          mrp: item.mrp,
+          discount_percent: item.discountPercent,
+          gst_percent: item.gstPercent,
+          line_total: item.lineTotal,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('sale_items')
+          .insert(saleItems);
+
+        if (itemsError) throw itemsError;
+
+        // Step 3: Update the sales record
         const { error: updateError } = await supabase
           .from('sales')
           .update({
@@ -706,36 +741,6 @@ Thank you for choosing us!`;
           .eq('id', editingInvoiceId);
 
         if (updateError) throw updateError;
-
-        // Delete existing sale items
-        const { error: deleteError } = await supabase
-          .from('sale_items')
-          .delete()
-          .eq('sale_id', editingInvoiceId);
-
-        if (deleteError) throw deleteError;
-
-        // Insert updated sale items (only filled rows)
-        const saleItems = filledItems.map(item => ({
-          sale_id: editingInvoiceId,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode || null,
-          quantity: item.quantity,
-          unit_price: item.salePrice,
-          mrp: item.mrp,
-          discount_percent: item.discountPercent,
-          gst_percent: item.gstPercent,
-          line_total: item.lineTotal,
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('sale_items')
-          .insert(saleItems);
-
-        if (itemsError) throw itemsError;
 
         toast({
           title: "Invoice Updated",
