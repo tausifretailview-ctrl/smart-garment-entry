@@ -11,6 +11,7 @@ import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
+import { POSLayout } from "@/components/POSLayout";
 import OrganizationManagement from "./pages/OrganizationManagement";
 import Index from "./pages/Index";
 import ProductDashboard from "./pages/ProductDashboard";
@@ -221,9 +222,9 @@ const App = () => {
               path="/pos-sales"
               element={
                 <ProtectedRoute>
-                  <FullScreenLayout>
+                  <POSLayout>
                     <POSSales />
-                  </FullScreenLayout>
+                  </POSLayout>
                 </ProtectedRoute>
               }
             />
