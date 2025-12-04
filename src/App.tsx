@@ -51,6 +51,7 @@ import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
+import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -408,6 +409,18 @@ const App = () => {
                   <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                     <Layout>
                       <PriceHistoryReport />
+                    </Layout>
+                  </RoleProtectedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gst-register"
+              element={
+                <ProtectedRoute>
+                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                    <Layout>
+                      <GSTSalePurchaseRegister />
                     </Layout>
                   </RoleProtectedRoute>
                 </ProtectedRoute>
