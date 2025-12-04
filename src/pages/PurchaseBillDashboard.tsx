@@ -200,10 +200,7 @@ const PurchaseBillDashboard = () => {
 
     setDeletingBill(billToDelete.id);
     try {
-      // Restore stock before deleting
-      await restoreStockForBill(billToDelete.id);
-
-      // Delete purchase items
+      // Delete purchase items - database triggers will handle stock restoration automatically
       const { error: itemsError } = await supabase
         .from("purchase_items")
         .delete()
@@ -237,38 +234,9 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const restoreStockForBill = async (billId: string) => {
-    try {
-      const { data: items, error: itemsError } = await supabase
-        .from("purchase_items")
-        .select("*")
-        .eq("bill_id", billId);
-
-      if (itemsError) throw itemsError;
-
-      for (const item of items || []) {
-        if (item.sku_id) {
-          const { data: currentVariant, error: variantError } = await supabase
-            .from("product_variants")
-            .select("stock_qty")
-            .eq("id", item.sku_id)
-            .single();
-
-          if (variantError) throw variantError;
-
-          const { error: updateError } = await supabase
-            .from("product_variants")
-            .update({ stock_qty: currentVariant.stock_qty - item.qty })
-            .eq("id", item.sku_id);
-
-          if (updateError) throw updateError;
-        }
-      }
-    } catch (error: any) {
-      console.error("Error restoring stock:", error);
-      throw error;
-    }
-  };
+  // Note: Stock restoration is now handled automatically by database triggers
+  // (handle_purchase_item_delete) when purchase_items are deleted.
+  // This prevents double stock deduction that was occurring previously.
 
   const toggleSelectAll = () => {
     if (selectedBills.size === paginatedBills.length) {
@@ -294,8 +262,7 @@ const PurchaseBillDashboard = () => {
       const billsToDelete = Array.from(selectedBills);
       
       for (const billId of billsToDelete) {
-        await restoreStockForBill(billId);
-
+        // Delete purchase items - database triggers will handle stock restoration automatically
         const { error: itemsError } = await supabase
           .from("purchase_items")
           .delete()
