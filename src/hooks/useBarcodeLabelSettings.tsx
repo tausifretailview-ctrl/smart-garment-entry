@@ -61,11 +61,14 @@ interface DefaultFormat {
   bottomOffset?: number;
   rightOffset?: number;
   printScale?: number;
+  customPresetName?: string;
   customDimensions?: {
     width: number;
     height: number;
     cols: number;
+    rows: number;
     gap: number;
+    scale?: number;
   };
 }
 
