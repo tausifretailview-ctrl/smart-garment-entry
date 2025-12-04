@@ -11,10 +11,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, Trash2, UserX, Link2 } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, Trash2, UserX, Link2, Settings, Database, FileText, Activity, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StockReconciliation } from "@/components/StockReconciliation";
 
 interface Organization {
   id: string;
@@ -48,6 +50,179 @@ const AVAILABLE_FEATURES = [
   "api_access",
   "bulk_operations"
 ];
+
+// Audit Log Section Component
+const AuditLogSection = () => {
+  const [filterAction, setFilterAction] = useState<string>("all");
+  
+  const { data: auditLogs = [], isLoading } = useQuery({
+    queryKey: ["platform-audit-logs", filterAction],
+    queryFn: async () => {
+      let query = supabase
+        .from("audit_logs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      
+      if (filterAction !== "all") {
+        query = query.eq("action", filterAction);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const exportAuditLogs = () => {
+    const csvContent = [
+      ["Date", "User", "Action", "Entity Type", "Entity ID"].join(","),
+      ...auditLogs.map(log => [
+        new Date(log.created_at || "").toLocaleString(),
+        log.user_email || "System",
+        log.action,
+        log.entity_type,
+        log.entity_id || ""
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Audit logs exported successfully!");
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <Select value={filterAction} onValueChange={setFilterAction}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Filter by action" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Actions</SelectItem>
+            <SelectItem value="CREATE">Create</SelectItem>
+            <SelectItem value="UPDATE">Update</SelectItem>
+            <SelectItem value="DELETE">Delete</SelectItem>
+            <SelectItem value="SALE_CREATED">Sales</SelectItem>
+            <SelectItem value="PURCHASE_CREATED">Purchases</SelectItem>
+            <SelectItem value="ROLE_ASSIGNED">Role Changes</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={exportAuditLogs}>
+          <Download className="h-4 w-4 mr-2" />
+          Export CSV
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-8 text-muted-foreground">Loading audit logs...</div>
+      ) : auditLogs.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">No audit logs found</div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Date</TableHead>
+                <TableHead>User</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Entity Type</TableHead>
+                <TableHead>Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {auditLogs.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="text-xs">
+                    {new Date(log.created_at || "").toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {log.action}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm capitalize">{log.entity_type}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-48 truncate">
+                    {log.metadata ? JSON.stringify(log.metadata).substring(0, 50) : "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Database Statistics Section Component
+const DatabaseStatsSection = ({ organizations }: { organizations: any[] }) => {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["platform-db-stats"],
+    queryFn: async () => {
+      const [products, sales, purchases, customers, suppliers] = await Promise.all([
+        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("sales").select("id", { count: "exact", head: true }),
+        supabase.from("purchase_bills").select("id", { count: "exact", head: true }),
+        supabase.from("customers").select("id", { count: "exact", head: true }),
+        supabase.from("suppliers").select("id", { count: "exact", head: true }),
+      ]);
+
+      return {
+        products: products.count || 0,
+        sales: sales.count || 0,
+        purchases: purchases.count || 0,
+        customers: customers.count || 0,
+        suppliers: suppliers.count || 0,
+      };
+    },
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading statistics...</div>;
+  }
+
+  return (
+    <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="text-2xl font-bold">{stats?.products || 0}</div>
+          <p className="text-xs text-muted-foreground">Total Products</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="text-2xl font-bold">{stats?.sales || 0}</div>
+          <p className="text-xs text-muted-foreground">Total Sales</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="text-2xl font-bold">{stats?.purchases || 0}</div>
+          <p className="text-xs text-muted-foreground">Total Purchases</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="text-2xl font-bold">{stats?.customers || 0}</div>
+          <p className="text-xs text-muted-foreground">Total Customers</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-muted/50">
+        <CardContent className="pt-6">
+          <div className="text-2xl font-bold">{stats?.suppliers || 0}</div>
+          <p className="text-xs text-muted-foreground">Total Suppliers</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 export default function PlatformAdmin() {
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
@@ -433,6 +608,7 @@ export default function PlatformAdmin() {
           <TabsList>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           {/* Organizations Tab */}
@@ -710,6 +886,44 @@ export default function PlatformAdmin() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings" className="space-y-6">
+            {/* Audit Log Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Audit Log
+                </CardTitle>
+                <CardDescription>
+                  View recent platform activities across all organizations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AuditLogSection />
+              </CardContent>
+            </Card>
+
+            {/* Database Statistics */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="h-5 w-5" />
+                  Database Statistics
+                </CardTitle>
+                <CardDescription>
+                  Overview of data across all organizations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DatabaseStatsSection organizations={organizations} />
+              </CardContent>
+            </Card>
+
+            {/* Stock Reconciliation */}
+            <StockReconciliation />
           </TabsContent>
         </Tabs>
 
