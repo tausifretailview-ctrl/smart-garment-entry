@@ -1430,6 +1430,8 @@ export type Database = {
       }
       sales: {
         Row: {
+          ack_date: string | null
+          ack_no: string | null
           card_amount: number | null
           cash_amount: number | null
           created_at: string
@@ -1442,11 +1444,14 @@ export type Database = {
           delivery_status: string | null
           discount_amount: number
           due_date: string | null
+          einvoice_error: string | null
+          einvoice_status: string | null
           flat_discount_amount: number
           flat_discount_percent: number
           gross_amount: number
           id: string
           invoice_type: string | null
+          irn: string | null
           net_amount: number
           notes: string | null
           organization_id: string | null
@@ -1463,11 +1468,14 @@ export type Database = {
           sale_type: string
           shipping_address: string | null
           shipping_instructions: string | null
+          signed_qr_code: string | null
           terms_conditions: string | null
           updated_at: string
           upi_amount: number | null
         }
         Insert: {
+          ack_date?: string | null
+          ack_no?: string | null
           card_amount?: number | null
           cash_amount?: number | null
           created_at?: string
@@ -1480,11 +1488,14 @@ export type Database = {
           delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
+          einvoice_error?: string | null
+          einvoice_status?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
           id?: string
           invoice_type?: string | null
+          irn?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
@@ -1501,11 +1512,14 @@ export type Database = {
           sale_type: string
           shipping_address?: string | null
           shipping_instructions?: string | null
+          signed_qr_code?: string | null
           terms_conditions?: string | null
           updated_at?: string
           upi_amount?: number | null
         }
         Update: {
+          ack_date?: string | null
+          ack_no?: string | null
           card_amount?: number | null
           cash_amount?: number | null
           created_at?: string
@@ -1518,11 +1532,14 @@ export type Database = {
           delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
+          einvoice_error?: string | null
+          einvoice_status?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
           id?: string
           invoice_type?: string | null
+          irn?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
@@ -1539,6 +1556,7 @@ export type Database = {
           sale_type?: string
           shipping_address?: string | null
           shipping_instructions?: string | null
+          signed_qr_code?: string | null
           terms_conditions?: string | null
           updated_at?: string
           upi_amount?: number | null
