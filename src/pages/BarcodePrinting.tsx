@@ -1093,11 +1093,18 @@ export default function BarcodePrinting() {
   useEffect(() => {
     if (location.state?.purchaseItems) {
       const purchaseItems = location.state.purchaseItems;
+      let hasPurchasePrices = false;
+      
       const items: LabelItem[] = purchaseItems.map((item: any) => {
         const purPrice = item.pur_price || 0;
-        const purchaseCode = showPurchaseCode && purPrice > 0 
+        // Always calculate purchase code if pur_price exists
+        const purchaseCode = purPrice > 0 
           ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) 
           : undefined;
+        
+        if (purPrice > 0) {
+          hasPurchasePrices = true;
+        }
         
         return {
           sku_id: item.sku_id,
@@ -1116,10 +1123,21 @@ export default function BarcodePrinting() {
           supplier_code: item.supplier_code || "",
         };
       });
+      
       setLabelItems(items);
+      
+      // Auto-enable purchase code visibility when items have purchase prices
+      if (hasPurchasePrices) {
+        setShowPurchaseCode(true);
+        setLabelConfig(prev => ({
+          ...prev,
+          purchaseCode: { ...prev.purchaseCode, show: true }
+        }));
+      }
+      
       toast.success(`Loaded ${items.length} items from purchase bill`);
     }
-  }, [location.state, showPurchaseCode, purchaseCodeAlphabet]);
+  }, [location.state, purchaseCodeAlphabet]);
 
   const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
