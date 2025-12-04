@@ -75,6 +75,16 @@ interface PurchaseSettings {
   show_mrp?: boolean;
 }
 
+interface EInvoiceSettings {
+  enabled: boolean;
+  username: string;
+  password: string;
+  client_id: string;
+  client_secret: string;
+  test_mode: boolean;
+  auto_generate: boolean;
+}
+
 interface SaleSettings {
   default_discount?: number;
   payment_methods?: string[];
@@ -104,6 +114,8 @@ interface SaleSettings {
   invoice_footer_text?: string;
   logo_placement?: 'left' | 'center' | 'right';
   font_family?: 'inter' | 'roboto' | 'montserrat' | 'opensans' | 'playfair' | 'merriweather' | 'lora' | 'raleway' | 'poppins';
+  // E-Invoice Settings
+  einvoice_settings?: EInvoiceSettings;
 }
 
 interface BillBarcodeSettings {
@@ -153,6 +165,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<any[]>([]);
+  const [showApiPassword, setShowApiPassword] = useState(false);
+  const [showClientSecret, setShowClientSecret] = useState(false);
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
     address: "",
@@ -1935,6 +1949,224 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
+
+                {/* E-Invoice Settings Section */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-primary" />
+                    <h3 className="text-lg font-semibold">E-Invoice Settings (NIC GST Portal)</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Configure credentials for E-Invoice generation via NIC API
+                  </p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="einvoice_enabled"
+                      checked={settings.sale_settings?.einvoice_settings?.enabled ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            einvoice_settings: {
+                              ...settings.sale_settings?.einvoice_settings,
+                              enabled: checked as boolean,
+                            } as any,
+                          },
+                        })
+                      }
+                    />
+                    <div>
+                      <Label htmlFor="einvoice_enabled" className="font-normal cursor-pointer">
+                        Enable E-Invoice Generation
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, allows generating IRN for B2B invoices
+                      </p>
+                    </div>
+                  </div>
+
+                  {settings.sale_settings?.einvoice_settings?.enabled && (
+                    <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="einvoice_username">API Username</Label>
+                          <Input
+                            id="einvoice_username"
+                            value={settings.sale_settings?.einvoice_settings?.username || ""}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  einvoice_settings: {
+                                    ...settings.sale_settings?.einvoice_settings,
+                                    username: e.target.value,
+                                  } as any,
+                                },
+                              })
+                            }
+                            placeholder="NIC API Username"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="einvoice_password">API Password</Label>
+                          <div className="relative">
+                            <Input
+                              id="einvoice_password"
+                              type={showApiPassword ? "text" : "password"}
+                              value={settings.sale_settings?.einvoice_settings?.password || ""}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      password: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="NIC API Password"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                              onClick={() => setShowApiPassword(!showApiPassword)}
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="einvoice_client_id">Client ID</Label>
+                          <Input
+                            id="einvoice_client_id"
+                            value={settings.sale_settings?.einvoice_settings?.client_id || ""}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  einvoice_settings: {
+                                    ...settings.sale_settings?.einvoice_settings,
+                                    client_id: e.target.value,
+                                  } as any,
+                                },
+                              })
+                            }
+                            placeholder="OAuth Client ID"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="einvoice_client_secret">Client Secret</Label>
+                          <div className="relative">
+                            <Input
+                              id="einvoice_client_secret"
+                              type={showClientSecret ? "text" : "password"}
+                              value={settings.sale_settings?.einvoice_settings?.client_secret || ""}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      client_secret: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="OAuth Client Secret"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                              onClick={() => setShowClientSecret(!showClientSecret)}
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="einvoice_test_mode"
+                            checked={settings.sale_settings?.einvoice_settings?.test_mode ?? true}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  einvoice_settings: {
+                                    ...settings.sale_settings?.einvoice_settings,
+                                    test_mode: checked as boolean,
+                                  } as any,
+                                },
+                              })
+                            }
+                          />
+                          <div>
+                            <Label htmlFor="einvoice_test_mode" className="font-normal cursor-pointer">
+                              Test Mode (Sandbox)
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Use NIC Sandbox environment for testing
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="einvoice_auto_generate"
+                            checked={settings.sale_settings?.einvoice_settings?.auto_generate ?? false}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  einvoice_settings: {
+                                    ...settings.sale_settings?.einvoice_settings,
+                                    auto_generate: checked as boolean,
+                                  } as any,
+                                },
+                              })
+                            }
+                          />
+                          <div>
+                            <Label htmlFor="einvoice_auto_generate" className="font-normal cursor-pointer">
+                              Auto-generate E-Invoice
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Automatically generate E-Invoice when saving B2B sales
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
+                        <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
+                        <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
+                          <li>Credentials are stored in database settings</li>
+                          <li>Register at <a href="https://einvoice.gst.gov.in" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">einvoice.gst.gov.in</a> for API access</li>
+                          <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
+                          <li>Test in Sandbox mode before going live</li>
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </CardContent>
               </Card>
               
