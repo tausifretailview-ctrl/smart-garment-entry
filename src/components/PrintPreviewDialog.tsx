@@ -71,6 +71,12 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }
+        .print-invoice-container {
+          page-break-inside: avoid !important;
+          page-break-after: avoid !important;
+          overflow: hidden !important;
+          max-height: ${selectedFormat === 'a4' ? '277mm' : selectedFormat === 'a5' ? '190mm' : 'auto'} !important;
+        }
       }
     `,
     onAfterPrint: () => {
