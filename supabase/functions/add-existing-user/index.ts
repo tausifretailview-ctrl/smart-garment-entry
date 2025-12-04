@@ -83,12 +83,14 @@ Deno.serve(async (req) => {
       throw new Error('Failed to fetch users')
     }
 
-    const existingUser = users.find(u => u.email === email)
+    const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
     
     if (!existingUser) {
       console.error('User not found with email:', email)
       return new Response(
-        JSON.stringify({ error: 'User not found' }),
+        JSON.stringify({ 
+          error: `User with email "${email}" does not exist. Please use "Create User" to create a new user account first, then they will be automatically assigned to the organization.`
+        }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
