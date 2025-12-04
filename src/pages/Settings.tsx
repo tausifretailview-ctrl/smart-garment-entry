@@ -72,6 +72,7 @@ interface PurchaseSettings {
   default_tax_rate?: number;
   purchase_code_alphabet?: string;
   show_purchase_code?: boolean;
+  show_mrp?: boolean;
 }
 
 interface SaleSettings {
@@ -1145,6 +1146,29 @@ export default function Settings() {
                 <p className="text-xs text-muted-foreground ml-6">
                   When enabled, purchase prices will be automatically encoded using the alphabet above 
                   and printed on barcode labels (e.g., ₹100 → BAA)
+                </p>
+                
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="show_mrp"
+                    checked={settings.purchase_settings?.show_mrp || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          show_mrp: checked as boolean,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="show_mrp" className="font-normal cursor-pointer">
+                    Enable MRP Field
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  When enabled, MRP field will be shown in Product Entry, Sales, POS, Reports and Print invoices. 
+                  Discount will be calculated as MRP - Sale Price.
                 </p>
               </CardContent>
             </Card>

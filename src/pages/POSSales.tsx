@@ -57,6 +57,7 @@ interface CartItem {
   size: string;
   quantity: number;
   mrp: number;
+  originalMrp: number | null; // MRP from product_variants for savings calculation
   gstPer: number;
   discountPercent: number;
   discountAmount: number;
@@ -185,6 +186,7 @@ export default function POSSales() {
         size: item.size,
         quantity: item.quantity,
         mrp: item.mrp,
+        originalMrp: item.mrp > item.unit_price ? item.mrp : null, // Infer originalMrp
         gstPer: item.gst_percent,
         discountPercent: item.discount_percent,
         discountAmount: 0,
@@ -501,19 +503,24 @@ export default function POSSales() {
         description += ',' + extraParts.join('-');
       }
       
-      // Add new item
+      // Add new item - use MRP from variant if available, otherwise sale_price
+      const variantMrp = variant.mrp ? parseFloat(variant.mrp) : null;
+      const salePrice = parseFloat(variant.sale_price || 0);
+      const displayMrp = variantMrp && variantMrp > salePrice ? variantMrp : salePrice;
+      
       const newItem: CartItem = {
         id: variant.id,
         barcode: variant.barcode || '',
         productName: description,
         size: variant.size,
         quantity: 1,
-        mrp: parseFloat(variant.sale_price || 0),
+        mrp: displayMrp,
+        originalMrp: variantMrp,
         gstPer: product.gst_per || 0,
         discountPercent: 0,
         discountAmount: 0,
-        unitCost: parseFloat(variant.sale_price || 0),
-        netAmount: parseFloat(variant.sale_price || 0),
+        unitCost: salePrice,
+        netAmount: salePrice,
         productId: product.id,
         variantId: variant.id,
       };
@@ -590,6 +597,13 @@ export default function POSSales() {
       return sum + percentDiscount + item.discountAmount;
     }, 0),
     subtotal: items.reduce((sum, item) => sum + item.netAmount, 0),
+    // Calculate savings from MRP (originalMrp - unitCost) * quantity
+    savings: items.reduce((sum, item) => {
+      if (item.originalMrp && item.originalMrp > item.unitCost) {
+        return sum + (item.originalMrp - item.unitCost) * item.quantity;
+      }
+      return sum;
+    }, 0),
   };
 
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
@@ -1835,7 +1849,7 @@ export default function POSSales() {
 
         {/* Totals Section - Fixed at Bottom */}
         <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-10">
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+          <div className={`grid ${totals.savings > 0 ? 'grid-cols-4 md:grid-cols-9' : 'grid-cols-4 md:grid-cols-8'} gap-3`}>
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
@@ -1844,6 +1858,12 @@ export default function POSSales() {
               <div className="text-xl md:text-2xl font-bold">₹{totals.mrp.toFixed(2)}</div>
               <div className="text-xs md:text-sm mt-1">MRP</div>
             </div>
+            {totals.savings > 0 && (
+              <div className="text-center bg-green-600 rounded-md py-1">
+                <div className="text-xl md:text-2xl font-bold">₹{totals.savings.toFixed(0)}</div>
+                <div className="text-xs md:text-sm mt-1">You Save!</div>
+              </div>
+            )}
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">₹0.00</div>
               <div className="text-xs md:text-sm mt-1">Add. Charges</div>
