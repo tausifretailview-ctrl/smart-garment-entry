@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,7 @@ import * as XLSX from "xlsx";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -54,6 +55,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState("transactions");
 
   // Fetch all customers with their transaction summary
   const { data: customers, isLoading } = useQuery({
@@ -272,6 +274,108 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
     },
     enabled: !!selectedCustomer?.id,
   });
+
+  // Fetch payment history for selected customer
+  const { data: paymentHistory } = useQuery({
+    queryKey: ["customer-payment-history", selectedCustomer?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!selectedCustomer) return [];
+
+      // Get all sales for this customer to get reference IDs
+      const { data: customerSales, error: salesError } = await supabase
+        .from("sales")
+        .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status")
+        .eq("customer_id", selectedCustomer.id);
+
+      if (salesError) throw salesError;
+
+      const saleIds = customerSales?.map(s => s.id) || [];
+      const saleMap = new Map(customerSales?.map(s => [s.id, s]) || []);
+
+      // Fetch voucher payments (recorded via Record Payment)
+      let vouchersQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("voucher_type", "receipt")
+        .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
+
+      if (startDate) {
+        vouchersQuery = vouchersQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        vouchersQuery = vouchersQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: false });
+
+      if (vouchersError) throw vouchersError;
+
+      // Build payment history list
+      const payments: any[] = [];
+
+      // Add payments from voucher entries
+      vouchersData?.forEach((voucher) => {
+        const relatedSale = saleMap.get(voucher.reference_id || '');
+        payments.push({
+          id: voucher.id,
+          date: voucher.voucher_date,
+          voucherNumber: voucher.voucher_number,
+          invoiceNumber: relatedSale?.sale_number || 'N/A',
+          invoiceAmount: relatedSale?.net_amount || 0,
+          amount: voucher.total_amount,
+          method: 'recorded',
+          description: voucher.description || 'Payment recorded',
+          cash: 0,
+          card: 0,
+          upi: 0,
+          source: 'voucher',
+        });
+      });
+
+      // Add payments made at time of sale (mix payments)
+      customerSales?.forEach((sale) => {
+        const paidAtSale = sale.paid_amount || 0;
+        if (paidAtSale > 0) {
+          // Check date filter
+          if (startDate && new Date(sale.sale_date) < startDate) return;
+          if (endDate && new Date(sale.sale_date) > endDate) return;
+          
+          payments.push({
+            id: `${sale.id}-sale-payment`,
+            date: sale.sale_date,
+            voucherNumber: '-',
+            invoiceNumber: sale.sale_number,
+            invoiceAmount: sale.net_amount,
+            amount: paidAtSale,
+            method: sale.payment_method || 'mixed',
+            description: 'Payment at time of sale',
+            cash: sale.cash_amount || 0,
+            card: sale.card_amount || 0,
+            upi: sale.upi_amount || 0,
+            source: 'sale',
+          });
+        }
+      });
+
+      // Sort by date descending
+      payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      return payments;
+    },
+    enabled: !!selectedCustomer?.id,
+  });
+
+  // Calculate payment summary
+  const paymentSummary = useMemo(() => {
+    if (!paymentHistory) return { total: 0, cash: 0, card: 0, upi: 0, count: 0 };
+    return {
+      total: paymentHistory.reduce((sum, p) => sum + (p.amount || 0), 0),
+      cash: paymentHistory.reduce((sum, p) => sum + (p.cash || 0), 0),
+      card: paymentHistory.reduce((sum, p) => sum + (p.card || 0), 0),
+      upi: paymentHistory.reduce((sum, p) => sum + (p.upi || 0), 0),
+      count: paymentHistory.length,
+    };
+  }, [paymentHistory]);
 
   // Filter customers based on search, payment status, and date range
   const filteredCustomers = useMemo(() => {
@@ -515,113 +619,253 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
 
             <Separator className="my-6" />
 
-            <h3 className="text-lg font-semibold mb-4">Transaction History</h3>
-            
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead className="text-right">Debit</TableHead>
-                    <TableHead className="text-right">Credit</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactions.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                        No transactions found
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    transactions.map((transaction) => (
-                      <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {transaction.id === 'opening-balance' 
-                              ? <span className="font-semibold">Opening</span>
-                              : format(new Date(transaction.date), "dd MMM yyyy")
-                            }
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {transaction.id === 'opening-balance' ? (
-                            <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
-                              B/F
-                            </Badge>
-                          ) : (
-                            <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
-                              {transaction.type === 'invoice' ? (
-                                <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="transactions" className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Transaction History
+                </TabsTrigger>
+                <TabsTrigger value="payments" className="flex items-center gap-2">
+                  <IndianRupee className="h-4 w-4" />
+                  Payment History
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="transactions">
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead className="text-right">Debit</TableHead>
+                        <TableHead className="text-right">Credit</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                            No transactions found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        transactions.map((transaction) => (
+                          <TableRow key={transaction.id} className={transaction.id === 'opening-balance' ? 'bg-muted/50' : ''}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                {transaction.id === 'opening-balance' 
+                                  ? <span className="font-semibold">Opening</span>
+                                  : format(new Date(transaction.date), "dd MMM yyyy")
+                                }
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {transaction.id === 'opening-balance' ? (
+                                <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
+                                  B/F
+                                </Badge>
                               ) : (
-                                <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                                  {transaction.type === 'invoice' ? (
+                                    <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                                  ) : (
+                                    <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                  )}
+                                </Badge>
                               )}
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="text-muted-foreground">{transaction.description}</div>
-                            {transaction.paymentBreakdown && (
-                              <div className="flex flex-wrap gap-2 mt-1">
-                                {transaction.paymentBreakdown.cash !== undefined && transaction.paymentBreakdown.cash > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
-                                    Cash: ₹{transaction.paymentBreakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                  </Badge>
-                                )}
-                                {transaction.paymentBreakdown.card !== undefined && transaction.paymentBreakdown.card > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
-                                    Card: ₹{transaction.paymentBreakdown.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                  </Badge>
-                                )}
-                                {transaction.paymentBreakdown.upi !== undefined && transaction.paymentBreakdown.upi > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
-                                    UPI: ₹{transaction.paymentBreakdown.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                                  </Badge>
-                                )}
-                                {transaction.paymentBreakdown.method && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {transaction.paymentBreakdown.method.toUpperCase()}
-                                  </Badge>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="text-muted-foreground">{transaction.description}</div>
+                                {transaction.paymentBreakdown && (
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    {transaction.paymentBreakdown.cash !== undefined && transaction.paymentBreakdown.cash > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                                        Cash: ₹{transaction.paymentBreakdown.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                      </Badge>
+                                    )}
+                                    {transaction.paymentBreakdown.card !== undefined && transaction.paymentBreakdown.card > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                                        Card: ₹{transaction.paymentBreakdown.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                      </Badge>
+                                    )}
+                                    {transaction.paymentBreakdown.upi !== undefined && transaction.paymentBreakdown.upi > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                                        UPI: ₹{transaction.paymentBreakdown.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                      </Badge>
+                                    )}
+                                    {transaction.paymentBreakdown.method && (
+                                      <Badge variant="outline" className="text-xs">
+                                        {transaction.paymentBreakdown.method.toUpperCase()}
+                                      </Badge>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {transaction.debit > 0 && (
-                            <span className="text-red-600 dark:text-red-400">
-                              ₹{transaction.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {transaction.credit > 0 && (
-                            <span className="text-green-600 dark:text-green-400">
-                              ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className={cn(
-                          "text-right font-bold",
-                          transaction.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                          transaction.balance < 0 ? "text-green-600 dark:text-green-400" : 
-                          "text-foreground"
-                        )}>
-                          ₹{Math.abs(transaction.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </TableCell>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {transaction.debit > 0 && (
+                                <span className="text-red-600 dark:text-red-400">
+                                  ₹{transaction.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {transaction.credit > 0 && (
+                                <span className="text-green-600 dark:text-green-400">
+                                  ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className={cn(
+                              "text-right font-bold",
+                              transaction.balance > 0 ? "text-red-600 dark:text-red-400" : 
+                              transaction.balance < 0 ? "text-green-600 dark:text-green-400" : 
+                              "text-foreground"
+                            )}>
+                              ₹{Math.abs(transaction.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="payments">
+                {/* Payment Summary Cards */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-xs text-muted-foreground mb-1">Total Received</div>
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                        ₹{paymentSummary.total.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{paymentSummary.count} payments</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                        <Banknote className="h-3 w-3" /> Cash
+                      </div>
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">
+                        ₹{paymentSummary.cash.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                        <CreditCard className="h-3 w-3" /> Card
+                      </div>
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                        ₹{paymentSummary.card.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                        <Wallet className="h-3 w-3" /> UPI
+                      </div>
+                      <div className="text-xl font-bold text-purple-600 dark:text-purple-400">
+                        ₹{paymentSummary.upi.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-4">
+                      <div className="text-xs text-muted-foreground mb-1">Recorded Separately</div>
+                      <div className="text-xl font-bold">
+                        ₹{(paymentSummary.total - paymentSummary.cash - paymentSummary.card - paymentSummary.upi).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Voucher No.</TableHead>
+                        <TableHead>Invoice No.</TableHead>
+                        <TableHead>Invoice Amount</TableHead>
+                        <TableHead className="text-right">Cash</TableHead>
+                        <TableHead className="text-right">Card</TableHead>
+                        <TableHead className="text-right">UPI</TableHead>
+                        <TableHead className="text-right">Total Paid</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {!paymentHistory || paymentHistory.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                            No payment history found
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paymentHistory.map((payment) => (
+                          <TableRow key={payment.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                {format(new Date(payment.date), "dd MMM yyyy")}
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">
+                              {payment.voucherNumber !== '-' ? (
+                                <Badge variant="outline" className="bg-primary/10 text-primary">
+                                  {payment.voucherNumber}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">At Sale</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{payment.invoiceNumber}</TableCell>
+                            <TableCell>
+                              ₹{payment.invoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {payment.cash > 0 && (
+                                <Badge variant="outline" className="bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                                  ₹{payment.cash.toLocaleString("en-IN")}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {payment.card > 0 && (
+                                <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+                                  ₹{payment.card.toLocaleString("en-IN")}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {payment.upi > 0 && (
+                                <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                                  ₹{payment.upi.toLocaleString("en-IN")}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
+                              ₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       </div>
