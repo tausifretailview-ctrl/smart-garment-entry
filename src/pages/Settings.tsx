@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Home, Save, Eye, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -159,7 +159,7 @@ interface Settings {
 }
 
 export default function Settings() {
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);

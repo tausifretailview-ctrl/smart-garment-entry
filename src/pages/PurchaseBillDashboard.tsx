@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,7 +59,7 @@ interface PurchaseBill {
 
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);

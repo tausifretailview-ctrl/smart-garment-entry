@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, NavigateOptions } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCallback } from "react";
 
@@ -17,23 +17,24 @@ export function useOrgNavigation() {
   /**
    * Navigate to an org-scoped path
    * @param path - The path without org slug (e.g., "/products", "/pos-sales")
+   * @param options - Optional navigation options (state, replace, etc.)
    */
-  const orgNavigate = useCallback((path: string) => {
+  const orgNavigate = useCallback((path: string, options?: NavigateOptions) => {
     if (!orgSlug) {
       // Fallback to regular navigation if no org context
-      navigate(path);
+      navigate(path, options);
       return;
     }
 
     // Handle root path
     if (path === "/" || path === "") {
-      navigate(`/${orgSlug}`);
+      navigate(`/${orgSlug}`, options);
       return;
     }
 
     // Remove leading slash if present for consistent formatting
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-    navigate(`/${orgSlug}/${cleanPath}`);
+    navigate(`/${orgSlug}/${cleanPath}`, options);
   }, [navigate, orgSlug]);
 
   /**

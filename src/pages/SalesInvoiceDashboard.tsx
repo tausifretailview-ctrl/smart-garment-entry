@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send } from "lucide-react";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
@@ -61,7 +61,7 @@ const defaultColumnSettings: ColumnSettings = {
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -45,7 +45,7 @@ interface PurchaseReturn {
 
 const PurchaseReturnDashboard = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [returns, setReturns] = useState<PurchaseReturn[]>([]);
   const [loading, setLoading] = useState(true);

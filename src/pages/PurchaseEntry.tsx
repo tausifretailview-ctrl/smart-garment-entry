@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -87,7 +88,7 @@ const formatProductDescription = (item: {
 
 const PurchaseEntry = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
