@@ -12,6 +12,7 @@ import {
   DollarSign,
   Calendar,
   RotateCcw,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -340,6 +341,29 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
+  // Fetch total receivables (outstanding balance from all pending/partial payments)
+  const { data: receivablesData } = useQuery({
+    queryKey: ["receivables", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return { total: 0, count: 0 };
+      
+      const { data } = await supabase
+        .from("sales")
+        .select("net_amount, paid_amount")
+        .eq("organization_id", currentOrganization.id)
+        .in("payment_status", ["pending", "partial"]);
+      
+      const total = data?.reduce((sum, item) => {
+        const balance = (Number(item.net_amount) || 0) - (Number(item.paid_amount) || 0);
+        return sum + Math.max(0, balance);
+      }, 0) || 0;
+      const count = data?.length || 0;
+      
+      return { total, count };
+    },
+    enabled: !!currentOrganization,
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -502,7 +526,7 @@ const DashboardContent = () => {
           <div className="h-1 w-12 bg-gradient-to-r from-success to-transparent rounded-full" />
           Performance Metrics
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
           <MetricCard
             title="Gross Profit"
             value={formatCurrency(profitData || 0)}
@@ -526,6 +550,14 @@ const DashboardContent = () => {
             bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
             onClick={() => navigate("/payments-dashboard")}
             tooltip="Total cash collected from sales. Click to view Payments Dashboard."
+          />
+          <MetricCard
+            title="Receivables"
+            value={formatCurrency(receivablesData?.total || 0)}
+            icon={AlertCircle}
+            bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+            onClick={() => navigate("/payments-dashboard")}
+            tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
           />
           <MetricCard
             title="S/R Adjusted"
