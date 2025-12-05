@@ -83,20 +83,36 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch customer outstanding balance
+  // Fetch customer outstanding balance (includes opening balance + actual outstanding)
   const { data: customerBalance } = useQuery({
     queryKey: ["customer-balance", referenceId],
     queryFn: async () => {
+      // Get customer's opening balance
+      const { data: customerData, error: custError } = await supabase
+        .from("customers")
+        .select("opening_balance")
+        .eq("id", referenceId)
+        .maybeSingle();
+      
+      if (custError) throw custError;
+      const openingBalance = customerData?.opening_balance || 0;
+
+      // Get outstanding from invoices (net_amount - paid_amount)
       const { data, error } = await supabase
         .from("sales")
-        .select("net_amount")
+        .select("net_amount, paid_amount")
         .eq("customer_id", referenceId)
         .in("payment_status", ["pending", "partial"]);
       
       if (error) throw error;
       
-      const totalOutstanding = data?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
-      return totalOutstanding;
+      // Calculate actual outstanding: sum of (net_amount - paid_amount) for each invoice
+      const invoiceOutstanding = data?.reduce((sum, sale) => {
+        const balance = (sale.net_amount || 0) - (sale.paid_amount || 0);
+        return sum + Math.max(0, balance);
+      }, 0) || 0;
+      
+      return openingBalance + invoiceOutstanding;
     },
     enabled: !!referenceId && referenceType === "customer",
   });
@@ -134,7 +150,7 @@ export default function Accounts() {
   const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance", currentOrganization?.id],
     queryFn: async () => {
-      // First get all customers
+      // First get all customers with opening_balance
       const { data: allCustomers, error: custError } = await supabase
         .from("customers")
         .select("*")
@@ -150,24 +166,28 @@ export default function Accounts() {
         .in("payment_status", ["pending", "partial"]);
       if (invError) throw invError;
 
-      // Calculate balance per customer
-      const customerBalances = new Map<string, number>();
+      // Calculate invoice balance per customer (net_amount - paid_amount)
+      const customerInvoiceBalances = new Map<string, number>();
       pendingInvoices?.forEach((inv) => {
         if (inv.customer_id) {
           const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
-          customerBalances.set(
+          customerInvoiceBalances.set(
             inv.customer_id,
-            (customerBalances.get(inv.customer_id) || 0) + balance
+            (customerInvoiceBalances.get(inv.customer_id) || 0) + Math.max(0, balance)
           );
         }
       });
 
-      // Filter customers with balance > 0
-      return allCustomers?.filter((c) => customerBalances.has(c.id) && customerBalances.get(c.id)! > 0)
-        .map((c) => ({
-          ...c,
-          outstandingBalance: customerBalances.get(c.id) || 0,
-        })) || [];
+      // Filter customers with total balance > 0 (opening_balance + invoice balance)
+      return allCustomers?.filter((c) => {
+        const openingBalance = c.opening_balance || 0;
+        const invoiceBalance = customerInvoiceBalances.get(c.id) || 0;
+        const totalBalance = openingBalance + invoiceBalance;
+        return totalBalance > 0;
+      }).map((c) => ({
+        ...c,
+        outstandingBalance: (c.opening_balance || 0) + (customerInvoiceBalances.get(c.id) || 0),
+      })) || [];
     },
     enabled: !!currentOrganization?.id,
   });
