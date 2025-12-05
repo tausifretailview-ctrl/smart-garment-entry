@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import {
   Package,
   ShoppingCart,
@@ -111,7 +111,7 @@ const getDateRange = (type: DateRangeType) => {
 
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
@@ -516,11 +516,12 @@ const DashboardContent = () => {
 
 const Index = () => {
   const { currentOrganization, loading } = useOrganization();
-  const navigate = useNavigate();
+  const { orgNavigate } = useOrgNavigation();
 
   // Redirect to organization setup if user has no organization
   if (!loading && !currentOrganization) {
-    navigate("/organization-setup", { replace: true });
+    // Use window.location for non-org routes to avoid the hook
+    window.location.href = "/organization-setup";
     return null;
   }
 

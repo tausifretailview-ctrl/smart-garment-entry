@@ -16,12 +16,21 @@ import {
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 export const OrganizationSelector = () => {
   const { currentOrganization, organizations, switchOrganization } = useOrganization();
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
 
   if (organizations.length === 0) return null;
+
+  const handleSwitchOrganization = (org: typeof organizations[0]) => {
+    switchOrganization(org.id);
+    setOpen(false);
+    // Navigate to the new organization's dashboard
+    navigate(`/${org.slug}`);
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,10 +60,7 @@ export const OrganizationSelector = () => {
                 <CommandItem
                   key={org.id}
                   value={org.id}
-                  onSelect={() => {
-                    switchOrganization(org.id);
-                    setOpen(false);
-                  }}
+                  onSelect={() => handleSwitchOrganization(org)}
                 >
                   <Check
                     className={cn(

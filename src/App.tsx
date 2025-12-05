@@ -3,11 +3,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
+import { OrgLayout } from "@/components/OrgLayout";
 import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
@@ -67,440 +68,493 @@ const App = () => {
         <AuthProvider>
           <OrganizationProvider>
             <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route
-              path="/platform-admin"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["platform_admin"]}>
-                    <PlatformAdmin />
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/organization-setup"
-              element={
-                <ProtectedRoute>
-                  <OrganizationSetup />
-                </ProtectedRoute>
-              }
-            />
+              {/* Public routes - No org context needed */}
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
+              
+              {/* Platform admin route */}
               <Route
-                path="/organization-management"
+                path="/platform-admin"
                 element={
                   <ProtectedRoute>
-                    <RoleProtectedRoute allowedRoles={["admin"]}>
-                      <Layout>
-                        <OrganizationManagement />
-                      </Layout>
+                    <RoleProtectedRoute allowedRoles={["platform_admin"]}>
+                      <PlatformAdmin />
                     </RoleProtectedRoute>
                   </ProtectedRoute>
                 }
               />
-            <Route
-              path="/"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Index />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/products"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ProductDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/product-entry"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <ProductEntry />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/purchase-entry"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <FullScreenLayout>
-                      <PurchaseEntry />
-                    </FullScreenLayout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/purchase-bills"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <PurchaseBillDashboard />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/purchase-returns"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <PurchaseReturnDashboard />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/purchase-return-entry"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <FullScreenLayout>
-                      <PurchaseReturnEntry />
-                    </FullScreenLayout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/barcode-printing"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <BarcodePrinting />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/stock-report"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StockReport />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin"]}>
-                    <Layout>
-                      <Settings />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Profile />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pos-sales"
-              element={
-                <ProtectedRoute>
-                  <POSLayout>
-                    <POSSales />
-                  </POSLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/pos-dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <POSDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quotation-entry"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <QuotationEntry />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/quotation-dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <QuotationDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale-order-entry"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <SaleOrderEntry />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale-order-dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SaleOrderDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sales-invoice"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <SalesInvoice />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sales-invoice-dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SalesInvoiceDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale-return-entry"
-              element={
-                <ProtectedRoute>
-                  <FullScreenLayout>
-                    <SaleReturnEntry />
-                  </FullScreenLayout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sale-returns"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SaleReturnDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/customers"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <FullScreenLayout>
-                      <CustomerMaster />
-                    </FullScreenLayout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/suppliers"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <FullScreenLayout>
-                      <SupplierMaster />
-                    </FullScreenLayout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/employees"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <FullScreenLayout>
-                      <EmployeeMaster />
-                    </FullScreenLayout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/purchase-report"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <PurchaseReportBySupplier />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sales-report"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <SalesReportByCustomer />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/product-tracking"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ProductTrackingReport />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/daily-cashier-report"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <DailyCashierReport />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/item-wise-sales"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <ItemWiseSalesReport />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/price-history"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <PriceHistoryReport />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/gst-register"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <GSTSalePurchaseRegister />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/audit-log"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <AuditLog />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/accounts"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <Accounts />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/delivery-dashboard"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <DeliveryDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/payments-dashboard"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                    <Layout>
-                      <PaymentsDashboard />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/user-rights"
-              element={
-                <ProtectedRoute>
-                  <RoleProtectedRoute allowedRoles={["admin"]}>
-                    <Layout>
-                      <UserRights />
-                    </Layout>
-                  </RoleProtectedRoute>
-                </ProtectedRoute>
-              }
-            />
-            {/* Public invoice view - no authentication required */}
-            <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            {/* Organization-specific login route - must be last before catch-all */}
-            <Route path="/:orgSlug" element={<OrgAuth />} />
-            <Route path="*" element={<NotFound />} />
+              
+              {/* Organization setup - accessible without org context */}
+              <Route
+                path="/organization-setup"
+                element={
+                  <ProtectedRoute>
+                    <OrganizationSetup />
+                  </ProtectedRoute>
+                }
+              />
+
+              {/* Redirect root to org-specific URL */}
+              <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
+
+              {/* Organization-scoped routes */}
+              <Route path="/:orgSlug" element={<OrgLayout />}>
+                {/* Dashboard - index route */}
+                <Route
+                  index
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Index />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* Organization Management */}
+                <Route
+                  path="organization-management"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <OrganizationManagement />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Products */}
+                <Route
+                  path="products"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ProductDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="product-entry"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <ProductEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Purchase */}
+                <Route
+                  path="purchase-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <PurchaseEntry />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="purchase-bills"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PurchaseBillDashboard />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="purchase-returns"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PurchaseReturnDashboard />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="purchase-return-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <PurchaseReturnEntry />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Barcode & Stock */}
+                <Route
+                  path="barcode-printing"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <BarcodePrinting />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <StockReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Settings & Profile */}
+                <Route
+                  path="settings"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <Settings />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="profile"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Profile />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* POS */}
+                <Route
+                  path="pos-sales"
+                  element={
+                    <ProtectedRoute>
+                      <POSLayout>
+                        <POSSales />
+                      </POSLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="pos-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <POSDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Quotations */}
+                <Route
+                  path="quotation-entry"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <QuotationEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="quotation-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <QuotationDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Sale Orders */}
+                <Route
+                  path="sale-order-entry"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <SaleOrderEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="sale-order-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SaleOrderDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Sales Invoice */}
+                <Route
+                  path="sales-invoice"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <SalesInvoice />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="sales-invoice-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SalesInvoiceDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Sale Returns */}
+                <Route
+                  path="sale-return-entry"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <SaleReturnEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="sale-returns"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SaleReturnDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Master Data */}
+                <Route
+                  path="customers"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <CustomerMaster />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="suppliers"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <SupplierMaster />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="employees"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <EmployeeMaster />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Reports */}
+                <Route
+                  path="purchase-report"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PurchaseReportBySupplier />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="sales-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SalesReportByCustomer />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="product-tracking"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ProductTrackingReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="daily-cashier-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DailyCashierReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="item-wise-sales"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ItemWiseSalesReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="price-history"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PriceHistoryReport />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="gst-register"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <GSTSalePurchaseRegister />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="audit-log"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <AuditLog />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Accounts */}
+                <Route
+                  path="accounts"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <Accounts />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="payments-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PaymentsDashboard />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Delivery */}
+                <Route
+                  path="delivery-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DeliveryDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* User Rights */}
+                <Route
+                  path="user-rights"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <UserRights />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+
+              {/* Catch-all for 404 */}
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </OrganizationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+    </QueryClientProvider>
   );
+};
+
+// Component to redirect root to org-specific URL
+const RootRedirect = () => {
+  const savedOrgSlug = localStorage.getItem("selectedOrgSlug");
+  
+  if (savedOrgSlug) {
+    return <Navigate to={`/${savedOrgSlug}`} replace />;
+  }
+  
+  // If no org slug saved, go to organization setup
+  return <Navigate to="/organization-setup" replace />;
 };
 
 export default App;

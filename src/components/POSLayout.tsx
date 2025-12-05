@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +9,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useNavigate } from "react-router-dom";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -18,10 +20,17 @@ interface POSLayoutProps {
 export const POSLayout = ({ children }: POSLayoutProps) => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { currentOrganization } = useOrganization();
+  const { orgNavigate, orgSlug } = useOrgNavigation();
 
   const handleSignOut = async () => {
+    const slug = currentOrganization?.slug || orgSlug;
     await signOut();
-    navigate("/auth");
+    if (slug) {
+      navigate(`/${slug}`);
+    } else {
+      navigate("/auth");
+    }
   };
 
   return (
@@ -35,24 +44,24 @@ export const POSLayout = ({ children }: POSLayoutProps) => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48 bg-popover z-50">
-            <DropdownMenuItem onClick={() => navigate("/")}>
+            <DropdownMenuItem onClick={() => orgNavigate("/")}>
               <Home className="mr-2 h-4 w-4" />
               Dashboard
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/pos-dashboard")}>
+            <DropdownMenuItem onClick={() => orgNavigate("/pos-dashboard")}>
               <ShoppingCart className="mr-2 h-4 w-4" />
               POS Dashboard
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/products")}>
+            <DropdownMenuItem onClick={() => orgNavigate("/products")}>
               <Package className="mr-2 h-4 w-4" />
               Products
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/sales-invoice-dashboard")}>
+            <DropdownMenuItem onClick={() => orgNavigate("/sales-invoice-dashboard")}>
               <FileText className="mr-2 h-4 w-4" />
               Sales Dashboard
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
+            <DropdownMenuItem onClick={() => orgNavigate("/settings")}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>

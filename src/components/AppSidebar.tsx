@@ -46,8 +46,22 @@ export function AppSidebar() {
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin } = useUserRoles();
 
-  const isActive = (path: string) => location.pathname === path;
-  const isGroupActive = (paths: string[]) => paths.some(path => location.pathname === path);
+  // Check if path matches accounting for org-scoped URLs
+  // URL format: /:orgSlug/path or /path
+  const isActive = (path: string) => {
+    const pathname = location.pathname;
+    // Handle root path
+    if (path === "/") {
+      // Match /:orgSlug exactly (no trailing path)
+      const parts = pathname.split("/").filter(Boolean);
+      return parts.length === 1;
+    }
+    // Check if pathname ends with the path (after org slug)
+    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+    return pathname.endsWith(`/${cleanPath}`) || pathname === path;
+  };
+  
+  const isGroupActive = (paths: string[]) => paths.some(path => isActive(path));
 
   // Menu structure
   const masterPaths = ["/customers", "/suppliers", "/employees"];
