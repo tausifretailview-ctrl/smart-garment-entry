@@ -387,7 +387,37 @@ export default function POSSales() {
     refetchInterval: 30000, // Auto-refetch every 30 seconds
   });
 
-  // Fetch all products with variants and batch stock (only with available stock for goods, all for service/combo)
+  // Keyboard shortcuts for invoice navigation (needs todaysSales to be defined)
+  useEffect(() => {
+    const handleNavigationKeyPress = (e: KeyboardEvent) => {
+      // Page Up - Previous Invoice (older)
+      if (e.key === 'PageUp') {
+        e.preventDefault();
+        if (todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1) {
+          handlePreviousInvoice();
+        }
+      }
+      // Page Down - Next Invoice (newer)
+      else if (e.key === 'PageDown') {
+        e.preventDefault();
+        if (todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0) {
+          handleNextInvoice();
+        }
+      }
+      // End - Last (newest) Invoice
+      else if (e.key === 'End') {
+        e.preventDefault();
+        if (todaysSales && todaysSales.length > 0) {
+          handleLastInvoice();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleNavigationKeyPress);
+    return () => window.removeEventListener('keydown', handleNavigationKeyPress);
+  }, [todaysSales, currentInvoiceIndex]);
+
+
   const { data: productsData } = useQuery({
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
