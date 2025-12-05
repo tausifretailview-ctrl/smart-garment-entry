@@ -1378,7 +1378,7 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-24 z-20">
+      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative">
         <Button
           onClick={handleNewInvoice}
           className="h-16 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs"
@@ -1868,7 +1868,7 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom */}
-        <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-10">
+        <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-20">
           <div className={`grid ${totals.savings > 0 ? 'grid-cols-4 md:grid-cols-9' : 'grid-cols-4 md:grid-cols-8'} gap-3`}>
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
