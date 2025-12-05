@@ -3,6 +3,7 @@ import { Outlet, useParams, Navigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import OrgAuth from "@/pages/OrgAuth";
 
 export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
@@ -46,9 +47,9 @@ export const OrgLayout = () => {
     );
   }
 
-  // If not logged in, redirect to org login page
+  // If not logged in, render org login page directly (avoid redirect loop)
   if (!user) {
-    return <Navigate to={`/${orgSlug}`} replace />;
+    return <OrgAuth />;
   }
 
   // Check if user belongs to this organization
