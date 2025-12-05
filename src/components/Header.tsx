@@ -132,6 +132,14 @@ export const Header = () => {
             </Button>
           )}
 
+          {/* Organization Context Display */}
+          {orgSlug && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
+              <span className="text-xs text-muted-foreground">Org:</span>
+              <span className="text-sm font-medium text-primary">{orgSlug}</span>
+            </div>
+          )}
+
           {/* Organization Selector */}
           <OrganizationSelector />
 
