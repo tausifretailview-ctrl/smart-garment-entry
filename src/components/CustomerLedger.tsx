@@ -201,10 +201,7 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
           const sale = item.data as any;
           runningBalance += sale.net_amount;
           
-          // Find the related sale to get invoice reference
-          const relatedSale = salesData.find(s => s.id === sale.id);
-          
-          // Build payment breakdown
+          // Build payment breakdown for display
           const paymentBreakdown: any = {};
           if (sale.cash_amount && sale.cash_amount > 0) paymentBreakdown.cash = sale.cash_amount;
           if (sale.card_amount && sale.card_amount > 0) paymentBreakdown.card = sale.card_amount;
@@ -221,6 +218,34 @@ export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
             balance: runningBalance,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
+
+          // Add credit entry for payment made at time of sale (mix payment, partial payment)
+          const paidAtSale = sale.paid_amount || 0;
+          if (paidAtSale > 0) {
+            runningBalance -= paidAtSale;
+            
+            // Build payment description with breakdown
+            const paymentParts: string[] = [];
+            if (sale.cash_amount > 0) paymentParts.push(`Cash: ₹${sale.cash_amount.toLocaleString('en-IN')}`);
+            if (sale.card_amount > 0) paymentParts.push(`Card: ₹${sale.card_amount.toLocaleString('en-IN')}`);
+            if (sale.upi_amount > 0) paymentParts.push(`UPI: ₹${sale.upi_amount.toLocaleString('en-IN')}`);
+            
+            allTransactions.push({
+              id: `${sale.id}-payment-at-sale`,
+              date: sale.sale_date,
+              type: 'payment',
+              reference: sale.sale_number,
+              description: `Payment at sale${paymentParts.length > 0 ? ' - ' + paymentParts.join(', ') : ''}`,
+              debit: 0,
+              credit: paidAtSale,
+              balance: runningBalance,
+              paymentBreakdown: {
+                cash: sale.cash_amount || 0,
+                card: sale.card_amount || 0,
+                upi: sale.upi_amount || 0,
+              },
+            });
+          }
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
