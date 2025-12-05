@@ -11,6 +11,7 @@ import {
   Store,
   DollarSign,
   Calendar,
+  RotateCcw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -317,6 +318,28 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
+  // Fetch S/R Adjusted (sale return adjustments used against new purchases)
+  const { data: srAdjustedData } = useQuery({
+    queryKey: ["sr-adjusted", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization) return { total: 0, count: 0 };
+      
+      const { data } = await supabase
+        .from("sales")
+        .select("sale_return_adjust")
+        .eq("organization_id", currentOrganization.id)
+        .gte("sale_date", startDate)
+        .lte("sale_date", endDate)
+        .gt("sale_return_adjust", 0);
+      
+      const total = data?.reduce((sum, item) => sum + (Number(item.sale_return_adjust) || 0), 0) || 0;
+      const count = data?.length || 0;
+      
+      return { total, count };
+    },
+    enabled: !!currentOrganization,
+  });
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -479,7 +502,7 @@ const DashboardContent = () => {
           <div className="h-1 w-12 bg-gradient-to-r from-success to-transparent rounded-full" />
           Performance Metrics
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Gross Profit"
             value={formatCurrency(profitData || 0)}
@@ -503,6 +526,14 @@ const DashboardContent = () => {
             bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
             onClick={() => navigate("/payments-dashboard")}
             tooltip="Total cash collected from sales. Click to view Payments Dashboard."
+          />
+          <MetricCard
+            title="S/R Adjusted"
+            value={formatCurrency(srAdjustedData?.total || 0)}
+            icon={RotateCcw}
+            bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+            onClick={() => navigate("/sale-return-dashboard")}
+            tooltip={`Sale return credit used against ${srAdjustedData?.count || 0} new purchases. Click to view Sale Returns.`}
           />
         </div>
       </div>
