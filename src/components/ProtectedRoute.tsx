@@ -14,6 +14,11 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) {
+    // Check for saved organization slug to redirect to org-specific login
+    const savedOrgSlug = localStorage.getItem("selectedOrgSlug");
+    if (savedOrgSlug) {
+      return <Navigate to={`/${savedOrgSlug}`} replace />;
+    }
     return <Navigate to="/auth" replace />;
   }
 
