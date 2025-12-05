@@ -167,6 +167,14 @@ export const transformProductsToStockItems = (products: any[]): TallyStockItem[]
   }));
 };
 
+// Helper function to extract serial number from voucher number (e.g., "POS/25-26/71" -> 71)
+const extractSerialNumber = (voucherNo: string): number => {
+  if (!voucherNo) return 0;
+  const parts = voucherNo.split('/');
+  const lastPart = parts[parts.length - 1];
+  return parseInt(lastPart, 10) || 0;
+};
+
 // Transform sales to Tally Sales Vouchers
 export const transformSalesToVouchers = (
   sales: any[], 
@@ -174,7 +182,20 @@ export const transformSalesToVouchers = (
 ): TallySalesVoucher[] => {
   const vouchers: TallySalesVoucher[] = [];
   
-  sales.forEach(sale => {
+  // Sort sales by date and sale_number before processing
+  const sortedSales = [...sales].sort((a, b) => {
+    // First sort by date
+    const dateA = new Date(a.sale_date).getTime();
+    const dateB = new Date(b.sale_date).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    
+    // Then sort by voucher serial number
+    const serialA = extractSerialNumber(a.sale_number);
+    const serialB = extractSerialNumber(b.sale_number);
+    return serialA - serialB;
+  });
+  
+  sortedSales.forEach(sale => {
     const saleItems = sale.sale_items || [];
     const customerGstin = sale.customer_gstin || '';
     const isInterStateTransaction = isInterState(orgGstin, customerGstin);
@@ -218,7 +239,18 @@ export const transformPurchasesToVouchers = (
 ): TallyPurchaseVoucher[] => {
   const vouchers: TallyPurchaseVoucher[] = [];
   
-  purchases.forEach(purchase => {
+  // Sort purchases by date and bill number
+  const sortedPurchases = [...purchases].sort((a, b) => {
+    const dateA = new Date(a.bill_date).getTime();
+    const dateB = new Date(b.bill_date).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    
+    const serialA = extractSerialNumber(a.software_bill_no || a.supplier_invoice_no || '');
+    const serialB = extractSerialNumber(b.software_bill_no || b.supplier_invoice_no || '');
+    return serialA - serialB;
+  });
+  
+  sortedPurchases.forEach(purchase => {
     const purchaseItems = purchase.purchase_items || [];
     const supplierGstin = purchase.supplier?.gst_number || '';
     const isInterStateTransaction = isInterState(orgGstin, supplierGstin);
@@ -263,7 +295,18 @@ export const transformSaleReturnsToCreditNotes = (
 ): TallySalesVoucher[] => {
   const vouchers: TallySalesVoucher[] = [];
   
-  saleReturns.forEach(saleReturn => {
+  // Sort sale returns by date and return number
+  const sortedReturns = [...saleReturns].sort((a, b) => {
+    const dateA = new Date(a.return_date).getTime();
+    const dateB = new Date(b.return_date).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    
+    const serialA = extractSerialNumber(a.return_number || '');
+    const serialB = extractSerialNumber(b.return_number || '');
+    return serialA - serialB;
+  });
+  
+  sortedReturns.forEach(saleReturn => {
     const returnItems = saleReturn.sale_return_items || [];
     const customerGstin = saleReturn.customer_gstin || '';
     const isInterStateTransaction = isInterState(orgGstin, customerGstin);
@@ -307,7 +350,18 @@ export const transformPurchaseReturnsToDebitNotes = (
 ): TallyPurchaseVoucher[] => {
   const vouchers: TallyPurchaseVoucher[] = [];
   
-  purchaseReturns.forEach(purchaseReturn => {
+  // Sort purchase returns by date and return number
+  const sortedReturns = [...purchaseReturns].sort((a, b) => {
+    const dateA = new Date(a.return_date).getTime();
+    const dateB = new Date(b.return_date).getTime();
+    if (dateA !== dateB) return dateA - dateB;
+    
+    const serialA = extractSerialNumber(a.return_number || '');
+    const serialB = extractSerialNumber(b.return_number || '');
+    return serialA - serialB;
+  });
+  
+  sortedReturns.forEach(purchaseReturn => {
     const returnItems = purchaseReturn.purchase_return_items || [];
     const supplierGstin = purchaseReturn.supplier?.gst_number || '';
     const isInterStateTransaction = isInterState(orgGstin, supplierGstin);
@@ -348,6 +402,12 @@ export const transformPurchaseReturnsToDebitNotes = (
 export const transformReceiptsToVouchers = (vouchers: any[]): TallyReceiptVoucher[] => {
   return vouchers
     .filter(v => v.voucher_type === 'RECEIPT')
+    .sort((a, b) => {
+      const dateA = new Date(a.voucher_date).getTime();
+      const dateB = new Date(b.voucher_date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return extractSerialNumber(a.voucher_number || '') - extractSerialNumber(b.voucher_number || '');
+    })
     .map(voucher => ({
       date: formatTallyDate(voucher.voucher_date),
       voucherNo: voucher.voucher_number || '',
@@ -362,6 +422,12 @@ export const transformReceiptsToVouchers = (vouchers: any[]): TallyReceiptVouche
 export const transformPaymentsToVouchers = (vouchers: any[]): TallyReceiptVoucher[] => {
   return vouchers
     .filter(v => v.voucher_type === 'PAYMENT')
+    .sort((a, b) => {
+      const dateA = new Date(a.voucher_date).getTime();
+      const dateB = new Date(b.voucher_date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return extractSerialNumber(a.voucher_number || '') - extractSerialNumber(b.voucher_number || '');
+    })
     .map(voucher => ({
       date: formatTallyDate(voucher.voucher_date),
       voucherNo: voucher.voucher_number || '',
