@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CustomerLedgerProps {
   organizationId: string;
+  paymentFilter?: string | null;
 }
 
 interface Customer {
@@ -49,13 +50,20 @@ interface Transaction {
   };
 }
 
-export function CustomerLedger({ organizationId }: CustomerLedgerProps) {
+export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedgerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("transactions");
+
+  // Sync external filter with internal state
+  useEffect(() => {
+    if (paymentFilter !== undefined) {
+      setPaymentStatusFilter(paymentFilter || "all");
+    }
+  }, [paymentFilter]);
 
   // Fetch all customers with their transaction summary
   const { data: customers, isLoading } = useQuery({
