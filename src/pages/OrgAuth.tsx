@@ -94,9 +94,9 @@ export default function OrgAuth() {
           .single();
 
         if (membership) {
-          // User belongs to this org, redirect to dashboard
+          // User belongs to this org, redirect to org-scoped dashboard
           localStorage.setItem("selectedOrgSlug", organization.slug);
-          navigate("/");
+          navigate(`/${organization.slug}`);
         } else {
           // User is logged in but not a member of this org
           setError("You are not a member of this organization. Please contact your administrator.");
@@ -162,10 +162,10 @@ export default function OrgAuth() {
         return;
       }
 
-      // Success! Store the organization slug and redirect
+      // Success! Store the organization slug and redirect to org-scoped dashboard
       localStorage.setItem("selectedOrgSlug", organization.slug);
       toast.success(`Welcome to ${organization.name}!`);
-      navigate("/");
+      navigate(`/${organization.slug}`);
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
     } finally {

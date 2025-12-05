@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { OrganizationSelector } from "@/components/OrganizationSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -20,16 +21,17 @@ export const Header = () => {
   const { user, signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
+  const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isInstallable, promptInstall } = useInstallPrompt();
 
   const handleSignOut = async () => {
     // Store the current organization slug before signing out
-    const orgSlug = currentOrganization?.slug;
+    const slug = currentOrganization?.slug || orgSlug;
     await signOut();
     // Redirect to organization login URL if available, otherwise default auth
-    if (orgSlug) {
-      navigate(`/${orgSlug}`);
+    if (slug) {
+      navigate(`/${slug}`);
     } else {
       navigate('/auth');
     }
@@ -62,7 +64,7 @@ export const Header = () => {
                     variant="ghost"
                     className="justify-start text-sidebar-foreground hover:bg-primary/10 hover:text-primary"
                     onClick={() => {
-                      navigate(action.path);
+                      orgNavigate(action.path);
                       setMobileMenuOpen(false);
                     }}
                   >
@@ -75,7 +77,7 @@ export const Header = () => {
           </Sheet>
 
           <button
-            onClick={() => navigate("/")}
+            onClick={() => orgNavigate("/")}
             className="flex items-center gap-2 group"
           >
             <div className="relative">
@@ -100,7 +102,7 @@ export const Header = () => {
               key={action.path}
               variant="ghost"
               size="sm"
-              onClick={() => navigate(action.path)}
+              onClick={() => orgNavigate(action.path)}
               className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary transition-all"
             >
               <action.icon className="h-4 w-4 mr-2 text-primary" />
@@ -155,10 +157,10 @@ export const Header = () => {
                 <p className="text-sm font-medium">{user?.email}</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
+              <DropdownMenuItem onClick={() => orgNavigate("/profile")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
                 Profile Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
+              <DropdownMenuItem onClick={() => orgNavigate("/settings")} className="cursor-pointer hover:bg-primary/10 hover:text-primary">
                 App Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
