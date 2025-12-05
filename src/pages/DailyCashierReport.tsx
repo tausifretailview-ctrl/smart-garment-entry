@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote } from "lucide-react";
+import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { cn } from "@/lib/utils";
@@ -97,7 +97,9 @@ const DailyCashierReport = () => {
       return {
         grossSale: 0,
         totalDiscount: 0,
+        totalSRAdjusted: 0,
         totalSale: 0,
+        netReceivable: 0,
         cashSale: 0,
         cardSale: 0,
         upiSale: 0,
@@ -116,6 +118,7 @@ const DailyCashierReport = () => {
 
     let grossSale = 0;
     let totalDiscount = 0;
+    let totalSRAdjusted = 0;
     let totalSale = 0;
     let cashSale = 0;
     let cardSale = 0;
@@ -133,6 +136,7 @@ const DailyCashierReport = () => {
     salesData.forEach((sale) => {
       grossSale += Number(sale.gross_amount) || 0;
       totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
+      totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
       totalSale += Number(sale.net_amount) || 0;
 
       const netAmount = Number(sale.net_amount) || 0;
@@ -176,10 +180,15 @@ const DailyCashierReport = () => {
       }
     });
 
+    // Net Receivable = Net Sale - S/R Adjusted (actual amount to collect from customers)
+    const netReceivable = totalSale - totalSRAdjusted;
+
     return {
       grossSale,
       totalDiscount,
+      totalSRAdjusted,
       totalSale,
+      netReceivable,
       cashSale,
       cardSale,
       upiSale,
@@ -209,27 +218,32 @@ const DailyCashierReport = () => {
       [],
       ["Summary"],
       ["Gross Sale", totals.grossSale],
-      ["Total Discount", totals.totalDiscount],
+      ["Less: Discount", totals.totalDiscount],
       ["Net Sale", totals.totalSale],
-      ["Total Paid", totals.totalPaid],
-      ["Total Balance", totals.totalBalance],
+      ["Less: S/R Adjusted", totals.totalSRAdjusted],
+      ["Net Receivable", totals.netReceivable],
       [],
       ["Payment Method Breakdown"],
       ["Payment Method", "Bills", "Amount"],
       ["Cash", totals.cashBills, totals.cashSale],
       ["Card", totals.cardBills, totals.cardSale],
       ["UPI", totals.upiBills, totals.upiSale],
-      ["Mix Payment", totals.mixBills, totals.cashSale + totals.cardSale + totals.upiSale - (totals.cashBills * (totals.cashSale / (totals.cashBills || 1))) - (totals.cardBills * (totals.cardSale / (totals.cardBills || 1))) - (totals.upiBills * (totals.upiSale / (totals.upiBills || 1)))],
+      ["Mix Payment", totals.mixBills, "-"],
       ["Credit (Pay Later)", totals.creditBills, totals.creditSale],
       ["Total", totals.totalBills, totals.totalSale],
       [],
       ["Collection Summary"],
-      ["Total Cash Collection", totals.cashSale],
-      ["Total Card Collection", totals.cardSale],
-      ["Total UPI Collection", totals.upiSale],
-      ["Total Collection", totals.totalPaid],
-      ["Credit (Outstanding)", totals.creditSale],
-      ["Total Balance Pending", totals.totalBalance],
+      ["Cash Collection", totals.cashSale],
+      ["Card Collection", totals.cardSale],
+      ["UPI Collection", totals.upiSale],
+      ["S/R Adjusted", totals.totalSRAdjusted],
+      ["Total Collection", totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted],
+      ["Less: Refund", totals.totalRefund],
+      ["Net Cash Collection", totals.cashSale - totals.totalRefund],
+      [],
+      ["Outstanding"],
+      ["Credit (Pay Later)", totals.creditSale],
+      ["Balance Pending", totals.totalBalance],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(data);
@@ -259,15 +273,16 @@ const DailyCashierReport = () => {
     y += 10;
     doc.text(`Gross Sale: ${formatCurrency(totals.grossSale)}`, 20, y);
     y += 7;
-    doc.text(`Total Discount: ${formatCurrency(totals.totalDiscount)}`, 20, y);
+    doc.text(`Less: Discount: ${formatCurrency(totals.totalDiscount)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "normal");
-    doc.text(`Total Paid: ${formatCurrency(totals.totalPaid)}`, 20, y);
+    doc.text(`Less: S/R Adjusted: ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
     y += 7;
-    doc.text(`Balance Pending: ${formatCurrency(totals.totalBalance)}`, 20, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
     doc.setFont("helvetica", "normal");
 
     // Payment Breakdown
@@ -283,11 +298,17 @@ const DailyCashierReport = () => {
     y += 7;
     doc.text("UPI Collection: " + formatCurrency(totals.upiSale), 20, y);
     y += 7;
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Collection: " + formatCurrency(totals.totalPaid), 20, y);
+    doc.text("S/R Adjusted: " + formatCurrency(totals.totalSRAdjusted), 20, y);
     y += 7;
+    doc.text("Less: Refund: " + formatCurrency(totals.totalRefund), 20, y);
+    y += 7;
+    doc.setFont("helvetica", "bold");
+    doc.text("Net Cash Collection: " + formatCurrency(totals.cashSale - totals.totalRefund), 20, y);
+    y += 10;
     doc.setFont("helvetica", "normal");
     doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
+    y += 7;
+    doc.text("Balance Pending: " + formatCurrency(totals.totalBalance), 20, y);
 
     // Footer
     y += 20;
@@ -399,7 +420,7 @@ const DailyCashierReport = () => {
       ) : (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
@@ -435,6 +456,19 @@ const DailyCashierReport = () => {
               <CardContent>
                 <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(totals.totalSale)}</p>
                 <p className="text-xs text-green-600 dark:text-green-400">Gross - Discount</p>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 border-teal-200 dark:border-teal-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-teal-700 dark:text-teal-300 flex items-center gap-2">
+                  <RotateCcw className="h-4 w-4" />
+                  S/R Adjusted
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-teal-900 dark:text-teal-100">{formatCurrency(totals.totalSRAdjusted)}</p>
+                <p className="text-xs text-teal-600 dark:text-teal-400">Return credit used</p>
               </CardContent>
             </Card>
 
@@ -499,28 +533,39 @@ const DailyCashierReport = () => {
                     </TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(totals.upiSale)}</TableCell>
                   </TableRow>
-                <TableRow>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
-                        <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-teal-100 dark:bg-teal-900">
+                          <RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                        </div>
+                        <span className="font-medium">S/R Adjusted</span>
                       </div>
-                      <span className="font-medium">Total Refund</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
-                </TableRow>
-                <TableRow className="bg-green-50 dark:bg-green-950">
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
-                        <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-teal-600 dark:text-teal-400">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
+                          <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
+                        </div>
+                        <span className="font-medium">Less: Refund</span>
                       </div>
-                      <span className="font-bold">Net Cash Collection</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
-                </TableRow>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.totalRefund)}</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-green-50 dark:bg-green-950">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
+                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
+                        </div>
+                        <span className="font-bold">Net Cash Collection</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
+                  </TableRow>
                   <TableRow>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -563,9 +608,17 @@ const DailyCashierReport = () => {
                   <span>Less: Discount</span>
                   <span className="font-semibold">- {formatCurrency(totals.totalDiscount)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold">
+                <div className="flex justify-between py-2 border-b text-lg font-bold">
                   <span>Net Sale</span>
                   <span>{formatCurrency(totals.totalSale)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b text-teal-600">
+                  <span>Less: S/R Adjusted</span>
+                  <span className="font-semibold">- {formatCurrency(totals.totalSRAdjusted)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold text-primary">
+                  <span>Net Receivable</span>
+                  <span>{formatCurrency(totals.netReceivable)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
@@ -580,6 +633,20 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">UPI Collection</span>
                     <span>{formatCurrency(totals.upiSale)}</span>
                   </div>
+                  <div className="flex justify-between text-teal-600">
+                    <span className="text-muted-foreground">S/R Adjusted</span>
+                    <span>{formatCurrency(totals.totalSRAdjusted)}</span>
+                  </div>
+                  <div className="flex justify-between text-red-600">
+                    <span className="text-muted-foreground">Less: Refund</span>
+                    <span>- {formatCurrency(totals.totalRefund)}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
+                  <span>Total Collected</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted - totals.totalRefund)}</span>
+                </div>
+                <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Credit (Outstanding)</span>
                     <span>{formatCurrency(totals.creditSale)}</span>
@@ -588,10 +655,6 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">Balance Pending</span>
                     <span>{formatCurrency(totals.totalBalance)}</span>
                   </div>
-                </div>
-                <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
-                  <span>Total Collection</span>
-                  <span>{formatCurrency(totals.totalPaid)}</span>
                 </div>
               </div>
             </CardContent>
