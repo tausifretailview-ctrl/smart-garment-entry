@@ -8,6 +8,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -84,28 +90,44 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          {onNewSale && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onNewSale}
-              className="text-primary-foreground hover:bg-primary/80 gap-1"
-            >
-              <PlusCircle className="h-4 w-4" />
-              <span className="hidden sm:inline">New Sale</span>
-            </Button>
-          )}
-          {onClearCart && hasItems && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={onClearCart}
-              className="text-primary-foreground hover:bg-destructive/80 gap-1"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Clear</span>
-            </Button>
-          )}
+          <TooltipProvider>
+            {onNewSale && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onNewSale}
+                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline">New Sale</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Start a new sale</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onClearCart && hasItems && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onClearCart}
+                    className="text-primary-foreground hover:bg-destructive/80 gap-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Clear</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Clear cart <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd></p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
           <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
         </div>
       </header>
