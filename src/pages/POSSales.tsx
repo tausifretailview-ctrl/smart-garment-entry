@@ -45,6 +45,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
@@ -1774,53 +1780,76 @@ export default function POSSales() {
             </div>
           </div>
           
-          <div className="flex gap-2 items-center">
-            <Button
-              onClick={handlePreviousInvoice}
-              variant="outline"
-              size="sm"
-              className="h-12 flex-1"
-              disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              <div className="flex flex-col items-start">
-                <span className="text-xs">Previous</span>
-                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {todaysSales[currentInvoiceIndex + 1]?.sale_number}
-                  </span>
-                )}
-              </div>
-            </Button>
-            {/* Position Indicator */}
-            {todaysSales && todaysSales.length > 0 && currentSaleId && (
-              <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px]">
-                <span className="text-sm font-semibold text-foreground">
-                  {todaysSales.length - currentInvoiceIndex}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  of {todaysSales.length}
-                </span>
-              </div>
-            )}
-            <Button
-              onClick={handleNextInvoice}
-              variant="outline"
-              size="sm"
-              className="h-12 flex-1"
-              disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
-            >
-              <div className="flex flex-col items-end">
-                <span className="text-xs">Next</span>
-                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
-                  <span className="text-[10px] text-muted-foreground">
-                    {todaysSales[currentInvoiceIndex - 1]?.sale_number}
-                  </span>
-                )}
-              </div>
-              <ChevronRight className="h-4 w-4 ml-1" />
-            </Button>
-          </div>
+          <TooltipProvider>
+            <div className="flex gap-2 items-center">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handlePreviousInvoice}
+                    variant="outline"
+                    size="sm"
+                    className="h-12 flex-1"
+                    disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    <div className="flex flex-col items-start">
+                      <span className="text-xs">Previous</span>
+                      {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {todaysSales[currentInvoiceIndex + 1]?.sale_number}
+                        </span>
+                      )}
+                    </div>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Page Up</p>
+                </TooltipContent>
+              </Tooltip>
+              {/* Position Indicator */}
+              {todaysSales && todaysSales.length > 0 && currentSaleId && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
+                      <span className="text-sm font-semibold text-foreground">
+                        {todaysSales.length - currentInvoiceIndex}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        of {todaysSales.length}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>End - Go to Latest</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleNextInvoice}
+                    variant="outline"
+                    size="sm"
+                    className="h-12 flex-1"
+                    disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
+                  >
+                    <div className="flex flex-col items-end">
+                      <span className="text-xs">Next</span>
+                      {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {todaysSales[currentInvoiceIndex - 1]?.sale_number}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Page Down</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
           
           {/* Date & Time Display */}
           <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
