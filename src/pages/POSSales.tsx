@@ -1868,8 +1868,8 @@ export default function POSSales() {
         </div>
 
         {/* Totals Section - Fixed at Bottom */}
-        <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-4 shadow-lg z-20">
-          <div className={`grid ${totals.savings > 0 ? 'grid-cols-4 md:grid-cols-9' : 'grid-cols-4 md:grid-cols-8'} gap-3`}>
+        <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-2 md:p-4 shadow-lg z-20">
+          <div className={`grid ${totals.savings > 0 ? 'grid-cols-4 md:grid-cols-9' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
