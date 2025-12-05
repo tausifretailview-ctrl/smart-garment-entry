@@ -74,6 +74,7 @@ interface LineItem {
   discountAmount: number;
   gstPercent: number;
   lineTotal: number;
+  hsnCode?: string;
 }
 
 const customerSchema = z.object({
@@ -255,6 +256,7 @@ export default function SalesInvoice() {
           discountAmount: 0,
           gstPercent: item.gst_percent,
           lineTotal: item.line_total,
+          hsnCode: item.hsn_code || '',
         }));
         setLineItems(transformedItems);
       }
@@ -332,6 +334,7 @@ export default function SalesInvoice() {
         discountAmount: 0,
         gstPercent: product.gst_per || 0,
         lineTotal: 0,
+        hsnCode: product.hsn_code || '',
       };
       updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
       setLineItems(updatedItems);
@@ -709,6 +712,7 @@ Thank you for choosing us!`;
           discount_percent: item.discountPercent,
           gst_percent: item.gstPercent,
           line_total: item.lineTotal,
+          hsn_code: item.hsnCode || null,
         }));
 
         const { error: itemsError } = await supabase
@@ -814,6 +818,7 @@ Thank you for choosing us!`;
           discount_percent: item.discountPercent,
           gst_percent: item.gstPercent,
           line_total: item.lineTotal,
+          hsn_code: item.hsnCode || null,
         }));
 
         const { error: itemsError } = await supabase

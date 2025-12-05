@@ -61,6 +61,7 @@ interface LineItem {
   discountAmount: number;
   gstPercent: number;
   lineTotal: number;
+  hsnCode?: string;
 }
 
 const customerSchema = z.object({
@@ -233,13 +234,14 @@ export default function QuotationEntry() {
           discountAmount: 0,
           gstPercent: item.gst_percent,
           lineTotal: item.line_total,
+          hsnCode: item.hsn_code || '',
         }));
         // Pad to 5 rows
         while (items.length < 5) {
           items.push({
             id: `row-${items.length}`,
             productId: '', variantId: '', productName: '', size: '', barcode: '',
-            quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
+            quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
           });
         }
         setLineItems(items);
@@ -283,6 +285,7 @@ export default function QuotationEntry() {
         discountAmount: 0,
         gstPercent: product.gst_per || 0,
         lineTotal: 0,
+        hsnCode: product.hsn_code || '',
       });
       setLineItems(updatedItems);
     }
@@ -431,6 +434,7 @@ export default function QuotationEntry() {
         discount_percent: item.discountPercent,
         gst_percent: item.gstPercent,
         line_total: item.lineTotal,
+        hsn_code: item.hsnCode || null,
       }));
 
       const { error: itemsError } = await supabase

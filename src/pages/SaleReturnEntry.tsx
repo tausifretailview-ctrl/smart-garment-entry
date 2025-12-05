@@ -26,6 +26,7 @@ interface Product {
   product_name: string;
   brand: string | null;
   category: string | null;
+  hsn_code: string | null;
 }
 
 interface Variant {
@@ -48,6 +49,7 @@ interface ReturnItem {
   unitPrice: number;
   gstPercent: number;
   lineTotal: number;
+  hsnCode?: string;
 }
 
 export default function SaleReturnEntry() {
@@ -172,7 +174,7 @@ export default function SaleReturnEntry() {
     // Step 2: Fetch product details for sold products only
     const { data: productsData, error: productsError } = await supabase
       .from("products")
-      .select("id, product_name, brand, category")
+      .select("id, product_name, brand, category, hsn_code")
       .in("id", uniqueProductIds)
       .eq("organization_id", currentOrganization?.id)
       .eq("status", "active");
@@ -239,6 +241,7 @@ export default function SaleReturnEntry() {
       unitPrice: variant.sale_price,
       gstPercent: variant.gst_per,
       lineTotal,
+      hsnCode: product.hsn_code || '',
     };
 
     setReturnItems([...returnItems, newItem]);
@@ -386,6 +389,7 @@ export default function SaleReturnEntry() {
         unit_price: item.unitPrice,
         gst_percent: item.gstPercent,
         line_total: item.lineTotal,
+        hsn_code: item.hsnCode || null,
       }));
 
       const { error: itemsError } = await supabase

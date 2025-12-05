@@ -67,6 +67,7 @@ interface CartItem {
   netAmount: number;
   productId: string;
   variantId: string;
+  hsnCode?: string;
 }
 
 export default function POSSales() {
@@ -197,6 +198,7 @@ export default function POSSales() {
         netAmount: item.line_total,
         productId: item.product_id,
         variantId: item.variant_id,
+        hsnCode: item.hsn_code || '',
       }));
 
       setItems(cartItems);
@@ -569,6 +571,7 @@ export default function POSSales() {
         netAmount: salePrice,
         productId: product.id,
         variantId: variant.id,
+        hsnCode: product.hsn_code || '',
       };
       setItems([...items, newItem]);
     }

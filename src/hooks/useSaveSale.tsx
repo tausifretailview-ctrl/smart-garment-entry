@@ -18,6 +18,7 @@ interface CartItem {
   netAmount: number;
   productId: string;
   variantId: string;
+  hsnCode?: string;
 }
 
 interface SaleData {
@@ -274,6 +275,7 @@ export const useSaveSale = () => {
         gst_percent: item.gstPer,
         discount_percent: item.discountPercent,
         line_total: item.netAmount,
+        hsn_code: item.hsnCode || null,
       }));
 
       const { error: itemsError } = await (supabase as any)
@@ -408,6 +410,7 @@ export const useSaveSale = () => {
         gst_percent: item.gstPer,
         discount_percent: item.discountPercent,
         line_total: item.netAmount,
+        hsn_code: item.hsnCode || null,
       }));
 
       const { error: itemsError } = await (supabase as any)
