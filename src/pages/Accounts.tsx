@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,9 @@ export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState("customer-ledger");
+  
+  // Card filter state
+  const [paymentCardFilter, setPaymentCardFilter] = useState<string | null>(null);
   
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -428,6 +431,25 @@ export default function Accounts() {
     })(),
   };
 
+  // Calculate payment stats from all sales
+  const paymentStats = {
+    totalInvoices: sales?.length || 0,
+    totalAmount: sales?.reduce((sum, s) => sum + Number(s.net_amount || 0), 0) || 0,
+    paidAmount: sales?.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0) || 0,
+    pendingCount: sales?.filter(s => s.payment_status === 'pending').length || 0,
+    pendingAmount: sales?.filter(s => s.payment_status === 'pending').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0) || 0,
+    partialCount: sales?.filter(s => s.payment_status === 'partial').length || 0,
+    partialAmount: sales?.filter(s => s.payment_status === 'partial').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0) || 0,
+    completedCount: sales?.filter(s => s.payment_status === 'completed').length || 0,
+    completedAmount: sales?.filter(s => s.payment_status === 'completed').reduce((sum, s) => sum + Number(s.paid_amount || 0), 0) || 0,
+  };
+
+  // Handle card click
+  const handleCardClick = (filter: string | null) => {
+    setPaymentCardFilter(filter);
+    setSelectedTab("customer-ledger");
+  };
+
   // Create voucher mutation with receipt generation
   const createVoucher = useMutation({
     mutationFn: async (voucherData: any) => {
@@ -591,6 +613,105 @@ export default function Accounts() {
           </div>
         </div>
 
+        {/* Payment Stats Cards - Clickable */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-lg",
+              "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800",
+              paymentCardFilter === null && "ring-2 ring-blue-500"
+            )}
+            onClick={() => handleCardClick(null)}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                Total Invoices
+              </CardTitle>
+              <Receipt className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                ₹{paymentStats.totalAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                {paymentStats.totalInvoices} invoices
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-lg",
+              "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800",
+              paymentCardFilter === "completed" && "ring-2 ring-green-500"
+            )}
+            onClick={() => handleCardClick("completed")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+                Paid
+              </CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                ₹{paymentStats.completedAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                {paymentStats.completedCount} completed
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-lg",
+              "bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800",
+              paymentCardFilter === "partial" && "ring-2 ring-orange-500"
+            )}
+            onClick={() => handleCardClick("partial")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                Partial
+              </CardTitle>
+              <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                ₹{paymentStats.partialAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+                {paymentStats.partialCount} partial
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:shadow-lg",
+              "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800",
+              paymentCardFilter === "pending" && "ring-2 ring-red-500"
+            )}
+            onClick={() => handleCardClick("pending")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">
+                Pending
+              </CardTitle>
+              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-900 dark:text-red-100">
+                ₹{paymentStats.pendingAmount.toFixed(2)}
+              </div>
+              <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+                {paymentStats.pendingCount} pending
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Dashboard Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
@@ -702,7 +823,12 @@ export default function Accounts() {
 
           {/* Customer Ledger Tab */}
           <TabsContent value="customer-ledger" className="space-y-6">
-            {currentOrganization?.id && <CustomerLedger organizationId={currentOrganization.id} />}
+            {currentOrganization?.id && (
+              <CustomerLedger 
+                organizationId={currentOrganization.id} 
+                paymentFilter={paymentCardFilter}
+              />
+            )}
           </TabsContent>
 
           {/* Customer Payment Tab */}
