@@ -23,10 +23,11 @@ export const OrganizationSetup = () => {
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Redirect to dashboard if user already has organizations
+  // Redirect to org-specific dashboard if user already has organizations
   useEffect(() => {
     if (!orgLoading && organizations.length > 0) {
-      navigate("/", { replace: true });
+      const firstOrg = organizations[0];
+      navigate(`/${firstOrg.slug}`, { replace: true });
     }
   }, [organizations, orgLoading, navigate]);
 
@@ -71,9 +72,17 @@ export const OrganizationSetup = () => {
       // Store the organization ID
       localStorage.setItem(`currentOrgId_${user.id}`, org.id);
       
+      // Need to fetch the full org data with slug to redirect properly
+      const { data: newOrg } = await supabase
+        .from("organizations")
+        .select("slug")
+        .eq("id", org.id)
+        .single();
+      
       // Wait a moment for the database to update, then navigate
       setTimeout(() => {
-        navigate("/", { replace: true });
+        const slug = newOrg?.slug || org.id;
+        navigate(`/${slug}`, { replace: true });
         window.location.reload(); // Reload to fetch organization data
       }, 500);
     } catch (error: any) {

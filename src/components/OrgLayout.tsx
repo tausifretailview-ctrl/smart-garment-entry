@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useParams, Navigate } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,21 +8,34 @@ export const OrgLayout = () => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { user, loading: authLoading } = useAuth();
   const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
+  const [isOrgSynced, setIsOrgSynced] = useState(false);
 
   useEffect(() => {
     if (orgSlug && user && !orgLoading && organizations.length > 0) {
       // Find the organization by slug
       const targetOrg = organizations.find(org => org.slug === orgSlug);
       
-      if (targetOrg && currentOrganization?.slug !== orgSlug) {
-        // Switch to the organization from the URL
-        switchOrganization(targetOrg.id);
+      if (targetOrg) {
+        if (currentOrganization?.slug === orgSlug) {
+          // Already synced
+          setIsOrgSynced(true);
+        } else {
+          // Switch to the organization from the URL
+          switchOrganization(targetOrg.id);
+        }
+        
+        // Store the slug for PWA support
+        localStorage.setItem("selectedOrgSlug", orgSlug);
       }
-      
-      // Store the slug for PWA support
-      localStorage.setItem("selectedOrgSlug", orgSlug);
     }
   }, [orgSlug, user, organizations, orgLoading, currentOrganization, switchOrganization]);
+
+  // Update sync state when currentOrganization matches URL
+  useEffect(() => {
+    if (currentOrganization?.slug === orgSlug) {
+      setIsOrgSynced(true);
+    }
+  }, [currentOrganization, orgSlug]);
 
   // Show loading while auth or org data is being fetched
   if (authLoading || orgLoading) {
@@ -45,6 +58,15 @@ export const OrgLayout = () => {
     // User doesn't belong to this org, redirect to their first org
     const firstOrg = organizations[0];
     return <Navigate to={`/${firstOrg.slug}`} replace />;
+  }
+
+  // Wait for organization to be synced before rendering children
+  if (!isOrgSynced) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   // Render child routes

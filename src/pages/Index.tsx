@@ -515,14 +515,22 @@ const DashboardContent = () => {
 };
 
 const Index = () => {
-  const { currentOrganization, loading } = useOrganization();
-  const { orgNavigate } = useOrgNavigation();
+  const { currentOrganization, organizations, loading } = useOrganization();
 
-  // Redirect to organization setup if user has no organization
-  if (!loading && !currentOrganization) {
-    // Use window.location for non-org routes to avoid the hook
+  // Only redirect if user genuinely has no organizations
+  // If organizations exist, we're just waiting for currentOrganization to be set by OrgLayout
+  if (!loading && organizations.length === 0) {
     window.location.href = "/organization-setup";
     return null;
+  }
+
+  // Show loader while waiting for currentOrganization to be set
+  if (!currentOrganization) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   return <DashboardContent />;
