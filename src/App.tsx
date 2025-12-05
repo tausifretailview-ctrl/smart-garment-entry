@@ -55,6 +55,7 @@ import PublicInvoiceView from "./pages/PublicInvoiceView";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
+import TallyExport from "./pages/TallyExport";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -463,6 +464,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <GSTSalePurchaseRegister />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="tally-export"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <TallyExport />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

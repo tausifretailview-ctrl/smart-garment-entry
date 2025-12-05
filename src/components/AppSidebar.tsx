@@ -67,7 +67,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-register"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-register", "/tally-export"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
@@ -425,6 +425,16 @@ export function AppSidebar() {
                             <NavLink to="/gst-register" className="flex items-center gap-3 group">
                               <FileSpreadsheet className="h-4 w-4 sidebar-icon" />
                               <span>GST Register</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                      {canAccessPurchases && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/tally-export")}>
+                            <NavLink to="/tally-export" className="flex items-center gap-3 group">
+                              <FileSpreadsheet className="h-4 w-4 sidebar-icon" />
+                              <span>Tally Export</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
