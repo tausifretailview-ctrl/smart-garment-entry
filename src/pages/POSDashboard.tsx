@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1034,9 +1034,8 @@ const POSDashboard = () => {
                       </TableRow>
                     ) : (
                       paginatedSales.map((sale) => (
-                        <>
+                        <React.Fragment key={sale.id}>
                           <TableRow
-                            key={sale.id}
                             className="cursor-pointer hover:bg-accent/50"
                           >
                             <TableCell onClick={(e) => e.stopPropagation()}>
@@ -1250,7 +1249,7 @@ const POSDashboard = () => {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                        </React.Fragment>
                       ))
                     )}
                   </TableBody>

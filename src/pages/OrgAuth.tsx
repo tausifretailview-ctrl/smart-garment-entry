@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Loader2, Building2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { validateAuth } from "@/lib/validations";
 
 interface Organization {
   id: string;
@@ -116,8 +117,10 @@ export default function OrgAuth() {
       return;
     }
 
-    if (!email || !password) {
-      toast.error("Please enter both email and password");
+    // Validate with Zod schema
+    const validation = validateAuth(email, password);
+    if (!validation.success) {
+      toast.error(validation.error);
       return;
     }
 

@@ -24,6 +24,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
+import { validatePurchaseBill } from "@/lib/validations";
 
 interface ProductVariant {
   id: string;
@@ -596,10 +597,17 @@ const PurchaseEntry = () => {
   }, [lineItems]);
 
   const handleSave = async () => {
-    if (!billData.supplier_name.trim()) {
+    // Use Zod schema validation
+    const validation = validatePurchaseBill({
+      supplier_name: billData.supplier_name,
+      supplier_id: billData.supplier_id || undefined,
+      supplier_invoice_no: billData.supplier_invoice_no || undefined,
+    });
+
+    if (!validation.success) {
       toast({
         title: "Validation Error",
-        description: "Supplier name is required",
+        description: validation.error,
         variant: "destructive",
       });
       return;
