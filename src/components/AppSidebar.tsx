@@ -429,16 +429,14 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       )}
-                      {canAccessPurchases && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/tally-export")}>
-                            <NavLink to="/tally-export" className="flex items-center gap-3 group">
-                              <FileSpreadsheet className="h-4 w-4 sidebar-icon" />
-                              <span>Tally Export</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )}
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild isActive={isActive("/tally-export")}>
+                          <NavLink to="/tally-export" className="flex items-center gap-3 group">
+                            <FileSpreadsheet className="h-4 w-4 sidebar-icon" />
+                            <span>Tally Export</span>
+                          </NavLink>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                     </SidebarMenuSub>
                   </SidebarMenuItem>
                 </SidebarMenu>
