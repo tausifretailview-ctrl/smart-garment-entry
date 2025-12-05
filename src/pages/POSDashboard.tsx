@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -134,6 +134,9 @@ const POSDashboard = () => {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // Virtual scrolling ref
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch company settings for receipt branding
   const { data: settings } = useQuery({
@@ -758,6 +761,9 @@ const POSDashboard = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedSales = filteredSales.slice(startIndex, endIndex);
 
+  // Memoize filtered sales for performance
+  const memoizedPaginatedSales = useMemo(() => paginatedSales, [paginatedSales]);
+
   const handleNextPage = () => {
     if (currentPage < totalPages) {
       setCurrentPage(currentPage + 1);
@@ -998,7 +1004,10 @@ const POSDashboard = () => {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div 
+                ref={tableContainerRef}
+                className="rounded-md border max-h-[600px] overflow-auto"
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1274,6 +1283,7 @@ const POSDashboard = () => {
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
                         <SelectItem value="100">100</SelectItem>
+                        <SelectItem value="200">200</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

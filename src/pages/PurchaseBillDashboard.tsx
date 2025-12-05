@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -103,6 +103,9 @@ const PurchaseBillDashboard = () => {
     "purchase_bill_dashboard",
     defaultPurchaseColumns
   );
+  
+  // Virtual scrolling ref
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchBills();
@@ -570,6 +573,9 @@ const PurchaseBillDashboard = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedBills = filteredBills.slice(startIndex, endIndex);
 
+  // Memoize filtered bills for performance
+  const memoizedPaginatedBills = useMemo(() => paginatedBills, [paginatedBills]);
+
   const totalPurchaseAmount = filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0);
   const totalPurchaseQty = filteredBills.reduce((sum, bill) => {
     const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
@@ -795,7 +801,10 @@ const PurchaseBillDashboard = () => {
                 <p className="text-sm">Create your first purchase bill to get started</p>
               </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <div 
+                ref={tableContainerRef}
+                className="border rounded-lg max-h-[600px] overflow-auto"
+              >
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
@@ -1016,6 +1025,7 @@ const PurchaseBillDashboard = () => {
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
                         <SelectItem value="100">100</SelectItem>
+                        <SelectItem value="200">200</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

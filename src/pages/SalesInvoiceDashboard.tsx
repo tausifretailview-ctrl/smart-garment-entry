@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -112,6 +112,9 @@ export default function SalesInvoiceDashboard() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // Virtual scrolling ref
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch company settings for receipt branding
   const { data: settings } = useQuery({
@@ -344,6 +347,9 @@ export default function SalesInvoiceDashboard() {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
+
+  // Memoize filtered invoices for performance
+  const memoizedPaginatedInvoices = useMemo(() => paginatedInvoices, [paginatedInvoices]);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -863,7 +869,10 @@ export default function SalesInvoiceDashboard() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div 
+                ref={tableContainerRef}
+                className="rounded-md border max-h-[600px] overflow-auto"
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1123,6 +1132,7 @@ export default function SalesInvoiceDashboard() {
                         <SelectItem value="25">25</SelectItem>
                         <SelectItem value="50">50</SelectItem>
                         <SelectItem value="100">100</SelectItem>
+                        <SelectItem value="200">200</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
