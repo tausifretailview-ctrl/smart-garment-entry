@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { usePOS } from "@/contexts/POSContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
+  const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
   const { saveSale, updateSale, isSaving } = useSaveSale();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
@@ -291,6 +293,49 @@ export default function POSSales() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Register POS header actions
+  useEffect(() => {
+    setOnNewSale(() => () => {
+      setItems([]);
+      setCustomerName("");
+      setCustomerId("");
+      setCustomerPhone("");
+      setFlatDiscountPercent(0);
+      setSaleReturnAdjust(0);
+      setRoundOff(0);
+      setRefundAmount(0);
+      setSearchInput("");
+      setCurrentInvoiceIndex(0);
+      setCurrentSaleId(null);
+      setCurrentInvoiceNumber("");
+      toast({
+        title: "New Invoice",
+        description: "Cart cleared. Ready for new sale.",
+      });
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
+    });
+    
+    setOnClearCart(() => () => {
+      setItems([]);
+      toast({
+        title: "Cart Cleared",
+        description: "All items removed from cart",
+      });
+    });
+
+    return () => {
+      setOnNewSale(null);
+      setOnClearCart(null);
+    };
+  }, [setOnNewSale, setOnClearCart, toast]);
+
+  // Update hasItems in header
+  useEffect(() => {
+    setHasItems(items.length > 0);
+  }, [items.length, setHasItems]);
 
   // Preview next invoice number when not editing existing sale
   useEffect(() => {

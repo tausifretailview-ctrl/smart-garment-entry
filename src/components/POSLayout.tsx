@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,16 +12,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
+import { usePOS, POSProvider } from "@/contexts/POSContext";
 
 interface POSLayoutProps {
   children: ReactNode;
 }
 
-export const POSLayout = ({ children }: POSLayoutProps) => {
+const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
+  const { onNewSale, onClearCart, hasItems } = usePOS();
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -82,11 +84,41 @@ export const POSLayout = ({ children }: POSLayoutProps) => {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs md:text-sm opacity-90">Point of Sale</span>
+          {onNewSale && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onNewSale}
+              className="text-primary-foreground hover:bg-primary/80 gap-1"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">New Sale</span>
+            </Button>
+          )}
+          {onClearCart && hasItems && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClearCart}
+              className="text-primary-foreground hover:bg-destructive/80 gap-1"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Clear</span>
+            </Button>
+          )}
+          <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
         </div>
       </header>
       
       <main className="flex-1 animate-fade-in p-4">{children}</main>
     </div>
+  );
+};
+
+export const POSLayout = ({ children }: POSLayoutProps) => {
+  return (
+    <POSProvider>
+      <POSLayoutContent>{children}</POSLayoutContent>
+    </POSProvider>
   );
 };
