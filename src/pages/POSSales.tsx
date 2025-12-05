@@ -1744,36 +1744,47 @@ export default function POSSales() {
             </div>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             <Button
               onClick={handlePreviousInvoice}
               variant="outline"
               size="sm"
               className="h-12 flex-1"
-              disabled={!todaysSales || todaysSales.length === 0}
+              disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
               <div className="flex flex-col items-start">
                 <span className="text-xs">Previous</span>
-                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
+                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
                   <span className="text-[10px] text-muted-foreground">
-                    {todaysSales[currentInvoiceIndex - 1]?.sale_number}
+                    {todaysSales[currentInvoiceIndex + 1]?.sale_number}
                   </span>
                 )}
               </div>
             </Button>
+            {/* Position Indicator */}
+            {todaysSales && todaysSales.length > 0 && currentSaleId && (
+              <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px]">
+                <span className="text-sm font-semibold text-foreground">
+                  {todaysSales.length - currentInvoiceIndex}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  of {todaysSales.length}
+                </span>
+              </div>
+            )}
             <Button
               onClick={handleNextInvoice}
               variant="outline"
               size="sm"
               className="h-12 flex-1"
-              disabled={!todaysSales || todaysSales.length === 0}
+              disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
             >
               <div className="flex flex-col items-end">
                 <span className="text-xs">Next</span>
-                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
+                {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
                   <span className="text-[10px] text-muted-foreground">
-                    {todaysSales[currentInvoiceIndex + 1]?.sale_number}
+                    {todaysSales[currentInvoiceIndex - 1]?.sale_number}
                   </span>
                 )}
               </div>
