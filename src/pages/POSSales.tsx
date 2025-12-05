@@ -1245,7 +1245,15 @@ export default function POSSales() {
       return;
     }
 
-    const newIndex = currentInvoiceIndex > 0 ? currentInvoiceIndex - 1 : todaysSales.length - 1;
+    // Sales are ordered DESC (newest at index 0), so Previous goes to higher index (older invoice)
+    const newIndex = currentInvoiceIndex < todaysSales.length - 1 ? currentInvoiceIndex + 1 : currentInvoiceIndex;
+    if (newIndex === currentInvoiceIndex && currentInvoiceIndex === todaysSales.length - 1) {
+      toast({
+        title: "First Invoice",
+        description: "This is the oldest invoice for today",
+      });
+      return;
+    }
     setCurrentInvoiceIndex(newIndex);
     loadInvoice(todaysSales[newIndex]);
   };
@@ -1260,7 +1268,15 @@ export default function POSSales() {
       return;
     }
 
-    const newIndex = currentInvoiceIndex < todaysSales.length - 1 ? currentInvoiceIndex + 1 : 0;
+    // Sales are ordered DESC (newest at index 0), so Next goes to lower index (newer invoice)
+    const newIndex = currentInvoiceIndex > 0 ? currentInvoiceIndex - 1 : currentInvoiceIndex;
+    if (newIndex === currentInvoiceIndex && currentInvoiceIndex === 0) {
+      toast({
+        title: "Last Invoice",
+        description: "This is the latest invoice for today",
+      });
+      return;
+    }
     setCurrentInvoiceIndex(newIndex);
     loadInvoice(todaysSales[newIndex]);
   };
