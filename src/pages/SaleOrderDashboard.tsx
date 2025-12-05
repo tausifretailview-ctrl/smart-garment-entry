@@ -56,6 +56,7 @@ interface ConversionItem {
   discount_percent: number;
   gst_percent: number;
   barcode: string;
+  hsn_code?: string;
 }
 
 export default function SaleOrderDashboard() {
@@ -183,6 +184,7 @@ export default function SaleOrderDashboard() {
           discount_percent: item.discount_percent,
           gst_percent: item.gst_percent,
           barcode: item.barcode,
+          hsn_code: item.hsn_code,
         };
       });
 
@@ -268,6 +270,7 @@ export default function SaleOrderDashboard() {
         discount_percent: item.discount_percent,
         gst_percent: item.gst_percent,
         line_total: item.unit_price * item.convert_qty * (1 - item.discount_percent / 100) * (1 + (selectedOrder.tax_type === "exclusive" ? item.gst_percent / 100 : 0)),
+        hsn_code: item.hsn_code || null,
       }));
 
       const { error: itemsError } = await supabase.from('sale_items').insert(saleItems);

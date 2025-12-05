@@ -942,6 +942,7 @@ export type Database = {
           created_at: string
           discount_percent: number
           gst_percent: number
+          hsn_code: string | null
           id: string
           line_total: number
           mrp: number
@@ -958,6 +959,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total: number
           mrp: number
@@ -974,6 +976,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total?: number
           mrp?: number
@@ -1100,6 +1103,7 @@ export type Database = {
           created_at: string
           discount_percent: number
           gst_percent: number
+          hsn_code: string | null
           id: string
           line_total: number
           mrp: number
@@ -1116,6 +1120,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total: number
           mrp: number
@@ -1132,6 +1137,7 @@ export type Database = {
           created_at?: string
           discount_percent?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total?: number
           mrp?: number
@@ -1160,6 +1166,7 @@ export type Database = {
           discount_percent: number
           fulfilled_qty: number
           gst_percent: number
+          hsn_code: string | null
           id: string
           line_total: number
           mrp: number
@@ -1178,6 +1185,7 @@ export type Database = {
           discount_percent?: number
           fulfilled_qty?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total: number
           mrp: number
@@ -1196,6 +1204,7 @@ export type Database = {
           discount_percent?: number
           fulfilled_qty?: number
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total?: number
           mrp?: number
@@ -1332,6 +1341,7 @@ export type Database = {
           barcode: string | null
           created_at: string
           gst_percent: number
+          hsn_code: string | null
           id: string
           line_total: number
           product_id: string
@@ -1346,6 +1356,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string
           gst_percent: number
+          hsn_code?: string | null
           id?: string
           line_total: number
           product_id: string
@@ -1360,6 +1371,7 @@ export type Database = {
           barcode?: string | null
           created_at?: string
           gst_percent?: number
+          hsn_code?: string | null
           id?: string
           line_total?: number
           product_id?: string
