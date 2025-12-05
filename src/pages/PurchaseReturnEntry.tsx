@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -47,7 +47,7 @@ interface LineItem {
 
 const PurchaseReturnEntry = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

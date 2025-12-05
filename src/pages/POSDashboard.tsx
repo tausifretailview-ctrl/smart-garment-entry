@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,7 +77,7 @@ interface Sale {
 
 const POSDashboard = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();

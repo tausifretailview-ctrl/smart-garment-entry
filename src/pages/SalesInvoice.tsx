@@ -49,7 +49,8 @@ import { useStockValidation } from "@/hooks/useStockValidation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import {
   Form,
   FormControl,
@@ -90,7 +91,7 @@ export default function SalesInvoice() {
   const { currentOrganization } = useOrganization();
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const location = useLocation();
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
