@@ -15,6 +15,7 @@ import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet } from "lucide-re
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
+import { validateProduct } from "@/lib/validations";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -397,29 +398,26 @@ const ProductEntry = () => {
   };
 
   const validateForm = (): boolean => {
-    if (!formData.product_name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Product name is required",
-        variant: "destructive",
-      });
-      return false;
-    }
+    // Use Zod schema validation
+    const validation = validateProduct({
+      product_type: formData.product_type,
+      product_name: formData.product_name,
+      category: formData.category || undefined,
+      brand: formData.brand || undefined,
+      style: formData.style || undefined,
+      color: formData.color || undefined,
+      size_group_id: formData.size_group_id || undefined,
+      hsn_code: formData.hsn_code || undefined,
+      gst_per: formData.gst_per,
+      default_pur_price: formData.default_pur_price,
+      default_sale_price: formData.default_sale_price,
+      status: formData.status as "active" | "inactive",
+    });
 
-    if (![0, 5, 12, 18, 28].includes(formData.gst_per)) {
+    if (!validation.success) {
       toast({
         title: "Validation Error",
-        description: "GST % must be one of: 0, 5, 12, 18, 28",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    if ((formData.default_pur_price !== undefined && formData.default_pur_price < 0) || 
-        (formData.default_sale_price !== undefined && formData.default_sale_price < 0)) {
-      toast({
-        title: "Validation Error",
-        description: "Prices cannot be negative",
+        description: validation.error,
         variant: "destructive",
       });
       return false;

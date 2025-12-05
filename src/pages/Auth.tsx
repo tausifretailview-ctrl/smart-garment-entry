@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Shield, Package } from "lucide-react";
+import { validateAuth } from "@/lib/validations";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -18,10 +19,12 @@ const Auth = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    // Validate with Zod schema
+    const validation = validateAuth(email, password);
+    if (!validation.success) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
+        title: "Validation Error",
+        description: validation.error,
         variant: "destructive",
       });
       return;
