@@ -74,6 +74,7 @@ interface ProfessionalTemplateProps {
   showBarcode?: boolean;
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
+  showMRP?: boolean;
   minItemRows?: number;
   showTotalQuantity?: boolean;
   amountWithDecimal?: boolean;
@@ -127,6 +128,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   showBarcode = true,
   showGSTBreakdown = true,
   showBankDetails = false,
+  showMRP = false,
   minItemRows = 12,
   showTotalQuantity = true,
   amountWithDecimal = true,
@@ -321,6 +323,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             {showHSN && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>HSN</th>}
             <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Size</th>
             <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Qty</th>
+            {showMRP && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>MRP</th>}
             <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Rate</th>
             <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Amount</th>
           </tr>
@@ -340,6 +343,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.hsn}</td>}
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.size}</td>
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.qty}</td>
+              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.sp)}</td>}
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
             </tr>
@@ -352,6 +356,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>}
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>}
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
             </tr>
@@ -361,7 +366,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             <tr style={{ backgroundColor: colors.accent, fontWeight: 'bold' }}>
               <td colSpan={showHSN ? 4 : 3} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>Total Quantity:</td>
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{totalQuantity}</td>
-              <td colSpan={2} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td colSpan={showMRP ? 3 : 2} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
             </tr>
           )}
         </tbody>
