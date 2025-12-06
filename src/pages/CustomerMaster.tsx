@@ -39,6 +39,8 @@ interface Customer {
   created_at: string;
 }
 
+const ITEMS_PER_PAGE = 50;
+
 const CustomerMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -56,6 +58,7 @@ const CustomerMaster = () => {
   const { currentOrganization } = useOrganization();
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
@@ -200,6 +203,17 @@ const CustomerMaster = () => {
     customer.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Pagination
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -429,7 +443,7 @@ const CustomerMaster = () => {
         <Input
           placeholder="Search customers..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="max-w-sm"
         />
         {isSomeSelected && (
@@ -475,7 +489,7 @@ const CustomerMaster = () => {
                 <TableCell colSpan={8} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer, index) => (
+              paginatedCustomers.map((customer, index) => (
                 <TableRow key={customer.id}>
                   <TableCell>
                     <Checkbox
@@ -484,7 +498,7 @@ const CustomerMaster = () => {
                       aria-label={`Select ${customer.customer_name}`}
                     />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
                   <TableCell className="font-medium">{customer.customer_name}</TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
@@ -514,6 +528,36 @@ const CustomerMaster = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)} of {filteredCustomers.length} customers
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ExcelImportDialog
         open={showExcelImport}
