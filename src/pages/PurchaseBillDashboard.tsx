@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2 } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -562,6 +562,12 @@ const PurchaseBillDashboard = () => {
       const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
       return sum + billQty;
     }, 0),
+    paidCount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).length,
+    paidAmount: filteredBills.filter(bill => bill.payment_status === 'paid' || (bill.paid_amount || 0) >= bill.net_amount).reduce((sum, bill) => sum + bill.net_amount, 0),
+    unpaidCount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).length,
+    unpaidAmount: filteredBills.filter(bill => !bill.payment_status || bill.payment_status === 'unpaid' || (bill.paid_amount || 0) === 0).reduce((sum, bill) => sum + bill.net_amount, 0),
+    partialCount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).length,
+    partialAmount: filteredBills.filter(bill => bill.payment_status === 'partial' || ((bill.paid_amount || 0) > 0 && (bill.paid_amount || 0) < bill.net_amount)).reduce((sum, bill) => sum + (bill.net_amount - (bill.paid_amount || 0)), 0),
   }), [filteredBills, billItems]);
 
   // Memoize pagination calculations
@@ -698,32 +704,71 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Bills</CardDescription>
-              <CardTitle className="text-3xl">{filteredBills.length}</CardTitle>
+        {/* Summary Statistics - Colorful Clickable Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Bills</CardDescription>
+              <Receipt className="h-4 w-4 text-blue-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{summaryStats.totalBills}</div>
+              <p className="text-xs text-muted-foreground">Qty: {summaryStats.totalQty}</p>
+            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Purchase Qty</CardDescription>
-              <CardTitle className="text-3xl">{summaryStats.totalQty}</CardTitle>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-green-500 hover:scale-[1.02]"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Paid</CardDescription>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{summaryStats.paidCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.paidAmount.toFixed(0)}</p>
+            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Total Purchase Amount</CardDescription>
-              <CardTitle className="text-3xl">₹{summaryStats.totalAmount.toFixed(2)}</CardTitle>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 hover:scale-[1.02]"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Partial</CardDescription>
+              <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{summaryStats.partialCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.partialAmount.toFixed(0)}</p>
+            </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Average Bill Value</CardDescription>
-              <CardTitle className="text-3xl">
-                ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(2) : "0.00"}
-              </CardTitle>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-red-500 hover:scale-[1.02]"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Unpaid</CardDescription>
+              <Wallet className="h-4 w-4 text-red-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{summaryStats.unpaidCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.unpaidAmount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-purple-500 hover:scale-[1.02]"
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Amount</CardDescription>
+              <IndianRupee className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Avg: ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(0) : "0"}</p>
+            </CardContent>
           </Card>
         </div>
 
