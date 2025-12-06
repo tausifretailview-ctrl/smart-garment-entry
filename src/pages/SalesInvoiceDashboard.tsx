@@ -1559,7 +1559,7 @@ export default function SalesInvoiceDashboard() {
             defaultFormat={billFormat}
             renderInvoice={(format) => 
               invoiceToPrint ? (
-                <InvoiceWrapper
+              <InvoiceWrapper
                 format={format}
                 billNo={invoiceToPrint.sale_number}
                 date={new Date(invoiceToPrint.sale_date)}
@@ -1567,12 +1567,14 @@ export default function SalesInvoiceDashboard() {
                 customerAddress={invoiceToPrint.customer_address || ""}
                 customerMobile={invoiceToPrint.customer_phone || ""}
                 template={invoiceTemplate}
+                showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
+                showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
                 items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
                   sr: index + 1,
                   particulars: item.product_name,
                   size: item.size,
                   barcode: item.barcode || "",
-                  hsn: "",
+                  hsn: item.hsn_code || "",
                   sp: item.mrp,
                   qty: item.quantity,
                   rate: item.unit_price,
@@ -1617,12 +1619,14 @@ export default function SalesInvoiceDashboard() {
               customerMobile={invoiceToPrint.customer_phone || ""}
               customerGSTIN=""
               template={invoiceTemplate}
+              showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
+              showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
               items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
                 size: item.size,
                 barcode: item.barcode || "",
-                hsn: "",
+                hsn: item.hsn_code || "",
                 sp: item.mrp,
                 qty: item.quantity,
                 rate: item.unit_price,
