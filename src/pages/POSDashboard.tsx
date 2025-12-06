@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart } from "lucide-react";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -747,6 +747,12 @@ const POSDashboard = () => {
     }, 0),
     totalAmount: filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
     totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount, 0),
+    completedCount: filteredSales.filter(sale => sale.payment_status === 'completed').length,
+    completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
+    pendingCount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
+    pendingAmount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
+    refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
   }), [filteredSales, saleItems]);
 
   // Memoize pagination calculations
@@ -834,42 +840,76 @@ const POSDashboard = () => {
           </div>
         </div>
 
-        {/* Summary Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-border/50 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardDescription>Total Bills</CardDescription>
-              <CardTitle className="text-3xl font-bold text-primary">
-                {summaryStats.totalBills}
-              </CardTitle>
+        {/* Summary Statistics - Colorful Clickable Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]"
+            onClick={() => setPaymentStatusFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Bills</CardDescription>
+              <Receipt className="h-4 w-4 text-blue-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{summaryStats.totalBills}</div>
+              <p className="text-xs text-muted-foreground">Qty: {summaryStats.totalQty}</p>
+            </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardDescription>Sale Quantity</CardDescription>
-              <CardTitle className="text-3xl font-bold text-primary">
-                {summaryStats.totalQty}
-              </CardTitle>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-green-500 hover:scale-[1.02]"
+            onClick={() => setPaymentStatusFilter("completed")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Completed</CardDescription>
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{summaryStats.completedCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.completedAmount.toFixed(0)}</p>
+            </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardDescription>Sale Amount</CardDescription>
-              <CardTitle className="text-3xl font-bold text-primary">
-                ₹{summaryStats.totalAmount.toFixed(2)}
-              </CardTitle>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 hover:scale-[1.02]"
+            onClick={() => setPaymentStatusFilter("pending")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Pending/Partial</CardDescription>
+              <Clock className="h-4 w-4 text-orange-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{summaryStats.pendingCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.pendingAmount.toFixed(0)}</p>
+            </CardContent>
           </Card>
 
-          <Card className="border-border/50 shadow-lg">
-            <CardHeader className="pb-3">
-              <CardDescription>Discount Amount</CardDescription>
-              <CardTitle className="text-3xl font-bold text-primary">
-                ₹{summaryStats.totalDiscount.toFixed(2)}
-              </CardTitle>
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-purple-500 hover:scale-[1.02]"
+            onClick={() => setPaymentStatusFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Sale Amount</CardDescription>
+              <IndianRupee className="h-4 w-4 text-purple-500" />
             </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Disc: ₹{summaryStats.totalDiscount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-amber-500 hover:scale-[1.02]"
+            onClick={() => setRefundFilter("with_refund")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">With Refunds</CardDescription>
+              <RefreshCcw className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-amber-600">{summaryStats.refundCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.refundAmount.toFixed(0)}</p>
+            </CardContent>
           </Card>
         </div>
 
