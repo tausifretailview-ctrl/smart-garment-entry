@@ -125,6 +125,8 @@ export default function SalesInvoice() {
   const [searchInput, setSearchInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [paymentTerm, setPaymentTerm] = useState<string>("");
   const [termsConditions, setTermsConditions] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -1020,39 +1022,77 @@ Thank you for choosing us!`;
                 )}
               </div>
               <div className="flex gap-2">
-                <Select
-                  value={selectedCustomerId}
-                  onValueChange={(value) => {
-                    setSelectedCustomerId(value);
-                    const customer = customersData?.find(c => c.id === value);
-                    setSelectedCustomer(customer || null);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Search Customer" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-popover z-50">
-                    {customersData?.map((customer) => {
-                      const balance = getCustomerBalance(customer);
-                      return (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          <div className="flex items-center justify-between gap-4 w-full">
-                            <span>{customer.customer_name} {customer.phone ? `- ${customer.phone}` : ''}</span>
-                            {balance !== 0 && (
-                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                balance > 0 
-                                  ? 'bg-destructive/10 text-destructive' 
-                                  : 'bg-green-500/10 text-green-600'
-                              }`}>
-                                ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                              </span>
-                            )}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between"
+                    >
+                      {selectedCustomer 
+                        ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}`
+                        : "Search Customer by Name or Mobile..."
+                      }
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0" align="start">
+                    <Command>
+                      <CommandInput 
+                        placeholder="Search by name or mobile number..." 
+                        value={customerSearchInput}
+                        onValueChange={setCustomerSearchInput}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No customers found.</CommandEmpty>
+                        <CommandGroup heading="Customers">
+                          {customersData
+                            ?.filter(c => 
+                              c.customer_name?.toLowerCase().includes(customerSearchInput.toLowerCase()) ||
+                              c.phone?.toLowerCase().includes(customerSearchInput.toLowerCase())
+                            )
+                            .slice(0, 10)
+                            .map((customer) => {
+                              const balance = getCustomerBalance(customer);
+                              return (
+                                <CommandItem
+                                  key={customer.id}
+                                  value={`${customer.customer_name} ${customer.phone || ''}`}
+                                  onSelect={() => {
+                                    setSelectedCustomerId(customer.id);
+                                    setSelectedCustomer(customer);
+                                    setCustomerSearchInput("");
+                                    setOpenCustomerSearch(false);
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <div className="flex flex-col flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-medium">{customer.customer_name}</span>
+                                      {balance !== 0 && (
+                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                          balance > 0 
+                                            ? 'bg-destructive/10 text-destructive' 
+                                            : 'bg-green-500/10 text-green-600'
+                                        }`}>
+                                          ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {customer.phone && (
+                                      <span className="text-sm text-muted-foreground">
+                                        Mobile: {customer.phone}
+                                      </span>
+                                    )}
+                                  </div>
+                                </CommandItem>
+                              );
+                            })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <Button 
                   size="icon" 
                   variant="outline"
