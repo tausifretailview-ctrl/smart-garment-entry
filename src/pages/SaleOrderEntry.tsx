@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LineItem {
   id: string;
@@ -65,6 +66,7 @@ interface LineItem {
   gstPercent: number;
   lineTotal: number;
   hsnCode?: string;
+  color?: string;
 }
 
 const customerSchema = z.object({
@@ -115,7 +117,11 @@ export default function SaleOrderEntry() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const tableEndRef = useRef<HTMLDivElement>(null);
   const [salesman, setSalesman] = useState<string>("");
+  const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
+  const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
+  const [roundOff, setRoundOff] = useState<number>(0);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -345,34 +351,58 @@ export default function SaleOrderEntry() {
     } else {
       const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
       if (emptyRowIndex === -1) {
-        toast({ title: "Table Full", description: "All 5 rows are filled.", variant: "destructive" });
-        return;
+        // Add new row
+        const newRow: LineItem = calculateLineTotal({
+          id: `row-${lineItems.length}`,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          orderQty: 1,
+          stockQty: variant.stock_qty || 0,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+          color: product.color || '',
+        });
+        setLineItems(prev => [...prev, newRow]);
+      } else {
+        const updatedItems = [...lineItems];
+        updatedItems[emptyRowIndex] = calculateLineTotal({
+          id: updatedItems[emptyRowIndex].id,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          orderQty: 1,
+          stockQty: variant.stock_qty || 0,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+          color: product.color || '',
+        });
+        setLineItems(updatedItems);
       }
-      
-      const updatedItems = [...lineItems];
-      updatedItems[emptyRowIndex] = calculateLineTotal({
-        id: updatedItems[emptyRowIndex].id,
-        productId: product.id,
-        variantId: variant.id,
-        productName: product.product_name,
-        size: variant.size,
-        barcode: variant.barcode || '',
-        orderQty: 1,
-        stockQty: variant.stock_qty || 0,
-        mrp: variant.sale_price || 0,
-        salePrice: variant.sale_price || 0,
-        discountPercent: 0,
-        discountAmount: 0,
-        gstPercent: product.gst_per || 0,
-        lineTotal: 0,
-        hsnCode: product.hsn_code || '',
-      });
-      setLineItems(updatedItems);
     }
     
     setOpenProductSearch(false);
     setSearchInput("");
     toast({ title: "Product Added", description: `${product.product_name} (${variant.size}) added` });
+    
+    // Auto scroll to bottom
+    setTimeout(() => {
+      tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
@@ -445,12 +475,21 @@ export default function SaleOrderEntry() {
   // Calculate totals
   const filledItems = lineItems.filter(item => item.productId !== '');
   const grossAmount = filledItems.reduce((sum, item) => sum + (item.salePrice * item.orderQty), 0);
-  const totalDiscount = filledItems.reduce((sum, item) => sum + item.discountAmount, 0);
-  const amountAfterDiscount = grossAmount - totalDiscount;
+  const totalLineDiscount = filledItems.reduce((sum, item) => sum + item.discountAmount, 0);
+  const amountAfterLineDiscount = grossAmount - totalLineDiscount;
+  
+  // Flat discount calculation
+  const calculatedFlatDiscount = flatDiscountPercent > 0 
+    ? (amountAfterLineDiscount * flatDiscountPercent) / 100 
+    : flatDiscountAmount;
+  const amountAfterFlatDiscount = amountAfterLineDiscount - calculatedFlatDiscount;
+  
   const totalGST = taxType === "exclusive" 
     ? filledItems.reduce((sum, item) => sum + ((item.salePrice * item.orderQty - item.discountAmount) * item.gstPercent / 100), 0)
     : 0;
-  const netAmount = amountAfterDiscount + totalGST;
+  const subtotal = amountAfterFlatDiscount + totalGST;
+  const netAmount = subtotal + roundOff;
+  const totalDiscount = totalLineDiscount + calculatedFlatDiscount;
 
   const getStockDifference = (item: LineItem) => {
     if (!item.productId) return null;
@@ -479,7 +518,10 @@ export default function SaleOrderEntry() {
         customer_address: selectedCustomer?.address || null,
         gross_amount: grossAmount,
         discount_amount: totalDiscount,
+        flat_discount_percent: flatDiscountPercent,
+        flat_discount_amount: calculatedFlatDiscount,
         gst_amount: totalGST,
+        round_off: roundOff,
         net_amount: netAmount,
         status: 'pending',
         tax_type: taxType,
@@ -733,83 +775,137 @@ export default function SaleOrderEntry() {
         </div>
 
         {/* Line Items Table with Stock Difference */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8">#</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead className="w-20">Order Qty</TableHead>
-              <TableHead className="w-20">Stock</TableHead>
-              <TableHead className="w-28">Difference</TableHead>
-              <TableHead className="w-24">Price</TableHead>
-              <TableHead className="w-20">Disc %</TableHead>
-              <TableHead className="w-24 text-right">Total</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lineItems.map((item, index) => {
-              const stockInfo = getStockDifference(item);
-              return (
-                <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{item.productName || '-'}</TableCell>
-                  <TableCell>{item.size || '-'}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.orderQty}
-                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>{item.productId ? item.stockQty : '-'}</TableCell>
-                  <TableCell>
-                    {stockInfo && (
-                      <div className={cn("flex items-center gap-1 text-sm", stockInfo.color)}>
-                        <stockInfo.icon className="h-4 w-4" />
-                        {stockInfo.text}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.discountPercent}
-                        onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <ScrollArea className="max-h-[400px]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Barcode</TableHead>
+                <TableHead>HSN</TableHead>
+                <TableHead>Color</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead className="w-20">Order Qty</TableHead>
+                <TableHead className="w-20">Stock</TableHead>
+                <TableHead className="w-28">Difference</TableHead>
+                <TableHead className="w-24">Price</TableHead>
+                <TableHead className="w-20">Disc %</TableHead>
+                <TableHead className="w-24 text-right">Total</TableHead>
+                <TableHead className="w-10"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {lineItems.map((item, index) => {
+                const stockInfo = getStockDifference(item);
+                return (
+                  <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{item.productName || '-'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.barcode || '-'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{item.hsnCode || '-'}</TableCell>
+                    <TableCell className="text-xs">{item.color || '-'}</TableCell>
+                    <TableCell>{item.size || '-'}</TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.orderQty}
+                          onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                          className="w-16 h-8"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>{item.productId ? item.stockQty : '-'}</TableCell>
+                    <TableCell>
+                      {stockInfo && (
+                        <div className={cn("flex items-center gap-1 text-sm", stockInfo.color)}>
+                          <stockInfo.icon className="h-4 w-4" />
+                          {stockInfo.text}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={item.discountPercent}
+                          onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                          className="w-16 h-8"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          <div ref={tableEndRef} />
+        </ScrollArea>
 
-        {/* Summary */}
-        <div className="mt-4 flex justify-end">
+        {/* Summary with Flat Discount & Round Off */}
+        <div className="mt-4 flex justify-between items-start">
+          <div className="grid grid-cols-2 gap-4 w-80">
+            <div>
+              <Label>Flat Discount %</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={flatDiscountPercent}
+                onChange={(e) => {
+                  setFlatDiscountPercent(parseFloat(e.target.value) || 0);
+                  setFlatDiscountAmount(0);
+                }}
+                className="h-9"
+              />
+            </div>
+            <div>
+              <Label>Flat Discount ₹</Label>
+              <Input
+                type="number"
+                min="0"
+                value={flatDiscountAmount}
+                onChange={(e) => {
+                  setFlatDiscountAmount(parseFloat(e.target.value) || 0);
+                  setFlatDiscountPercent(0);
+                }}
+                className="h-9"
+              />
+            </div>
+            <div className="col-span-2">
+              <Label>Round Off</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={roundOff}
+                onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                className="h-9"
+              />
+            </div>
+          </div>
           <div className="w-72 space-y-2">
             <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Discount:</span><span>-₹{totalDiscount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Line Discount:</span><span>-₹{totalLineDiscount.toFixed(2)}</span></div>
+            {calculatedFlatDiscount > 0 && (
+              <div className="flex justify-between"><span>Flat Discount:</span><span>-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
+            )}
             {taxType === "exclusive" && (
               <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
+            )}
+            {roundOff !== 0 && (
+              <div className="flex justify-between"><span>Round Off:</span><span>₹{roundOff.toFixed(2)}</span></div>
             )}
             <div className="flex justify-between font-bold text-lg border-t pt-2">
               <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
