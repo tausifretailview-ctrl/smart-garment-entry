@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -92,6 +93,13 @@ export default function SalesInvoice() {
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const location = useLocation();
   const { orgNavigate: navigate } = useOrgNavigation();
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  
+  // Customer balance hook
+  const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+    selectedCustomerId || null,
+    currentOrganization?.id || null
+  );
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
@@ -115,7 +123,6 @@ export default function SalesInvoice() {
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
   const [paymentTerm, setPaymentTerm] = useState<string>("");
@@ -992,6 +999,25 @@ Thank you for choosing us!`;
                   {selectedCustomer.address && <div>Address: {selectedCustomer.address}</div>}
                   {selectedCustomer.gst_number && <div>GST: {selectedCustomer.gst_number}</div>}
                   {!selectedCustomer.address && <div>Address is Not Provided</div>}
+                  {/* Customer Balance Display */}
+                  <div className={`flex items-center gap-1.5 pt-1 mt-1 border-t border-border ${
+                    customerBalance > 0 
+                      ? 'text-destructive' 
+                      : customerBalance < 0 
+                        ? 'text-green-600' 
+                        : 'text-muted-foreground'
+                  }`}>
+                    <IndianRupee className="h-3 w-3" />
+                    <span className="font-semibold">
+                      {isBalanceLoading ? 'Loading...' : `Balance: ₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                      {customerBalance > 0 ? ' Due' : customerBalance < 0 ? ' Credit' : ''}
+                    </span>
+                  </div>
+                  {customerOpeningBalance > 0 && (
+                    <div className="text-muted-foreground text-[10px]">
+                      (Opening Balance: ₹{customerOpeningBalance.toLocaleString('en-IN')})
+                    </div>
+                  )}
                 </div>
               )}
               {!selectedCustomer && (

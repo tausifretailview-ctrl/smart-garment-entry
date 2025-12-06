@@ -4,13 +4,14 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePOS } from "@/contexts/POSContext";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -88,6 +89,12 @@ export default function POSSales() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  
+  // Customer balance hook
+  const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+    customerId || null,
+    currentOrganization?.id || null
+  );
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
@@ -1729,6 +1736,34 @@ export default function POSSales() {
               </Command>
             </PopoverContent>
           </Popover>
+          
+          {/* Customer Balance Display */}
+          {customerId && (
+            <div className="flex items-center gap-2">
+              <div className={`h-12 px-4 rounded-md flex items-center justify-center gap-2 ${
+                customerBalance > 0 
+                  ? 'bg-destructive/10 border border-destructive/30' 
+                  : customerBalance < 0 
+                    ? 'bg-green-500/10 border border-green-500/30' 
+                    : 'bg-muted border border-border'
+              }`}>
+                <IndianRupee className={`h-4 w-4 ${
+                  customerBalance > 0 ? 'text-destructive' : customerBalance < 0 ? 'text-green-600' : 'text-muted-foreground'
+                }`} />
+                <div className="flex flex-col">
+                  <span className={`font-bold text-sm ${
+                    customerBalance > 0 ? 'text-destructive' : customerBalance < 0 ? 'text-green-600' : 'text-muted-foreground'
+                  }`}>
+                    {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : 'Balance'}
+                    {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* Invoice Number Display */}
           <div className="relative">
