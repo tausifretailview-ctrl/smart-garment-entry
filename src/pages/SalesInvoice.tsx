@@ -103,6 +103,7 @@ export default function SalesInvoice() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -387,6 +388,14 @@ export default function SalesInvoice() {
     
     setOpenProductSearch(false);
     setSearchInput("");
+    
+    // Auto-scroll to show newly added product
+    setTimeout(() => {
+      if (tableContainerRef.current) {
+        tableContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+    
     toast({
       title: "Product Added",
       description: `${product.product_name} (${variant.size}) added to invoice`,
@@ -1342,7 +1351,7 @@ Thank you for choosing us!`;
               </div>
 
               {/* Line Items Table - Always show 5 rows */}
-              <div className="border rounded-lg">
+              <div ref={tableContainerRef} className="border rounded-lg">
                 <Table>
                   <TableHeader>
                     <TableRow>

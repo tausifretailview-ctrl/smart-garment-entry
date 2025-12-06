@@ -116,6 +116,7 @@ export default function POSSales() {
   const printRef = useRef<HTMLDivElement>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const itemsContainerRef = useRef<HTMLDivElement>(null);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
@@ -658,8 +659,11 @@ export default function POSSales() {
     setOpenProductSearch(false);
     setSearchInput("");
     
-    // Refocus on barcode input for next scan
+    // Auto-scroll to show newly added product
     setTimeout(() => {
+      if (itemsContainerRef.current) {
+        itemsContainerRef.current.scrollTop = itemsContainerRef.current.scrollHeight;
+      }
       barcodeInputRef.current?.focus();
     }, 100);
   };
@@ -1957,7 +1961,7 @@ export default function POSSales() {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto">
+            <div ref={itemsContainerRef} className="flex-1 overflow-y-auto">
               <div className="overflow-x-auto">
                 {items.length === 0 ? (
                   // Show 6 blank rows with serial numbers
