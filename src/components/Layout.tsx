@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AppSidebar } from "@/components/AppSidebar";
+import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 
@@ -18,6 +19,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1">
           <Header />
+          <WindowTabsBar />
           <div className="flex lg:hidden items-center gap-2 px-4 py-2 border-b bg-sidebar">
             <SidebarTrigger className="text-sidebar-foreground" />
           </div>
