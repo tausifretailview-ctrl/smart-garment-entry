@@ -495,6 +495,41 @@ export default function POSSales() {
     staleTime: 60000, // Cache for 60 seconds
   });
 
+  // Fetch customer balances for dropdown display
+  const { data: customerBalances = {} } = useQuery({
+    queryKey: ["customer-balances", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+      const { data: sales, error } = await supabase
+        .from("sales")
+        .select("customer_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization.id)
+        .not("customer_id", "is", null);
+      if (error) throw error;
+      
+      // Aggregate by customer_id
+      const balanceMap: Record<string, { totalSales: number; totalPaid: number }> = {};
+      sales?.forEach((sale) => {
+        if (!sale.customer_id) return;
+        if (!balanceMap[sale.customer_id]) {
+          balanceMap[sale.customer_id] = { totalSales: 0, totalPaid: 0 };
+        }
+        balanceMap[sale.customer_id].totalSales += sale.net_amount || 0;
+        balanceMap[sale.customer_id].totalPaid += sale.paid_amount || 0;
+      });
+      return balanceMap;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
+
+  // Helper to calculate customer balance
+  const getCustomerBalance = (customer: any) => {
+    const openingBalance = customer.opening_balance || 0;
+    const salesData = customerBalances[customer.id] || { totalSales: 0, totalPaid: 0 };
+    return openingBalance + salesData.totalSales - salesData.totalPaid;
+  };
+
   // Handle barcode/product search on Enter
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchInput.trim()) {
@@ -1709,28 +1744,42 @@ export default function POSSales() {
                         c.email?.toLowerCase().includes(customerName.toLowerCase())
                       )
                       .slice(0, 10)
-                      .map((customer) => (
-                        <CommandItem
-                          key={customer.id}
-                          value={customer.customer_name}
-                          onSelect={() => {
-                            setCustomerId(customer.id);
-                            setCustomerName(customer.customer_name);
-                            setCustomerPhone(customer.phone || "");
-                            setOpenCustomerSearch(false);
-                          }}
-                          className="cursor-pointer"
-                        >
-                          <Check className="mr-2 h-4 w-4 opacity-0" />
-                          <div className="flex flex-col">
-                            <span className="font-medium">{customer.customer_name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {customer.phone && `Phone: ${customer.phone}`}
-                              {customer.email && ` | Email: ${customer.email}`}
-                            </span>
-                          </div>
-                        </CommandItem>
-                      ))}
+                      .map((customer) => {
+                        const balance = getCustomerBalance(customer);
+                        return (
+                          <CommandItem
+                            key={customer.id}
+                            value={customer.customer_name}
+                            onSelect={() => {
+                              setCustomerId(customer.id);
+                              setCustomerName(customer.customer_name);
+                              setCustomerPhone(customer.phone || "");
+                              setOpenCustomerSearch(false);
+                            }}
+                            className="cursor-pointer"
+                          >
+                            <Check className="mr-2 h-4 w-4 opacity-0" />
+                            <div className="flex flex-col flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">{customer.customer_name}</span>
+                                {balance !== 0 && (
+                                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                    balance > 0 
+                                      ? 'bg-destructive/10 text-destructive' 
+                                      : 'bg-green-500/10 text-green-600'
+                                  }`}>
+                                    ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {customer.phone && `Phone: ${customer.phone}`}
+                                {customer.email && ` | Email: ${customer.email}`}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
                   </CommandGroup>
                 </CommandList>
               </Command>

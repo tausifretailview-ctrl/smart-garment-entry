@@ -182,6 +182,41 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch customer balances for dropdown display
+  const { data: customerBalances = {} } = useQuery({
+    queryKey: ["customer-balances", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+      const { data: sales, error } = await supabase
+        .from("sales")
+        .select("customer_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization.id)
+        .not("customer_id", "is", null);
+      if (error) throw error;
+      
+      // Aggregate by customer_id
+      const balanceMap: Record<string, { totalSales: number; totalPaid: number }> = {};
+      sales?.forEach((sale) => {
+        if (!sale.customer_id) return;
+        if (!balanceMap[sale.customer_id]) {
+          balanceMap[sale.customer_id] = { totalSales: 0, totalPaid: 0 };
+        }
+        balanceMap[sale.customer_id].totalSales += sale.net_amount || 0;
+        balanceMap[sale.customer_id].totalPaid += sale.paid_amount || 0;
+      });
+      return balanceMap;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 60000,
+  });
+
+  // Helper to calculate customer balance
+  const getCustomerBalance = (customer: any) => {
+    const openingBalance = customer.opening_balance || 0;
+    const salesData = customerBalances[customer.id] || { totalSales: 0, totalPaid: 0 };
+    return openingBalance + salesData.totalSales - salesData.totalPaid;
+  };
+
   // Fetch settings
   const { data: settingsData } = useQuery({
     queryKey: ['settings', currentOrganization?.id],
@@ -975,12 +1010,26 @@ Thank you for choosing us!`;
                   <SelectTrigger>
                     <SelectValue placeholder="Search Customer" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {customersData?.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.customer_name} {customer.phone ? `- ${customer.phone}` : ''}
-                      </SelectItem>
-                    ))}
+                  <SelectContent className="bg-popover z-50">
+                    {customersData?.map((customer) => {
+                      const balance = getCustomerBalance(customer);
+                      return (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          <div className="flex items-center justify-between gap-4 w-full">
+                            <span>{customer.customer_name} {customer.phone ? `- ${customer.phone}` : ''}</span>
+                            {balance !== 0 && (
+                              <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                balance > 0 
+                                  ? 'bg-destructive/10 text-destructive' 
+                                  : 'bg-green-500/10 text-green-600'
+                              }`}>
+                                ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
                 <Button 
