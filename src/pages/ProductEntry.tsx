@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 
@@ -68,7 +68,6 @@ const ProductEntry = () => {
   const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
@@ -726,159 +725,221 @@ const ProductEntry = () => {
     }
   };
 
-  // Handle Excel import for products
-  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+  // Handle Excel import for products with batch processing
+  const handleExcelImport = async (
+    mappedData: Record<string, any>[],
+    onProgress?: (progress: ImportProgress) => void
+  ) => {
     if (!currentOrganization) return;
     
-    setImportLoading(true);
-    try {
-      // Group rows by product attributes
-      const productGroups = new Map<string, Record<string, any>[]>();
+    // Filter valid rows (must have product_name and size)
+    const validRows = mappedData.filter(row => 
+      row.product_name?.toString().trim() && row.size?.toString().trim()
+    );
+
+    // Group rows by product attributes
+    const productGroups = new Map<string, Record<string, any>[]>();
+    
+    for (const row of validRows) {
+      const key = [
+        row.product_name?.toString().trim() || '',
+        row.category?.toString().trim() || '',
+        row.brand?.toString().trim() || '',
+        row.style?.toString().trim() || '',
+        row.color?.toString().trim() || '',
+      ].join('|');
       
-      for (const row of mappedData) {
-        if (!row.product_name || !row.size) continue;
-        
-        const key = [
-          row.product_name,
-          row.category || '',
-          row.brand || '',
-          row.style || '',
-          row.color || '',
-        ].join('|');
-        
-        if (!productGroups.has(key)) {
-          productGroups.set(key, []);
-        }
-        productGroups.get(key)!.push(row);
+      if (!productGroups.has(key)) {
+        productGroups.set(key, []);
       }
-      
-      let productsCreated = 0;
-      let variantsCreated = 0;
-      
-      for (const [key, rows] of productGroups) {
-        const firstRow = rows[0];
-        
-        // Check if product exists
-        const { data: existingProducts } = await supabase
-          .from('products')
-          .select('id')
-          .eq('organization_id', currentOrganization.id)
-          .eq('product_name', firstRow.product_name)
-          .eq('brand', firstRow.brand || '')
-          .eq('category', firstRow.category || '')
-          .eq('color', firstRow.color || '')
-          .eq('style', firstRow.style || '')
-          .limit(1);
-        
-        let productId = existingProducts?.[0]?.id;
-        
-        if (!productId) {
-          const { data: newProduct, error: productError } = await supabase
-            .from('products')
-            .insert({
-              organization_id: currentOrganization.id,
-              product_name: firstRow.product_name,
-              category: firstRow.category || null,
-              brand: firstRow.brand || null,
-              style: firstRow.style || null,
-              color: firstRow.color || null,
-              hsn_code: firstRow.hsn_code || null,
-              gst_per: Number(firstRow.gst_per) || 18,
-              default_pur_price: Number(firstRow.default_pur_price) || 0,
-              default_sale_price: Number(firstRow.default_sale_price) || 0,
-              status: 'active',
-            })
-            .select('id')
-            .single();
+      productGroups.get(key)!.push(row);
+    }
+    
+    const totalGroups = productGroups.size;
+    let processedGroups = 0;
+    let productsCreated = 0;
+    let productsSkipped = 0;
+    let variantsCreated = 0;
+    let variantsSkipped = 0;
+    let errorCount = 0;
+
+    // Get existing products to check for duplicates
+    const { data: existingProducts } = await supabase
+      .from('products')
+      .select('id, product_name, brand, category, color, style')
+      .eq('organization_id', currentOrganization.id);
+
+    const existingProductMap = new Map<string, string>();
+    (existingProducts || []).forEach(p => {
+      const key = [
+        p.product_name || '',
+        p.category || '',
+        p.brand || '',
+        p.style || '',
+        p.color || '',
+      ].join('|');
+      existingProductMap.set(key, p.id);
+    });
+
+    // Process product groups in batches
+    const BATCH_SIZE = 10; // Products per batch
+    const groupEntries = Array.from(productGroups.entries());
+
+    for (let i = 0; i < groupEntries.length; i += BATCH_SIZE) {
+      const batch = groupEntries.slice(i, i + BATCH_SIZE);
+
+      for (const [key, rows] of batch) {
+        try {
+          const firstRow = rows[0];
+          let productId = existingProductMap.get(key);
           
-          if (productError) throw productError;
-          productId = newProduct.id;
-          productsCreated++;
-        }
-        
-        // Create variants for each size
-        for (const row of rows) {
-          // Check if variant exists
+          if (!productId) {
+            // Create new product
+            const { data: newProduct, error: productError } = await supabase
+              .from('products')
+              .insert({
+                organization_id: currentOrganization.id,
+                product_name: firstRow.product_name?.toString().trim(),
+                category: firstRow.category?.toString().trim() || null,
+                brand: firstRow.brand?.toString().trim() || null,
+                style: firstRow.style?.toString().trim() || null,
+                color: firstRow.color?.toString().trim() || null,
+                hsn_code: firstRow.hsn_code?.toString().trim() || null,
+                gst_per: Number(firstRow.gst_per) || 18,
+                default_pur_price: Number(firstRow.default_pur_price) || 0,
+                default_sale_price: Number(firstRow.default_sale_price) || 0,
+                status: 'active',
+              })
+              .select('id')
+              .single();
+            
+            if (productError) {
+              errorCount++;
+              continue;
+            }
+            productId = newProduct.id;
+            existingProductMap.set(key, productId);
+            productsCreated++;
+          } else {
+            productsSkipped++;
+          }
+
+          // Get existing variants for this product
           const { data: existingVariants } = await supabase
             .from('product_variants')
-            .select('id')
-            .eq('organization_id', currentOrganization.id)
-            .eq('product_id', productId)
-            .eq('size', row.size)
-            .limit(1);
+            .select('size')
+            .eq('product_id', productId);
+
+          const existingSizes = new Set(
+            (existingVariants || []).map(v => v.size?.toLowerCase())
+          );
+
+          // Prepare variants to insert
+          const variantsToInsert: any[] = [];
           
-          if (existingVariants && existingVariants.length > 0) continue;
-          
-          // Generate barcode if not provided
-          let barcode = row.barcode || '';
-          if (!barcode) {
-            const { data: barcodeData, error: barcodeError } = await supabase.rpc(
-              'generate_next_barcode',
-              { p_organization_id: currentOrganization.id }
-            );
-            if (barcodeError) throw barcodeError;
-            barcode = barcodeData;
-          }
-          
-          const openingQty = Number(row.opening_qty) || 0;
-          
-          const { error: variantError } = await supabase
-            .from('product_variants')
-            .insert({
+          for (const row of rows) {
+            const size = row.size?.toString().trim();
+            if (!size || existingSizes.has(size.toLowerCase())) {
+              if (existingSizes.has(size?.toLowerCase())) variantsSkipped++;
+              continue;
+            }
+
+            // Generate barcode if not provided
+            let barcode = row.barcode?.toString().trim() || '';
+            if (!barcode) {
+              const { data: barcodeData } = await supabase.rpc(
+                'generate_next_barcode',
+                { p_organization_id: currentOrganization.id }
+              );
+              barcode = barcodeData || '';
+            }
+
+            const openingQty = Number(row.opening_qty) || 0;
+
+            variantsToInsert.push({
               organization_id: currentOrganization.id,
               product_id: productId,
-              size: row.size,
+              size: size,
               barcode: barcode,
               pur_price: Number(row.default_pur_price) || 0,
               sale_price: Number(row.default_sale_price) || 0,
+              mrp: row.mrp ? Number(row.mrp) : null,
               stock_qty: openingQty,
               opening_qty: openingQty,
               active: true,
             });
-          
-          if (variantError) throw variantError;
-          variantsCreated++;
-          
-          // Create stock movement for opening quantity
-          if (openingQty > 0) {
-            const { data: newVariant } = await supabase
+
+            existingSizes.add(size.toLowerCase());
+          }
+
+          // Batch insert variants
+          if (variantsToInsert.length > 0) {
+            const { data: insertedVariants, error: variantError } = await supabase
               .from('product_variants')
-              .select('id')
-              .eq('organization_id', currentOrganization.id)
-              .eq('product_id', productId)
-              .eq('size', row.size)
-              .single();
-            
-            if (newVariant) {
-              await supabase.from('stock_movements').insert({
-                organization_id: currentOrganization.id,
-                variant_id: newVariant.id,
-                movement_type: 'opening',
-                quantity: openingQty,
-                notes: 'Opening stock from Excel import',
-              });
+              .insert(variantsToInsert)
+              .select('id, opening_qty, size');
+
+            if (variantError) {
+              errorCount += variantsToInsert.length;
+            } else {
+              variantsCreated += insertedVariants?.length || 0;
+
+              // Create stock movements for opening quantities
+              const stockMovements = (insertedVariants || [])
+                .filter(v => v.opening_qty > 0)
+                .map(v => ({
+                  organization_id: currentOrganization.id,
+                  variant_id: v.id,
+                  movement_type: 'opening',
+                  quantity: v.opening_qty,
+                  notes: `Opening stock from Excel import - ${v.size}`,
+                }));
+
+              if (stockMovements.length > 0) {
+                await supabase.from('stock_movements').insert(stockMovements);
+              }
             }
           }
+        } catch (err) {
+          console.error('Error processing product group:', err);
+          errorCount++;
         }
+
+        processedGroups++;
       }
-      
-      toast({
-        title: "Import Successful",
-        description: `Created ${productsCreated} products and ${variantsCreated} variants`,
-      });
-      
-      // Navigate to product dashboard to see imported products
-      navigate('/products');
-    } catch (error: any) {
-      console.error("Import error:", error);
-      toast({
-        title: "Import Failed",
-        description: error.message || "Failed to import products",
-        variant: "destructive",
-      });
-    } finally {
-      setImportLoading(false);
+
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: processedGroups,
+          total: totalGroups,
+          successCount: productsCreated + variantsCreated,
+          errorCount,
+          skippedCount: productsSkipped + variantsSkipped,
+          isImporting: true,
+        });
+      }
     }
+
+    const skippedEmptyRows = mappedData.length - validRows.length;
+    let description = `${productsCreated} products, ${variantsCreated} variants created`;
+    if (productsSkipped > 0 || variantsSkipped > 0) {
+      description += `, ${productsSkipped + variantsSkipped} duplicates skipped`;
+    }
+    if (skippedEmptyRows > 0) {
+      description += `, ${skippedEmptyRows} empty rows skipped`;
+    }
+    if (errorCount > 0) {
+      description += `, ${errorCount} errors`;
+    }
+
+    toast({
+      title: "Import Completed",
+      description,
+    });
+    
+    // Navigate to product dashboard to see imported products
+    navigate('/products');
   };
 
   return (
@@ -906,13 +967,8 @@ const ProductEntry = () => {
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
                   className="gap-2"
-                  disabled={importLoading}
                 >
-                  {importLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="h-4 w-4" />
-                  )}
+                  <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
                 </Button>
               )}
