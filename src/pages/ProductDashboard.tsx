@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -82,8 +83,8 @@ const ProductDashboard = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
-  // Column visibility state
-  const [columnVisibility, setColumnVisibility] = useState({
+  // Column visibility settings - persisted to database
+  const defaultColumnSettings = {
     image: true,
     productName: true,
     category: true,
@@ -97,10 +98,13 @@ const ProductDashboard = () => {
     status: true,
     totalQty: true,
     variants: true,
-  });
+  };
 
-  const toggleColumnVisibility = (column: keyof typeof columnVisibility) => {
-    setColumnVisibility(prev => ({ ...prev, [column]: !prev[column] }));
+  const { columnSettings: columnVisibility, updateColumnSetting, isLoading: settingsLoading } = 
+    useDashboardColumnSettings("product_dashboard", defaultColumnSettings);
+
+  const toggleColumnVisibility = (column: string) => {
+    updateColumnSetting(column, !columnVisibility[column]);
   };
 
   const visibleColumnCount = Object.values(columnVisibility).filter(Boolean).length + 4; // +4 for expand, checkbox, sr.no, actions
