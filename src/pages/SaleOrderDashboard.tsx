@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -413,90 +413,84 @@ export default function SaleOrderDashboard() {
   return (
     <div className="p-4 space-y-4">
 
-      {/* Summary Statistics Cards */}
+      {/* Summary Statistics Cards - Modern Gradient Style */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card 
-          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
+          className={`cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 ${statusFilter === 'all' ? 'ring-2 ring-primary shadow-lg' : ''}`}
           onClick={() => handleCardClick('all')}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <ClipboardList className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Orders</p>
-              <p className="text-xl font-bold">{stats.total}</p>
-            </div>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Total Orders</CardDescription>
+            <ClipboardList className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">All orders</p>
+          </CardContent>
         </Card>
         
         <Card 
-          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'pending' ? 'ring-2 ring-primary' : ''}`}
+          className={`cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-yellow-500 hover:scale-[1.02] bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20 ${statusFilter === 'pending' ? 'ring-2 ring-primary shadow-lg' : ''}`}
           onClick={() => handleCardClick('pending')}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Clock className="h-5 w-5 text-yellow-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending</p>
-              <p className="text-xl font-bold">{stats.pending}</p>
-            </div>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Pending</CardDescription>
+            <Clock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <p className="text-xs text-muted-foreground">Awaiting action</p>
+          </CardContent>
         </Card>
         
         <Card 
-          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'partial' ? 'ring-2 ring-primary' : ''}`}
+          className={`cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500 hover:scale-[1.02] bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20 ${statusFilter === 'partial' ? 'ring-2 ring-primary shadow-lg' : ''}`}
           onClick={() => handleCardClick('partial')}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <Package className="h-5 w-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Partial</p>
-              <p className="text-xl font-bold">{stats.partial}</p>
-            </div>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Partial</CardDescription>
+            <Package className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{stats.partial}</div>
+            <p className="text-xs text-muted-foreground">Partially fulfilled</p>
+          </CardContent>
         </Card>
         
         <Card 
-          className={`p-4 cursor-pointer transition-all hover:shadow-md ${statusFilter === 'confirmed' ? 'ring-2 ring-primary' : ''}`}
+          className={`cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500 hover:scale-[1.02] bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20 ${statusFilter === 'confirmed' ? 'ring-2 ring-primary shadow-lg' : ''}`}
           onClick={() => handleCardClick('confirmed')}
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Confirmed</p>
-              <p className="text-xl font-bold">{stats.confirmed}</p>
-            </div>
-          </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Confirmed</CardDescription>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.confirmed}</div>
+            <p className="text-xs text-muted-foreground">Completed</p>
+          </CardContent>
         </Card>
         
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending Items</p>
-              <p className="text-xl font-bold">{stats.pendingItems}</p>
-            </div>
-          </div>
+        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-red-500 hover:scale-[1.02] bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Pending Items</CardDescription>
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.pendingItems}</div>
+            <p className="text-xs text-muted-foreground">To be fulfilled</p>
+          </CardContent>
         </Card>
         
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <IndianRupee className="h-5 w-5 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Pending Value</p>
-              <p className="text-lg font-bold">₹{stats.pendingValue.toLocaleString('en-IN')}</p>
-            </div>
-          </div>
+        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-amber-500 hover:scale-[1.02] bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-amber-900/20">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Pending Value</CardDescription>
+            <IndianRupee className="h-4 w-4 text-amber-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">₹{stats.pendingValue.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-muted-foreground">Outstanding</p>
+          </CardContent>
         </Card>
       </div>
       

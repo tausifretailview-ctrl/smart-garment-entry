@@ -790,10 +790,10 @@ export default function SalesInvoiceDashboard() {
           </div>
         </div>
 
-        {/* Summary Statistics - Colorful Clickable Cards */}
+        {/* Summary Statistics - Modern Gradient Style Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -807,7 +807,7 @@ export default function SalesInvoiceDashboard() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-green-500 hover:scale-[1.02]"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500 hover:scale-[1.02] bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -821,7 +821,7 @@ export default function SalesInvoiceDashboard() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 hover:scale-[1.02]"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500 hover:scale-[1.02] bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20"
             onClick={() => setDeliveryFilter("all")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -835,7 +835,7 @@ export default function SalesInvoiceDashboard() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 hover:scale-[1.02]"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-emerald-500 hover:scale-[1.02] bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20"
             onClick={() => setDeliveryFilter("delivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -849,7 +849,7 @@ export default function SalesInvoiceDashboard() {
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-red-500 hover:scale-[1.02]"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-red-500 hover:scale-[1.02] bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
             onClick={() => setDeliveryFilter("undelivered")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
