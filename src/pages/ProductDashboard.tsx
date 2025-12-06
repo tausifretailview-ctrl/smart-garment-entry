@@ -37,6 +37,7 @@ interface ProductVariant {
 interface ProductRow {
   product_id: string;
   product_name: string;
+  product_type: string;
   category: string;
   brand: string;
   style: string;
@@ -62,6 +63,7 @@ const ProductDashboard = () => {
   
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedProductType, setSelectedProductType] = useState<string>("all");
   const [selectedSizeGroup, setSelectedSizeGroup] = useState<string>("all");
   const [selectedStockLevel, setSelectedStockLevel] = useState<string>("all");
   const [minPrice, setMinPrice] = useState<string>("");
@@ -70,6 +72,7 @@ const ProductDashboard = () => {
   // Data for filter options
   const [sizeGroups, setSizeGroups] = useState<Array<{ id: string; group_name: string }>>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
 
   // Selection and pagination states
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
@@ -86,7 +89,7 @@ const ProductDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
+  }, [searchQuery, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
   const fetchProductVariants = async () => {
     setLoading(true);
@@ -96,6 +99,7 @@ const ProductDashboard = () => {
         .select(`
           id,
           product_name,
+          product_type,
           category,
           brand,
           style,
@@ -134,6 +138,7 @@ const ProductDashboard = () => {
         return {
           product_id: product.id,
           product_name: product.product_name,
+          product_type: product.product_type || "",
           category: product.category || "",
           brand: product.brand || "",
           style: product.style || "",
@@ -156,6 +161,12 @@ const ProductDashboard = () => {
         new Set(rows.map(r => r.category).filter(c => c && c.trim() !== ""))
       ).sort();
       setCategories(uniqueCategories);
+
+      // Extract unique product types
+      const uniqueProductTypes = Array.from(
+        new Set((data || []).map((p: any) => p.product_type).filter((t: string) => t && t.trim() !== ""))
+      ).sort();
+      setProductTypes(uniqueProductTypes);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -187,6 +198,7 @@ const ProductDashboard = () => {
 
   const clearAllFilters = () => {
     setSelectedCategory("all");
+    setSelectedProductType("all");
     setSelectedSizeGroup("all");
     setSelectedStockLevel("all");
     setMinPrice("");
@@ -377,6 +389,7 @@ const ProductDashboard = () => {
 
   const hasActiveFilters =
     selectedCategory !== "all" || 
+    selectedProductType !== "all" ||
     selectedSizeGroup !== "all" || 
     selectedStockLevel !== "all" || 
     minPrice !== "" || 
@@ -405,6 +418,11 @@ const ProductDashboard = () => {
 
     // Category filter
     if (selectedCategory !== "all" && row.category !== selectedCategory) {
+      return false;
+    }
+
+    // Product Type filter
+    if (selectedProductType !== "all" && row.product_type !== selectedProductType) {
       return false;
     }
 
@@ -558,7 +576,7 @@ const ProductDashboard = () => {
                   Filter
                   {hasActiveFilters && (
                     <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                      {[selectedCategory !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
+                      {[selectedCategory !== "all", selectedProductType !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
                     </Badge>
                   )}
                 </Button>
@@ -616,7 +634,23 @@ const ProductDashboard = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Product Type Filter */}
+                <div className="space-y-2">
+                  <Label htmlFor="product-type-filter" className="text-xs font-medium">Product Type</Label>
+                  <Select value={selectedProductType} onValueChange={setSelectedProductType}>
+                    <SelectTrigger id="product-type-filter" className="h-9">
+                      <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover z-50">
+                      <SelectItem value="all">All Types</SelectItem>
+                      {productTypes.map((type) => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 {/* Category Filter */}
                 <div className="space-y-2">
                   <Label htmlFor="category-filter" className="text-xs font-medium">Category</Label>
@@ -706,6 +740,15 @@ const ProductDashboard = () => {
                         <X 
                           className="h-3 w-3 cursor-pointer" 
                           onClick={() => setSearchQuery("")}
+                        />
+                      </Badge>
+                    )}
+                    {selectedProductType !== "all" && (
+                      <Badge variant="secondary" className="gap-1">
+                        Type: {selectedProductType}
+                        <X 
+                          className="h-3 w-3 cursor-pointer" 
+                          onClick={() => setSelectedProductType("all")}
                         />
                       </Badge>
                     )}
