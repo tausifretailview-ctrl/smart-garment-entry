@@ -995,9 +995,30 @@ Thank you for choosing us!`;
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             {/* Select Customer */}
             <div className="space-y-2">
-              <Label className="text-foreground">
-                Select Customer<span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-foreground">
+                  Select Customer<span className="text-destructive">*</span>
+                </Label>
+                {/* Customer Balance Display - on top of label */}
+                {selectedCustomerId && (
+                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+                    customerBalance > 0 
+                      ? 'bg-destructive/10 text-destructive border border-destructive/30' 
+                      : customerBalance < 0 
+                        ? 'bg-green-500/10 text-green-600 border border-green-500/30' 
+                        : 'bg-muted text-muted-foreground border border-border'
+                  }`}>
+                    <IndianRupee className="h-3 w-3" />
+                    <span>
+                      {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                    </span>
+                    <span className="text-[10px]">
+                      {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
+                      {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
+                    </span>
+                  </div>
+                )}
+              </div>
               <div className="flex gap-2">
                 <Select
                   value={selectedCustomerId}
@@ -1048,25 +1069,6 @@ Thank you for choosing us!`;
                   {selectedCustomer.address && <div>Address: {selectedCustomer.address}</div>}
                   {selectedCustomer.gst_number && <div>GST: {selectedCustomer.gst_number}</div>}
                   {!selectedCustomer.address && <div>Address is Not Provided</div>}
-                  {/* Customer Balance Display */}
-                  <div className={`flex items-center gap-1.5 pt-1 mt-1 border-t border-border ${
-                    customerBalance > 0 
-                      ? 'text-destructive' 
-                      : customerBalance < 0 
-                        ? 'text-green-600' 
-                        : 'text-muted-foreground'
-                  }`}>
-                    <IndianRupee className="h-3 w-3" />
-                    <span className="font-semibold">
-                      {isBalanceLoading ? 'Loading...' : `Balance: ₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
-                      {customerBalance > 0 ? ' Due' : customerBalance < 0 ? ' Credit' : ''}
-                    </span>
-                  </div>
-                  {customerOpeningBalance > 0 && (
-                    <div className="text-muted-foreground text-[10px]">
-                      (Opening Balance: ₹{customerOpeningBalance.toLocaleString('en-IN')})
-                    </div>
-                  )}
                 </div>
               )}
               {!selectedCustomer && (
