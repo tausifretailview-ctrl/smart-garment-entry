@@ -68,6 +68,7 @@ interface InvoiceWrapperProps {
   showBarcode?: boolean;
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
+  showMRP?: boolean;
   minItemRows?: number;
   showTotalQuantity?: boolean;
   amountWithDecimal?: boolean;
@@ -165,7 +166,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const showBarcode = props.showBarcode ?? settings?.sale_settings?.show_barcode ?? true;
     const showGSTBreakdown = props.showGSTBreakdown ?? settings?.sale_settings?.show_gst_breakdown ?? true;
     const showBankDetails = props.showBankDetails ?? settings?.sale_settings?.show_bank_details ?? false;
-    const showMRP = (settings?.sale_settings as any)?.show_mrp_column ?? false;
+    const showMRP = props.showMRP ?? (settings?.sale_settings as any)?.show_mrp_column ?? false;
     const minItemRows = props.minItemRows ?? (settings?.sale_settings as any)?.min_item_rows ?? 12;
     const showTotalQuantity = props.showTotalQuantity ?? (settings?.sale_settings as any)?.show_total_quantity ?? true;
     const amountWithDecimal = props.amountWithDecimal ?? (settings?.sale_settings as any)?.amount_with_decimal ?? true;

@@ -2552,6 +2552,7 @@ export default function Settings() {
                         showBarcode={settings.sale_settings?.show_barcode ?? true}
                         showGSTBreakdown={settings.sale_settings?.show_gst_breakdown ?? true}
                         showBankDetails={settings.sale_settings?.show_bank_details ?? false}
+                        showMRP={settings.sale_settings?.show_mrp_column ?? false}
                         minItemRows={(settings.sale_settings as any)?.min_item_rows}
                         showTotalQuantity={(settings.sale_settings as any)?.show_total_quantity}
                         amountWithDecimal={(settings.sale_settings as any)?.amount_with_decimal}
