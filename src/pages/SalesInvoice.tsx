@@ -67,6 +67,7 @@ interface LineItem {
   productName: string;
   size: string;
   barcode: string;
+  color: string;
   quantity: number;
   mrp: number;
   salePrice: number;
@@ -74,7 +75,7 @@ interface LineItem {
   discountAmount: number;
   gstPercent: number;
   lineTotal: number;
-  hsnCode?: string;
+  hsnCode: string;
 }
 
 const customerSchema = z.object({
@@ -101,6 +102,7 @@ export default function SalesInvoice() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -110,6 +112,7 @@ export default function SalesInvoice() {
       productName: '',
       size: '',
       barcode: '',
+      color: '',
       quantity: 0,
       mrp: 0,
       salePrice: 0,
@@ -117,6 +120,7 @@ export default function SalesInvoice() {
       discountAmount: 0,
       gstPercent: 0,
       lineTotal: 0,
+      hsnCode: '',
     }))
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
@@ -133,6 +137,9 @@ export default function SalesInvoice() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
+  const [salesman, setSalesman] = useState<string>("");
+  const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
+  const [roundOff, setRoundOff] = useState<number>(0);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -254,6 +261,25 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch employees for Salesman dropdown
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .eq('status', 'active')
+        .order('employee_name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Pre-populate form if editing existing invoice
   useState(() => {
     const invoiceData = location.state?.invoiceData;
@@ -368,6 +394,7 @@ export default function SalesInvoice() {
         productName: product.product_name,
         size: variant.size,
         barcode: variant.barcode || '',
+        color: product.color || '',
         quantity: 1,
         mrp: variant.sale_price || 0,
         salePrice: variant.sale_price || 0,
@@ -384,6 +411,10 @@ export default function SalesInvoice() {
     setOpenProductSearch(false);
     setSearchInput("");
     
+    // Auto-scroll to the table after product is added
+    setTimeout(() => {
+      tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
     
     toast({
       title: "Product Added",
@@ -472,6 +503,7 @@ export default function SalesInvoice() {
         productName: '',
         size: '',
         barcode: '',
+        color: '',
         quantity: 0,
         mrp: 0,
         salePrice: 0,
@@ -479,6 +511,7 @@ export default function SalesInvoice() {
         discountAmount: 0,
         gstPercent: 0,
         lineTotal: 0,
+        hsnCode: '',
       } : item
     );
     setLineItems(updatedItems);
@@ -776,6 +809,9 @@ Thank you for choosing us!`;
             customer_address: selectedCustomer.address || null,
             gross_amount: grossAmount,
             discount_amount: totalDiscount,
+            flat_discount_percent: flatDiscountPercent,
+            flat_discount_amount: flatDiscountAmount,
+            round_off: roundOff,
             net_amount: netAmount,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
@@ -829,12 +865,12 @@ Thank you for choosing us!`;
             customer_address: selectedCustomer.address || null,
             gross_amount: grossAmount,
             discount_amount: totalDiscount,
+            flat_discount_percent: flatDiscountPercent,
+            flat_discount_amount: flatDiscountAmount,
+            round_off: roundOff,
             net_amount: netAmount,
             payment_method: 'pay_later',
             payment_status: 'pending',
-            round_off: 0,
-            flat_discount_amount: 0,
-            flat_discount_percent: 0,
             organization_id: currentOrganization?.id,
             due_date: dueDate.toISOString().split('T')[0],
             payment_term: paymentTerm || null,
@@ -931,6 +967,7 @@ Thank you for choosing us!`;
           productName: '',
           size: '',
           barcode: '',
+          color: '',
           quantity: 0,
           mrp: 0,
           salePrice: 0,
@@ -938,6 +975,7 @@ Thank you for choosing us!`;
           discountAmount: 0,
           gstPercent: 0,
           lineTotal: 0,
+          hsnCode: '',
         }))
       );
       setSelectedCustomerId("");
@@ -949,6 +987,9 @@ Thank you for choosing us!`;
       setNotes("");
       setShippingAddress("");
       setShippingInstructions("");
+      setSalesman("");
+      setFlatDiscountPercent(0);
+      setRoundOff(0);
     } else {
       // Navigate back to dashboard if editing
       navigate('/sales-invoice-dashboard');
@@ -960,21 +1001,27 @@ Thank you for choosing us!`;
 
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
-  const totalDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
+  const lineItemDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
+  const flatDiscountAmount = (grossAmount * flatDiscountPercent) / 100;
+  const totalDiscount = lineItemDiscount + flatDiscountAmount;
   const amountAfterDiscount = grossAmount - totalDiscount;
   
   const totalGST = lineItems.reduce((sum, item) => {
     const baseAmount = item.salePrice * item.quantity - item.discountAmount;
+    // Apply flat discount proportionally
+    const proportionalFlatDiscount = grossAmount > 0 ? (baseAmount / grossAmount) * flatDiscountAmount : 0;
+    const adjustedBase = baseAmount - proportionalFlatDiscount;
     if (taxType === "inclusive") {
       // Extract GST from inclusive price
-      return sum + (baseAmount - (baseAmount / (1 + item.gstPercent / 100)));
+      return sum + (adjustedBase - (adjustedBase / (1 + item.gstPercent / 100)));
     } else {
       // Calculate GST on exclusive price
-      return sum + (baseAmount * item.gstPercent) / 100;
+      return sum + (adjustedBase * item.gstPercent) / 100;
     }
   }, 0);
   
-  const netAmount = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
+  const netBeforeRoundOff = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
+  const netAmount = netBeforeRoundOff + roundOff;
 
   return (
     <div className="p-4 space-y-4">
@@ -1084,6 +1131,24 @@ Thank you for choosing us!`;
               </SelectContent>
             </Select>
           </div>
+
+          {/* Salesman */}
+          <div>
+            <Label>Salesman</Label>
+            <Select value={salesman} onValueChange={setSalesman}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select salesman" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">None</SelectItem>
+                {employeesData?.map(emp => (
+                  <SelectItem key={emp.id} value={emp.employee_name}>
+                    {emp.employee_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Product Search */}
@@ -1135,72 +1200,104 @@ Thank you for choosing us!`;
         </div>
 
         {/* Line Items Table */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8">#</TableHead>
-              <TableHead>Product</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead className="w-20">Qty</TableHead>
-              <TableHead className="w-24">Price</TableHead>
-              <TableHead className="w-20">Disc %</TableHead>
-              <TableHead className="w-20">GST %</TableHead>
-              <TableHead className="w-24 text-right">Total</TableHead>
-              <TableHead className="w-10"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {lineItems.map((item, index) => (
-              <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>{item.productName || '-'}</TableCell>
-                <TableCell>{item.size || '-'}</TableCell>
-                <TableCell>
-                  {item.productId && (
-                    <Input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                      className="w-16 h-8"
-                    />
-                  )}
-                </TableCell>
-                <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
-                <TableCell>
-                  {item.productId && (
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={item.discountPercent}
-                      onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                      className="w-16 h-8"
-                    />
-                  )}
-                </TableCell>
-                <TableCell>{item.gstPercent}%</TableCell>
-                <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
-                <TableCell>
-                  {item.productId && (
-                    <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
+        <div ref={tableContainerRef}>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">#</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Color</TableHead>
+                <TableHead>Barcode</TableHead>
+                <TableHead>HSN</TableHead>
+                <TableHead className="w-20">Qty</TableHead>
+                <TableHead className="w-24">Price</TableHead>
+                <TableHead className="w-20">Disc %</TableHead>
+                <TableHead className="w-20">GST %</TableHead>
+                <TableHead className="w-24 text-right">Total</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {lineItems.map((item, index) => (
+                <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
+                  <TableCell>{index + 1}</TableCell>
+                  <TableCell>{item.productName || '-'}</TableCell>
+                  <TableCell>{item.size || '-'}</TableCell>
+                  <TableCell>{item.color || '-'}</TableCell>
+                  <TableCell className="text-xs">{item.barcode || '-'}</TableCell>
+                  <TableCell className="text-xs">{item.hsnCode || '-'}</TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                        className="w-16 h-8"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={item.discountPercent}
+                        onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                        className="w-16 h-8"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>{item.gstPercent}%</TableCell>
+                  <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
         {/* Summary */}
         <div className="mt-4 flex justify-end">
-          <div className="w-72 space-y-2">
+          <div className="w-80 space-y-2">
             <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Discount:</span><span>-₹{totalDiscount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Line Discount:</span><span>-₹{lineItemDiscount.toFixed(2)}</span></div>
+            <div className="flex justify-between items-center">
+              <span>Flat Discount %:</span>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={flatDiscountPercent}
+                  onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+                  className="w-20 h-8"
+                />
+                <span className="text-muted-foreground">(-₹{flatDiscountAmount.toFixed(2)})</span>
+              </div>
+            </div>
             {taxType === "exclusive" && (
               <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
             )}
+            <div className="flex justify-between items-center">
+              <span>Round Off:</span>
+              <Input
+                type="number"
+                step="0.01"
+                value={roundOff}
+                onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                className="w-24 h-8"
+              />
+            </div>
             <div className="flex justify-between font-bold text-lg border-t pt-2">
               <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
             </div>
