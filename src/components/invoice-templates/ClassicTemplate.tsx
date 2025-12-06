@@ -11,6 +11,7 @@ interface ClassicTemplateProps {
   invoiceDate: Date;
   customerName: string;
   customerMobile?: string;
+  salesman?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -76,6 +77,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   invoiceDate,
   customerName,
   customerMobile,
+  salesman,
   items,
   subtotal,
   discount,
@@ -261,12 +263,21 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         </div>
 
         {/* Customer Info */}
-        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: colors.accent, border: `1px solid ${colors.primary}20` }}>
-          <h3 style={{ margin: '0 0 10px 0', fontSize: isA4 ? '12pt' : '10pt', color: colors.primary }}>Bill To:</h3>
-          <p style={{ margin: 0 }}>
-            <strong>{customerName}</strong><br />
-            {customerMobile && `Phone: ${customerMobile}`}
-          </p>
+        <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: colors.accent, border: `1px solid ${colors.primary}20`, display: 'flex', justifyContent: 'space-between' }}>
+          <div>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: isA4 ? '12pt' : '10pt', color: colors.primary }}>Bill To:</h3>
+            <p style={{ margin: 0 }}>
+              <strong>{customerName}</strong><br />
+              {customerMobile && `Phone: ${customerMobile}`}
+            </p>
+          </div>
+          {salesman && (
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: isA4 ? '10pt' : '8pt' }}>
+                <strong>Salesman:</strong> {salesman}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Items Table */}

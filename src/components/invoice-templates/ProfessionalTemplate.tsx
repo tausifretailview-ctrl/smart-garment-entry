@@ -36,6 +36,7 @@ interface ProfessionalTemplateProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  salesman?: string;
   
   // Items
   items: InvoiceItem[];
@@ -103,6 +104,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   customerAddress,
   customerMobile,
   customerGSTIN,
+  salesman,
   items,
   subtotal,
   discount,
@@ -286,6 +288,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           {customerAddress && <p style={{ margin: '2px 0', lineHeight: 1.3 }}>{customerAddress}</p>}
           {customerMobile && <p style={{ margin: '2px 0' }}><strong>Phone:</strong> {customerMobile}</p>}
           {customerGSTIN && <p style={{ margin: '2px 0' }}><strong>GSTIN:</strong> {customerGSTIN}</p>}
+          {salesman && <p style={{ margin: '2px 0' }}><strong>Salesman:</strong> {salesman}</p>}
         </div>
         
         {/* Invoice Details */}

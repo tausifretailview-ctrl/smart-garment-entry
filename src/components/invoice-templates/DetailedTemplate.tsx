@@ -42,6 +42,7 @@ interface DetailedTemplateProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  salesman?: string;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -84,6 +85,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   customerAddress,
   customerMobile,
   customerGSTIN,
+  salesman,
   items,
   subtotal,
   discount,
@@ -255,7 +257,8 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
           <strong>{customerName}</strong><br/>
           {customerAddress && <>{customerAddress}<br/></>}
           {customerMobile && <>Mobile: {customerMobile}<br/></>}
-          {customerGSTIN && <>GSTIN: {customerGSTIN}</>}
+          {customerGSTIN && <>GSTIN: {customerGSTIN}<br/></>}
+          {salesman && <>Salesman: {salesman}</>}
         </div>
       </div>
 

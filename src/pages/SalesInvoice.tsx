@@ -819,6 +819,7 @@ Thank you for choosing us!`;
             notes: notes || null,
             shipping_address: shippingAddress || null,
             shipping_instructions: shippingInstructions || null,
+            salesman: salesman || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingInvoiceId);
@@ -878,6 +879,7 @@ Thank you for choosing us!`;
             notes: notes || null,
             shipping_address: shippingAddress || null,
             shipping_instructions: shippingInstructions || null,
+            salesman: salesman || null,
           }])
           .select()
           .single();
