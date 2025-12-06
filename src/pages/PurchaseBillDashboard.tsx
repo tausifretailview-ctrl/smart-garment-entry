@@ -184,14 +184,14 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const toggleExpanded = async (billId: string) => {
+  const toggleExpanded = useCallback(async (billId: string) => {
     if (expandedBill === billId) {
       setExpandedBill(null);
     } else {
       setExpandedBill(billId);
       await fetchBillItems(billId);
     }
-  };
+  }, [expandedBill, billItems]);
 
   const handleDeleteClick = (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -241,23 +241,7 @@ const PurchaseBillDashboard = () => {
   // (handle_purchase_item_delete) when purchase_items are deleted.
   // This prevents double stock deduction that was occurring previously.
 
-  const toggleSelectAll = () => {
-    if (selectedBills.size === paginatedBills.length) {
-      setSelectedBills(new Set());
-    } else {
-      setSelectedBills(new Set(paginatedBills.map(b => b.id)));
-    }
-  };
-
-  const toggleSelectBill = (billId: string) => {
-    const newSelected = new Set(selectedBills);
-    if (newSelected.has(billId)) {
-      newSelected.delete(billId);
-    } else {
-      newSelected.add(billId);
-    }
-    setSelectedBills(newSelected);
-  };
+  // Note: toggleSelectAll moved after paginatedBills is defined
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
@@ -365,10 +349,10 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const handlePageSizeChange = (value: string) => {
+  const handlePageSizeChange = useCallback((value: string) => {
     setItemsPerPage(Number(value));
     setCurrentPage(1);
-  };
+  }, []);
 
   const handleOpenPaymentDialog = (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -537,50 +521,77 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const filteredBills = bills.filter((bill) => {
-    const searchLower = searchQuery.toLowerCase();
-    
-    // Check basic bill fields
-    const matchesBasicSearch =
-      searchQuery === "" ||
-      bill.supplier_name.toLowerCase().includes(searchLower) ||
-      bill.supplier_invoice_no?.toLowerCase().includes(searchLower) ||
-      bill.software_bill_no?.toLowerCase().includes(searchLower);
-    
-    // Check barcode in bill items
-    const items = billItems[bill.id] || [];
-    const matchesBarcodeSearch = searchQuery !== "" && items.some(item => 
-      item.barcode?.toLowerCase().includes(searchLower) ||
-      item.product_name?.toLowerCase().includes(searchLower)
-    );
-    
-    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
+  // Memoize filtered and sorted bills to avoid recomputing on every render
+  const filteredBills = useMemo(() => {
+    return bills.filter((bill) => {
+      const searchLower = searchQuery.toLowerCase();
+      
+      // Check basic bill fields
+      const matchesBasicSearch =
+        searchQuery === "" ||
+        bill.supplier_name.toLowerCase().includes(searchLower) ||
+        bill.supplier_invoice_no?.toLowerCase().includes(searchLower) ||
+        bill.software_bill_no?.toLowerCase().includes(searchLower);
+      
+      // Check barcode in bill items
+      const items = billItems[bill.id] || [];
+      const matchesBarcodeSearch = searchQuery !== "" && items.some(item => 
+        item.barcode?.toLowerCase().includes(searchLower) ||
+        item.product_name?.toLowerCase().includes(searchLower)
+      );
+      
+      const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
-    const billDate = new Date(bill.bill_date);
-    const matchesStartDate = !startDate || billDate >= new Date(startDate);
-    const matchesEndDate = !endDate || billDate <= new Date(endDate);
+      const billDate = new Date(bill.bill_date);
+      const matchesStartDate = !startDate || billDate >= new Date(startDate);
+      const matchesEndDate = !endDate || billDate <= new Date(endDate);
 
-    return matchesSearch && matchesStartDate && matchesEndDate;
-  }).sort((a, b) => {
-    const dateA = new Date(a.bill_date).getTime();
-    const dateB = new Date(b.bill_date).getTime();
-    return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
-  });
+      return matchesSearch && matchesStartDate && matchesEndDate;
+    }).sort((a, b) => {
+      const dateA = new Date(a.bill_date).getTime();
+      const dateB = new Date(b.bill_date).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
+  }, [bills, billItems, searchQuery, startDate, endDate, sortOrder]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedBills = filteredBills.slice(startIndex, endIndex);
+  // Memoize summary statistics
+  const summaryStats = useMemo(() => ({
+    totalBills: filteredBills.length,
+    totalAmount: filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0),
+    totalQty: filteredBills.reduce((sum, bill) => {
+      const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
+      return sum + billQty;
+    }, 0),
+  }), [filteredBills, billItems]);
 
-  // Memoize filtered bills for performance
-  const memoizedPaginatedBills = useMemo(() => paginatedBills, [paginatedBills]);
+  // Memoize pagination calculations
+  const totalPages = useMemo(() => Math.ceil(filteredBills.length / itemsPerPage), [filteredBills.length, itemsPerPage]);
+  const paginatedBills = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredBills.slice(startIndex, endIndex);
+  }, [filteredBills, currentPage, itemsPerPage]);
 
-  const totalPurchaseAmount = filteredBills.reduce((sum, bill) => sum + bill.net_amount, 0);
-  const totalPurchaseQty = filteredBills.reduce((sum, bill) => {
-    const billQty = billItems[bill.id]?.reduce((itemSum, item) => itemSum + item.qty, 0) || 0;
-    return sum + billQty;
-  }, 0);
+  // Memoized event handlers (defined after filteredBills/paginatedBills)
+  const toggleSelectAll = useCallback(() => {
+    if (selectedBills.size === paginatedBills.length) {
+      setSelectedBills(new Set());
+    } else {
+      setSelectedBills(new Set(paginatedBills.map(b => b.id)));
+    }
+  }, [selectedBills.size, paginatedBills]);
+
+  const toggleSelectBill = useCallback((billId: string) => {
+    setSelectedBills(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(billId)) {
+        newSelected.delete(billId);
+      } else {
+        newSelected.add(billId);
+      }
+      return newSelected;
+    });
+  }, []);
 
   const getPaymentStatusBadge = (bill: PurchaseBill) => {
     const status = bill.payment_status || 'unpaid';
@@ -706,20 +717,20 @@ const PurchaseBillDashboard = () => {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Total Purchase Qty</CardDescription>
-              <CardTitle className="text-3xl">{totalPurchaseQty}</CardTitle>
+              <CardTitle className="text-3xl">{summaryStats.totalQty}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Total Purchase Amount</CardDescription>
-              <CardTitle className="text-3xl">₹{totalPurchaseAmount.toFixed(2)}</CardTitle>
+              <CardTitle className="text-3xl">₹{summaryStats.totalAmount.toFixed(2)}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Average Bill Value</CardDescription>
               <CardTitle className="text-3xl">
-                ₹{filteredBills.length > 0 ? (totalPurchaseAmount / filteredBills.length).toFixed(2) : "0.00"}
+                ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(2) : "0.00"}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -849,7 +860,7 @@ const PurchaseBillDashboard = () => {
                             onCheckedChange={() => toggleSelectBill(bill.id)}
                           />
                         </TableCell>
-                          <TableCell className="font-medium">{startIndex + index + 1}</TableCell>
+                          <TableCell className="font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="font-mono text-xs">
                               {bill.software_bill_no || "N/A"}
@@ -1030,7 +1041,7 @@ const PurchaseBillDashboard = () => {
                     </Select>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredBills.length)} of {filteredBills.length} bills
+                    Showing {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredBills.length)} of {filteredBills.length} bills
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
