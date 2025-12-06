@@ -8,8 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -23,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, IndianRupee, ArrowUp } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -103,8 +101,6 @@ export default function SalesInvoice() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
-  const tableContainerRef = useRef<HTMLDivElement>(null);
-  const [showScrollTop, setShowScrollTop] = useState(false);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -127,8 +123,6 @@ export default function SalesInvoice() {
   const [searchInput, setSearchInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
-  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
-  const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [paymentTerm, setPaymentTerm] = useState<string>("");
   const [termsConditions, setTermsConditions] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -137,12 +131,10 @@ export default function SalesInvoice() {
   const [isSaving, setIsSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
-  const [selectedTemplate, setSelectedTemplate] = useState<"classic" | "modern" | "minimal">("classic");
-  const [showPreview, setShowPreview] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
 
-  // Keyboard shortcut for printing and scroll detection
+  // Keyboard shortcut for printing
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "p") {
@@ -153,15 +145,9 @@ export default function SalesInvoice() {
       }
     };
 
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 200);
-    };
-
     window.addEventListener("keydown", handleKeyPress);
-    window.addEventListener("scroll", handleScroll);
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
-      window.removeEventListener("scroll", handleScroll);
     };
   }, [savedInvoiceData]);
 
@@ -398,12 +384,6 @@ export default function SalesInvoice() {
     setOpenProductSearch(false);
     setSearchInput("");
     
-    // Auto-scroll to show newly added product
-    setTimeout(() => {
-      if (tableContainerRef.current) {
-        tableContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
     
     toast({
       title: "Product Added",
@@ -997,608 +977,269 @@ Thank you for choosing us!`;
   const netAmount = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      {/* Scroll to Top Button with Item Count Badge */}
-      {showScrollTop && (
-        <Button
-          size="icon"
-          variant="secondary"
-          className="fixed bottom-8 right-8 z-30 rounded-full shadow-lg h-12 w-12 relative"
-          onClick={() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-        >
-          <ArrowUp className="h-5 w-5" />
-          {lineItems.filter(item => item.productId).length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
-              {lineItems.filter(item => item.productId).length}
-            </span>
-          )}
-        </Button>
-      )}
-      <BackToDashboard label="Back to Sales Invoice Dashboard" to="/sales-invoice-dashboard" />
+    <div className="p-4 space-y-4">
+      <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
-      <div className="max-w-[1400px] mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Home className="h-5 w-5 text-muted-foreground" />
-          <span className="text-muted-foreground">- Invoice</span>
-          <h1 className="text-2xl font-semibold">
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Home className="h-6 w-6" />
             {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
           </h1>
         </div>
 
-        {/* Main Form */}
-        <Card className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            {/* Select Customer */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-foreground">
-                  Select Customer<span className="text-destructive">*</span>
-                </Label>
-                {/* Customer Balance Display - on top of label */}
-                {selectedCustomerId && (
-                  <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
-                    customerBalance > 0 
-                      ? 'bg-destructive/10 text-destructive border border-destructive/30' 
-                      : customerBalance < 0 
-                        ? 'bg-green-500/10 text-green-600 border border-green-500/30' 
-                        : 'bg-muted text-muted-foreground border border-border'
-                  }`}>
-                    <IndianRupee className="h-3 w-3" />
-                    <span>
-                      {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
-                    </span>
-                    <span className="text-[10px]">
-                      {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
-                      {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
-                    </span>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between"
-                    >
-                      {selectedCustomer 
-                        ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}`
-                        : "Search Customer by Name or Mobile..."
-                      }
-                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
-                    <Command>
-                      <CommandInput 
-                        placeholder="Search by name or mobile number..." 
-                        value={customerSearchInput}
-                        onValueChange={setCustomerSearchInput}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No customers found.</CommandEmpty>
-                        <CommandGroup heading="Customers">
-                          {customersData
-                            ?.filter(c => 
-                              c.customer_name?.toLowerCase().includes(customerSearchInput.toLowerCase()) ||
-                              c.phone?.toLowerCase().includes(customerSearchInput.toLowerCase())
-                            )
-                            .slice(0, 10)
-                            .map((customer) => {
-                              const balance = getCustomerBalance(customer);
-                              return (
-                                <CommandItem
-                                  key={customer.id}
-                                  value={`${customer.customer_name} ${customer.phone || ''}`}
-                                  onSelect={() => {
-                                    setSelectedCustomerId(customer.id);
-                                    setSelectedCustomer(customer);
-                                    setCustomerSearchInput("");
-                                    setOpenCustomerSearch(false);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <div className="flex flex-col flex-1">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{customer.customer_name}</span>
-                                      {balance !== 0 && (
-                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                          balance > 0 
-                                            ? 'bg-destructive/10 text-destructive' 
-                                            : 'bg-green-500/10 text-green-600'
-                                        }`}>
-                                          ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {customer.phone && (
-                                      <span className="text-sm text-muted-foreground">
-                                        Mobile: {customer.phone}
-                                      </span>
-                                    )}
-                                  </div>
-                                </CommandItem>
-                              );
-                            })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                <Button 
-                  size="icon" 
-                  variant="outline"
-                  onClick={() => setOpenCustomerDialog(true)}
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {selectedCustomer && (
-                <div className="text-xs text-muted-foreground space-y-1 mt-2">
-                  {selectedCustomer.phone && <div>Phone: {selectedCustomer.phone}</div>}
-                  {selectedCustomer.email && <div>Email: {selectedCustomer.email}</div>}
-                  {selectedCustomer.address && <div>Address: {selectedCustomer.address}</div>}
-                  {selectedCustomer.gst_number && <div>GST: {selectedCustomer.gst_number}</div>}
-                  {!selectedCustomer.address && <div>Address is Not Provided</div>}
-                </div>
-              )}
-              {!selectedCustomer && (
-                <div className="text-xs text-muted-foreground space-y-1 mt-2">
-                  <div>Please select a customer to view details</div>
-                </div>
+        {/* Simplified Form - matching Quotation/Sale Order layout */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          {/* Customer Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Customer<span className="text-destructive">*</span></Label>
+              {selectedCustomerId && (
+                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                  customerBalance > 0 
+                    ? 'bg-destructive/10 text-destructive' 
+                    : customerBalance < 0 
+                      ? 'bg-green-500/10 text-green-600' 
+                      : 'bg-muted text-muted-foreground'
+                }`}>
+                  {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
+                </span>
               )}
             </div>
-
-            {/* Invoice Date */}
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Invoice Date<span className="text-destructive">*</span>
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn("w-full justify-start text-left font-normal")}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(invoiceDate, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={invoiceDate} onSelect={(date) => date && setInvoiceDate(date)} />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Invoice No */}
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Invoice No.<span className="text-destructive">*</span>
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input value="INV/24-25/" className="flex-1" readOnly />
-                <Input defaultValue="9185" className="w-20" />
-              </div>
-            </div>
-
-            {/* Payment Term */}
-            <div className="space-y-2">
-              <Label className="text-foreground">Payment Term</Label>
-              <div className="flex gap-2">
-                <Select value={paymentTerm} onValueChange={setPaymentTerm}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Payment Term" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="immediate">Immediate</SelectItem>
-                    <SelectItem value="net15">Net 15</SelectItem>
-                    <SelectItem value="net30">Net 30</SelectItem>
-                    <SelectItem value="net60">Net 60</SelectItem>
-                    <SelectItem value="net90">Net 90</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button size="icon" variant="outline" type="button">
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Due Date */}
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Due Date<span className="text-destructive">*</span>
-              </Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn("w-full justify-start text-left font-normal")}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dueDate, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar mode="single" selected={dueDate} onSelect={(date) => date && setDueDate(date)} />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Tax Type */}
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Tax Type<span className="text-destructive">*</span>
-              </Label>
-              <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
-                <SelectTrigger>
-                  <SelectValue />
+            <div className="flex gap-2">
+              <Select value={selectedCustomerId} onValueChange={(value) => {
+                setSelectedCustomerId(value);
+                const customer = customersData?.find(c => c.id === value);
+                setSelectedCustomer(customer);
+              }}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
-                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
+                  {customersData?.map(customer => {
+                    const balance = getCustomerBalance(customer);
+                    return (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span>{customer.customer_name} - {customer.phone}</span>
+                          {balance !== 0 && (
+                            <span className={`text-xs ${balance > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                              ₹{Math.abs(balance).toLocaleString('en-IN')}
+                            </span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">
-                {taxType === "exclusive" 
-                  ? "GST will be added on top of the price (e.g., ₹1500 + GST)" 
-                  : "Price already includes GST (e.g., ₹1500 with GST)"}
-              </p>
-            </div>
-
-            {/* Invoice Template */}
-            <div className="space-y-2">
-              <Label className="text-foreground">
-                Invoice Template<span className="text-destructive">*</span>
-              </Label>
-              <Select value={selectedTemplate} onValueChange={(value: "classic" | "modern" | "minimal") => setSelectedTemplate(value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="classic">Classic - Traditional business style</SelectItem>
-                  <SelectItem value="modern">Modern - Gradient & contemporary</SelectItem>
-                  <SelectItem value="minimal">Minimal - Clean & simple</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button 
-                type="button" 
-                variant="outline" 
-                size="sm" 
-                onClick={() => lineItems.length > 0 && setShowPreview(true)}
-                disabled={lineItems.length === 0}
-                className="w-full mt-2"
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Preview Template
+              <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
-
-            {/* Create Invoice From */}
-            <div className="space-y-2">
-              <Label className="text-foreground">Create Invoice From</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="quotation">Quotation</SelectItem>
-                  <SelectItem value="order">Sales Order</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Sales Man */}
-            <div className="space-y-2">
-              <Label className="text-foreground">Sales Man</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Employee" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="emp1">Employee 1</SelectItem>
-                  <SelectItem value="emp2">Employee 2</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
 
-          {/* Checkboxes */}
-          <div className="flex gap-6 mb-6">
-            <div className="flex items-center space-x-2">
-              <Checkbox id="reminder" />
-              <Label htmlFor="reminder" className="text-sm cursor-pointer">Payment Reminder</Label>
-            </div>
+          {/* Invoice Date */}
+          <div>
+            <Label>Invoice Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(invoiceDate, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* Tabs Section */}
-          <Tabs defaultValue="products" className="w-full">
-            <TabsList>
-              <TabsTrigger value="products">Product Details</TabsTrigger>
-              <TabsTrigger value="terms">Terms & Condition/Note</TabsTrigger>
-              <TabsTrigger value="shipping">Shipping Details</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="products" className="mt-4 space-y-4">
-              {/* Product Search */}
-              <div className="flex gap-2">
-                <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="flex-1 justify-start">
-                      <Search className="mr-2 h-4 w-4" />
-                      {searchInput || "Search products by name, brand, or barcode..."}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[600px] p-0" align="start">
-                    <Command>
-                      <CommandInput
-                        placeholder="Search products..."
-                        value={searchInput}
-                        onValueChange={setSearchInput}
-                      />
-                      <CommandList>
-                        <CommandEmpty>No products found.</CommandEmpty>
-                        <CommandGroup>
-                          {productsData?.map((product) =>
-                            product.product_variants
-                              ?.filter((variant: any) => variant.stock_qty > 0)
-                              ?.map((variant: any) => (
-                                <CommandItem
-                                  key={variant.id}
-                                  value={`${product.product_name} ${product.brand || ''} ${variant.size} ${variant.barcode || ''}`}
-                                  onSelect={() => addProductToInvoice(product, variant)}
-                                >
-                                  <div className="flex justify-between w-full">
-                                    <div>
-                                      <div className="font-medium">{product.product_name}</div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {product.brand} | Size: {variant.size} | 
-                                        Barcode: {variant.barcode || 'N/A'}
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="font-medium">₹{variant.sale_price}</div>
-                                      <div className="text-sm text-muted-foreground">
-                                        Stock: {variant.stock_qty}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </CommandItem>
-                              ))
-                          )}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
+          {/* Due Date */}
+          <div>
+            <Label>Due Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(dueDate, "PPP")}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={dueDate} onSelect={(d) => d && setDueDate(d)} />
+              </PopoverContent>
+            </Popover>
+          </div>
 
-              {/* Line Items Table - Always show 5 rows */}
-              <div ref={tableContainerRef} className="border rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[40px]">#</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead className="w-[100px]">Qty</TableHead>
-                      <TableHead className="w-[100px]">MRP</TableHead>
-                      <TableHead className="w-[120px]">Price</TableHead>
-                      <TableHead className="w-[100px]">Disc%</TableHead>
-                      <TableHead className="w-[120px]">Disc Amt</TableHead>
-                      <TableHead className="w-[80px]">GST%</TableHead>
-                      <TableHead className="text-right w-[120px]">Total</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lineItems.map((item, index) => (
-                      <TableRow key={item.id}>
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell className="font-medium">{item.productName || '-'}</TableCell>
-                        <TableCell>{item.size || '-'}</TableCell>
-                        <TableCell>
-                          {item.productId ? (
-                            <Input
-                              type="number"
-                              min="1"
-                              value={item.quantity}
-                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                              className="w-full"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.productId ? (
-                            item.mrp > item.salePrice ? (
-                              <span className="line-through text-muted-foreground">₹{item.mrp.toFixed(2)}</span>
-                            ) : (
-                              <span>₹{item.mrp.toFixed(2)}</span>
-                            )
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell>{item.productId ? `₹${item.salePrice.toFixed(2)}` : '-'}</TableCell>
-                        <TableCell>
-                          {item.productId ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={item.discountPercent}
-                              onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                              className="w-full"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.productId ? (
-                            <Input
-                              type="number"
-                              min="0"
-                              value={item.discountAmount}
-                              onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
-                              className="w-full"
-                            />
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{item.productId ? `${item.gstPercent}%` : '-'}</TableCell>
-                        <TableCell className="text-right">
-                          {item.productId ? `₹${item.lineTotal.toFixed(2)}` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          {item.productId && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeItem(item.id)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
+          {/* Tax Type */}
+          <div>
+            <Label>Tax Type</Label>
+            <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                <SelectItem value="inclusive">Inclusive GST</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Product Search */}
+        <div className="mb-4">
+          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start">
+                <Search className="mr-2 h-4 w-4" />
+                Search Products (Stock Restricted)
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[500px] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search by name, barcode..." value={searchInput} onValueChange={setSearchInput} />
+                <CommandList>
+                  <CommandEmpty>No products found</CommandEmpty>
+                  <CommandGroup>
+                    {productsData?.slice(0, 10).map(product => (
+                      product.product_variants
+                        ?.filter((variant: any) => variant.stock_qty > 0)
+                        ?.filter((variant: any) => {
+                          if (!searchInput) return true;
+                          const searchLower = searchInput.toLowerCase();
+                          return product.product_name?.toLowerCase().includes(searchLower) ||
+                            product.brand?.toLowerCase().includes(searchLower) ||
+                            variant.barcode?.toLowerCase().includes(searchLower);
+                        })
+                        ?.map((variant: any) => (
+                          <CommandItem
+                            key={variant.id}
+                            onSelect={() => addProductToInvoice(product, variant)}
+                            className="cursor-pointer"
+                          >
+                            <div className="flex justify-between w-full">
+                              <div>
+                                <span>{product.product_name} - {variant.size}</span>
+                                <span className="text-xs text-muted-foreground ml-2">Stock: {variant.stock_qty}</span>
+                              </div>
+                              <span className="text-muted-foreground">₹{variant.sale_price}</span>
+                            </div>
+                          </CommandItem>
+                        ))
                     ))}
-                  </TableBody>
-                </Table>
-                  
-                  {/* Summary Section */}
-                  <div className="border-t p-4 bg-muted/30">
-                    <div className="flex justify-end">
-                      <div className="w-[400px] space-y-2">
-                        <div className="flex justify-between">
-                          <span>Gross Amount:</span>
-                          <span className="font-medium">₹{grossAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-destructive">
-                          <span>Total Discount:</span>
-                          <span className="font-medium">- ₹{totalDiscount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Amount After Discount:</span>
-                          <span className="font-medium">₹{amountAfterDiscount.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Total GST:</span>
-                          <span className="font-medium">₹{totalGST.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-lg font-bold border-t pt-2">
-                          <span>Net Amount:</span>
-                          <span className="text-primary">₹{netAmount.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-            </TabsContent>
-            
-            <TabsContent value="terms" className="mt-4">
-              <Card className="p-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label>Terms & Conditions</Label>
-                    <Textarea 
-                      className="w-full min-h-[100px] mt-2" 
-                      placeholder="Enter terms and conditions..."
-                      value={termsConditions}
-                      onChange={(e) => setTermsConditions(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Notes</Label>
-                    <Textarea 
-                      className="w-full min-h-[100px] mt-2" 
-                      placeholder="Enter additional notes..."
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="shipping" className="mt-4">
-              <Card className="p-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Shipping Address</Label>
-                    <Textarea 
-                      className="w-full min-h-[100px] mt-2" 
-                      placeholder="Enter shipping address..."
-                      value={shippingAddress}
-                      onChange={(e) => setShippingAddress(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label>Delivery Instructions</Label>
-                    <Textarea 
-                      className="w-full min-h-[100px] mt-2" 
-                      placeholder="Enter delivery instructions..."
-                      value={shippingInstructions}
-                      onChange={(e) => setShippingInstructions(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </Card>
-            </TabsContent>
-          </Tabs>
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 mt-6">
-            <Button 
-              variant="outline" 
-              type="button"
-              onClick={() => navigate('/sales-invoice-dashboard')}
-            >
-              Cancel
-            </Button>
-            <Button variant="outline" type="button">Save as Draft</Button>
-            <Button 
-              onClick={() => {
-                if (lineItems.filter(item => item.productId).length === 0) {
-                  toast({
-                    title: "No Items",
-                    description: "Please add items to the invoice before printing",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                if (!selectedCustomerId) {
-                  toast({
-                    title: "No Customer",
-                    description: "Please select a customer before printing",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                handlePrint();
-              }}
-              variant="outline"
-              type="button"
-              disabled={isSaving}
-            >
-              Print Invoice
-            </Button>
-            <Button 
-              className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white"
-              onClick={handleSaveInvoice}
-              disabled={isSaving}
-              type="button"
-            >
-              {isSaving ? "Saving..." : editingInvoiceId ? "Update Invoice" : "Save Invoice"}
-            </Button>
+        {/* Line Items Table */}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-8">#</TableHead>
+              <TableHead>Product</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead className="w-20">Qty</TableHead>
+              <TableHead className="w-24">Price</TableHead>
+              <TableHead className="w-20">Disc %</TableHead>
+              <TableHead className="w-20">GST %</TableHead>
+              <TableHead className="w-24 text-right">Total</TableHead>
+              <TableHead className="w-10"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lineItems.map((item, index) => (
+              <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{item.productName || '-'}</TableCell>
+                <TableCell>{item.size || '-'}</TableCell>
+                <TableCell>
+                  {item.productId && (
+                    <Input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                      className="w-16 h-8"
+                    />
+                  )}
+                </TableCell>
+                <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                <TableCell>
+                  {item.productId && (
+                    <Input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={item.discountPercent}
+                      onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                      className="w-16 h-8"
+                    />
+                  )}
+                </TableCell>
+                <TableCell>{item.gstPercent}%</TableCell>
+                <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
+                <TableCell>
+                  {item.productId && (
+                    <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+
+        {/* Summary */}
+        <div className="mt-4 flex justify-end">
+          <div className="w-72 space-y-2">
+            <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span>Discount:</span><span>-₹{totalDiscount.toFixed(2)}</span></div>
+            {taxType === "exclusive" && (
+              <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
+            )}
+            <div className="flex justify-between font-bold text-lg border-t pt-2">
+              <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
+            </div>
           </div>
-        </Card>
-      </div>
+        </div>
+
+        {/* Notes & Terms - simplified like Quotation */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label>Terms & Conditions</Label>
+            <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} />
+          </div>
+          <div>
+            <Label>Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+          </div>
+        </div>
+
+        {/* Actions - simplified */}
+        <div className="mt-6 flex gap-4">
+          <Button onClick={handleSaveInvoice} disabled={isSaving} className="flex-1">
+            <Eye className="mr-2 h-4 w-4" />
+            {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
+          </Button>
+          <Button 
+            onClick={() => {
+              handleSaveInvoice().then(() => {
+                if (savedInvoiceData) handlePrint();
+              });
+            }} 
+            disabled={isSaving} 
+            variant="outline" 
+            className="flex-1"
+          >
+            <Search className="mr-2 h-4 w-4" />
+            Save & Print
+          </Button>
+        </div>
+      </Card>
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
@@ -1695,47 +1336,6 @@ Thank you for choosing us!`;
               </div>
             </form>
           </Form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Invoice Template Preview Dialog */}
-      <Dialog open={showPreview} onOpenChange={setShowPreview}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-auto p-0">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle className="flex items-center justify-between">
-              <span>Invoice Preview</span>
-              <Button variant="outline" size="sm" onClick={() => setShowPreview(false)}>
-                Close Preview
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="p-6">
-            <InvoiceWrapper
-              billNo="PREVIEW-001"
-              date={invoiceDate}
-              customerName={selectedCustomer?.customer_name || "Customer Name"}
-              customerAddress={selectedCustomer?.address || ""}
-              customerMobile={selectedCustomer?.phone || ""}
-              customerGSTIN={selectedCustomer?.gst_number || ""}
-              items={lineItems
-                .filter(item => item.productId)
-                .map((item, index) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  size: item.size,
-                  barcode: item.barcode,
-                  hsn: "",
-                  sp: item.mrp,
-                  qty: item.quantity,
-                  rate: item.salePrice,
-                  total: item.lineTotal,
-                }))}
-              subTotal={grossAmount}
-              discount={totalDiscount}
-              grandTotal={netAmount}
-              paymentMethod="Cash"
-            />
-          </div>
         </DialogContent>
       </Dialog>
 
