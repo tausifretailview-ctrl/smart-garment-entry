@@ -77,7 +77,7 @@ export default function SalesInvoiceDashboard() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'thermal'>('a4');
+  const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('a4');
   const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
@@ -1599,11 +1599,14 @@ export default function SalesInvoiceDashboard() {
             top: 0,
             left: 0,
             width: billFormat === 'a4' ? '210mm' : 
-                   billFormat === 'thermal' ? '80mm' : '148mm',
+                   billFormat === 'thermal' ? '80mm' : 
+                   billFormat === 'a5-horizontal' ? '210mm' : '148mm',
             minHeight: billFormat === 'a4' ? '297mm' : 
-                       billFormat === 'thermal' ? 'auto' : '210mm',
+                       billFormat === 'thermal' ? 'auto' : 
+                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
             maxHeight: billFormat === 'thermal' ? 'none' : 
-                       billFormat === 'a4' ? '297mm' : '210mm',
+                       billFormat === 'a4' ? '297mm' : 
+                       billFormat === 'a5-horizontal' ? '148mm' : '210mm',
             opacity: 0,
             pointerEvents: 'none',
             zIndex: -9999,
@@ -1611,7 +1614,7 @@ export default function SalesInvoiceDashboard() {
           }}>
             <InvoiceWrapper
               ref={printRef}
-              format={billFormat}
+              format={billFormat === 'a5' ? 'a5-vertical' : billFormat}
               billNo={invoiceToPrint.sale_number}
               date={new Date(invoiceToPrint.sale_date)}
               customerName={invoiceToPrint.customer_name}
