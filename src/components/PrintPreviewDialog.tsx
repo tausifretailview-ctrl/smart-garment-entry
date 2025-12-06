@@ -117,7 +117,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     }
   };
 
-  const getFormatForInvoice = () => {
+  // Map print dialog format selection to invoice template format
+  const getFormatForInvoice = (): 'a4' | 'a5-vertical' | 'a5-horizontal' | 'thermal' => {
     switch (selectedFormat) {
       case 'a5':
         return 'a5-vertical';
@@ -125,6 +126,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         return 'a5-horizontal';
       case 'thermal':
         return 'thermal';
+      case 'a4':
       default:
         return 'a4';
     }
