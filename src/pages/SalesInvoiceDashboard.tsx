@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardContent, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -338,6 +338,10 @@ export default function SalesInvoiceDashboard() {
     pendingAmount: filteredInvoices
       .filter((inv: any) => inv.payment_status !== 'completed')
       .reduce((sum: number, inv: any) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0),
+    deliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').length,
+    deliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status === 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+    undeliveredCount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').length,
+    undeliveredAmount: filteredInvoices.filter((inv: any) => inv.delivery_status !== 'delivered').reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
   }), [filteredInvoices]);
 
   // Memoize pagination calculations
@@ -784,6 +788,79 @@ export default function SalesInvoiceDashboard() {
               </Button>
             )}
           </div>
+        </div>
+
+        {/* Summary Statistics - Colorful Clickable Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]"
+            onClick={() => setDeliveryFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Invoices</CardDescription>
+              <FileText className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{summaryStats.totalInvoices}</div>
+              <p className="text-xs text-muted-foreground">All invoices</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-green-500 hover:scale-[1.02]"
+            onClick={() => setDeliveryFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Revenue</CardDescription>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Net amount</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 hover:scale-[1.02]"
+            onClick={() => setDeliveryFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Pending Amount</CardDescription>
+              <Clock className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">₹{summaryStats.pendingAmount.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Outstanding</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-emerald-500 hover:scale-[1.02]"
+            onClick={() => setDeliveryFilter("delivered")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Delivered</CardDescription>
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-600">{summaryStats.deliveredCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.deliveredAmount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-red-500 hover:scale-[1.02]"
+            onClick={() => setDeliveryFilter("undelivered")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Undelivered</CardDescription>
+              <Package className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">{summaryStats.undeliveredCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.undeliveredAmount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
         </div>
 
         <Card className="p-6">
