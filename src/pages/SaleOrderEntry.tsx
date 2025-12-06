@@ -115,6 +115,7 @@ export default function SaleOrderEntry() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+  const [salesman, setSalesman] = useState<string>("");
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -185,6 +186,23 @@ export default function SaleOrderEntry() {
         .select(`*, product_variants (*)`)
         .eq('organization_id', currentOrganization.id)
         .eq('status', 'active');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch employees for Salesman dropdown
+  const { data: employeesData } = useQuery({
+    queryKey: ['employees', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .eq('status', 'active')
+        .order('employee_name');
       if (error) throw error;
       return data || [];
     },
@@ -263,6 +281,7 @@ export default function SaleOrderEntry() {
       setTermsConditions(o.terms_conditions || "");
       setNotes(o.notes || "");
       setShippingAddress(o.shipping_address || "");
+      setSalesman(o.salesman || "");
       
       if (o.customer_id) {
         setSelectedCustomer({
@@ -468,6 +487,7 @@ export default function SaleOrderEntry() {
         notes,
         terms_conditions: termsConditions,
         shipping_address: shippingAddress,
+        salesman: salesman || null,
       };
 
       let orderId = editingOrderId;
@@ -649,6 +669,23 @@ export default function SaleOrderEntry() {
               <SelectContent>
                 <SelectItem value="exclusive">Exclusive GST</SelectItem>
                 <SelectItem value="inclusive">Inclusive GST</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Salesman</Label>
+            <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Salesman" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {employeesData?.map(emp => (
+                  <SelectItem key={emp.id} value={emp.employee_name}>
+                    {emp.employee_name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -834,6 +871,7 @@ export default function SaleOrderEntry() {
           termsConditions={termsConditions}
           notes={notes}
           taxType={taxType}
+          salesman={salesman}
         />
       </div>
 

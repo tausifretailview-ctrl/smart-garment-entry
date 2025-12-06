@@ -30,6 +30,7 @@ interface SaleOrderPrintProps {
   orderDate: Date;
   expectedDeliveryDate?: Date;
   quotationNumber?: string;
+  salesman?: string;
   
   // Customer Details
   customerName: string;
@@ -77,6 +78,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       orderDate,
       expectedDeliveryDate,
       quotationNumber,
+      salesman,
       customerName,
       customerAddress,
       customerMobile,
@@ -285,6 +287,11 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             <p style={{ margin: '3px 0' }}>
               <strong>Tax Type:</strong> {taxType === 'inclusive' ? 'Inclusive' : 'Exclusive'}
             </p>
+            {salesman && (
+              <p style={{ margin: '3px 0' }}>
+                <strong>Salesman:</strong> {salesman}
+              </p>
+            )}
           </div>
         </div>
 
