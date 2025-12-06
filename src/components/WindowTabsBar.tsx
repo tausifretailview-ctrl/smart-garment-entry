@@ -101,7 +101,7 @@ export function WindowTabsBar() {
               variant="ghost"
               size="sm"
               className="h-7 gap-1.5 px-2 shrink-0"
-              onClick={() => orgNavigate("/dashboard")}
+              onClick={() => orgNavigate("/")}
             >
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline text-xs">Dashboard</span>
