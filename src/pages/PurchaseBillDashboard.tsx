@@ -21,7 +21,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2 } from "lucide-react";
 import { format } from "date-fns";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -619,15 +619,6 @@ const PurchaseBillDashboard = () => {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/")}
-              className="gap-2"
-            >
-              <Home className="h-4 w-4" />
-              Dashboard
-            </Button>
             <Receipt className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
           </div>

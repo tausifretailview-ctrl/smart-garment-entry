@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -360,8 +360,7 @@ export default function SalesAnalyticsDashboard() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <BackToDashboard />
-          <h1 className="text-2xl font-bold text-foreground mt-2">Sales Analytics</h1>
+          <h1 className="text-2xl font-bold text-foreground">Sales Analytics</h1>
           <p className="text-muted-foreground">Comprehensive sales performance insights</p>
         </div>
 

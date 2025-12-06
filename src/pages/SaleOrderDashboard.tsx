@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
@@ -412,7 +412,6 @@ export default function SaleOrderDashboard() {
 
   return (
     <div className="p-4 space-y-4">
-      <BackToDashboard />
 
       {/* Summary Statistics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
