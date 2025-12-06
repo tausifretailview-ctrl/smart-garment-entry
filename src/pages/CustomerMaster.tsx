@@ -391,6 +391,7 @@ const CustomerMaster = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">Sr No</TableHead>
               <TableHead>Customer Name</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Email</TableHead>
@@ -402,15 +403,16 @@ const CustomerMaster = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={7} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center">No customers found</TableCell>
+                <TableCell colSpan={7} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
-              filteredCustomers.map((customer) => (
+              filteredCustomers.map((customer, index) => (
                 <TableRow key={customer.id}>
+                  <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="font-medium">{customer.customer_name}</TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
