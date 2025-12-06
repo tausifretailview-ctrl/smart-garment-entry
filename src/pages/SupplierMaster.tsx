@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData } from "@/utils/excelImportUtils";
 
 interface Supplier {
@@ -63,7 +63,6 @@ const SupplierMaster = () => {
   const location = useLocation();
   const returnTo = (location.state as any)?.returnTo;
   const [showExcelImport, setShowExcelImport] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -206,25 +205,53 @@ const SupplierMaster = () => {
     supplier.supplier_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+  const handleExcelImport = async (
+    mappedData: Record<string, any>[],
+    onProgress?: (progress: ImportProgress) => void
+  ) => {
     if (!currentOrganization?.id) {
       toast({ title: "No organization selected", variant: "destructive" });
       return;
     }
 
-    setImportLoading(true);
+    const BATCH_SIZE = 50;
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
-    try {
-      for (const row of mappedData) {
+    // Filter out empty rows (no supplier_name)
+    const validRows = mappedData.filter(row => {
+      const supplierName = row.supplier_name?.toString().trim();
+      return supplierName && supplierName.length > 0;
+    });
+
+    // Get existing supplier names to check for duplicates
+    const { data: existingSuppliers } = await supabase
+      .from("suppliers")
+      .select("supplier_name")
+      .eq("organization_id", currentOrganization.id);
+    
+    const existingNames = new Set(
+      (existingSuppliers || [])
+        .map(s => s.supplier_name?.toString().trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    // Process in batches
+    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+      const batch = validRows.slice(i, i + BATCH_SIZE);
+      const suppliersToInsert: any[] = [];
+
+      for (const row of batch) {
         const supplierName = row.supplier_name?.toString().trim();
-        if (!supplierName) {
-          errorCount++;
+        
+        // Skip duplicates
+        if (existingNames.has(supplierName.toLowerCase())) {
+          skippedCount++;
           continue;
         }
 
-        const supplierData = {
+        suppliersToInsert.push({
           supplier_name: supplierName,
           contact_person: row.contact_person?.toString().trim() || '',
           phone: row.phone?.toString().trim() || '',
@@ -234,29 +261,51 @@ const SupplierMaster = () => {
           supplier_code: row.supplier_code?.toString().trim() || '',
           opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
           organization_id: currentOrganization.id,
-        };
+        });
 
-        const { error } = await supabase.from("suppliers").insert([supplierData]);
+        // Add to existing set to prevent duplicates within same import
+        existingNames.add(supplierName.toLowerCase());
+      }
+
+      if (suppliersToInsert.length > 0) {
+        const { error } = await supabase
+          .from("suppliers")
+          .insert(suppliersToInsert);
+        
         if (error) {
-          console.error('Error inserting supplier:', error);
-          errorCount++;
+          console.error('Batch insert error:', error);
+          errorCount += suppliersToInsert.length;
         } else {
-          successCount++;
+          successCount += suppliersToInsert.length;
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast({
-        title: "Import completed",
-        description: `${successCount} suppliers imported${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
-      });
-      setShowExcelImport(false);
-    } catch (error) {
-      console.error('Import error:', error);
-      toast({ title: "Import failed", variant: "destructive" });
-    } finally {
-      setImportLoading(false);
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: Math.min(i + BATCH_SIZE, validRows.length),
+          total: validRows.length,
+          successCount,
+          errorCount,
+          skippedCount,
+          isImporting: true,
+        });
+      }
     }
+
+    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+    
+    const skippedEmptyRows = mappedData.length - validRows.length;
+    let description = `${successCount} suppliers imported`;
+    if (skippedCount > 0) description += `, ${skippedCount} duplicates skipped`;
+    if (skippedEmptyRows > 0) description += `, ${skippedEmptyRows} empty rows skipped`;
+    if (errorCount > 0) description += `, ${errorCount} failed`;
+    
+    toast({
+      title: "Import completed",
+      description,
+    });
+    setShowExcelImport(false);
   };
 
   return (
