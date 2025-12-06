@@ -167,7 +167,7 @@ const POSDashboard = () => {
   const showItemStyle = saleSettings?.show_item_style ?? false;
   const showItemBarcode = saleSettings?.show_item_barcode ?? false;
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
-  const showItemMrp = saleSettings?.show_item_mrp ?? true;
+  const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
   useEffect(() => {
     const loadData = async () => {
       await fetchSales();

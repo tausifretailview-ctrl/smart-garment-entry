@@ -193,7 +193,7 @@ export default function SalesInvoiceDashboard() {
   const showItemStyle = saleSettings?.show_item_style ?? false;
   const showItemBarcode = saleSettings?.show_item_barcode ?? false;
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
-  const showItemMrp = saleSettings?.show_item_mrp ?? true;
+  const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
