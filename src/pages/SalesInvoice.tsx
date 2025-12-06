@@ -998,17 +998,22 @@ Thank you for choosing us!`;
 
   return (
     <div className="min-h-screen bg-background p-4">
-      {/* Scroll to Top Button */}
+      {/* Scroll to Top Button with Item Count Badge */}
       {showScrollTop && (
         <Button
           size="icon"
           variant="secondary"
-          className="fixed bottom-8 right-8 z-30 rounded-full shadow-lg h-10 w-10"
+          className="fixed bottom-8 right-8 z-30 rounded-full shadow-lg h-12 w-12 relative"
           onClick={() => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         >
           <ArrowUp className="h-5 w-5" />
+          {lineItems.filter(item => item.productId).length > 0 && (
+            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+              {lineItems.filter(item => item.productId).length}
+            </span>
+          )}
         </Button>
       )}
       <BackToDashboard label="Back to Sales Invoice Dashboard" to="/sales-invoice-dashboard" />

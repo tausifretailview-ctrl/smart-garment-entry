@@ -1970,12 +1970,12 @@ export default function POSSales() {
                 setShowScrollTop(target.scrollTop > 100);
               }}
             >
-              {/* Scroll to Top Button */}
+              {/* Scroll to Top Button with Item Count Badge */}
               {showScrollTop && items.length > 3 && (
                 <Button
                   size="icon"
                   variant="secondary"
-                  className="fixed bottom-40 right-8 z-30 rounded-full shadow-lg h-10 w-10"
+                  className="fixed bottom-40 right-8 z-30 rounded-full shadow-lg h-12 w-12 relative"
                   onClick={() => {
                     if (itemsContainerRef.current) {
                       itemsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1983,6 +1983,9 @@ export default function POSSales() {
                   }}
                 >
                   <ArrowUp className="h-5 w-5" />
+                  <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+                    {items.length}
+                  </span>
                 </Button>
               )}
               <div className="overflow-x-auto">
