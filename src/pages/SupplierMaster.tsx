@@ -43,6 +43,8 @@ interface Supplier {
   created_at: string;
 }
 
+const ITEMS_PER_PAGE = 50;
+
 const SupplierMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -65,6 +67,7 @@ const SupplierMaster = () => {
   const returnTo = (location.state as any)?.returnTo;
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -245,6 +248,17 @@ const SupplierMaster = () => {
     supplier.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     supplier.supplier_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Pagination
+  const totalPages = Math.ceil(filteredSuppliers.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedSuppliers = filteredSuppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
@@ -465,7 +479,7 @@ const SupplierMaster = () => {
         <Input
           placeholder="Search suppliers..."
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="max-w-sm"
         />
         {selectedSuppliers.size > 0 && (
@@ -512,7 +526,7 @@ const SupplierMaster = () => {
                 <TableCell colSpan={10} className="text-center">No suppliers found</TableCell>
               </TableRow>
             ) : (
-              filteredSuppliers.map((supplier, index) => (
+              paginatedSuppliers.map((supplier, index) => (
                 <TableRow key={supplier.id}>
                   <TableCell>
                     <Checkbox
@@ -520,7 +534,7 @@ const SupplierMaster = () => {
                       onCheckedChange={(checked) => handleSelectSupplier(supplier.id, checked as boolean)}
                     />
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                  <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
                   <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
                   <TableCell>{supplier.contact_person || "-"}</TableCell>
                   <TableCell>{supplier.phone || "-"}</TableCell>
@@ -558,6 +572,36 @@ const SupplierMaster = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredSuppliers.length)} of {filteredSuppliers.length} suppliers
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span className="text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
 
       <ExcelImportDialog
         open={showExcelImport}
