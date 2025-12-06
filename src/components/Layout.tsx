@@ -3,12 +3,15 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
 export const Layout = ({ children }: LayoutProps) => {
+  const { isOpen, setIsOpen } = useKeyboardShortcuts("general");
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
@@ -22,6 +25,7 @@ export const Layout = ({ children }: LayoutProps) => {
           <Footer />
         </SidebarInset>
       </div>
+      <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
     </SidebarProvider>
   );
 };

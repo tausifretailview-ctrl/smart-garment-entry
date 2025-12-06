@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2 } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
+import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -30,6 +31,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
   const { onNewSale, onClearCart, hasItems } = usePOS();
+  const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
 
   const handleSignOut = async () => {
     const slug = currentOrganization?.slug || orgSlug;
@@ -74,6 +76,10 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsOpen(true)}>
+                <Keyboard className="mr-2 h-4 w-4" />
+                Keyboard Shortcuts
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
@@ -105,7 +111,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
-                  <p>Start a new sale</p>
+                  <p>Start a new sale <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">F1</kbd></p>
                 </TooltipContent>
               </Tooltip>
             )}
@@ -127,12 +133,29 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setIsOpen(true)}
+                  className="text-primary-foreground hover:bg-primary/80 h-8 w-8"
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Keyboard shortcuts <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">?</kbd></p>
+              </TooltipContent>
+            </Tooltip>
           </TooltipProvider>
           <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
         </div>
       </header>
       
       <main className="flex-1 animate-fade-in p-4">{children}</main>
+      
+      <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
     </div>
   );
 };
