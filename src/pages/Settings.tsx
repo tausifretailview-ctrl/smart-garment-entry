@@ -136,6 +136,8 @@ interface SaleSettings {
   show_item_barcode?: boolean;
   show_item_hsn?: boolean;
   show_item_mrp?: boolean;
+  // Invoice column settings
+  show_mrp_column?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
 }
@@ -2173,6 +2175,25 @@ export default function Settings() {
                       />
                       <Label htmlFor="show_bank_details" className="cursor-pointer">
                         Show Bank Details
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_mrp_column"
+                        checked={settings.sale_settings?.show_mrp_column ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_mrp_column: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_mrp_column" className="cursor-pointer">
+                        Show MRP Column
                       </Label>
                     </div>
                   </div>
