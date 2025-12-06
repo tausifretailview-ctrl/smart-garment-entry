@@ -73,10 +73,11 @@ const CustomerMaster = () => {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      const normalizedPhone = normalizePhoneNumber(data.phone);
       // Use phone as customer name if name is empty
       const customerData = {
-        customer_name: data.customer_name.trim() || data.phone,
-        phone: data.phone,
+        customer_name: data.customer_name.trim() || normalizedPhone,
+        phone: normalizedPhone,
         email: data.email,
         address: data.address,
         gst_number: data.gst_number,
@@ -99,10 +100,11 @@ const CustomerMaster = () => {
 
   const updateCustomer = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      const normalizedPhone = normalizePhoneNumber(data.phone);
       // Use phone as customer name if name is empty
       const customerData = {
-        customer_name: data.customer_name.trim() || data.phone,
-        phone: data.phone,
+        customer_name: data.customer_name.trim() || normalizedPhone,
+        phone: normalizedPhone,
         email: data.email,
         address: data.address,
         gst_number: data.gst_number,
