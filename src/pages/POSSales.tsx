@@ -1691,7 +1691,28 @@ export default function POSSales() {
           <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
             <PopoverTrigger asChild>
               <div className="relative">
-                <Label className="text-sm font-medium mb-1 block">Customer Name</Label>
+                <div className="flex items-center justify-between mb-1">
+                  <Label className="text-sm font-medium">Customer Name</Label>
+                  {/* Customer Balance Display - on top of label */}
+                  {customerId && (
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+                      customerBalance > 0 
+                        ? 'bg-destructive/10 text-destructive border border-destructive/30' 
+                        : customerBalance < 0 
+                          ? 'bg-green-500/10 text-green-600 border border-green-500/30' 
+                          : 'bg-muted text-muted-foreground border border-border'
+                    }`}>
+                      <IndianRupee className="h-3 w-3" />
+                      <span>
+                        {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                      </span>
+                      <span className="text-[10px]">
+                        {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
+                        {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <Input
                   value={customerName}
                   onChange={(e) => {
@@ -1705,7 +1726,7 @@ export default function POSSales() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute right-20 top-1/2 -translate-y-1/2 h-9 w-9"
+                    className="absolute right-20 top-1/2 translate-y-0.5 h-9 w-9"
                     onClick={() => {
                       setCustomerName("");
                       setCustomerId("");
@@ -1718,13 +1739,13 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="absolute right-10 top-1/2 -translate-y-1/2 h-9 w-9"
+                  className="absolute right-10 top-1/2 translate-y-0.5 h-9 w-9"
                   onClick={() => setShowAddCustomerDialog(true)}
                   title="Add New Customer"
                 >
                   <UserPlus className="h-5 w-5" />
                 </Button>
-                <Plus className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
+                <Plus className="absolute right-3 top-1/2 translate-y-0.5 h-6 w-6 text-muted-foreground" />
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0 z-50" align="start">
@@ -1785,34 +1806,6 @@ export default function POSSales() {
               </Command>
             </PopoverContent>
           </Popover>
-          
-          {/* Customer Balance Display */}
-          {customerId && (
-            <div className="flex items-center gap-2">
-              <div className={`h-12 px-4 rounded-md flex items-center justify-center gap-2 ${
-                customerBalance > 0 
-                  ? 'bg-destructive/10 border border-destructive/30' 
-                  : customerBalance < 0 
-                    ? 'bg-green-500/10 border border-green-500/30' 
-                    : 'bg-muted border border-border'
-              }`}>
-                <IndianRupee className={`h-4 w-4 ${
-                  customerBalance > 0 ? 'text-destructive' : customerBalance < 0 ? 'text-green-600' : 'text-muted-foreground'
-                }`} />
-                <div className="flex flex-col">
-                  <span className={`font-bold text-sm ${
-                    customerBalance > 0 ? 'text-destructive' : customerBalance < 0 ? 'text-green-600' : 'text-muted-foreground'
-                  }`}>
-                    {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : 'Balance'}
-                    {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
           
           {/* Invoice Number Display */}
           <div className="relative">
