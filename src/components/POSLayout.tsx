@@ -20,6 +20,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNavigate } from "react-router-dom";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
+import { WindowTabsBar } from "@/components/WindowTabsBar";
 
 interface POSLayoutProps {
   children: ReactNode;
@@ -152,6 +153,8 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
           <span className="text-xs md:text-sm opacity-90 ml-2">Point of Sale</span>
         </div>
       </header>
+      
+      <WindowTabsBar />
       
       <main className="flex-1 animate-fade-in p-4">{children}</main>
       

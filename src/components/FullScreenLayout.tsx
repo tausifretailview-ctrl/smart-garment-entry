@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Header } from "@/components/Header";
 import { AppSidebar } from "@/components/AppSidebar";
+import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 
 interface FullScreenLayoutProps {
@@ -14,6 +15,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1">
           <Header />
+          <WindowTabsBar />
           <div className="flex lg:hidden items-center gap-2 px-4 py-2 border-b bg-sidebar">
             <SidebarTrigger className="text-sidebar-foreground" />
           </div>

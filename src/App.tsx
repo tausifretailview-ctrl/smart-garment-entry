@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
+import { WindowTabsProvider } from "@/contexts/WindowTabsContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { OrgLayout } from "@/components/OrgLayout";
@@ -69,6 +70,7 @@ const App = () => {
       <BrowserRouter>
         <AuthProvider>
           <OrganizationProvider>
+            <WindowTabsProvider>
             <Routes>
               {/* Public routes - No org context needed */}
               <Route path="/auth" element={<Auth />} />
@@ -561,6 +563,7 @@ const App = () => {
               {/* Catch-all for 404 */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </WindowTabsProvider>
           </OrganizationProvider>
         </AuthProvider>
       </BrowserRouter>
