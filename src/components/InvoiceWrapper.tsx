@@ -4,6 +4,7 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { ProfessionalTemplate } from './invoice-templates/ProfessionalTemplate';
 import { ClassicTemplate } from './invoice-templates/ClassicTemplate';
 import { ModernTemplate } from './invoice-templates/ModernTemplate';
+import { ModernWholesaleTemplate } from './invoice-templates/ModernWholesaleTemplate';
 import { MinimalTemplate } from './invoice-templates/MinimalTemplate';
 import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
@@ -76,6 +77,13 @@ interface InvoiceWrapperProps {
   showTaxDetails?: boolean;
   showYouSaved?: boolean;
   amountWithGrouping?: boolean;
+  
+  // Wholesale mode overrides
+  enableWholesaleMode?: boolean;
+  sizeDisplayFormat?: 'size/qty' | 'size×qty';
+  showProductColor?: boolean;
+  showProductBrand?: boolean;
+  showProductStyle?: boolean;
   
   // Customization overrides (for live preview)
   customHeaderText?: string;
@@ -167,6 +175,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const showYouSaved = props.showYouSaved ?? (settings?.sale_settings as any)?.show_you_saved ?? false;
     const amountWithGrouping = props.amountWithGrouping ?? (settings?.sale_settings as any)?.amount_with_grouping ?? true;
     
+    // Get wholesale mode settings - use prop overrides if provided for live preview
+    const enableWholesaleMode = props.enableWholesaleMode ?? (settings?.sale_settings as any)?.enable_wholesale_mode ?? false;
+    const sizeDisplayFormat = props.sizeDisplayFormat ?? (settings?.sale_settings as any)?.size_display_format ?? 'size/qty';
+    const showProductColor = props.showProductColor ?? (settings?.sale_settings as any)?.show_product_color ?? true;
+    const showProductBrand = props.showProductBrand ?? (settings?.sale_settings as any)?.show_product_brand ?? false;
+    const showProductStyle = props.showProductStyle ?? (settings?.sale_settings as any)?.show_product_style ?? false;
+    
     // Get customization settings - use prop overrides if provided for live preview
     const customHeaderText = props.customHeaderText ?? settings?.sale_settings?.invoice_header_text;
     const customFooterText = props.customFooterText ?? settings?.sale_settings?.invoice_footer_text;
@@ -252,6 +267,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       customFooterText,
       logoPlacement,
       fontFamily,
+      
+      // Wholesale mode settings
+      enableWholesaleGrouping: enableWholesaleMode,
+      sizeDisplayFormat,
+      showProductColor,
+      showProductBrand,
+      showProductStyle,
     };
 
     // Select template component based on settings
@@ -295,6 +317,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <ClassicTemplate {...commonProps} />;
         case 'modern':
           return <ModernTemplate {...commonProps} />;
+        case 'modern-wholesale':
+          return <ModernWholesaleTemplate {...commonProps} />;
         case 'minimal':
           return <MinimalTemplate {...commonProps} />;
         case 'compact':
