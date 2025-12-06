@@ -1135,12 +1135,12 @@ Thank you for choosing us!`;
           {/* Salesman */}
           <div>
             <Label>Salesman</Label>
-            <Select value={salesman} onValueChange={setSalesman}>
+            <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Select salesman" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {employeesData?.map(emp => (
                   <SelectItem key={emp.id} value={emp.employee_name}>
                     {emp.employee_name}
