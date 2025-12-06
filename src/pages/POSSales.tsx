@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -117,6 +117,7 @@ export default function POSSales() {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const itemsContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const [showAddCustomerDialog, setShowAddCustomerDialog] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
@@ -1961,7 +1962,29 @@ export default function POSSales() {
               </div>
             </div>
             
-            <div ref={itemsContainerRef} className="flex-1 overflow-y-auto">
+            <div 
+              ref={itemsContainerRef} 
+              className="flex-1 overflow-y-auto relative"
+              onScroll={(e) => {
+                const target = e.target as HTMLDivElement;
+                setShowScrollTop(target.scrollTop > 100);
+              }}
+            >
+              {/* Scroll to Top Button */}
+              {showScrollTop && items.length > 3 && (
+                <Button
+                  size="icon"
+                  variant="secondary"
+                  className="fixed bottom-40 right-8 z-30 rounded-full shadow-lg h-10 w-10"
+                  onClick={() => {
+                    if (itemsContainerRef.current) {
+                      itemsContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                >
+                  <ArrowUp className="h-5 w-5" />
+                </Button>
+              )}
               <div className="overflow-x-auto">
                 {items.length === 0 ? (
                   // Show 6 blank rows with serial numbers

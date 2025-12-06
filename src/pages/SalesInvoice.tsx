@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, IndianRupee } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, IndianRupee, ArrowUp } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -104,6 +104,7 @@ export default function SalesInvoice() {
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -141,7 +142,7 @@ export default function SalesInvoice() {
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
 
-  // Keyboard shortcut for printing
+  // Keyboard shortcut for printing and scroll detection
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === "p") {
@@ -152,8 +153,16 @@ export default function SalesInvoice() {
       }
     };
 
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 200);
+    };
+
     window.addEventListener("keydown", handleKeyPress);
-    return () => window.removeEventListener("keydown", handleKeyPress);
+    window.addEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress);
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, [savedInvoiceData]);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
@@ -989,6 +998,19 @@ Thank you for choosing us!`;
 
   return (
     <div className="min-h-screen bg-background p-4">
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <Button
+          size="icon"
+          variant="secondary"
+          className="fixed bottom-8 right-8 z-30 rounded-full shadow-lg h-10 w-10"
+          onClick={() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        >
+          <ArrowUp className="h-5 w-5" />
+        </Button>
+      )}
       <BackToDashboard label="Back to Sales Invoice Dashboard" to="/sales-invoice-dashboard" />
       
       <div className="max-w-[1400px] mx-auto space-y-6">
