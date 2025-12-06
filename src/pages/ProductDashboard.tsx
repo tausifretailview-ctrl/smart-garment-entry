@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2 } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -81,6 +81,29 @@ const ProductDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = useState({
+    image: true,
+    productName: true,
+    category: true,
+    brand: true,
+    style: true,
+    color: true,
+    hsn: true,
+    gst: true,
+    purPrice: true,
+    salePrice: true,
+    status: true,
+    totalQty: true,
+    variants: true,
+  });
+
+  const toggleColumnVisibility = (column: keyof typeof columnVisibility) => {
+    setColumnVisibility(prev => ({ ...prev, [column]: !prev[column] }));
+  };
+
+  const visibleColumnCount = Object.values(columnVisibility).filter(Boolean).length + 4; // +4 for expand, checkbox, sr.no, actions
 
   useEffect(() => {
     fetchProductVariants();
@@ -590,6 +613,43 @@ const ProductDashboard = () => {
                   <Download className="h-4 w-4" />
                   Export
                 </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <Settings2 className="h-4 w-4" />
+                      Columns
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 bg-popover z-50">
+                    <div className="p-2 space-y-2">
+                      <Label className="text-xs font-semibold text-muted-foreground">Toggle Columns</Label>
+                      {[
+                        { key: 'image', label: 'Image' },
+                        { key: 'productName', label: 'Product Name' },
+                        { key: 'category', label: 'Category' },
+                        { key: 'brand', label: 'Brand' },
+                        { key: 'style', label: 'Style' },
+                        { key: 'color', label: 'Color' },
+                        { key: 'hsn', label: 'HSN Code' },
+                        { key: 'gst', label: 'GST %' },
+                        { key: 'purPrice', label: 'Def. Pur Price' },
+                        { key: 'salePrice', label: 'Def. Sale Price' },
+                        { key: 'status', label: 'Status' },
+                        { key: 'totalQty', label: 'Total Qty' },
+                        { key: 'variants', label: 'Variants' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`col-${key}`}
+                            checked={columnVisibility[key as keyof typeof columnVisibility]}
+                            onCheckedChange={() => toggleColumnVisibility(key as keyof typeof columnVisibility)}
+                          />
+                          <Label htmlFor={`col-${key}`} className="text-sm cursor-pointer">{label}</Label>
+                        </div>
+                      ))}
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -850,19 +910,19 @@ const ProductDashboard = () => {
                         />
                       </TableHead>
                       <TableHead className="w-16 text-center">Sr. No.</TableHead>
-                      <TableHead className="w-20">Image</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead>Style</TableHead>
-                      <TableHead>Color</TableHead>
-                      <TableHead>HSN</TableHead>
-                      <TableHead className="text-right">GST%</TableHead>
-                      <TableHead className="text-right">Def. Pur Price</TableHead>
-                      <TableHead className="text-right">Def. Sale Price</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Total Qty</TableHead>
-                      <TableHead className="text-center">Variants</TableHead>
+                      {columnVisibility.image && <TableHead className="w-20">Image</TableHead>}
+                      {columnVisibility.productName && <TableHead>Product Name</TableHead>}
+                      {columnVisibility.category && <TableHead>Category</TableHead>}
+                      {columnVisibility.brand && <TableHead>Brand</TableHead>}
+                      {columnVisibility.style && <TableHead>Style</TableHead>}
+                      {columnVisibility.color && <TableHead>Color</TableHead>}
+                      {columnVisibility.hsn && <TableHead>HSN</TableHead>}
+                      {columnVisibility.gst && <TableHead className="text-right">GST%</TableHead>}
+                      {columnVisibility.purPrice && <TableHead className="text-right">Def. Pur Price</TableHead>}
+                      {columnVisibility.salePrice && <TableHead className="text-right">Def. Sale Price</TableHead>}
+                      {columnVisibility.status && <TableHead>Status</TableHead>}
+                      {columnVisibility.totalQty && <TableHead className="text-right">Total Qty</TableHead>}
+                      {columnVisibility.variants && <TableHead className="text-center">Variants</TableHead>}
                       <TableHead className="w-16">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -890,6 +950,7 @@ const ProductDashboard = () => {
                           <TableCell className="text-center font-medium">
                             {startIndex + index + 1}
                           </TableCell>
+                          {columnVisibility.image && (
                           <TableCell>
                             <Avatar className="h-12 w-12 rounded">
                               <AvatarImage
@@ -902,26 +963,33 @@ const ProductDashboard = () => {
                               </AvatarFallback>
                             </Avatar>
                           </TableCell>
-                          <TableCell className="font-medium">{row.product_name}</TableCell>
-                          <TableCell>{row.category || "—"}</TableCell>
-                          <TableCell>{row.brand || "—"}</TableCell>
-                          <TableCell>{row.style || "—"}</TableCell>
-                          <TableCell>{row.color || "—"}</TableCell>
-                          <TableCell className="text-xs">{row.hsn_code || "—"}</TableCell>
-                          <TableCell className="text-right">{row.gst_per}%</TableCell>
-                          <TableCell className="text-right">₹{row.default_pur_price.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">₹{row.default_sale_price.toFixed(2)}</TableCell>
+                          )}
+                          {columnVisibility.productName && <TableCell className="font-medium">{row.product_name}</TableCell>}
+                          {columnVisibility.category && <TableCell>{row.category || "—"}</TableCell>}
+                          {columnVisibility.brand && <TableCell>{row.brand || "—"}</TableCell>}
+                          {columnVisibility.style && <TableCell>{row.style || "—"}</TableCell>}
+                          {columnVisibility.color && <TableCell>{row.color || "—"}</TableCell>}
+                          {columnVisibility.hsn && <TableCell className="text-xs">{row.hsn_code || "—"}</TableCell>}
+                          {columnVisibility.gst && <TableCell className="text-right">{row.gst_per}%</TableCell>}
+                          {columnVisibility.purPrice && <TableCell className="text-right">₹{row.default_pur_price.toFixed(2)}</TableCell>}
+                          {columnVisibility.salePrice && <TableCell className="text-right">₹{row.default_sale_price.toFixed(2)}</TableCell>}
+                          {columnVisibility.status && (
                           <TableCell>
                             <Badge variant={row.status === "active" ? "default" : "secondary"}>
                               {row.status}
                             </Badge>
                           </TableCell>
+                          )}
+                          {columnVisibility.totalQty && (
                           <TableCell className="text-right font-medium">
                             {row.total_stock}
                           </TableCell>
+                          )}
+                          {columnVisibility.variants && (
                           <TableCell className="text-center">
                             <Badge variant="secondary">{row.variants.length}</Badge>
                           </TableCell>
+                          )}
                           <TableCell>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -954,7 +1022,7 @@ const ProductDashboard = () => {
                         {/* Expanded Variants Row */}
                         {expandedProduct === row.product_id && row.variants.length > 0 && (
                           <TableRow>
-                            <TableCell colSpan={17} className="bg-muted/20 p-0">
+                            <TableCell colSpan={visibleColumnCount} className="bg-muted/20 p-0">
                               <div className="p-4">
                                 <h4 className="font-semibold text-sm mb-3">Product Variants Details</h4>
                                 <div className="border rounded-lg overflow-hidden">
