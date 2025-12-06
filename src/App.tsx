@@ -134,9 +134,9 @@ const App = () => {
                   path="products"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <FullScreenLayout>
                         <ProductDashboard />
-                      </Layout>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -262,9 +262,9 @@ const App = () => {
                   path="pos-dashboard"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <FullScreenLayout>
                         <POSDashboard />
-                      </Layout>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -328,9 +328,9 @@ const App = () => {
                   path="sales-invoice-dashboard"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <FullScreenLayout>
                         <SalesInvoiceDashboard />
-                      </Layout>
+                      </FullScreenLayout>
                     </ProtectedRoute>
                   }
                 />
