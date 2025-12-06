@@ -22,7 +22,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
-import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 
@@ -117,7 +117,6 @@ const PurchaseEntry = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
   const [showExcelImport, setShowExcelImport] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -924,137 +923,200 @@ const PurchaseEntry = () => {
     }
   };
 
-  // Handle Excel import for purchase bill
-  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+  // Handle Excel import for purchase bill with batch processing
+  const handleExcelImport = async (
+    mappedData: Record<string, any>[],
+    onProgress?: (progress: ImportProgress) => void
+  ) => {
     if (!currentOrganization) return;
     
-    setImportLoading(true);
-    try {
-      const newLineItems: LineItem[] = [];
-      
-      for (const row of mappedData) {
-        // Skip rows without required fields
-        if (!row.product_name || !row.size || !row.qty || row.qty <= 0) continue;
-        
-        // Generate barcode if not provided
-        let barcode = row.barcode || '';
-        if (!barcode) {
-          const { data: barcodeData, error: barcodeError } = await supabase.rpc(
-            'generate_next_barcode',
-            { p_organization_id: currentOrganization.id }
-          );
-          if (barcodeError) throw barcodeError;
-          barcode = barcodeData;
+    // Filter valid rows
+    const validRows = mappedData.filter(row => 
+      row.product_name?.toString().trim() && 
+      row.size?.toString().trim() && 
+      row.qty && Number(row.qty) > 0
+    );
+
+    const BATCH_SIZE = 20;
+    const newLineItems: LineItem[] = [];
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = mappedData.length - validRows.length;
+
+    // Pre-fetch existing products to reduce DB calls
+    const { data: existingProducts } = await supabase
+      .from('products')
+      .select('id, product_name, brand, category, color, style')
+      .eq('organization_id', currentOrganization.id);
+
+    const productMap = new Map<string, string>();
+    (existingProducts || []).forEach(p => {
+      const key = [
+        p.product_name || '',
+        p.brand || '',
+        p.category || '',
+        p.color || '',
+        p.style || '',
+      ].join('|').toLowerCase();
+      productMap.set(key, p.id);
+    });
+
+    // Pre-fetch existing variants
+    const productIds = Array.from(productMap.values());
+    const { data: existingVariants } = await supabase
+      .from('product_variants')
+      .select('id, product_id, size, barcode')
+      .eq('organization_id', currentOrganization.id)
+      .in('product_id', productIds.length > 0 ? productIds : ['']);
+
+    const variantMap = new Map<string, { id: string; barcode: string }>();
+    (existingVariants || []).forEach(v => {
+      const key = `${v.product_id}|${v.size?.toLowerCase()}`;
+      variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
+    });
+
+    // Process in batches
+    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+      const batch = validRows.slice(i, i + BATCH_SIZE);
+
+      for (const row of batch) {
+        try {
+          const productKey = [
+            row.product_name?.toString().trim() || '',
+            row.brand?.toString().trim() || '',
+            row.category?.toString().trim() || '',
+            row.color?.toString().trim() || '',
+            row.style?.toString().trim() || '',
+          ].join('|').toLowerCase();
+
+          let productId = productMap.get(productKey);
+
+          // Create product if doesn't exist
+          if (!productId) {
+            const { data: newProduct, error: productError } = await supabase
+              .from('products')
+              .insert({
+                organization_id: currentOrganization.id,
+                product_name: row.product_name?.toString().trim(),
+                category: row.category?.toString().trim() || null,
+                brand: row.brand?.toString().trim() || null,
+                style: row.style?.toString().trim() || null,
+                color: row.color?.toString().trim() || null,
+                hsn_code: row.hsn_code?.toString().trim() || null,
+                gst_per: Number(row.gst_per) || 0,
+                default_pur_price: Number(row.pur_price) || 0,
+                default_sale_price: Number(row.sale_price) || 0,
+                status: 'active',
+              })
+              .select('id')
+              .single();
+
+            if (productError) {
+              errorCount++;
+              continue;
+            }
+            productId = newProduct.id;
+            productMap.set(productKey, productId);
+          }
+
+          const size = row.size?.toString().trim();
+          const variantKey = `${productId}|${size?.toLowerCase()}`;
+          let variantInfo = variantMap.get(variantKey);
+          let skuId: string;
+          let barcode: string;
+
+          if (variantInfo) {
+            skuId = variantInfo.id;
+            barcode = variantInfo.barcode || row.barcode?.toString().trim() || '';
+          } else {
+            // Generate barcode if not provided
+            barcode = row.barcode?.toString().trim() || '';
+            if (!barcode) {
+              const { data: barcodeData } = await supabase.rpc(
+                'generate_next_barcode',
+                { p_organization_id: currentOrganization.id }
+              );
+              barcode = barcodeData || '';
+            }
+
+            // Create variant
+            const { data: newVariant, error: variantError } = await supabase
+              .from('product_variants')
+              .insert({
+                organization_id: currentOrganization.id,
+                product_id: productId,
+                size: size,
+                barcode: barcode,
+                pur_price: Number(row.pur_price) || 0,
+                sale_price: Number(row.sale_price) || 0,
+                stock_qty: 0,
+                active: true,
+              })
+              .select('id')
+              .single();
+
+            if (variantError) {
+              errorCount++;
+              continue;
+            }
+            skuId = newVariant.id;
+            variantMap.set(variantKey, { id: skuId, barcode });
+          }
+
+          const qty = Number(row.qty) || 0;
+          const purPrice = Number(row.pur_price) || 0;
+          const lineTotal = qty * purPrice;
+
+          newLineItems.push({
+            temp_id: `import_${Date.now()}_${Math.random()}`,
+            product_id: productId,
+            sku_id: skuId,
+            product_name: row.product_name?.toString().trim() || '',
+            size: size,
+            qty: qty,
+            pur_price: purPrice,
+            sale_price: Number(row.sale_price) || 0,
+            gst_per: Number(row.gst_per) || 0,
+            hsn_code: row.hsn_code?.toString().trim() || '',
+            barcode: barcode,
+            discount_percent: 0,
+            line_total: lineTotal,
+            brand: row.brand?.toString().trim(),
+            category: row.category?.toString().trim(),
+            color: row.color?.toString().trim(),
+            style: row.style?.toString().trim(),
+          });
+
+          successCount++;
+        } catch (err) {
+          console.error('Error processing row:', err);
+          errorCount++;
         }
-        
-        // Check if product already exists
-        const { data: existingProducts } = await supabase
-          .from('products')
-          .select('id')
-          .eq('organization_id', currentOrganization.id)
-          .eq('product_name', row.product_name)
-          .eq('brand', row.brand || '')
-          .eq('category', row.category || '')
-          .eq('color', row.color || '')
-          .eq('style', row.style || '')
-          .limit(1);
-        
-        let productId = existingProducts?.[0]?.id;
-        
-        // Create product if it doesn't exist
-        if (!productId) {
-          const { data: newProduct, error: productError } = await supabase
-            .from('products')
-            .insert({
-              organization_id: currentOrganization.id,
-              product_name: row.product_name,
-              category: row.category || null,
-              brand: row.brand || null,
-              style: row.style || null,
-              color: row.color || null,
-              hsn_code: row.hsn_code || null,
-              gst_per: Number(row.gst_per) || 0,
-              default_pur_price: Number(row.pur_price) || 0,
-              default_sale_price: Number(row.sale_price) || 0,
-              status: 'active',
-            })
-            .select('id')
-            .single();
-          
-          if (productError) throw productError;
-          productId = newProduct.id;
-        }
-        
-        // Check if variant already exists
-        const { data: existingVariants } = await supabase
-          .from('product_variants')
-          .select('id')
-          .eq('organization_id', currentOrganization.id)
-          .eq('product_id', productId)
-          .eq('size', row.size)
-          .limit(1);
-        
-        let skuId = existingVariants?.[0]?.id;
-        
-        // Create variant if it doesn't exist
-        if (!skuId) {
-          const { data: newVariant, error: variantError } = await supabase
-            .from('product_variants')
-            .insert({
-              organization_id: currentOrganization.id,
-              product_id: productId,
-              size: row.size,
-              barcode: barcode,
-              pur_price: Number(row.pur_price) || 0,
-              sale_price: Number(row.sale_price) || 0,
-              stock_qty: 0,
-              active: true,
-            })
-            .select('id')
-            .single();
-          
-          if (variantError) throw variantError;
-          skuId = newVariant.id;
-        }
-        
-        const lineTotal = Number(row.qty) * Number(row.pur_price);
-        
-        newLineItems.push({
-          temp_id: `import_${Date.now()}_${Math.random()}`,
-          product_id: productId,
-          sku_id: skuId,
-          product_name: row.product_name,
-          size: row.size,
-          qty: Number(row.qty) || 0,
-          pur_price: Number(row.pur_price) || 0,
-          sale_price: Number(row.sale_price) || 0,
-          gst_per: Number(row.gst_per) || 0,
-          hsn_code: row.hsn_code || '',
-          barcode: barcode,
-          discount_percent: 0,
-          line_total: lineTotal,
-          brand: row.brand,
-          category: row.category,
-          color: row.color,
-          style: row.style,
+      }
+
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: Math.min(i + BATCH_SIZE, validRows.length),
+          total: validRows.length,
+          successCount,
+          errorCount,
+          skippedCount,
+          isImporting: true,
         });
       }
-      
-      setLineItems(prev => [...prev, ...newLineItems]);
-      toast({
-        title: "Import Successful",
-        description: `Added ${newLineItems.length} items from Excel`,
-      });
-    } catch (error: any) {
-      console.error("Import error:", error);
-      toast({
-        title: "Import Failed",
-        description: error.message || "Failed to import Excel data",
-        variant: "destructive",
-      });
-    } finally {
-      setImportLoading(false);
     }
+
+    setLineItems(prev => [...prev, ...newLineItems]);
+
+    let description = `Added ${successCount} items from Excel`;
+    if (skippedCount > 0) description += `, ${skippedCount} empty rows skipped`;
+    if (errorCount > 0) description += `, ${errorCount} errors`;
+
+    toast({
+      title: "Import Completed",
+      description,
+    });
   };
 
   return (
@@ -1172,13 +1234,8 @@ const PurchaseEntry = () => {
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
                   className="gap-2"
-                  disabled={importLoading}
                 >
-                  {importLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="h-4 w-4" />
-                  )}
+                  <FileSpreadsheet className="h-4 w-4" />
                   Import Excel
                 </Button>
                 <Button
