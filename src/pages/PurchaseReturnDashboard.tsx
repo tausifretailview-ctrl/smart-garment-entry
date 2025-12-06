@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, DollarSign, TrendingDown, Plus, Printer } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
@@ -319,36 +319,39 @@ const PurchaseReturnDashboard = () => {
         </Button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-l-4 border-l-primary">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Total Returns
-            </CardDescription>
-            <CardTitle className="text-3xl">{filteredReturns.length}</CardTitle>
+      {/* Summary Cards - Colorful Clickable */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Total Returns</CardDescription>
+            <Receipt className="h-4 w-4 text-blue-500" />
           </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{filteredReturns.length}</div>
+            <p className="text-xs text-muted-foreground">All return records</p>
+          </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-destructive">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4" />
-              Total Return Amount
-            </CardDescription>
-            <CardTitle className="text-3xl">₹{totalReturnAmount.toFixed(2)}</CardTitle>
+        <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-red-500 hover:scale-[1.02]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Total Return Amount</CardDescription>
+            <TrendingDown className="h-4 w-4 text-red-500" />
           </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">₹{totalReturnAmount.toFixed(0)}</div>
+            <p className="text-xs text-muted-foreground">Net refund value</p>
+          </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-accent">
-          <CardHeader className="pb-3">
-            <CardDescription className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Average Return Value
-            </CardDescription>
-            <CardTitle className="text-3xl">₹{averageReturnValue.toFixed(2)}</CardTitle>
+        <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-purple-500 hover:scale-[1.02]">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardDescription className="text-xs font-medium">Average Return Value</CardDescription>
+            <IndianRupee className="h-4 w-4 text-purple-500" />
           </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">₹{averageReturnValue.toFixed(0)}</div>
+            <p className="text-xs text-muted-foreground">Per return</p>
+          </CardContent>
         </Card>
       </div>
 

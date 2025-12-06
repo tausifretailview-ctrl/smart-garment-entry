@@ -5,10 +5,10 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
@@ -176,6 +176,7 @@ export default function SaleReturnDashboard() {
 
   const totalReturns = filteredReturns.length;
   const totalValue = filteredReturns.reduce((sum, ret) => sum + ret.net_amount, 0);
+  const averageValue = totalReturns > 0 ? totalValue / totalReturns : 0;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -187,22 +188,38 @@ export default function SaleReturnDashboard() {
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Returns</CardTitle>
+        {/* Summary Cards - Colorful Clickable */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-blue-500 hover:scale-[1.02]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Returns</CardDescription>
+              <Receipt className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalReturns}</div>
+              <div className="text-2xl font-bold text-blue-600">{totalReturns}</div>
+              <p className="text-xs text-muted-foreground">All return records</p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Return Value</CardTitle>
+          <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-orange-500 hover:scale-[1.02]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Return Value</CardDescription>
+              <TrendingDown className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">₹{totalValue.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-orange-600">₹{totalValue.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Net refund value</p>
+            </CardContent>
+          </Card>
+
+          <Card className="cursor-pointer hover:shadow-lg transition-all border-l-4 border-l-purple-500 hover:scale-[1.02]">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Average Return Value</CardDescription>
+              <IndianRupee className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-purple-600">₹{averageValue.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">Per return</p>
             </CardContent>
           </Card>
         </div>
