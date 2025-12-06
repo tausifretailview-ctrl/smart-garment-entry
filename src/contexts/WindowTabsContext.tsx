@@ -17,6 +17,8 @@ interface WindowTab {
 interface WindowTabsContextType {
   openWindows: WindowTab[];
   activeWindow: string;
+  isTabsBarVisible: boolean;
+  toggleTabsBarVisibility: () => void;
   openWindow: (path: string) => void;
   closeWindow: (path: string) => void;
   switchWindow: (path: string) => void;
@@ -67,6 +69,7 @@ const PAGE_CONFIG: Record<string, { label: string; icon: string }> = {
 };
 
 const STORAGE_KEY = "smart_inventory_open_windows";
+const VISIBILITY_KEY = "smart_inventory_tabs_visible";
 const MAX_WINDOWS = 8;
 
 export function WindowTabsProvider({ children }: { children: React.ReactNode }) {
@@ -82,6 +85,23 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
       return [];
     }
   });
+
+  const [isTabsBarVisible, setIsTabsBarVisible] = useState(() => {
+    try {
+      const saved = localStorage.getItem(VISIBILITY_KEY);
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleTabsBarVisibility = useCallback(() => {
+    setIsTabsBarVisible((prev: boolean) => {
+      const newValue = !prev;
+      localStorage.setItem(VISIBILITY_KEY, JSON.stringify(newValue));
+      return newValue;
+    });
+  }, []);
 
   // Get current path without org slug
   const getCurrentPath = useCallback(() => {
@@ -179,6 +199,8 @@ export function WindowTabsProvider({ children }: { children: React.ReactNode }) 
     <WindowTabsContext.Provider value={{
       openWindows,
       activeWindow,
+      isTabsBarVisible,
+      toggleTabsBarVisibility,
       openWindow,
       closeWindow,
       switchWindow,
