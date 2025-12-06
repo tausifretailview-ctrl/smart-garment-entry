@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, ChevronUp, ChevronDown } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -11,6 +11,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const QUICK_OPEN_PAGES = [
@@ -34,7 +39,16 @@ const QUICK_OPEN_PAGES = [
 ];
 
 export function WindowTabsBar() {
-  const { openWindows, activeWindow, closeWindow, switchWindow, openWindow, isWindowOpen } = useWindowTabs();
+  const { 
+    openWindows, 
+    activeWindow, 
+    closeWindow, 
+    switchWindow, 
+    openWindow, 
+    isWindowOpen,
+    isTabsBarVisible,
+    toggleTabsBarVisibility 
+  } = useWindowTabs();
 
   if (openWindows.length === 0) return null;
 
@@ -43,6 +57,37 @@ export function WindowTabsBar() {
     acc[page.category].push(page);
     return acc;
   }, {} as Record<string, typeof QUICK_OPEN_PAGES>);
+
+  // Collapsed state - just show toggle button
+  if (!isTabsBarVisible) {
+    return (
+      <div className="bg-muted/30 border-b px-2 py-0.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{openWindows.length} window{openWindows.length > 1 ? 's' : ''} open</span>
+          <span className="hidden md:inline">•</span>
+          <span className="hidden md:inline">
+            <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
+            <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Tab</kbd> to switch
+          </span>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-6 w-6 p-0" 
+              onClick={toggleTabsBarVisibility}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Show window tabs</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-muted/30 border-b px-2 py-1">
@@ -125,6 +170,22 @@ export function WindowTabsBar() {
           <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Ctrl</kbd>+
           <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Tab</kbd>
         </div>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-7 w-7 p-0 shrink-0" 
+              onClick={toggleTabsBarVisibility}
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Collapse tabs bar</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
     </div>
   );
