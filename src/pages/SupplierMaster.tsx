@@ -27,7 +27,7 @@ import {
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { supplierMasterFields, supplierMasterSampleData } from "@/utils/excelImportUtils";
+import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 
 interface Supplier {
   id: string;
@@ -254,7 +254,7 @@ const SupplierMaster = () => {
         suppliersToInsert.push({
           supplier_name: supplierName,
           contact_person: row.contact_person?.toString().trim() || '',
-          phone: row.phone?.toString().trim() || '',
+          phone: normalizePhoneNumber(row.phone),
           email: row.email?.toString().trim() || '',
           address: row.address?.toString().trim() || '',
           gst_number: row.gst_number?.toString().trim() || '',
