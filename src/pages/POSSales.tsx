@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp } from "lucide-react";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
@@ -1599,8 +1599,6 @@ export default function POSSales() {
 
       {/* Main Content Area */}
       <div className="flex-1 p-2 md:p-4">
-        <BackToDashboard label="Back to POS Dashboard" to="/pos-dashboard" />
-        
         <div className="max-w-[1800px] mx-auto space-y-3">
           {/* Header Section with Invoice Number */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">

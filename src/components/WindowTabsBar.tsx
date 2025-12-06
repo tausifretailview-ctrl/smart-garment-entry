@@ -1,6 +1,7 @@
 import React from "react";
-import { X, Plus, ChevronUp, ChevronDown } from "lucide-react";
+import { X, Plus, ChevronUp, ChevronDown, Home } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -49,6 +50,7 @@ export function WindowTabsBar() {
     isTabsBarVisible,
     toggleTabsBarVisibility 
   } = useWindowTabs();
+  const { orgNavigate } = useOrgNavigation();
 
   if (openWindows.length === 0) return null;
 
@@ -92,6 +94,26 @@ export function WindowTabsBar() {
   return (
     <div className="bg-muted/30 border-b px-2 py-1">
       <div className="flex items-center gap-1">
+        {/* Dashboard Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 shrink-0"
+              onClick={() => orgNavigate("/dashboard")}
+            >
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline text-xs">Dashboard</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Go to Dashboard</p>
+          </TooltipContent>
+        </Tooltip>
+
+        <div className="w-px h-5 bg-border mx-1" />
+
         <ScrollArea className="flex-1">
           <div className="flex items-center gap-1">
             {openWindows.map((window) => {
