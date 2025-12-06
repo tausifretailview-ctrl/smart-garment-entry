@@ -56,6 +56,7 @@ import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import TallyExport from "./pages/TallyExport";
+import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -478,6 +479,16 @@ const App = () => {
                           <TallyExport />
                         </Layout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="sales-analytics"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <SalesAnalyticsDashboard />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
