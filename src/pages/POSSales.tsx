@@ -1948,9 +1948,9 @@ export default function POSSales() {
         <div className="flex-1 overflow-hidden flex flex-col p-4 pb-0">
           <Card className="flex-1 overflow-hidden flex flex-col mb-32">
             <div className="bg-black text-white overflow-x-auto">
-              <div className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 text-base font-medium">
+              <div className="min-w-[1200px] grid grid-cols-14 gap-2 p-4 text-base font-medium">
                 <div className="col-span-1">Sr No</div>
-                <div className="col-span-1">Barcode</div>
+                <div className="col-span-2">Barcode</div>
                 <div className="col-span-3">Product</div>
                 <div className="col-span-1">Qty</div>
                 <div className="col-span-1">MRP</div>
@@ -1992,9 +1992,9 @@ export default function POSSales() {
                 {items.length === 0 ? (
                   // Show 6 blank rows with serial numbers
                   Array.from({ length: 6 }).map((_, index) => (
-                    <div key={index} className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 border-b text-base">
+                    <div key={index} className="min-w-[1200px] grid grid-cols-14 gap-2 p-4 border-b text-base">
                       <div className="col-span-1 flex items-center text-muted-foreground">{index + 1}</div>
-                      <div className="col-span-1 flex items-center text-muted-foreground">-</div>
+                      <div className="col-span-2 flex items-center text-muted-foreground">-</div>
                       <div className="col-span-3 flex items-center text-muted-foreground">-</div>
                       <div className="col-span-1 flex items-center text-muted-foreground">-</div>
                       <div className="col-span-1 flex items-center text-muted-foreground">-</div>
@@ -2007,9 +2007,9 @@ export default function POSSales() {
                   ))
                 ) : (
                   items.map((item, index) => (
-                    <div key={index} className="min-w-[1100px] grid grid-cols-13 gap-2 p-4 border-b hover:bg-muted/50 text-base">
+                    <div key={index} className="min-w-[1200px] grid grid-cols-14 gap-2 p-4 border-b hover:bg-muted/50 text-base">
                       <div className="col-span-1 flex items-center font-semibold">{index + 1}</div>
-                      <div className="col-span-1 flex items-center">{item.barcode}</div>
+                      <div className="col-span-2 flex items-center text-sm">{item.barcode}</div>
                       <div className="col-span-3 flex items-center font-medium">{item.productName}</div>
                       <div className="col-span-1">
                         <Input
