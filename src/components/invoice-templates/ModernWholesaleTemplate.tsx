@@ -147,7 +147,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
-  // Group items by product name + color for wholesale display
+  // Group items by product name for wholesale display (size/qty format like 10/3, 6/6)
   const groupItems = (items: WholesaleItem[]): GroupedItem[] => {
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
@@ -167,7 +167,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     const grouped: Record<string, GroupedItem> = {};
     
     items.forEach(item => {
-      const key = `${item.particulars}-${item.color || ''}-${item.brand || ''}`;
+      // Group by product name and rate only - consolidates all sizes of same product
+      const key = `${item.particulars}-${item.rate}`;
       
       if (!grouped[key]) {
         grouped[key] = {
@@ -184,7 +185,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         };
       }
       
-      grouped[key].sizeQtyList.push({ size: item.size, qty: item.qty });
+      // Check if this size already exists in the list
+      const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
+      if (existingSize) {
+        existingSize.qty += item.qty;
+      } else {
+        grouped[key].sizeQtyList.push({ size: item.size, qty: item.qty });
+      }
       grouped[key].totalQty += item.qty;
       grouped[key].totalAmount += item.total;
     });
