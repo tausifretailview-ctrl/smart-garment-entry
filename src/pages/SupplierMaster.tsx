@@ -433,6 +433,7 @@ const SupplierMaster = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-16">Sr No</TableHead>
               <TableHead>Supplier Name</TableHead>
               <TableHead>Contact Person</TableHead>
               <TableHead>Phone</TableHead>
@@ -446,15 +447,16 @@ const SupplierMaster = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredSuppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">No suppliers found</TableCell>
+                <TableCell colSpan={9} className="text-center">No suppliers found</TableCell>
               </TableRow>
             ) : (
-              filteredSuppliers.map((supplier) => (
+              filteredSuppliers.map((supplier, index) => (
                 <TableRow key={supplier.id}>
+                  <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
                   <TableCell>{supplier.contact_person || "-"}</TableCell>
                   <TableCell>{supplier.phone || "-"}</TableCell>
