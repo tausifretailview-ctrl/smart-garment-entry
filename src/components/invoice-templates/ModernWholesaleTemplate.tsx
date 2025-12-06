@@ -26,6 +26,7 @@ interface GroupedItem {
   style?: string;
   hsn?: string;
   rate: number;
+  mrp?: number;
   gstPercent?: number;
   sizeQtyList: Array<{ size: string; qty: number }>;
   totalQty: number;
@@ -56,6 +57,7 @@ interface ModernWholesaleTemplateProps {
   grandTotal: number;
   roundOff?: number;
   showHSN?: boolean;
+  showMRP?: boolean;
   showGSTBreakdown?: boolean;
   showBankDetails?: boolean;
   termsConditions?: string[];
@@ -128,6 +130,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   grandTotal,
   roundOff = 0,
   showHSN = true,
+  showMRP = false,
   showGSTBreakdown = true,
   showBankDetails = true,
   termsConditions,
@@ -157,6 +160,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         style: item.style,
         hsn: item.hsn,
         rate: item.rate,
+        mrp: item.mrp,
         gstPercent: item.gstPercent,
         sizeQtyList: [{ size: item.size, qty: item.qty }],
         totalQty: item.qty,
@@ -178,6 +182,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           style: item.style,
           hsn: item.hsn,
           rate: item.rate,
+          mrp: item.mrp,
           gstPercent: item.gstPercent,
           sizeQtyList: [],
           totalQty: 0,
@@ -443,22 +448,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <thead>
             <tr>
               <th style={{ ...headerCellStyle, width: '30px' }}>SR</th>
-              <th style={{ ...headerCellStyle, width: enableWholesaleGrouping ? '180px' : '140px' }}>
+              <th style={{ ...headerCellStyle, width: enableWholesaleGrouping ? '160px' : '140px' }}>
                 PARTICULARS
               </th>
-              {showHSN && <th style={{ ...headerCellStyle, width: '60px' }}>HSN</th>}
-              <th style={{ ...headerCellStyle, width: enableWholesaleGrouping ? '140px' : '50px' }}>
+              {showHSN && <th style={{ ...headerCellStyle, width: '55px' }}>HSN</th>}
+              <th style={{ ...headerCellStyle, width: enableWholesaleGrouping ? '130px' : '50px' }}>
                 {enableWholesaleGrouping ? 'SIZE/QTY' : 'SIZE'}
               </th>
-              <th style={{ ...headerCellStyle, width: '45px' }}>QTY</th>
-              <th style={{ ...headerCellStyle, width: '60px' }}>RATE</th>
+              <th style={{ ...headerCellStyle, width: '40px' }}>QTY</th>
+              {showMRP && <th style={{ ...headerCellStyle, width: '55px' }}>MRP</th>}
+              <th style={{ ...headerCellStyle, width: '55px' }}>RATE</th>
               {showGSTBreakdown && (
                 <>
-                  <th style={{ ...headerCellStyle, width: '60px' }}>TAXABLE</th>
-                  <th style={{ ...headerCellStyle, width: '45px' }}>GST%</th>
+                  <th style={{ ...headerCellStyle, width: '55px' }}>TAXABLE</th>
+                  <th style={{ ...headerCellStyle, width: '40px' }}>GST%</th>
                 </>
               )}
-              <th style={{ ...headerCellStyle, width: '70px' }}>TOTAL</th>
+              <th style={{ ...headerCellStyle, width: '65px' }}>TOTAL</th>
             </tr>
           </thead>
           <tbody>
@@ -483,6 +489,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                     }
                   </td>
                   <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '600' }}>{item.totalQty}</td>
+                  {showMRP && (
+                    <td style={{ ...cellStyle, textAlign: 'right', textDecoration: 'line-through', color: '#9ca3af' }}>
+                      {item.mrp ? `₹${item.mrp.toFixed(2)}` : '-'}
+                    </td>
+                  )}
                   <td style={{ ...cellStyle, textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
                   {showGSTBreakdown && (
                     <>
@@ -505,6 +516,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 {showHSN && <td style={cellStyle}>&nbsp;</td>}
                 <td style={cellStyle}>&nbsp;</td>
                 <td style={cellStyle}>&nbsp;</td>
+                {showMRP && <td style={cellStyle}>&nbsp;</td>}
                 <td style={cellStyle}>&nbsp;</td>
                 {showGSTBreakdown && (
                   <>
@@ -525,6 +537,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '700', fontSize: '11pt' }}>
                 {totalQty}
               </td>
+              {showMRP && <td style={cellStyle}></td>}
               <td style={cellStyle}></td>
               {showGSTBreakdown && (
                 <>
@@ -700,24 +713,29 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
           {/* Signature Section - Right */}
           <div style={{ 
-            width: '180px', 
+            flex: 1,
             padding: '10px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
+            alignItems: 'flex-end',
           }}>
-            <div style={{ fontSize: '8pt', textAlign: 'center', color: '#6b7280' }}>
-              For {businessName}
-            </div>
             <div style={{ 
-              borderTop: '1px solid #374151', 
-              marginTop: '30px',
-              paddingTop: '4px',
+              width: '180px',
               textAlign: 'center',
-              fontSize: '8pt',
-              fontWeight: '500',
             }}>
-              Authorised Signatory
+              <div style={{ fontSize: '8pt', color: '#6b7280' }}>
+                For {businessName}
+              </div>
+              <div style={{ 
+                borderTop: '1px solid #374151', 
+                marginTop: '35px',
+                paddingTop: '4px',
+                fontSize: '8pt',
+                fontWeight: '500',
+              }}>
+                Authorised Signatory
+              </div>
             </div>
           </div>
         </div>
