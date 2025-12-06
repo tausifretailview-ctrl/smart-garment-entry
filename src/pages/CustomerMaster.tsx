@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { ExcelImportDialog } from "@/components/ExcelImportDialog";
+import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData } from "@/utils/excelImportUtils";
 
 interface Customer {
@@ -54,7 +54,6 @@ const CustomerMaster = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const [showExcelImport, setShowExcelImport] = useState(false);
-  const [importLoading, setImportLoading] = useState(false);
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
@@ -183,25 +182,53 @@ const CustomerMaster = () => {
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleExcelImport = async (mappedData: Record<string, any>[]) => {
+  const handleExcelImport = async (
+    mappedData: Record<string, any>[],
+    onProgress?: (progress: ImportProgress) => void
+  ) => {
     if (!currentOrganization?.id) {
       toast({ title: "No organization selected", variant: "destructive" });
       return;
     }
 
-    setImportLoading(true);
+    const BATCH_SIZE = 50;
     let successCount = 0;
     let errorCount = 0;
+    let skippedCount = 0;
 
-    try {
-      for (const row of mappedData) {
+    // Filter out empty rows (no phone)
+    const validRows = mappedData.filter(row => {
+      const phone = row.phone?.toString().trim();
+      return phone && phone.length > 0;
+    });
+
+    // Get existing phone numbers to check for duplicates
+    const { data: existingCustomers } = await supabase
+      .from("customers")
+      .select("phone")
+      .eq("organization_id", currentOrganization.id);
+    
+    const existingPhones = new Set(
+      (existingCustomers || [])
+        .map(c => c.phone?.toString().trim().toLowerCase())
+        .filter(Boolean)
+    );
+
+    // Process in batches
+    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
+      const batch = validRows.slice(i, i + BATCH_SIZE);
+      const customersToInsert: any[] = [];
+
+      for (const row of batch) {
         const phone = row.phone?.toString().trim();
-        if (!phone) {
-          errorCount++;
+        
+        // Skip duplicates
+        if (existingPhones.has(phone.toLowerCase())) {
+          skippedCount++;
           continue;
         }
 
-        const customerData = {
+        customersToInsert.push({
           customer_name: row.customer_name?.toString().trim() || phone,
           phone: phone,
           email: row.email?.toString().trim() || '',
@@ -209,29 +236,51 @@ const CustomerMaster = () => {
           gst_number: row.gst_number?.toString().trim() || '',
           opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
           organization_id: currentOrganization.id,
-        };
+        });
 
-        const { error } = await supabase.from("customers").insert([customerData]);
+        // Add to existing set to prevent duplicates within same import
+        existingPhones.add(phone.toLowerCase());
+      }
+
+      if (customersToInsert.length > 0) {
+        const { error, data } = await supabase
+          .from("customers")
+          .insert(customersToInsert);
+        
         if (error) {
-          console.error('Error inserting customer:', error);
-          errorCount++;
+          console.error('Batch insert error:', error);
+          errorCount += customersToInsert.length;
         } else {
-          successCount++;
+          successCount += customersToInsert.length;
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast({
-        title: "Import completed",
-        description: `${successCount} customers imported${errorCount > 0 ? `, ${errorCount} failed` : ''}`,
-      });
-      setShowExcelImport(false);
-    } catch (error) {
-      console.error('Import error:', error);
-      toast({ title: "Import failed", variant: "destructive" });
-    } finally {
-      setImportLoading(false);
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: Math.min(i + BATCH_SIZE, validRows.length),
+          total: validRows.length,
+          successCount,
+          errorCount,
+          skippedCount,
+          isImporting: true,
+        });
+      }
     }
+
+    queryClient.invalidateQueries({ queryKey: ["customers"] });
+    
+    const skippedEmptyRows = mappedData.length - validRows.length;
+    let description = `${successCount} customers imported`;
+    if (skippedCount > 0) description += `, ${skippedCount} duplicates skipped`;
+    if (skippedEmptyRows > 0) description += `, ${skippedEmptyRows} empty rows skipped`;
+    if (errorCount > 0) description += `, ${errorCount} failed`;
+    
+    toast({
+      title: "Import completed",
+      description,
+    });
+    setShowExcelImport(false);
   };
 
   return (
