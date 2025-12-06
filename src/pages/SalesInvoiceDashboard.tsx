@@ -167,7 +167,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*)`)
+        .select(`*, sale_items (*, products:product_id (brand, color, style))`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .order('created_at', { ascending: false });
@@ -185,6 +185,15 @@ export default function SalesInvoiceDashboard() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // Get item display settings from settings
+  const saleSettings = settings?.sale_settings as any;
+  const showItemBrand = saleSettings?.show_item_brand ?? false;
+  const showItemColor = saleSettings?.show_item_color ?? false;
+  const showItemStyle = saleSettings?.show_item_style ?? false;
+  const showItemBarcode = saleSettings?.show_item_barcode ?? false;
+  const showItemHsn = saleSettings?.show_item_hsn ?? false;
+  const showItemMrp = saleSettings?.show_item_mrp ?? true;
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
@@ -1116,8 +1125,14 @@ export default function SalesInvoiceDashboard() {
                                       <TableHeader>
                                         <TableRow>
                                           <TableHead>Product</TableHead>
+                                          {showItemBrand && <TableHead>Brand</TableHead>}
+                                          {showItemColor && <TableHead>Color</TableHead>}
+                                          {showItemStyle && <TableHead>Style</TableHead>}
                                           <TableHead>Size</TableHead>
+                                          {showItemBarcode && <TableHead>Barcode</TableHead>}
+                                          {showItemHsn && <TableHead>HSN</TableHead>}
                                           <TableHead>Qty</TableHead>
+                                          {showItemMrp && <TableHead>MRP</TableHead>}
                                           <TableHead>Price</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
                                         </TableRow>
@@ -1126,8 +1141,14 @@ export default function SalesInvoiceDashboard() {
                                         {invoice.sale_items?.map((item: any) => (
                                           <TableRow key={item.id}>
                                             <TableCell>{item.product_name}</TableCell>
+                                            {showItemBrand && <TableCell>{item.products?.brand || '-'}</TableCell>}
+                                            {showItemColor && <TableCell>{item.products?.color || '-'}</TableCell>}
+                                            {showItemStyle && <TableCell>{item.products?.style || '-'}</TableCell>}
                                             <TableCell>{item.size}</TableCell>
+                                            {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
+                                            {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
                                             <TableCell>{item.quantity}</TableCell>
+                                            {showItemMrp && <TableCell>₹{item.mrp?.toFixed(2) || '-'}</TableCell>}
                                             <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
                                             <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
                                           </TableRow>
