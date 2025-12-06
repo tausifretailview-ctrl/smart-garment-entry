@@ -22,10 +22,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Customer {
   id: string;
@@ -54,6 +55,7 @@ const CustomerMaster = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
@@ -138,6 +140,21 @@ const CustomerMaster = () => {
     },
   });
 
+  const bulkDeleteCustomers = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("customers").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast({ title: `${selectedCustomers.size} customers deleted successfully` });
+      setSelectedCustomers(new Set());
+    },
+    onError: (error) => {
+      toast({ title: "Error deleting customers", description: error.message, variant: "destructive" });
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       customer_name: "",
@@ -183,6 +200,34 @@ const CustomerMaster = () => {
     customer.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCustomers(new Set(filteredCustomers.map(c => c.id)));
+    } else {
+      setSelectedCustomers(new Set());
+    }
+  };
+
+  const handleSelectCustomer = (customerId: string, checked: boolean) => {
+    const newSelected = new Set(selectedCustomers);
+    if (checked) {
+      newSelected.add(customerId);
+    } else {
+      newSelected.delete(customerId);
+    }
+    setSelectedCustomers(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedCustomers.size === 0) return;
+    if (confirm(`Are you sure you want to delete ${selectedCustomers.size} customer(s)?`)) {
+      bulkDeleteCustomers.mutate(Array.from(selectedCustomers));
+    }
+  };
+
+  const isAllSelected = filteredCustomers.length > 0 && filteredCustomers.every(c => selectedCustomers.has(c.id));
+  const isSomeSelected = selectedCustomers.size > 0;
 
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
@@ -387,12 +432,30 @@ const CustomerMaster = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
         />
+        {isSomeSelected && (
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={handleBulkDelete}
+            disabled={bulkDeleteCustomers.isPending}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedCustomers.size})
+          </Button>
+        )}
       </div>
 
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead className="w-16">Sr No</TableHead>
               <TableHead>Customer Name</TableHead>
               <TableHead>Phone</TableHead>
@@ -405,15 +468,22 @@ const CustomerMaster = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={8} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">No customers found</TableCell>
+                <TableCell colSpan={8} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
               filteredCustomers.map((customer, index) => (
                 <TableRow key={customer.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedCustomers.has(customer.id)}
+                      onCheckedChange={(checked) => handleSelectCustomer(customer.id, !!checked)}
+                      aria-label={`Select ${customer.customer_name}`}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="font-medium">{customer.customer_name}</TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
