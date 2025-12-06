@@ -271,23 +271,7 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const toggleSelectAll = () => {
-    if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
-      setSelectedInvoices(new Set());
-    } else {
-      setSelectedInvoices(new Set(filteredInvoices.map((i: any) => i.id)));
-    }
-  };
-
-  const toggleSelectInvoice = (invoiceId: string) => {
-    const newSelected = new Set(selectedInvoices);
-    if (newSelected.has(invoiceId)) {
-      newSelected.delete(invoiceId);
-    } else {
-      newSelected.add(invoiceId);
-    }
-    setSelectedInvoices(newSelected);
-  };
+  // Note: toggleSelectAll moved after filteredInvoices is defined
 
   const fetchSaleReturns = async (saleNumber: string, saleId: string) => {
     try {
@@ -309,47 +293,81 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const toggleExpanded = (id: string, saleNumber?: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-      if (saleNumber) {
-        fetchSaleReturns(saleNumber, id);
+  const toggleExpanded = useCallback((id: string, saleNumber?: string) => {
+    setExpandedRows(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(id)) {
+        newExpanded.delete(id);
+      } else {
+        newExpanded.add(id);
+        if (saleNumber) {
+          fetchSaleReturns(saleNumber, id);
+        }
       }
+      return newExpanded;
+    });
+  }, [currentOrganization?.id]);
+
+  // Memoize filtered invoices to avoid recomputing on every render
+  const filteredInvoices = useMemo(() => {
+    return (invoicesData || []).filter((invoice: any) => {
+      if (!searchQuery) return true;
+      
+      const searchLower = searchQuery.toLowerCase();
+      
+      // Check basic invoice fields
+      const matchesBasicSearch = 
+        invoice.sale_number?.toLowerCase().includes(searchLower) ||
+        invoice.customer_name?.toLowerCase().includes(searchLower) ||
+        invoice.customer_phone?.toLowerCase().includes(searchLower);
+      
+      // Check barcode in sale items
+      const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
+        item.barcode?.toLowerCase().includes(searchLower) ||
+        item.product_name?.toLowerCase().includes(searchLower)
+      );
+      
+      return matchesBasicSearch || matchesBarcodeSearch;
+    });
+  }, [invoicesData, searchQuery]);
+
+  // Memoize summary statistics
+  const summaryStats = useMemo(() => ({
+    totalInvoices: filteredInvoices.length,
+    totalAmount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+    pendingAmount: filteredInvoices
+      .filter((inv: any) => inv.payment_status !== 'completed')
+      .reduce((sum: number, inv: any) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0),
+  }), [filteredInvoices]);
+
+  // Memoize pagination calculations
+  const totalPages = useMemo(() => Math.ceil(filteredInvoices.length / itemsPerPage), [filteredInvoices.length, itemsPerPage]);
+  const paginatedInvoices = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredInvoices.slice(startIndex, endIndex);
+  }, [filteredInvoices, currentPage, itemsPerPage]);
+
+  // Memoized event handlers (defined after filteredInvoices/paginatedInvoices)
+  const toggleSelectAll = useCallback(() => {
+    if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
+      setSelectedInvoices(new Set());
+    } else {
+      setSelectedInvoices(new Set(filteredInvoices.map((i: any) => i.id)));
     }
-    setExpandedRows(newExpanded);
-  };
+  }, [selectedInvoices.size, filteredInvoices]);
 
-  // Client-side filtering with barcode search
-  const filteredInvoices = (invoicesData || []).filter((invoice: any) => {
-    if (!searchQuery) return true;
-    
-    const searchLower = searchQuery.toLowerCase();
-    
-    // Check basic invoice fields
-    const matchesBasicSearch = 
-      invoice.sale_number?.toLowerCase().includes(searchLower) ||
-      invoice.customer_name?.toLowerCase().includes(searchLower) ||
-      invoice.customer_phone?.toLowerCase().includes(searchLower);
-    
-    // Check barcode in sale items
-    const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
-      item.barcode?.toLowerCase().includes(searchLower) ||
-      item.product_name?.toLowerCase().includes(searchLower)
-    );
-    
-    return matchesBasicSearch || matchesBarcodeSearch;
-  });
-
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
-
-  // Memoize filtered invoices for performance
-  const memoizedPaginatedInvoices = useMemo(() => paginatedInvoices, [paginatedInvoices]);
+  const toggleSelectInvoice = useCallback((invoiceId: string) => {
+    setSelectedInvoices(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(invoiceId)) {
+        newSelected.delete(invoiceId);
+      } else {
+        newSelected.add(invoiceId);
+      }
+      return newSelected;
+    });
+  }, []);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -1119,7 +1137,7 @@ export default function SalesInvoiceDashboard() {
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1} to {Math.min(endIndex, invoicesData.length)} of {invoicesData.length} invoices
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredInvoices.length)} of {filteredInvoices.length} invoices
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>

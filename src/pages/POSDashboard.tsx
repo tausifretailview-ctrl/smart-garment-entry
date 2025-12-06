@@ -294,7 +294,7 @@ const POSDashboard = () => {
     }
   };
 
-  const toggleExpanded = async (saleId: string) => {
+  const toggleExpanded = useCallback(async (saleId: string) => {
     if (expandedSale === saleId) {
       setExpandedSale(null);
     } else {
@@ -307,7 +307,7 @@ const POSDashboard = () => {
         ]);
       }
     }
-  };
+  }, [expandedSale, sales]);
 
 
   // Stock restoration is now handled automatically by database triggers
@@ -397,28 +397,7 @@ const POSDashboard = () => {
     }
   };
 
-  const toggleSelectAll = () => {
-    if (selectedSales.size === filteredSales.length && filteredSales.length > 0) {
-      setSelectedSales(new Set());
-    } else {
-      setSelectedSales(new Set(filteredSales.map(s => s.id)));
-    }
-  };
-
-  const toggleSelectSale = (saleId: string) => {
-    const newSelected = new Set(selectedSales);
-    if (newSelected.has(saleId)) {
-      newSelected.delete(saleId);
-    } else {
-      newSelected.add(saleId);
-    }
-    setSelectedSales(newSelected);
-  };
-
-  const handleEditSale = (saleId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
-    navigate(`/pos-sales?saleId=${saleId}`);
-  };
+  // Note: toggleSelectAll moved after filteredSales is defined
 
   const getPageStyle = () => {
     const format = posBillFormat;
@@ -716,53 +695,93 @@ const POSDashboard = () => {
     sendWhatsApp(receiptData.customerPhone, message);
   };
 
-  const filteredSales = sales.filter((sale) => {
-    const searchLower = searchQuery.toLowerCase();
-    
-    // Check basic sale fields
-    const matchesBasicSearch =
-      sale.sale_number.toLowerCase().includes(searchLower) ||
-      sale.customer_name.toLowerCase().includes(searchLower);
-    
-    // Check barcode in sale items
-    const items = saleItems[sale.id] || [];
-    const matchesBarcodeSearch = items.some(item => 
-      item.barcode?.toLowerCase().includes(searchLower) ||
-      item.product_name?.toLowerCase().includes(searchLower)
-    );
-    
-    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
+  // Memoize filtered sales to avoid recomputing on every render
+  const filteredSales = useMemo(() => {
+    return sales.filter((sale) => {
+      const searchLower = searchQuery.toLowerCase();
+      
+      // Check basic sale fields
+      const matchesBasicSearch =
+        sale.sale_number.toLowerCase().includes(searchLower) ||
+        sale.customer_name.toLowerCase().includes(searchLower);
+      
+      // Check barcode in sale items
+      const items = saleItems[sale.id] || [];
+      const matchesBarcodeSearch = items.some(item => 
+        item.barcode?.toLowerCase().includes(searchLower) ||
+        item.product_name?.toLowerCase().includes(searchLower)
+      );
+      
+      const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
-    // Normalize dates to yyyy-MM-dd format for accurate comparison
-    const saleDateStr = sale.sale_date.split('T')[0]; // Extract date part only
-    const startDateStr = startDate ? format(new Date(startDate), 'yyyy-MM-dd') : null;
-    const endDateStr = endDate ? format(new Date(endDate), 'yyyy-MM-dd') : null;
+      // Normalize dates to yyyy-MM-dd format for accurate comparison
+      const saleDateStr = sale.sale_date.split('T')[0];
+      const startDateStr = startDate ? format(new Date(startDate), 'yyyy-MM-dd') : null;
+      const endDateStr = endDate ? format(new Date(endDate), 'yyyy-MM-dd') : null;
 
-    const matchesDateRange =
-      (!startDateStr || saleDateStr >= startDateStr) &&
-      (!endDateStr || saleDateStr <= endDateStr);
+      const matchesDateRange =
+        (!startDateStr || saleDateStr >= startDateStr) &&
+        (!endDateStr || saleDateStr <= endDateStr);
 
-    const matchesPaymentMethod =
-      paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
+      const matchesPaymentMethod =
+        paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
 
-    const matchesPaymentStatus =
-      paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
+      const matchesPaymentStatus =
+        paymentStatusFilter === "all" || sale.payment_status === paymentStatusFilter;
 
-    const matchesRefund =
-      refundFilter === "all" ||
-      (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
-      (refundFilter === "without_refund" && (sale.refund_amount || 0) === 0);
+      const matchesRefund =
+        refundFilter === "all" ||
+        (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
+        (refundFilter === "without_refund" && (sale.refund_amount || 0) === 0);
 
-    return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund;
-  });
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund;
+    });
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter]);
 
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedSales = filteredSales.slice(startIndex, endIndex);
+  // Memoize summary statistics to avoid recalculating on every render
+  const summaryStats = useMemo(() => ({
+    totalBills: filteredSales.length,
+    totalQty: filteredSales.reduce((sum, sale) => {
+      const items = saleItems[sale.id] || [];
+      return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    }, 0),
+    totalAmount: filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
+    totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount, 0),
+  }), [filteredSales, saleItems]);
 
-  // Memoize filtered sales for performance
-  const memoizedPaginatedSales = useMemo(() => paginatedSales, [paginatedSales]);
+  // Memoize pagination calculations
+  const totalPages = useMemo(() => Math.ceil(filteredSales.length / itemsPerPage), [filteredSales.length, itemsPerPage]);
+  const paginatedSales = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredSales.slice(startIndex, endIndex);
+  }, [filteredSales, currentPage, itemsPerPage]);
+
+  // Memoized event handlers (defined after filteredSales/paginatedSales)
+  const toggleSelectAll = useCallback(() => {
+    if (selectedSales.size === filteredSales.length && filteredSales.length > 0) {
+      setSelectedSales(new Set());
+    } else {
+      setSelectedSales(new Set(filteredSales.map(s => s.id)));
+    }
+  }, [selectedSales.size, filteredSales]);
+
+  const toggleSelectSale = useCallback((saleId: string) => {
+    setSelectedSales(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(saleId)) {
+        newSelected.delete(saleId);
+      } else {
+        newSelected.add(saleId);
+      }
+      return newSelected;
+    });
+  }, []);
+
+  const handleEditSale = useCallback((saleId: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    navigate(`/pos-sales?saleId=${saleId}`);
+  }, [navigate]);
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -822,7 +841,7 @@ const POSDashboard = () => {
             <CardHeader className="pb-3">
               <CardDescription>Total Bills</CardDescription>
               <CardTitle className="text-3xl font-bold text-primary">
-                {filteredSales.length}
+                {summaryStats.totalBills}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -831,10 +850,7 @@ const POSDashboard = () => {
             <CardHeader className="pb-3">
               <CardDescription>Sale Quantity</CardDescription>
               <CardTitle className="text-3xl font-bold text-primary">
-                {filteredSales.reduce((sum, sale) => {
-                  const items = saleItems[sale.id] || [];
-                  return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
-                }, 0)}
+                {summaryStats.totalQty}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -843,7 +859,7 @@ const POSDashboard = () => {
             <CardHeader className="pb-3">
               <CardDescription>Sale Amount</CardDescription>
               <CardTitle className="text-3xl font-bold text-primary">
-                ₹{filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0).toFixed(2)}
+                ₹{summaryStats.totalAmount.toFixed(2)}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -852,7 +868,7 @@ const POSDashboard = () => {
             <CardHeader className="pb-3">
               <CardDescription>Discount Amount</CardDescription>
               <CardTitle className="text-3xl font-bold text-primary">
-                ₹{filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount, 0).toFixed(2)}
+                ₹{summaryStats.totalDiscount.toFixed(2)}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -1270,7 +1286,7 @@ const POSDashboard = () => {
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-4">
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1} to {Math.min(endIndex, filteredSales.length)} of {filteredSales.length} sales
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredSales.length)} of {filteredSales.length} sales
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Show:</span>
