@@ -27,6 +27,7 @@ interface QuotationPrintProps {
   quotationNumber: string;
   quotationDate: Date;
   validUntil?: Date;
+  salesman?: string;
   
   // Customer Details
   customerName: string;
@@ -68,6 +69,7 @@ export const QuotationPrint = React.forwardRef<HTMLDivElement, QuotationPrintPro
       quotationNumber,
       quotationDate,
       validUntil,
+      salesman,
       customerName,
       customerAddress,
       customerMobile,
@@ -237,6 +239,11 @@ export const QuotationPrint = React.forwardRef<HTMLDivElement, QuotationPrintPro
             <p style={{ margin: '3px 0' }}>
               <strong>Tax Type:</strong> {taxType === 'inclusive' ? 'Inclusive' : 'Exclusive'}
             </p>
+            {salesman && (
+              <p style={{ margin: '3px 0' }}>
+                <strong>Salesman:</strong> {salesman}
+              </p>
+            )}
           </div>
         </div>
 

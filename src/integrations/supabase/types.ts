@@ -1019,6 +1019,7 @@ export type Database = {
           quotation_date: string
           quotation_number: string
           round_off: number
+          salesman: string | null
           shipping_address: string | null
           status: string
           tax_type: string | null
@@ -1046,6 +1047,7 @@ export type Database = {
           quotation_date?: string
           quotation_number: string
           round_off?: number
+          salesman?: string | null
           shipping_address?: string | null
           status?: string
           tax_type?: string | null
@@ -1073,6 +1075,7 @@ export type Database = {
           quotation_date?: string
           quotation_number?: string
           round_off?: number
+          salesman?: string | null
           shipping_address?: string | null
           status?: string
           tax_type?: string | null
@@ -1250,6 +1253,7 @@ export type Database = {
           organization_id: string
           quotation_id: string | null
           round_off: number
+          salesman: string | null
           shipping_address: string | null
           status: string
           tax_type: string | null
@@ -1278,6 +1282,7 @@ export type Database = {
           organization_id: string
           quotation_id?: string | null
           round_off?: number
+          salesman?: string | null
           shipping_address?: string | null
           status?: string
           tax_type?: string | null
@@ -1306,6 +1311,7 @@ export type Database = {
           organization_id?: string
           quotation_id?: string | null
           round_off?: number
+          salesman?: string | null
           shipping_address?: string | null
           status?: string
           tax_type?: string | null
