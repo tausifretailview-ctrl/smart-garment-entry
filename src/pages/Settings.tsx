@@ -94,7 +94,7 @@ interface SaleSettings {
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -103,6 +103,15 @@ interface SaleSettings {
   show_gst_breakdown?: boolean;
   show_bank_details?: boolean;
   show_invoice_preview?: boolean;  // Enable/disable invoice preview before printing
+  min_item_rows?: number;
+  show_total_quantity?: boolean;
+  amount_with_decimal?: boolean;
+  show_received_amount?: boolean;
+  show_balance_amount?: boolean;
+  show_party_balance?: boolean;
+  show_tax_details?: boolean;
+  show_you_saved?: boolean;
+  amount_with_grouping?: boolean;
   bank_details?: {
     bank_name?: string;
     account_number?: string;
@@ -114,6 +123,12 @@ interface SaleSettings {
   invoice_footer_text?: string;
   logo_placement?: 'left' | 'center' | 'right';
   font_family?: 'inter' | 'roboto' | 'montserrat' | 'opensans' | 'playfair' | 'merriweather' | 'lora' | 'raleway' | 'poppins';
+  // Wholesale Mode Settings
+  enable_wholesale_mode?: boolean;
+  size_display_format?: 'size/qty' | 'size×qty';
+  show_product_color?: boolean;
+  show_product_brand?: boolean;
+  show_product_style?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
 }
@@ -186,45 +201,107 @@ export default function Settings() {
   const [templateName, setTemplateName] = useState("");
   const [templateSheetType, setTemplateSheetType] = useState("a4_12x4");
 
-  // Sample data for invoice preview
+  // Sample data for invoice preview - includes multiple sizes for wholesale grouping demo
   const sampleInvoiceData = {
-    billNo: '2025-01-0001',
+    billNo: 'INV/25-26/0001',
     date: new Date(),
-    customerName: 'John Doe',
-    customerAddress: '123 Sample Street, City',
+    customerName: 'Sharma Textiles',
+    customerAddress: '45 Wholesale Market, Gandhi Nagar, Ahmedabad',
     customerMobile: '9876543210',
     items: [
       {
         sr: 1,
-        particulars: 'Sample Product 1',
-        size: 'M',
+        particulars: 'Cotton Casual Shirt',
+        size: '38',
         barcode: '10001001',
         hsn: '62051000',
-        sp: 999,
+        sp: 599,
         qty: 2,
-        rate: 899,
-        total: 1798
+        rate: 450,
+        total: 900,
+        color: 'Blue',
+        brand: 'StyleWear',
+        gstPercent: 5
       },
       {
         sr: 2,
-        particulars: 'Sample Product 2',
-        size: 'L',
+        particulars: 'Cotton Casual Shirt',
+        size: '40',
         barcode: '10001002',
-        hsn: '62052000',
-        sp: 1499,
+        hsn: '62051000',
+        sp: 599,
+        qty: 3,
+        rate: 450,
+        total: 1350,
+        color: 'Blue',
+        brand: 'StyleWear',
+        gstPercent: 5
+      },
+      {
+        sr: 3,
+        particulars: 'Cotton Casual Shirt',
+        size: '42',
+        barcode: '10001003',
+        hsn: '62051000',
+        sp: 599,
         qty: 1,
-        rate: 1299,
-        total: 1299
+        rate: 450,
+        total: 450,
+        color: 'Blue',
+        brand: 'StyleWear',
+        gstPercent: 5
+      },
+      {
+        sr: 4,
+        particulars: 'Cotton Casual Shirt',
+        size: '44',
+        barcode: '10001004',
+        hsn: '62051000',
+        sp: 599,
+        qty: 2,
+        rate: 450,
+        total: 900,
+        color: 'Blue',
+        brand: 'StyleWear',
+        gstPercent: 5
+      },
+      {
+        sr: 5,
+        particulars: 'Formal Trouser',
+        size: '32',
+        barcode: '10001010',
+        hsn: '62034200',
+        sp: 899,
+        qty: 5,
+        rate: 650,
+        total: 3250,
+        color: 'Black',
+        brand: 'FormalFit',
+        gstPercent: 12
+      },
+      {
+        sr: 6,
+        particulars: 'Formal Trouser',
+        size: '34',
+        barcode: '10001011',
+        hsn: '62034200',
+        sp: 899,
+        qty: 3,
+        rate: 650,
+        total: 1950,
+        color: 'Black',
+        brand: 'FormalFit',
+        gstPercent: 12
       }
     ],
-    subTotal: 3097,
-    discount: 97,
-    grandTotal: 3000,
-    tenderAmount: 3000,
-    cashPaid: 3000,
-    refundCash: 0,
+    subTotal: 8800,
+    discount: 300,
+    grandTotal: 8935,
+    tenderAmount: 9000,
+    cashPaid: 9000,
+    refundCash: 65,
     upiPaid: 0,
-    gstin: 'SAMPLE123456789'
+    gstin: '24AABCS1234D1ZP'
   };
 
 
@@ -1560,7 +1637,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice',
                           },
                         })
                       }
@@ -1571,6 +1648,7 @@ export default function Settings() {
                       <SelectContent>
                         <SelectItem value="professional">Professional - Detailed business style</SelectItem>
                         <SelectItem value="modern">Modern - Clean gradient design</SelectItem>
+                        <SelectItem value="modern-wholesale">Modern Wholesale - Size grouping for bulk</SelectItem>
                         <SelectItem value="classic">Classic - Traditional receipt</SelectItem>
                         <SelectItem value="minimal">Minimal - Simple & elegant</SelectItem>
                         <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
@@ -1578,7 +1656,124 @@ export default function Settings() {
                         <SelectItem value="tax-invoice">Tax Invoice - GST compliant</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1)
+                    </p>
                   </div>
+
+                  {/* Wholesale Mode Settings - Show when Modern Wholesale template is selected */}
+                  {settings.sale_settings?.invoice_template === 'modern-wholesale' && (
+                    <div className="space-y-4 p-4 bg-muted/50 rounded-lg border">
+                      <h4 className="text-sm font-semibold text-primary">Wholesale Mode Settings</h4>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="size_display_format">Size Display Format</Label>
+                        <Select
+                          value={(settings.sale_settings as any)?.size_display_format || "size/qty"}
+                          onValueChange={(value) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                size_display_format: value as 'size/qty' | 'size×qty',
+                              },
+                            })
+                          }
+                        >
+                          <SelectTrigger id="size_display_format">
+                            <SelectValue placeholder="Select format" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="size/qty">Size/Qty (38/2, 40/3, 42/1)</SelectItem>
+                            <SelectItem value="size×qty">Size×Qty (38×2, 40×3, 42×1)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="min_item_rows">Minimum Item Rows</Label>
+                        <Input
+                          id="min_item_rows"
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={(settings.sale_settings as any)?.min_item_rows || 8}
+                          onChange={(e) =>
+                            setSettings({
+                              ...settings,
+                              sale_settings: {
+                                ...settings.sale_settings,
+                                min_item_rows: parseInt(e.target.value) || 8,
+                              },
+                            })
+                          }
+                          placeholder="8"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Minimum empty rows to display in item table
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="show_product_color"
+                            checked={(settings.sale_settings as any)?.show_product_color ?? true}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  show_product_color: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor="show_product_color" className="cursor-pointer text-sm">
+                            Show Color
+                          </Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="show_product_brand"
+                            checked={(settings.sale_settings as any)?.show_product_brand ?? false}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  show_product_brand: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor="show_product_brand" className="cursor-pointer text-sm">
+                            Show Brand
+                          </Label>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="show_product_style"
+                            checked={(settings.sale_settings as any)?.show_product_style ?? false}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  show_product_style: checked as boolean,
+                                },
+                              })
+                            }
+                          />
+                          <Label htmlFor="show_product_style" className="cursor-pointer text-sm">
+                            Show Style
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 
                   {/* Invoice Customization Section */}
                   <div className="space-y-4 mt-6 pt-6 border-t">
@@ -2222,6 +2417,11 @@ export default function Settings() {
                         fontFamily={settings.sale_settings?.font_family}
                         declarationText={settings.sale_settings?.declaration_text}
                         termsConditions={settings.sale_settings?.terms_list}
+                        enableWholesaleMode={settings.sale_settings?.invoice_template === 'modern-wholesale'}
+                        sizeDisplayFormat={(settings.sale_settings as any)?.size_display_format}
+                        showProductColor={(settings.sale_settings as any)?.show_product_color}
+                        showProductBrand={(settings.sale_settings as any)?.show_product_brand}
+                        showProductStyle={(settings.sale_settings as any)?.show_product_style}
                       />
                     </div>
                   </div>
