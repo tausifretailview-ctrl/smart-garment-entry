@@ -17,6 +17,17 @@ interface InvoiceItem {
   style?: string;
 }
 
+interface GroupedItem {
+  particulars: string;
+  color?: string;
+  brand?: string;
+  style?: string;
+  rate: number;
+  sizeQtyList: Array<{ size: string; qty: number }>;
+  totalQty: number;
+  totalAmount: number;
+}
+
 interface DetailedTemplateProps {
   businessName: string;
   address: string;
@@ -51,6 +62,12 @@ interface DetailedTemplateProps {
   customFooterText?: string;
   logoPlacement?: 'left' | 'center' | 'right';
   fontFamily?: string;
+  // Wholesale mode props
+  enableWholesaleGrouping?: boolean;
+  sizeDisplayFormat?: 'size/qty' | 'size×qty';
+  showProductColor?: boolean;
+  showProductBrand?: boolean;
+  showProductStyle?: boolean;
 }
 
 export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
@@ -87,6 +104,11 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   customFooterText,
   logoPlacement = 'left',
   fontFamily = 'inter',
+  enableWholesaleGrouping = false,
+  sizeDisplayFormat = 'size/qty',
+  showProductColor = true,
+  showProductBrand = false,
+  showProductStyle = false,
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -99,15 +121,15 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
   const minHeight = format === 'a4' ? '297mm' : format === 'a5-horizontal' ? '148mm' : '210mm';
 
-  const colorMap: Record<string, string> = {
-    blue: '#1e40af',
-    green: '#15803d',
-    purple: '#7c3aed',
-    red: '#dc2626',
-    orange: '#ea580c'
+  const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
+    blue: { primary: '#1e40af', secondary: '#3b82f6', accent: '#dbeafe' },
+    green: { primary: '#15803d', secondary: '#22c55e', accent: '#dcfce7' },
+    purple: { primary: '#7c3aed', secondary: '#a78bfa', accent: '#f3e8ff' },
+    red: { primary: '#dc2626', secondary: '#f87171', accent: '#fee2e2' },
+    orange: { primary: '#ea580c', secondary: '#fb923c', accent: '#ffedd5' },
+    teal: { primary: '#0d9488', secondary: '#2dd4bf', accent: '#ccfbf1' },
+    indigo: { primary: '#4f46e5', secondary: '#818cf8', accent: '#e0e7ff' },
   };
-
-  const primaryColor = colorMap[colorScheme] || colorMap.blue;
 
   const fontFamilyMap: Record<string, string> = {
     inter: "'Inter', sans-serif",
@@ -121,7 +143,58 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
     lora: "'Lora', serif",
   };
 
+  const colors = colorSchemes[colorScheme] || colorSchemes.blue;
+  const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
   const logoAlign = logoPlacement === 'center' ? 'center' : logoPlacement === 'right' ? 'flex-end' : 'flex-start';
+
+  // Group items for wholesale display
+  const groupItems = (items: InvoiceItem[]): GroupedItem[] => {
+    if (!enableWholesaleGrouping) {
+      return items.map(item => ({
+        particulars: item.particulars,
+        color: item.color,
+        brand: item.brand,
+        style: item.style,
+        rate: item.rate,
+        sizeQtyList: [{ size: item.size, qty: item.qty }],
+        totalQty: item.qty,
+        totalAmount: item.total,
+      }));
+    }
+
+    const grouped: Record<string, GroupedItem> = {};
+    items.forEach(item => {
+      const key = `${item.particulars}-${item.rate}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          particulars: item.particulars,
+          color: item.color,
+          brand: item.brand,
+          style: item.style,
+          rate: item.rate,
+          sizeQtyList: [],
+          totalQty: 0,
+          totalAmount: 0,
+        };
+      }
+      const existingSize = grouped[key].sizeQtyList.find(sq => sq.size === item.size);
+      if (existingSize) {
+        existingSize.qty += item.qty;
+      } else {
+        grouped[key].sizeQtyList.push({ size: item.size, qty: item.qty });
+      }
+      grouped[key].totalQty += item.qty;
+      grouped[key].totalAmount += item.total;
+    });
+    return Object.values(grouped);
+  };
+
+  const formatSizeQty = (sizeQtyList: Array<{ size: string; qty: number }>) => {
+    const separator = sizeDisplayFormat === 'size×qty' ? '×' : '/';
+    return sizeQtyList.map(sq => `${sq.size}${separator}${sq.qty}`).join(', ');
+  };
+
+  const groupedItems = groupItems(items);
 
   return (
     <div style={{
@@ -131,34 +204,43 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
       margin: '0 auto',
       padding: '10mm',
       backgroundColor: 'white',
-      fontFamily: fontFamilyMap[fontFamily] || fontFamilyMap.inter,
+      fontFamily: font,
       fontSize: '10px',
       color: '#000',
       overflow: 'hidden'
     }}>
       {/* Custom Header Text */}
       {customHeaderText && (
-        <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', fontWeight: 'bold', color: primaryColor }}>
+        <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '11px', fontWeight: 'bold', color: colors.primary }}>
           {customHeaderText}
         </div>
       )}
 
-      {/* Header with Logo */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', borderBottom: `3px solid ${primaryColor}`, paddingBottom: '8px' }}>
+      {/* Header with Logo and Gradient */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '10px', 
+        background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
+        padding: '12px',
+        borderRadius: '6px',
+        color: 'white'
+      }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: logoAlign }}>
           {logoUrl && (
             <img src={logoUrl} alt="Logo" style={{ maxWidth: '60px', maxHeight: '60px', marginBottom: '6px' }} />
           )}
-          <div style={{ fontSize: '16px', fontWeight: 'bold', color: primaryColor, marginBottom: '3px', textAlign: logoPlacement }}>{businessName}</div>
-          <div style={{ fontSize: '9px', lineHeight: '1.4', maxWidth: '80%', textAlign: logoPlacement }}>
+          <div style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '3px', textAlign: logoPlacement }}>{businessName}</div>
+          <div style={{ fontSize: '9px', lineHeight: '1.4', maxWidth: '80%', textAlign: logoPlacement, opacity: 0.9 }}>
             {address}<br/>
             Mobile: {mobile} {email && `| Email: ${email}`}<br/>
             {gstNumber && `GSTIN: ${gstNumber}`}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '18px', fontWeight: 'bold', color: primaryColor }}>INVOICE</div>
-          <div style={{ fontSize: '10px', marginTop: '4px' }}>
+          <div style={{ fontSize: '18px', fontWeight: 'bold' }}>INVOICE</div>
+          <div style={{ fontSize: '10px', marginTop: '4px', opacity: 0.9 }}>
             <strong>No:</strong> {invoiceNumber}<br/>
             <strong>Date:</strong> {formatDate(invoiceDate)}<br/>
             {invoiceTime && <><strong>Time:</strong> {invoiceTime}</>}
@@ -167,8 +249,8 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
       </div>
 
       {/* Bill To Section */}
-      <div style={{ marginBottom: '10px', padding: '8px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6' }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '4px', color: primaryColor }}>BILL TO:</div>
+      <div style={{ marginBottom: '10px', padding: '8px', backgroundColor: colors.accent, border: `1px solid ${colors.primary}20`, borderRadius: '4px' }}>
+        <div style={{ fontWeight: 'bold', marginBottom: '4px', color: colors.primary }}>BILL TO:</div>
         <div style={{ fontSize: '10px', lineHeight: '1.5' }}>
           <strong>{customerName}</strong><br/>
           {customerAddress && <>{customerAddress}<br/></>}
@@ -180,12 +262,12 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
       {/* Detailed Items Table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10px', fontSize: '9px' }}>
         <thead>
-          <tr style={{ backgroundColor: primaryColor, color: 'white' }}>
+          <tr style={{ background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, color: 'white' }}>
             <th style={{ textAlign: 'left', padding: '5px 4px', border: '1px solid #ddd' }}>Sr</th>
             <th style={{ textAlign: 'left', padding: '5px 4px', border: '1px solid #ddd' }}>Product Details</th>
-            <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>Size</th>
-            <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>Barcode</th>
-            <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>HSN</th>
+            <th style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>
+              {enableWholesaleGrouping ? 'Sizes' : 'Size'}
+            </th>
             <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>Qty</th>
             {showMRP && <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>MRP</th>}
             <th style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>Rate</th>
@@ -193,35 +275,48 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
           </tr>
         </thead>
         <tbody>
-          {items.map((item, index) => (
-            <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>{item.sr}</td>
-              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>
-                <div style={{ fontWeight: 'bold' }}>{item.particulars}</div>
-                <div style={{ fontSize: '8px', color: '#666', marginTop: '2px' }}>
-                  {item.brand && `Brand: ${item.brand}`}
-                  {item.category && ` | Category: ${item.category}`}
-                  {item.color && ` | Color: ${item.color}`}
-                  {item.style && ` | Style: ${item.style}`}
-                </div>
-              </td>
-              <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>{item.size}</td>
-              <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd', fontSize: '8px' }}>{item.barcode}</td>
-              <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd' }}>{item.hsn}</td>
-              <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{item.qty}</td>
-              {showMRP && (
-                <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>
-                  {item.mrp && item.mrp > item.rate ? (
-                    <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(item.mrp)}</span>
-                  ) : (
-                    <span>{formatCurrency(item.mrp || item.rate)}</span>
+          {groupedItems.map((item, index) => {
+            const wholesaleDetails: string[] = [];
+            if (enableWholesaleGrouping) {
+              if (showProductColor && item.color) wholesaleDetails.push(`Color: ${item.color}`);
+              if (showProductBrand && item.brand) wholesaleDetails.push(`Brand: ${item.brand}`);
+              if (showProductStyle && item.style) wholesaleDetails.push(`Style: ${item.style}`);
+            }
+            return (
+              <tr key={index} style={{ backgroundColor: index % 2 === 0 ? '#fff' : colors.accent }}>
+                <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>{index + 1}</td>
+                <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>
+                  <div style={{ fontWeight: 'bold' }}>{item.particulars}</div>
+                  {!enableWholesaleGrouping && (
+                    <div style={{ fontSize: '8px', color: '#666', marginTop: '2px' }}>
+                      {items[index]?.brand && `Brand: ${items[index].brand}`}
+                      {items[index]?.category && ` | Category: ${items[index].category}`}
+                      {items[index]?.color && ` | Color: ${items[index].color}`}
+                      {items[index]?.style && ` | Style: ${items[index].style}`}
+                    </div>
+                  )}
+                  {wholesaleDetails.length > 0 && (
+                    <div style={{ fontSize: '8px', color: colors.secondary, marginTop: '2px' }}>{wholesaleDetails.join(' | ')}</div>
                   )}
                 </td>
-              )}
-              <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{formatCurrency(item.rate)}</td>
-              <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd', fontWeight: 'bold' }}>{formatCurrency(item.total)}</td>
-            </tr>
-          ))}
+                <td style={{ textAlign: 'center', padding: '5px 4px', border: '1px solid #ddd', fontSize: enableWholesaleGrouping ? '8px' : '9px' }}>
+                  {enableWholesaleGrouping ? formatSizeQty(item.sizeQtyList) : item.sizeQtyList[0]?.size}
+                </td>
+                <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{item.totalQty}</td>
+                {showMRP && (
+                  <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>
+                    {items[index]?.mrp && items[index].mrp > item.rate ? (
+                      <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(items[index].mrp)}</span>
+                    ) : (
+                      <span>{formatCurrency(items[index]?.mrp || item.rate)}</span>
+                    )}
+                  </td>
+                )}
+                <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{formatCurrency(item.rate)}</td>
+                <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd', fontWeight: 'bold' }}>{formatCurrency(item.totalAmount)}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
@@ -246,7 +341,16 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
             <span>Tax (GST):</span>
             <span>{formatCurrency(totalTax)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', backgroundColor: primaryColor, color: 'white', fontWeight: 'bold', fontSize: '11px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            padding: '6px 8px', 
+            background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
+            color: 'white', 
+            fontWeight: 'bold', 
+            fontSize: '11px',
+            borderRadius: '4px'
+          }}>
             <span>GRAND TOTAL:</span>
             <span>{formatCurrency(grandTotal)}</span>
           </div>
@@ -261,7 +365,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
 
       {/* Payment Info */}
       {paymentMethod && (
-        <div style={{ marginBottom: '10px', padding: '6px 8px', backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', fontSize: '9px' }}>
+        <div style={{ marginBottom: '10px', padding: '6px 8px', backgroundColor: colors.accent, border: `1px solid ${colors.primary}20`, fontSize: '9px', borderRadius: '4px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span><strong>Payment Mode:</strong> {paymentMethod.toUpperCase()}</span>
             {amountPaid !== undefined && <span><strong>Amount Paid:</strong> {formatCurrency(amountPaid)}</span>}
@@ -275,7 +379,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
         <div style={{ flex: 1 }}>
           {termsConditions && termsConditions.length > 0 && (
             <>
-              <div style={{ fontWeight: 'bold', marginBottom: '3px' }}>Terms & Conditions:</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '3px', color: colors.primary }}>Terms & Conditions:</div>
               <ul style={{ margin: 0, paddingLeft: '15px', lineHeight: '1.4' }}>
                 {termsConditions.map((term, index) => (
                   <li key={index}>{term}</li>
@@ -287,7 +391,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
         {qrCodeUrl && (
           <div style={{ textAlign: 'center' }}>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '70px', height: '70px' }} />
-            <div style={{ fontSize: '7px', marginTop: '2px' }}>Scan to Pay</div>
+            <div style={{ fontSize: '7px', marginTop: '2px', color: colors.secondary }}>Scan to Pay</div>
           </div>
         )}
       </div>
@@ -299,13 +403,9 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
       )}
 
       {/* Footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: `2px solid ${primaryColor}`, paddingTop: '8px', fontSize: '9px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: `2px solid ${colors.primary}`, paddingTop: '8px', fontSize: '9px' }}>
         <div>
-          {customFooterText ? (
-            <div style={{ fontWeight: 'bold' }}>{customFooterText}</div>
-          ) : (
-            <div style={{ fontWeight: 'bold' }}>Thank You for Your Business!</div>
-          )}
+          <div style={{ fontWeight: 'bold', color: colors.primary }}>{customFooterText || 'Thank You for Your Business!'}</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: 'bold' }}>Authorized Signatory</div>
