@@ -25,7 +25,7 @@ import {
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { customerMasterFields, customerMasterSampleData } from "@/utils/excelImportUtils";
+import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 
 interface Customer {
   id: string;
@@ -196,13 +196,13 @@ const CustomerMaster = () => {
     let errorCount = 0;
     let skippedCount = 0;
 
-    // Filter out empty rows (no phone)
+    // Filter out empty rows (no phone) and normalize phone numbers
     const validRows = mappedData.filter(row => {
-      const phone = row.phone?.toString().trim();
+      const phone = normalizePhoneNumber(row.phone);
       return phone && phone.length > 0;
     });
 
-    // Get existing phone numbers to check for duplicates
+    // Get existing phone numbers to check for duplicates (normalized)
     const { data: existingCustomers } = await supabase
       .from("customers")
       .select("phone")
@@ -210,7 +210,7 @@ const CustomerMaster = () => {
     
     const existingPhones = new Set(
       (existingCustomers || [])
-        .map(c => c.phone?.toString().trim().toLowerCase())
+        .map(c => normalizePhoneNumber(c.phone))
         .filter(Boolean)
     );
 
@@ -220,10 +220,10 @@ const CustomerMaster = () => {
       const customersToInsert: any[] = [];
 
       for (const row of batch) {
-        const phone = row.phone?.toString().trim();
+        const phone = normalizePhoneNumber(row.phone);
         
         // Skip duplicates
-        if (existingPhones.has(phone.toLowerCase())) {
+        if (existingPhones.has(phone)) {
           skippedCount++;
           continue;
         }
@@ -239,7 +239,7 @@ const CustomerMaster = () => {
         });
 
         // Add to existing set to prevent duplicates within same import
-        existingPhones.add(phone.toLowerCase());
+        existingPhones.add(phone);
       }
 
       if (customersToInsert.length > 0) {

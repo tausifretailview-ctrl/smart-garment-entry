@@ -1,5 +1,11 @@
 import * as XLSX from 'xlsx';
 
+// Normalize phone number by removing all non-numeric characters (spaces, dashes, parentheses, etc.)
+export const normalizePhoneNumber = (phone: string | number | null | undefined): string => {
+  if (!phone) return '';
+  return String(phone).replace(/\D/g, '');
+};
+
 export interface TargetField {
   key: string;
   label: string;
