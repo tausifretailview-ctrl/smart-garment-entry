@@ -170,7 +170,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*, products:product_id (brand, color, style))`)
+        .select(`*, sale_items (*)`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .order('created_at', { ascending: false });
