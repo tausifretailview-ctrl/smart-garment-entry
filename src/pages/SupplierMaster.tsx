@@ -25,6 +25,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
@@ -63,6 +64,7 @@ const SupplierMaster = () => {
   const location = useLocation();
   const returnTo = (location.state as any)?.returnTo;
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -153,6 +155,45 @@ const SupplierMaster = () => {
       toast({ title: "Error deleting supplier", description: error.message, variant: "destructive" });
     },
   });
+
+  const bulkDeleteSuppliers = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("suppliers").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      toast({ title: `${selectedSuppliers.size} suppliers deleted successfully` });
+      setSelectedSuppliers(new Set());
+    },
+    onError: (error) => {
+      toast({ title: "Error deleting suppliers", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedSuppliers(new Set(filteredSuppliers.map(s => s.id)));
+    } else {
+      setSelectedSuppliers(new Set());
+    }
+  };
+
+  const handleSelectSupplier = (supplierId: string, checked: boolean) => {
+    const newSelected = new Set(selectedSuppliers);
+    if (checked) {
+      newSelected.add(supplierId);
+    } else {
+      newSelected.delete(supplierId);
+    }
+    setSelectedSuppliers(newSelected);
+  };
+
+  const handleBulkDelete = () => {
+    if (confirm(`Are you sure you want to delete ${selectedSuppliers.size} suppliers?`)) {
+      bulkDeleteSuppliers.mutate(Array.from(selectedSuppliers));
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -427,12 +468,29 @@ const SupplierMaster = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="max-w-sm"
         />
+        {selectedSuppliers.size > 0 && (
+          <Button 
+            variant="destructive" 
+            size="sm" 
+            onClick={handleBulkDelete}
+            disabled={bulkDeleteSuppliers.isPending}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected ({selectedSuppliers.size})
+          </Button>
+        )}
       </div>
 
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox
+                  checked={filteredSuppliers.length > 0 && selectedSuppliers.size === filteredSuppliers.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="w-16">Sr No</TableHead>
               <TableHead>Supplier Name</TableHead>
               <TableHead>Contact Person</TableHead>
@@ -447,15 +505,21 @@ const SupplierMaster = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={10} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredSuppliers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">No suppliers found</TableCell>
+                <TableCell colSpan={10} className="text-center">No suppliers found</TableCell>
               </TableRow>
             ) : (
               filteredSuppliers.map((supplier, index) => (
                 <TableRow key={supplier.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedSuppliers.has(supplier.id)}
+                      onCheckedChange={(checked) => handleSelectSupplier(supplier.id, checked as boolean)}
+                    />
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
                   <TableCell>{supplier.contact_person || "-"}</TableCell>
