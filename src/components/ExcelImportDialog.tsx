@@ -18,11 +18,20 @@ import {
   RowValidationError,
 } from '@/utils/excelImportUtils';
 
+export interface ImportProgress {
+  current: number;
+  total: number;
+  successCount: number;
+  errorCount: number;
+  skippedCount: number;
+  isImporting: boolean;
+}
+
 interface ExcelImportDialogProps {
   open: boolean;
   onClose: () => void;
   targetFields: TargetField[];
-  onImport: (mappedData: Record<string, any>[]) => void;
+  onImport: (mappedData: Record<string, any>[], onProgress?: (progress: ImportProgress) => void) => Promise<void>;
   title: string;
   sampleData: Record<string, any>[];
   sampleFileName: string;
@@ -41,6 +50,7 @@ export const ExcelImportDialog = ({
   const [mappings, setMappings] = useState<Record<string, string | null>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
   const handleFileSelect = async (file: File) => {
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
@@ -152,7 +162,7 @@ export const ExcelImportDialog = ({
     return validateMappedData(mappedData, targetFields, mappings);
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!parsedData) return;
 
     const mappedData = applyMappings(parsedData.rows, mappings);
@@ -166,15 +176,36 @@ export const ExcelImportDialog = ({
       return;
     }
 
-    onImport(mappedData);
-    handleClose();
+    // Initialize progress
+    setImportProgress({
+      current: 0,
+      total: mappedData.length,
+      successCount: 0,
+      errorCount: 0,
+      skippedCount: 0,
+      isImporting: true,
+    });
+
+    try {
+      await onImport(mappedData, (progress) => {
+        setImportProgress(progress);
+      });
+      handleClose();
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Import failed');
+    } finally {
+      setImportProgress(null);
+    }
   };
 
   const validationResult = getValidationResult();
 
   const handleClose = () => {
+    if (importProgress?.isImporting) return; // Prevent closing during import
     setParsedData(null);
     setMappings({});
+    setImportProgress(null);
     onClose();
   };
 
@@ -353,11 +384,38 @@ export const ExcelImportDialog = ({
               )}
 
               {/* Validation Success */}
-              {validationResult && validationResult.valid && (
+              {validationResult && validationResult.valid && !importProgress && (
                 <div className="border border-green-500/50 bg-green-500/10 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-green-600 font-medium">
                     <Check className="h-4 w-4" />
                     All {validationResult.validRowCount} rows passed validation
+                  </div>
+                </div>
+              )}
+
+              {/* Import Progress */}
+              {importProgress && (
+                <div className="border border-primary/50 bg-primary/10 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-primary">Importing...</span>
+                    <span className="text-sm text-muted-foreground">
+                      {importProgress.current} / {importProgress.total}
+                    </span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                    <div 
+                      className="bg-primary h-full transition-all duration-300 ease-out"
+                      style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-green-600">✓ {importProgress.successCount} imported</span>
+                    {importProgress.skippedCount > 0 && (
+                      <span className="text-yellow-600">⊘ {importProgress.skippedCount} skipped (duplicates)</span>
+                    )}
+                    {importProgress.errorCount > 0 && (
+                      <span className="text-destructive">✕ {importProgress.errorCount} failed</span>
+                    )}
                   </div>
                 </div>
               )}
@@ -366,16 +424,29 @@ export const ExcelImportDialog = ({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose}>
+          <Button 
+            variant="outline" 
+            onClick={handleClose}
+            disabled={importProgress?.isImporting}
+          >
             Cancel
           </Button>
           {parsedData && (
             <Button 
               onClick={handleImport}
-              disabled={validationResult ? !validationResult.valid : false}
+              disabled={(validationResult ? !validationResult.valid : false) || importProgress?.isImporting}
             >
-              <Upload className="h-4 w-4 mr-2" />
-              Import {validationResult?.validRowCount || parsedData.rows.length} Rows
+              {importProgress?.isImporting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import {validationResult?.validRowCount || parsedData.rows.length} Rows
+                </>
+              )}
             </Button>
           )}
         </DialogFooter>
