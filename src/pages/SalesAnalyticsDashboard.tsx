@@ -264,6 +264,55 @@ export default function SalesAnalyticsDashboard() {
     return Array.from(statusMap.entries()).map(([name, value]) => ({ name, value }));
   }, [salesData]);
 
+  // Customer segmentation analysis
+  const customerSegmentation = useMemo(() => {
+    const sales = salesData || [];
+    const customerMap = new Map<string, { 
+      name: string; 
+      revenue: number; 
+      orders: number; 
+      customerId: string | null;
+    }>();
+
+    sales.forEach(sale => {
+      const key = sale.customer_id || sale.customer_name || "Walk-in";
+      const existing = customerMap.get(key) || { 
+        name: sale.customer_name || "Walk-in", 
+        revenue: 0, 
+        orders: 0,
+        customerId: sale.customer_id,
+      };
+      customerMap.set(key, {
+        ...existing,
+        revenue: existing.revenue + (sale.net_amount || 0),
+        orders: existing.orders + 1,
+      });
+    });
+
+    const customers = Array.from(customerMap.values()).map(c => ({
+      ...c,
+      avgOrderValue: c.orders > 0 ? c.revenue / c.orders : 0,
+    }));
+
+    // Top by revenue
+    const topByRevenue = [...customers]
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+
+    // Top by frequency
+    const topByFrequency = [...customers]
+      .sort((a, b) => b.orders - a.orders)
+      .slice(0, 10);
+
+    // Top by AOV (minimum 2 orders to qualify)
+    const topByAOV = [...customers]
+      .filter(c => c.orders >= 2)
+      .sort((a, b) => b.avgOrderValue - a.avgOrderValue)
+      .slice(0, 10);
+
+    return { topByRevenue, topByFrequency, topByAOV };
+  }, [salesData]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -429,9 +478,10 @@ export default function SalesAnalyticsDashboard() {
 
       {/* Charts Section */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="trends">Trends</TabsTrigger>
         </TabsList>
@@ -540,6 +590,134 @@ export default function SalesAnalyticsDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="customers" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Top Customers by Revenue */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <IndianRupee className="h-5 w-5 text-primary" />
+                  Top by Revenue
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {customerSegmentation.topByRevenue.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No customer data</p>
+                  ) : (
+                    customerSegmentation.topByRevenue.map((customer, index) => (
+                      <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium text-primary">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-foreground truncate max-w-[120px]">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{customer.orders} orders</p>
+                          </div>
+                        </div>
+                        <p className="font-semibold text-sm text-foreground">{formatCurrency(customer.revenue)}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Customers by Frequency */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5 text-chart-2" />
+                  Top by Frequency
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {customerSegmentation.topByFrequency.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No customer data</p>
+                  ) : (
+                    customerSegmentation.topByFrequency.map((customer, index) => (
+                      <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-chart-2/10 flex items-center justify-center text-sm font-medium text-chart-2">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-foreground truncate max-w-[120px]">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{formatCurrency(customer.revenue)}</p>
+                          </div>
+                        </div>
+                        <p className="font-semibold text-sm text-foreground">{customer.orders} orders</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Customers by AOV */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-chart-3" />
+                  Top by Avg Order Value
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {customerSegmentation.topByAOV.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">Min 2 orders required</p>
+                  ) : (
+                    customerSegmentation.topByAOV.map((customer, index) => (
+                      <div key={index} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 rounded-full bg-chart-3/10 flex items-center justify-center text-sm font-medium text-chart-3">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm text-foreground truncate max-w-[120px]">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{customer.orders} orders</p>
+                          </div>
+                        </div>
+                        <p className="font-semibold text-sm text-foreground">{formatCurrency(customer.avgOrderValue)}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Customer Revenue Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-chart-4" />
+                Customer Revenue Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={customerSegmentation.topByRevenue.slice(0, 8)}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="name" 
+                      className="text-xs" 
+                      tick={{ fill: "hsl(var(--muted-foreground))" }} 
+                      tickFormatter={(v) => v.substring(0, 10) + (v.length > 10 ? "..." : "")}
+                    />
+                    <YAxis className="text-xs" tick={{ fill: "hsl(var(--muted-foreground))" }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="revenue" name="Revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="payments" className="space-y-4">
