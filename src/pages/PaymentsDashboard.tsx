@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -428,7 +428,6 @@ Thank you for your business!`;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <BackToDashboard />
       
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">

@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send } from "lucide-react";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -760,7 +760,6 @@ export default function SalesInvoiceDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
-      <BackToDashboard />
       
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">

@@ -26,7 +26,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send } from "lucide-react";
 import { format } from "date-fns";
-import { BackToDashboard } from "@/components/BackToDashboard";
+
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useReactToPrint } from "react-to-print";
@@ -806,7 +806,6 @@ const POSDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-6">
-      <BackToDashboard />
       
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
