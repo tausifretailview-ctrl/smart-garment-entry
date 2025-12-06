@@ -126,9 +126,12 @@ export default function SalesInvoiceDashboard() {
         .from('settings')
         .select('*')
         .eq('organization_id', currentOrganization.id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching settings:', error);
+        return null;
+      }
       return data;
     },
     enabled: !!currentOrganization?.id,
@@ -160,7 +163,7 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const { data: invoicesData, isLoading, refetch } = useQuery({
+  const { data: invoicesData, isLoading, refetch, error: invoicesError } = useQuery({
     queryKey: ['invoices', currentOrganization?.id, searchQuery, deliveryFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
@@ -180,7 +183,11 @@ export default function SalesInvoiceDashboard() {
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching invoices:', error);
+        throw error;
+      }
+      console.log('Fetched invoices:', data?.length);
       return data || [];
     },
     enabled: !!currentOrganization?.id,
