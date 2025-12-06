@@ -889,7 +889,7 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
             notes={order.notes}
             shippingAddress={order.shipping_address}
             taxType={order.tax_type}
-            format="a5-vertical"
+            format={settings?.sale_settings?.bill_format === 'a5-horizontal' ? 'a5-horizontal' : settings?.sale_settings?.bill_format === 'a5' ? 'a5-vertical' : settings?.sale_settings?.bill_format || 'a4'}
             colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
           />
         </div>
