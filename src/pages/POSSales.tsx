@@ -1598,10 +1598,11 @@ export default function POSSales() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 p-2 md:p-4">
-        <div className="max-w-[1800px] mx-auto space-y-3">
-          {/* Header Section with Invoice Number */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Sticky Header Section - Barcode scanning bar stays fixed */}
+        <div className="sticky top-0 z-20 bg-background border-b shadow-sm p-2 md:p-4">
+          <div className="max-w-[1800px] mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <div className="relative">
@@ -1939,11 +1940,12 @@ export default function POSSales() {
             <div className="text-white text-xs">
               {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
             </div>
+            </div>
           </div>
         </div>
 
-        {/* Items Table */}
-        <div className="flex-1 overflow-hidden flex flex-col p-4 pb-0">
+        {/* Items Table - Scrollable Section */}
+        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-0">
           <Card className="flex-1 overflow-hidden flex flex-col mb-32">
             <div className="bg-black text-white overflow-x-auto">
               <div className="min-w-[1200px] grid gap-2 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 70px 100px 60px 70px 80px 100px 130px' }}>
