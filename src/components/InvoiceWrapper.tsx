@@ -176,7 +176,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const amountWithGrouping = props.amountWithGrouping ?? (settings?.sale_settings as any)?.amount_with_grouping ?? true;
     
     // Get wholesale mode settings - use prop overrides if provided for live preview
-    const enableWholesaleMode = props.enableWholesaleMode ?? (settings?.sale_settings as any)?.enable_wholesale_mode ?? false;
+    // Auto-enable wholesale mode when using modern-wholesale template
+    const enableWholesaleMode = props.enableWholesaleMode ?? (settings?.sale_settings as any)?.enable_wholesale_mode ?? (template === 'modern-wholesale');
     const sizeDisplayFormat = props.sizeDisplayFormat ?? (settings?.sale_settings as any)?.size_display_format ?? 'size/qty';
     const showProductColor = props.showProductColor ?? (settings?.sale_settings as any)?.show_product_color ?? true;
     const showProductBrand = props.showProductBrand ?? (settings?.sale_settings as any)?.show_product_brand ?? false;
