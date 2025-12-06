@@ -1478,6 +1478,7 @@ export type Database = {
           sale_number: string
           sale_return_adjust: number | null
           sale_type: string
+          salesman: string | null
           shipping_address: string | null
           shipping_instructions: string | null
           signed_qr_code: string | null
@@ -1522,6 +1523,7 @@ export type Database = {
           sale_number: string
           sale_return_adjust?: number | null
           sale_type: string
+          salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
           signed_qr_code?: string | null
@@ -1566,6 +1568,7 @@ export type Database = {
           sale_number?: string
           sale_return_adjust?: number | null
           sale_type?: string
+          salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
           signed_qr_code?: string | null

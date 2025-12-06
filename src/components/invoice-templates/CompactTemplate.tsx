@@ -40,6 +40,7 @@ interface CompactTemplateProps {
   invoiceTime?: string;
   customerName: string;
   customerMobile?: string;
+  salesman?: string;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -76,6 +77,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   invoiceTime,
   customerName,
   customerMobile,
+  salesman,
   items,
   subtotal,
   discount,
@@ -226,6 +228,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
           <strong>Bill No:</strong> {invoiceNumber}<br/>
           <strong>Customer:</strong> {customerName}
           {customerMobile && <><br/><strong>Mobile:</strong> {customerMobile}</>}
+          {salesman && <><br/><strong>Salesman:</strong> {salesman}</>}
         </div>
         <div style={{ textAlign: 'right' }}>
           <strong>Date:</strong> {formatDate(invoiceDate)}<br/>

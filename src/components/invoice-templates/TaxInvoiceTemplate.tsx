@@ -42,6 +42,7 @@ interface TaxInvoiceTemplateProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  salesman?: string;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -91,6 +92,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   customerAddress,
   customerMobile,
   customerGSTIN,
+  salesman,
   items,
   subtotal,
   discount,
@@ -264,7 +266,8 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
             <strong>{customerName}</strong><br/>
             {customerAddress && <>{customerAddress}<br/></>}
             {customerMobile && <>Phone: {customerMobile}<br/></>}
-            {customerGSTIN && <><strong>GSTIN:</strong> {customerGSTIN}</>}
+            {customerGSTIN && <><strong>GSTIN:</strong> {customerGSTIN}<br/></>}
+            {salesman && <><strong>Salesman:</strong> {salesman}</>}
           </div>
         </div>
       </div>

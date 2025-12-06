@@ -14,6 +14,7 @@ interface ModernTemplateProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  salesman?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -76,6 +77,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   customerAddress,
   customerMobile,
   customerGSTIN,
+  salesman,
   items,
   subtotal,
   discount,
@@ -260,6 +262,11 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             {customerGSTIN && (
               <div>
                 <strong>GSTIN:</strong> {customerGSTIN}
+              </div>
+            )}
+            {salesman && (
+              <div>
+                <strong>SALESMAN:</strong> {salesman}
               </div>
             )}
           </div>

@@ -46,6 +46,7 @@ interface ModernWholesaleTemplateProps {
   customerAddress?: string;
   customerMobile?: string;
   customerGSTIN?: string;
+  salesman?: string;
   shippingAddress?: string;
   items: WholesaleItem[];
   subtotal: number;
@@ -119,6 +120,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   customerAddress,
   customerMobile,
   customerGSTIN,
+  salesman,
   shippingAddress,
   items,
   subtotal,
@@ -396,6 +398,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             )}
             {customerGSTIN && (
               <div style={{ fontSize: '9pt', fontWeight: '500' }}>GSTIN: {customerGSTIN}</div>
+            )}
+            {salesman && (
+              <div style={{ fontSize: '9pt', fontWeight: '500', marginTop: '4px' }}>Salesman: {salesman}</div>
             )}
           </div>
 
