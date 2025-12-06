@@ -129,6 +129,13 @@ interface SaleSettings {
   show_product_color?: boolean;
   show_product_brand?: boolean;
   show_product_style?: boolean;
+  // Item Details Settings (for bill/dashboard display)
+  show_item_brand?: boolean;
+  show_item_color?: boolean;
+  show_item_style?: boolean;
+  show_item_barcode?: boolean;
+  show_item_hsn?: boolean;
+  show_item_mrp?: boolean;
   // E-Invoice Settings
   einvoice_settings?: EInvoiceSettings;
 }
@@ -1604,6 +1611,128 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">
                       Default format for POS printing (Thermal recommended)
                     </p>
+                  </div>
+                </div>
+
+                {/* Item Details Display Settings */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-lg font-semibold">Item Details Display</h3>
+                  <p className="text-sm text-muted-foreground">Configure which product fields to show on bills and dashboards</p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_brand"
+                        checked={(settings.sale_settings as any)?.show_item_brand ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_brand: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_brand" className="font-normal cursor-pointer">
+                        Brand
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_color"
+                        checked={(settings.sale_settings as any)?.show_item_color ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_color: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_color" className="font-normal cursor-pointer">
+                        Color
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_style"
+                        checked={(settings.sale_settings as any)?.show_item_style ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_style: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_style" className="font-normal cursor-pointer">
+                        Style
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_barcode"
+                        checked={(settings.sale_settings as any)?.show_item_barcode ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_barcode: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_barcode" className="font-normal cursor-pointer">
+                        Barcode
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_hsn"
+                        checked={(settings.sale_settings as any)?.show_item_hsn ?? false}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_hsn: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_hsn" className="font-normal cursor-pointer">
+                        HSN Code
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="show_item_mrp"
+                        checked={(settings.sale_settings as any)?.show_item_mrp ?? true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              show_item_mrp: checked as boolean,
+                            },
+                          })
+                        }
+                      />
+                      <Label htmlFor="show_item_mrp" className="font-normal cursor-pointer">
+                        MRP
+                      </Label>
+                    </div>
                   </div>
                 </div>
 

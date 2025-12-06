@@ -51,6 +51,10 @@ interface SaleItem {
   line_total: number;
   barcode: string;
   variant_id: string;
+  hsn_code?: string;
+  brand?: string;
+  color?: string;
+  style?: string;
 }
 
 interface Sale {
@@ -156,6 +160,14 @@ const POSDashboard = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Get item display settings from settings
+  const saleSettings = settings?.sale_settings as any;
+  const showItemBrand = saleSettings?.show_item_brand ?? false;
+  const showItemColor = saleSettings?.show_item_color ?? false;
+  const showItemStyle = saleSettings?.show_item_style ?? false;
+  const showItemBarcode = saleSettings?.show_item_barcode ?? false;
+  const showItemHsn = saleSettings?.show_item_hsn ?? false;
+  const showItemMrp = saleSettings?.show_item_mrp ?? true;
   useEffect(() => {
     const loadData = async () => {
       await fetchSales();
@@ -219,21 +231,27 @@ const POSDashboard = () => {
       if (error) throw error;
       setSales(data || []);
       
-      // Fetch all sale items upfront for quantity calculation
+      // Fetch all sale items upfront for quantity calculation - include product details
       if (data && data.length > 0) {
         const saleIds = data.map(sale => sale.id);
         const { data: itemsData, error: itemsError } = await supabase
           .from("sale_items")
-          .select("*")
+          .select("*, products:product_id (brand, color, style)")
           .in("sale_id", saleIds);
         
         if (!itemsError && itemsData) {
           const itemsBySale: Record<string, SaleItem[]> = {};
-          itemsData.forEach(item => {
+          itemsData.forEach((item: any) => {
             if (!itemsBySale[item.sale_id]) {
               itemsBySale[item.sale_id] = [];
             }
-            itemsBySale[item.sale_id].push(item);
+            // Merge product details into item
+            itemsBySale[item.sale_id].push({
+              ...item,
+              brand: item.products?.brand,
+              color: item.products?.color,
+              style: item.products?.style,
+            });
           });
           setSaleItems(itemsBySale);
         }
@@ -255,12 +273,17 @@ const POSDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("sale_items")
-        .select("*")
+        .select("*, products:product_id (brand, color, style)")
         .eq("sale_id", saleId);
 
       if (error) throw error;
 
-      const items = data || [];
+      const items = (data || []).map((item: any) => ({
+        ...item,
+        brand: item.products?.brand,
+        color: item.products?.color,
+        style: item.products?.style,
+      }));
       setSaleItems((prev) => ({ ...prev, [saleId]: items }));
       return items;
     } catch (error: any) {
@@ -1247,9 +1270,14 @@ const POSDashboard = () => {
                                         <TableHeader>
                                           <TableRow>
                                             <TableHead>Product</TableHead>
+                                            {showItemBrand && <TableHead>Brand</TableHead>}
+                                            {showItemColor && <TableHead>Color</TableHead>}
+                                            {showItemStyle && <TableHead>Style</TableHead>}
                                             <TableHead>Size</TableHead>
+                                            {showItemBarcode && <TableHead>Barcode</TableHead>}
+                                            {showItemHsn && <TableHead>HSN</TableHead>}
                                             <TableHead>Quantity</TableHead>
-                                            <TableHead>MRP</TableHead>
+                                            {showItemMrp && <TableHead>MRP</TableHead>}
                                             <TableHead>Unit Price</TableHead>
                                             <TableHead>Discount</TableHead>
                                             <TableHead>GST</TableHead>
@@ -1260,9 +1288,14 @@ const POSDashboard = () => {
                                           {saleItems[sale.id].map((item) => (
                                             <TableRow key={item.id}>
                                               <TableCell>{item.product_name}</TableCell>
+                                              {showItemBrand && <TableCell>{item.brand || '-'}</TableCell>}
+                                              {showItemColor && <TableCell>{item.color || '-'}</TableCell>}
+                                              {showItemStyle && <TableCell>{item.style || '-'}</TableCell>}
                                               <TableCell>{item.size}</TableCell>
+                                              {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
-                                              <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
+                                              {showItemMrp && <TableCell>₹{item.mrp.toFixed(2)}</TableCell>}
                                               <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
                                               <TableCell>{item.discount_percent}%</TableCell>
                                               <TableCell>{item.gst_percent}%</TableCell>
