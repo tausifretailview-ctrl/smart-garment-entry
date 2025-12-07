@@ -96,6 +96,11 @@ interface LabelFieldConfig {
   paddingBottom?: number;
   paddingLeft?: number;
   paddingRight?: number;
+  x?: number; // X position in mm (optional for backward compatibility)
+  y?: number; // Y position in mm (optional for backward compatibility)
+  width?: number; // Width as percentage (optional for backward compatibility)
+  lineHeight?: number;
+  row?: number;
 }
 
 interface LabelDesignConfig {
@@ -183,17 +188,17 @@ const builtInLabelTemplates: LabelTemplate[] = [
   {
     name: "Thermal - Classic",
     config: {
-      brand: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
-      productName: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      style: { show: true, fontSize: 8, bold: false, textAlign: 'left' },
-      size: { show: true, fontSize: 10, bold: true, textAlign: 'right' },
-      price: { show: true, fontSize: 11, bold: true, textAlign: 'center' },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
-      barcodeText: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
-      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      brand: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
+      productName: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 8, width: 50 },
+      style: { show: true, fontSize: 8, bold: false, textAlign: 'left', x: 0, y: 8, width: 50 },
+      size: { show: true, fontSize: 10, bold: true, textAlign: 'right', x: 25, y: 8, width: 50 },
+      price: { show: true, fontSize: 11, bold: true, textAlign: 'center', x: 0, y: 12, width: 100 },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 16, width: 100 },
+      barcodeText: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
+      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 50 },
+      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 27, width: 50 },
       fieldOrder: ['brand', 'style', 'size', 'price', 'barcode', 'barcodeText', 'productName', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 25,
       barcodeWidth: 1.5,
@@ -202,17 +207,17 @@ const builtInLabelTemplates: LabelTemplate[] = [
   {
     name: "Thermal - Minimal",
     config: {
-      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
-      productName: { show: false, fontSize: 8, bold: true, textAlign: 'center' },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      style: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      size: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
-      price: { show: true, fontSize: 12, bold: true, textAlign: 'center' },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
-      barcodeText: { show: true, fontSize: 8, bold: true, textAlign: 'center' },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
-      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
+      productName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
+      style: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
+      size: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      price: { show: true, fontSize: 12, bold: true, textAlign: 'center', x: 0, y: 8, width: 100 },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
+      barcodeText: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 20, width: 100 },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
+      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
+      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
       fieldOrder: ['brand', 'size', 'price', 'barcode', 'barcodeText', 'productName', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 28,
       barcodeWidth: 1.6,
@@ -221,17 +226,17 @@ const builtInLabelTemplates: LabelTemplate[] = [
   {
     name: "Thermal - With Code",
     config: {
-      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
-      productName: { show: true, fontSize: 8, bold: true, textAlign: 'center' },
-      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
-      style: { show: true, fontSize: 7, bold: false, textAlign: 'center' },
-      size: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
-      price: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
-      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
-      barcodeText: { show: true, fontSize: 7, bold: false, textAlign: 'center' },
-      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
-      supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center' },
-      purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center' },
+      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
+      productName: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
+      style: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
+      size: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 8, width: 50 },
+      price: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 25, y: 8, width: 50 },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 12, width: 100 },
+      barcodeText: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 20, width: 100 },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
+      supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 50 },
+      purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 25, y: 24, width: 50 },
       fieldOrder: ['brand', 'productName', 'style', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
       barcodeHeight: 22,
       barcodeWidth: 1.4,
@@ -981,17 +986,17 @@ export default function BarcodePrinting() {
   
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
-    brand: { show: true, fontSize: 8, bold: true },
-    productName: { show: true, fontSize: 8, bold: true },
-    color: { show: false, fontSize: 7, bold: false },
-    style: { show: false, fontSize: 7, bold: false },
-    size: { show: true, fontSize: 8, bold: false },
-    price: { show: true, fontSize: 8, bold: true },
-    barcode: { show: true, fontSize: 8, bold: false },
-    barcodeText: { show: true, fontSize: 7, bold: false },
-    billNumber: { show: false, fontSize: 6, bold: false },
-    supplierCode: { show: true, fontSize: 7, bold: false },
-    purchaseCode: { show: false, fontSize: 7, bold: false },
+    brand: { show: true, fontSize: 8, bold: true, x: 0, y: 0, width: 100 },
+    productName: { show: true, fontSize: 8, bold: true, x: 0, y: 4, width: 100 },
+    color: { show: false, fontSize: 7, bold: false, x: 25, y: 8, width: 50 },
+    style: { show: false, fontSize: 7, bold: false, x: 0, y: 8, width: 50 },
+    size: { show: true, fontSize: 8, bold: false, x: 0, y: 8, width: 50 },
+    price: { show: true, fontSize: 8, bold: true, x: 25, y: 8, width: 50 },
+    barcode: { show: true, fontSize: 8, bold: false, x: 0, y: 12, width: 100 },
+    barcodeText: { show: true, fontSize: 7, bold: false, x: 0, y: 20, width: 100 },
+    billNumber: { show: false, fontSize: 6, bold: false, x: 0, y: 27, width: 100 },
+    supplierCode: { show: true, fontSize: 7, bold: false, x: 0, y: 24, width: 50 },
+    purchaseCode: { show: false, fontSize: 7, bold: false, x: 25, y: 24, width: 50 },
     fieldOrder: ['brand', 'productName', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
