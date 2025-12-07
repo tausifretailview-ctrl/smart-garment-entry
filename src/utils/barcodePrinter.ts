@@ -23,6 +23,11 @@ interface LabelFieldConfig {
   fontSize: number;
   bold: boolean;
   textAlign?: 'left' | 'center' | 'right';
+  x?: number; // X position in mm
+  y?: number; // Y position in mm
+  width?: number; // Width as percentage
+  height?: number; // Height in mm
+  lineHeight?: number;
 }
 
 interface LabelConfig {
@@ -73,13 +78,96 @@ const sheetPresets: Record<string, { cols: number; width: string; height: string
   thermal_38x25_2up: { cols: 2, width: "38mm", height: "25mm", gap: "2mm", thermal: true },
 };
 
-const getLabelHTML = (
+// Check if config has absolute positioning (x/y defined)
+const hasAbsolutePositioning = (config: LabelConfig): boolean => {
+  const fields = ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'];
+  return fields.some(fieldKey => {
+    const field = config[fieldKey as keyof LabelConfig] as LabelFieldConfig | undefined;
+    return field && (field.x !== undefined || field.y !== undefined);
+  });
+};
+
+// Generate HTML for absolute positioned label (matching designer)
+const getAbsolutePositionedLabelHTML = (
+  item: BarcodeItem,
+  labelConfig: LabelConfig,
+  labelWidthMm: number,
+  labelHeightMm: number
+): string => {
+  const fieldMap: Record<string, { content: string; key: string }> = {
+    brand: { content: item.brand || '', key: 'brand' },
+    productName: { content: item.product_name || '', key: 'productName' },
+    color: { content: item.color || '', key: 'color' },
+    style: { content: item.style || '', key: 'style' },
+    size: { content: item.size || '', key: 'size' },
+    price: { content: `₹${item.sale_price}`, key: 'price' },
+    barcode: { content: item.barcode, key: 'barcode' },
+    barcodeText: { content: item.barcode, key: 'barcodeText' },
+    billNumber: { content: item.bill_number || '', key: 'billNumber' },
+    supplierCode: { content: item.supplier_code || '', key: 'supplierCode' },
+    purchaseCode: { content: item.purchase_code || '', key: 'purchaseCode' },
+  };
+
+  let fieldsHtml = '';
+
+  Object.entries(fieldMap).forEach(([fieldKey, { content, key }]) => {
+    const field = labelConfig[fieldKey as keyof LabelConfig] as LabelFieldConfig | undefined;
+    if (!field || !field.show || !content) return;
+
+    const x = field.x ?? 0;
+    const y = field.y ?? 0;
+    const widthPercent = field.width ?? 100;
+    const widthMm = (widthPercent / 100) * labelWidthMm;
+    const heightStyle = field.height ? `height: ${field.height}mm;` : '';
+
+    if (fieldKey === 'barcode') {
+      // Barcode SVG
+      fieldsHtml += `
+        <div style="
+          position: absolute;
+          left: ${x}mm;
+          top: ${y}mm;
+          width: ${widthMm}mm;
+          ${heightStyle}
+          display: flex;
+          justify-content: ${field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center'};
+          align-items: center;
+        ">
+          <svg class="barcode" data-code="${content}" style="height: ${(labelConfig.barcodeHeight || 20) * 0.35}mm; max-width: 100%;"></svg>
+        </div>
+      `;
+    } else {
+      // Text field
+      fieldsHtml += `
+        <div style="
+          position: absolute;
+          left: ${x}mm;
+          top: ${y}mm;
+          width: ${widthMm}mm;
+          ${heightStyle}
+          font-size: ${field.fontSize}px;
+          font-weight: ${field.bold ? 'bold' : 'normal'};
+          text-align: ${field.textAlign || 'center'};
+          line-height: ${field.lineHeight || 1.1};
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        ">${content}</div>
+      `;
+    }
+  });
+
+  return fieldsHtml;
+};
+
+// Legacy flow-based layout
+const getLegacyLabelHTML = (
   item: BarcodeItem,
   labelConfig?: LabelConfig
 ): string => {
   const barcode = item.barcode;
   
-  // Use default config if not provided, with fallbacks for missing fields
+  // Use default config if not provided
   const defaultConfig = {
     brand: { show: false, fontSize: 8, bold: true, textAlign: 'center' as const },
     productName: { show: true, fontSize: 11, bold: true, textAlign: 'center' as const },
@@ -95,7 +183,6 @@ const getLabelHTML = (
     fieldOrder: []
   };
   
-  // Merge with defaults to handle old templates missing purchaseCode config
   const config = labelConfig ? {
     ...defaultConfig,
     ...labelConfig,
@@ -105,17 +192,14 @@ const getLabelHTML = (
   
   let html = '';
   
-  // Add business name at the top if provided
   if (item.business_name) {
     html += `<div class="business-name" style="font-size: 8px; font-weight: bold; margin-bottom: 2mm; text-align: ${config.supplierCode.textAlign || 'center'};">${item.business_name}</div>`;
   }
   
-  // Supplier Code
   if (config.supplierCode.show && item.supplier_code) {
     html += `<div class="supplier-code" style="font-size: ${config.supplierCode.fontSize}px; font-weight: ${config.supplierCode.bold ? 'bold' : 'normal'}; margin-bottom: 1mm; text-align: ${config.supplierCode.textAlign || 'center'}; color: #666;">Supplier: ${item.supplier_code}</div>`;
   }
   
-  // Product Description: ProductName - Category - Brand - Style - Color - Size
   if (config.productName.show) {
     const descParts = [item.product_name];
     if (item.category) descParts.push(item.category);
@@ -133,10 +217,8 @@ const getLabelHTML = (
   if (config.barcode.show) {
     html += `<svg class="barcode" data-code="${barcode}" style="margin-bottom: 2mm;"></svg>`;
   }
-  // Always show barcode text (number)
   html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; text-align: ${config.barcodeText.textAlign || 'center'}; margin-bottom: 1mm;">${barcode}</div>`;
   
-  // Purchase Code
   if (config.purchaseCode.show && item.purchase_code) {
     html += `<div class="purchase-code" style="font-size: ${config.purchaseCode.fontSize}px; font-weight: ${config.purchaseCode.bold ? 'bold' : 'normal'}; text-align: ${config.purchaseCode.textAlign || 'center'}; margin-bottom: 1mm; color: #666;">Code: ${item.purchase_code}</div>`;
   }
@@ -160,11 +242,9 @@ export const printBarcodesDirectly = async (
     customDimensions,
   } = options;
 
-  // Determine if this is a thermal print
   const isThermal = sheetType.startsWith('thermal_');
   const preset = sheetPresets[sheetType];
 
-  // Open a dedicated print window so the preview is never blank
   const printWindow = window.open('', '_blank', 'width=1024,height=768');
   if (!printWindow) {
     throw new Error('Unable to open print window for barcode printing');
@@ -195,13 +275,10 @@ export const printBarcodesDirectly = async (
       }
     : preset || sheetPresets['a4_12x4'];
 
-  // Calculate dimensions for thermal vs A4
   const labelWidth = parseFloat(dimensions.width);
   const labelHeight = parseFloat(dimensions.height);
   const gapValue = parseFloat(dimensions.gap);
   
-  // For thermal: page width = (labelWidth * cols) + gap * (cols-1)
-  // For A4: fixed 210mm width
   const pageWidth = isThermal 
     ? (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1))
     : 210;
@@ -212,10 +289,12 @@ export const printBarcodesDirectly = async (
     padding: 0;
   `;
 
-  // Calculate actual content height
   const labelCount = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const rows = Math.ceil(labelCount / dimensions.cols);
   const contentHeight = (rows * labelHeight) + ((rows - 1) * gapValue) + topOffset + 10;
+
+  // Check if using absolute positioning
+  const useAbsolutePositioning = labelConfig && hasAbsolutePositioning(labelConfig);
 
   const style = doc.createElement('style');
   style.textContent = `
@@ -227,15 +306,18 @@ export const printBarcodesDirectly = async (
     }
     .label-cell {
       border: ${isThermal ? 'none' : '1px solid #ddd'};
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 0.5mm 1.5mm;
+      ${useAbsolutePositioning ? 'position: relative;' : `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      `}
+      padding: ${useAbsolutePositioning ? '0' : '0.5mm 1.5mm'};
       box-sizing: border-box;
       page-break-inside: avoid;
       line-height: 1.4;
+      overflow: hidden;
     }
     .label-grid {
       page-break-inside: avoid !important;
@@ -267,6 +349,7 @@ export const printBarcodesDirectly = async (
 
   doc.head.appendChild(style);
   doc.body.appendChild(printContainer);
+  
   try {
     const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';
@@ -280,20 +363,25 @@ export const printBarcodesDirectly = async (
       ${isThermal ? 'margin: 0;' : ''}
     `;
 
-    // Generate label cells
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
       for (let i = 0; i < qty; i++) {
         const cell = doc.createElement('div');
         cell.className = 'label-cell';
-        cell.innerHTML = getLabelHTML(item, labelConfig);
+        cell.style.width = dimensions.width;
+        cell.style.height = dimensions.height;
+        
+        if (useAbsolutePositioning && labelConfig) {
+          cell.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
+        } else {
+          cell.innerHTML = getLegacyLabelHTML(item, labelConfig);
+        }
         gridDiv.appendChild(cell);
       }
     });
 
     printContainer.appendChild(gridDiv);
 
-    // Wait for JsBarcode library to load, then render barcodes
     await new Promise((resolve) => {
       const checkJsBarcode = () => {
         if ((printWindow as any).JsBarcode) {
@@ -322,25 +410,20 @@ export const printBarcodesDirectly = async (
           });
           resolve(true);
         } else {
-          // Retry after 100ms if JsBarcode isn't loaded yet
           setTimeout(checkJsBarcode, 100);
         }
       };
-      // Start checking after a short delay to allow script loading
       setTimeout(checkJsBarcode, 300);
     });
 
-    // Trigger print dialog after barcodes are rendered
     setTimeout(() => {
       printWindow.focus();
       printWindow.print();
-      // Close the helper window shortly after print to keep UX clean
       setTimeout(() => {
         printWindow.close();
       }, 500);
     }, 300);
   } catch (error) {
-    // If anything goes wrong, make sure the window is closed and rethrow
     try {
       printWindow.close();
     } catch {}
