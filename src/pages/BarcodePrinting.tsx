@@ -145,43 +145,129 @@ interface LabelTemplate {
   config: LabelDesignConfig;
 }
 
-type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | 
-  "thermal_50x30_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" |
-  "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" | "custom";
+type SheetType = 
+  // A4 Sheet Types
+  "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "a4_65sheet" | "a4_32sheet" | 
+  "a4_24sheet" | "a4_20sheet" | "a4_35square" | "a4_21sheet" | "a4_80sheet" | "a4_36sheet" |
+  // Thermal 1UP Types
+  "thermal_50x30_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" | 
+  "thermal_40x20_1up" | "thermal_40x30_1up" | "thermal_50x40_1up" |
+  "thermal_60x30_1up" | "thermal_60x40_1up" | "thermal_100x50_1up" | 
+  "thermal_75x50_1up" | "thermal_100x100_1up" | "thermal_80x40_1up" |
+  // Thermal 2UP Types
+  "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" |
+  "thermal_40x20_2up" | "thermal_40x30_2up" | "thermal_60x30_2up" | 
+  "thermal_60x40_2up" | "thermal_75x50_2up" |
+  // Custom
+  "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
-  // A4 Sheet Presets
+  // ===== A4 Sheet Presets =====
+  // Small Labels
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm", category: "a4" },
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm", category: "a4" },
+  a4_80sheet: { cols: 10, width: "26mm", height: "14mm", gap: "0.5mm", category: "a4" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm", category: "a4" },
+  a4_65sheet: { cols: 5, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
+  
+  // Medium Labels
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm", category: "a4" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
-  // Thermal Roll Presets (1UP - Single Column)
-  thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
-  thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
+  a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
+  a4_32sheet: { cols: 4, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
+  a4_35square: { cols: 5, width: "35mm", height: "35mm", gap: "2mm", category: "a4" },
+  
+  // Large Labels
+  a4_24sheet: { cols: 3, width: "70mm", height: "35mm", gap: "1mm", category: "a4" },
+  a4_21sheet: { cols: 3, width: "63.5mm", height: "38.1mm", gap: "1mm", category: "a4" },
+  a4_20sheet: { cols: 2, width: "100mm", height: "50mm", gap: "1mm", category: "a4" },
+
+  // ===== Thermal Roll Presets (1UP - Single Column) =====
+  // Extra Small
+  thermal_40x20_1up: { cols: 1, width: "40mm", height: "20mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_40x30_1up: { cols: 1, width: "40mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
   thermal_38x25_1up: { cols: 1, width: "38mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
-  // Thermal Roll Presets (2UP - Two Columns)
-  thermal_50x30_2up: { cols: 2, width: "50mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
-  thermal_50x25_2up: { cols: 2, width: "50mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
+  
+  // Small
+  thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_50x40_1up: { cols: 1, width: "50mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
+  
+  // Medium
+  thermal_60x30_1up: { cols: 1, width: "60mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_60x40_1up: { cols: 1, width: "60mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_75x50_1up: { cols: 1, width: "75mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_80x40_1up: { cols: 1, width: "80mm", height: "40mm", gap: "0mm", category: "thermal", thermal: true },
+  
+  // Large / Shipping
+  thermal_100x50_1up: { cols: 1, width: "100mm", height: "50mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_100x100_1up: { cols: 1, width: "100mm", height: "100mm", gap: "0mm", category: "thermal", thermal: true },
+
+  // ===== Thermal Roll Presets (2UP - Two Columns) =====
+  thermal_40x20_2up: { cols: 2, width: "40mm", height: "20mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_40x30_2up: { cols: 2, width: "40mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
   thermal_38x25_2up: { cols: 2, width: "38mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_50x25_2up: { cols: 2, width: "50mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_50x30_2up: { cols: 2, width: "50mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_60x30_2up: { cols: 2, width: "60mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_60x40_2up: { cols: 2, width: "60mm", height: "40mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_75x50_2up: { cols: 2, width: "75mm", height: "50mm", gap: "2mm", category: "thermal", thermal: true },
+
   // Custom
   custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm", category: "custom" },
 };
 
-// Sheet preset labels for UI
-const sheetPresetLabels: Record<string, { label: string; description: string }> = {
-  novajet48: { label: "Novajet 48", description: "33×19mm, 8 cols" },
-  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8" },
-  novajet65: { label: "Novajet 65", description: "38×21mm, 5 cols" },
-  a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12" },
-  thermal_50x30_1up: { label: "50×30mm (1UP)", description: "Single column thermal" },
-  thermal_50x25_1up: { label: "50×25mm (1UP)", description: "Single column thermal" },
-  thermal_38x25_1up: { label: "38×25mm (1UP)", description: "Single column thermal" },
-  thermal_50x30_2up: { label: "50×30mm (2UP)", description: "Two column thermal" },
-  thermal_50x25_2up: { label: "50×25mm (2UP)", description: "Two column thermal" },
-  thermal_38x25_2up: { label: "38×25mm (2UP)", description: "Two column thermal" },
-  custom: { label: "Custom", description: "Set your own dimensions" },
+// Sheet preset labels for UI with grouping
+const sheetPresetLabels: Record<string, { label: string; description: string; group: string }> = {
+  // A4 Sheets - Small
+  novajet48: { label: "Novajet 48", description: "33×19mm, 8 cols", group: "A4 - Small Labels" },
+  a4_80sheet: { label: "A4 80-Sheet", description: "26×14mm, 10 cols (tiny)", group: "A4 - Small Labels" },
+  novajet65: { label: "Novajet 65", description: "38×21mm, 5 cols", group: "A4 - Small Labels" },
+  a4_65sheet: { label: "A4 65-Sheet", description: "38×22mm, 5 cols (shelf)", group: "A4 - Small Labels" },
+  
+  // A4 Sheets - Medium
+  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8", group: "A4 - Medium Labels" },
+  a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12", group: "A4 - Medium Labels" },
+  a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
+  a4_32sheet: { label: "A4 32-Sheet", description: "52×30mm, 4×8 (retail)", group: "A4 - Medium Labels" },
+  a4_35square: { label: "A4 35-Square", description: "35×35mm, 5×7 (square)", group: "A4 - Medium Labels" },
+  
+  // A4 Sheets - Large
+  a4_24sheet: { label: "A4 24-Sheet", description: "70×35mm, 3×8 (warehouse)", group: "A4 - Large Labels" },
+  a4_21sheet: { label: "A4 21-Sheet", description: "63.5×38.1mm, 3×7 (address)", group: "A4 - Large Labels" },
+  a4_20sheet: { label: "A4 20-Sheet", description: "100×50mm, 2×10 (shipping)", group: "A4 - Large Labels" },
+  
+  // Thermal 1UP - Small
+  thermal_40x20_1up: { label: "40×20mm (1UP)", description: "Jewelry/small items", group: "Thermal 1UP - Small" },
+  thermal_38x25_1up: { label: "38×25mm (1UP)", description: "Compact retail", group: "Thermal 1UP - Small" },
+  thermal_40x30_1up: { label: "40×30mm (1UP)", description: "Small retail", group: "Thermal 1UP - Small" },
+  thermal_50x25_1up: { label: "50×25mm (1UP)", description: "Standard small", group: "Thermal 1UP - Small" },
+  thermal_50x30_1up: { label: "50×30mm (1UP)", description: "Standard retail", group: "Thermal 1UP - Small" },
+  
+  // Thermal 1UP - Medium
+  thermal_50x40_1up: { label: "50×40mm (1UP)", description: "Detailed info", group: "Thermal 1UP - Medium" },
+  thermal_60x30_1up: { label: "60×30mm (1UP)", description: "Wide format", group: "Thermal 1UP - Medium" },
+  thermal_60x40_1up: { label: "60×40mm (1UP)", description: "Large detailed", group: "Thermal 1UP - Medium" },
+  thermal_75x50_1up: { label: "75×50mm (1UP)", description: "Medium shipping", group: "Thermal 1UP - Medium" },
+  thermal_80x40_1up: { label: "80×40mm (1UP)", description: "Wide shipping", group: "Thermal 1UP - Medium" },
+  
+  // Thermal 1UP - Large
+  thermal_100x50_1up: { label: "100×50mm (1UP)", description: "Shipping label", group: "Thermal 1UP - Large" },
+  thermal_100x100_1up: { label: "100×100mm (1UP)", description: "Large shipping", group: "Thermal 1UP - Large" },
+  
+  // Thermal 2UP
+  thermal_40x20_2up: { label: "40×20mm (2UP)", description: "Dual small", group: "Thermal 2UP" },
+  thermal_40x30_2up: { label: "40×30mm (2UP)", description: "Dual compact", group: "Thermal 2UP" },
+  thermal_38x25_2up: { label: "38×25mm (2UP)", description: "Dual compact", group: "Thermal 2UP" },
+  thermal_50x25_2up: { label: "50×25mm (2UP)", description: "Dual standard", group: "Thermal 2UP" },
+  thermal_50x30_2up: { label: "50×30mm (2UP)", description: "Dual retail", group: "Thermal 2UP" },
+  thermal_60x30_2up: { label: "60×30mm (2UP)", description: "Dual wide", group: "Thermal 2UP" },
+  thermal_60x40_2up: { label: "60×40mm (2UP)", description: "Dual large", group: "Thermal 2UP" },
+  thermal_75x50_2up: { label: "75×50mm (2UP)", description: "Dual shipping", group: "Thermal 2UP" },
+  
+  // Custom
+  custom: { label: "Custom Size", description: "Set your own dimensions", group: "Custom" },
 };
 
 // Built-in label templates for thermal printers
@@ -2968,23 +3054,58 @@ export default function BarcodePrinting() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50 max-h-[400px]">
-                  {/* A4 Sheet Presets */}
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📄 A4 Sheet Labels</div>
+                  {/* A4 Sheet Presets - Small */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📄 A4 - Small Labels</div>
+                  <SelectItem value="a4_80sheet">A4 80-Sheet (26×14mm, tiny)</SelectItem>
                   <SelectItem value="novajet48">Novajet 48 (33×19mm, 8 cols)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (39×35mm, 5×8)</SelectItem>
                   <SelectItem value="novajet65">Novajet 65 (38×21mm, 5 cols)</SelectItem>
+                  <SelectItem value="a4_65sheet">A4 65-Sheet (38×22mm, shelf)</SelectItem>
+                  
+                  {/* A4 Sheet Presets - Medium */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Medium Labels</div>
                   <SelectItem value="a4_12x4">A4 48-Sheet (50×24mm, 4×12)</SelectItem>
+                  <SelectItem value="a4_36sheet">A4 36-Sheet (48×30mm, 4×9)</SelectItem>
+                  <SelectItem value="a4_32sheet">A4 32-Sheet (52×30mm, retail)</SelectItem>
+                  <SelectItem value="a4_35square">A4 35-Square (35×35mm, square)</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (39×35mm, 5×8)</SelectItem>
                   
-                  {/* Thermal Roll Presets */}
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal Printer (1UP)</div>
-                  <SelectItem value="thermal_50x30_1up">50×30mm (1UP) - Single Column</SelectItem>
-                  <SelectItem value="thermal_50x25_1up">50×25mm (1UP) - Single Column</SelectItem>
-                  <SelectItem value="thermal_38x25_1up">38×25mm (1UP) - Single Column</SelectItem>
+                  {/* A4 Sheet Presets - Large */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">📄 A4 - Large Labels</div>
+                  <SelectItem value="a4_24sheet">A4 24-Sheet (70×35mm, warehouse)</SelectItem>
+                  <SelectItem value="a4_21sheet">A4 21-Sheet (63.5×38.1mm, address)</SelectItem>
+                  <SelectItem value="a4_20sheet">A4 20-Sheet (100×50mm, shipping)</SelectItem>
                   
-                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal Printer (2UP)</div>
-                  <SelectItem value="thermal_50x30_2up">50×30mm (2UP) - Two Column</SelectItem>
-                  <SelectItem value="thermal_50x25_2up">50×25mm (2UP) - Two Column</SelectItem>
-                  <SelectItem value="thermal_38x25_2up">38×25mm (2UP) - Two Column</SelectItem>
+                  {/* Thermal Roll Presets - 1UP Small */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Small</div>
+                  <SelectItem value="thermal_40x20_1up">40×20mm (jewelry/small)</SelectItem>
+                  <SelectItem value="thermal_38x25_1up">38×25mm (compact)</SelectItem>
+                  <SelectItem value="thermal_40x30_1up">40×30mm (small retail)</SelectItem>
+                  <SelectItem value="thermal_50x25_1up">50×25mm (standard)</SelectItem>
+                  <SelectItem value="thermal_50x30_1up">50×30mm (retail)</SelectItem>
+                  
+                  {/* Thermal Roll Presets - 1UP Medium */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Medium</div>
+                  <SelectItem value="thermal_50x40_1up">50×40mm (detailed)</SelectItem>
+                  <SelectItem value="thermal_60x30_1up">60×30mm (wide)</SelectItem>
+                  <SelectItem value="thermal_60x40_1up">60×40mm (large)</SelectItem>
+                  <SelectItem value="thermal_75x50_1up">75×50mm (medium shipping)</SelectItem>
+                  <SelectItem value="thermal_80x40_1up">80×40mm (wide shipping)</SelectItem>
+                  
+                  {/* Thermal Roll Presets - 1UP Large */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 1UP - Large</div>
+                  <SelectItem value="thermal_100x50_1up">100×50mm (shipping)</SelectItem>
+                  <SelectItem value="thermal_100x100_1up">100×100mm (large shipping)</SelectItem>
+                  
+                  {/* Thermal Roll Presets - 2UP */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal 2UP (Dual Column)</div>
+                  <SelectItem value="thermal_40x20_2up">40×20mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_40x30_2up">40×30mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_38x25_2up">38×25mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_50x25_2up">50×25mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_50x30_2up">50×30mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_60x30_2up">60×30mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_60x40_2up">60×40mm (2UP)</SelectItem>
+                  <SelectItem value="thermal_75x50_2up">75×50mm (2UP)</SelectItem>
                   
                   {/* Custom */}
                   <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">⚙️ Custom</div>
