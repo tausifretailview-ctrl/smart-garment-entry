@@ -297,7 +297,7 @@ export default function Accounts() {
         .from("voucher_entries")
         .select("*")
         .eq("organization_id", currentOrganization?.id)
-        .eq("voucher_type", "receipt")
+        .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
         .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
         .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
 
@@ -383,7 +383,7 @@ export default function Accounts() {
   // Calculate dashboard metrics
   const dashboardMetrics = {
     totalReceivables: vouchers
-      ?.filter((v) => v.reference_type === "customer" && v.voucher_type === "receipt")
+      ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
       .reduce((sum, v) => sum + Number(v.total_amount), 0) || 0,
     
     totalPayables: vouchers
@@ -988,7 +988,7 @@ export default function Accounts() {
                   </TableHeader>
                   <TableBody>
                     {vouchers
-                      ?.filter((v) => v.reference_type === "customer" && v.voucher_type === "receipt")
+                      ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
                       .slice(0, 10)
                       .map((voucher) => (
                         <TableRow key={voucher.id}>

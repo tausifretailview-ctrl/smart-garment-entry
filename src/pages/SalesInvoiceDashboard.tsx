@@ -602,9 +602,9 @@ export default function SalesInvoiceDashboard() {
         .insert({
           organization_id: currentOrganization?.id,
           voucher_number: voucherData,
-          voucher_type: 'RECEIPT',
+          voucher_type: 'receipt',
           voucher_date: format(paymentDate, 'yyyy-MM-dd'),
-          reference_type: 'SALE',
+          reference_type: 'customer',
           reference_id: selectedInvoiceForPayment.id,
           total_amount: amount,
           description: `Payment received for invoice ${selectedInvoiceForPayment.sale_number} - ${paymentNarration}`,
