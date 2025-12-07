@@ -64,6 +64,7 @@ interface CartItem {
   barcode: string;
   productName: string;
   size: string;
+  color: string;
   quantity: number;
   mrp: number;
   originalMrp: number | null; // MRP from product_variants for savings calculation
@@ -203,6 +204,7 @@ export default function POSSales() {
         barcode: item.barcode || '',
         productName: item.product_name,
         size: item.size,
+        color: item.color || '',
         quantity: item.quantity,
         mrp: item.mrp,
         originalMrp: item.mrp > item.unit_price ? item.mrp : null, // Infer originalMrp
@@ -641,6 +643,7 @@ export default function POSSales() {
         barcode: variant.barcode || '',
         productName: description,
         size: variant.size,
+        color: variant.color || product.color || '',
         quantity: 1,
         mrp: displayMrp,
         originalMrp: variantMrp,
@@ -2319,6 +2322,7 @@ export default function POSSales() {
                   size: item.size,
                   barcode: item.barcode || "",
                   hsn: "",
+                  color: item.color || "",
                   sp: item.mrp,
                   qty: item.quantity,
                   rate: item.unitCost,
@@ -2371,6 +2375,7 @@ export default function POSSales() {
                 size: item.size,
                 barcode: item.barcode || "",
                 hsn: "",
+                color: item.color || "",
                 sp: item.mrp,
                 qty: item.quantity,
                 rate: item.unitCost,
@@ -2381,6 +2386,7 @@ export default function POSSales() {
                 size: item.size,
                 barcode: item.barcode || "",
                 hsn: "",
+                color: item.color || "",
                 sp: item.mrp,
                 qty: item.quantity,
                 rate: item.unitCost,

@@ -9,6 +9,7 @@ interface CartItem {
   barcode: string;
   productName: string;
   size: string;
+  color?: string;
   quantity: number;
   mrp: number;
   gstPer: number;
@@ -269,6 +270,7 @@ export const useSaveSale = () => {
         product_name: item.productName,
         size: item.size,
         barcode: item.barcode,
+        color: item.color || null,
         quantity: item.quantity,
         unit_price: item.unitCost,
         mrp: item.mrp,
@@ -404,6 +406,7 @@ export const useSaveSale = () => {
         product_name: item.productName,
         size: item.size,
         barcode: item.barcode,
+        color: item.color || null,
         quantity: item.quantity,
         unit_price: item.unitCost,
         mrp: item.mrp,

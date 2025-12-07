@@ -95,6 +95,7 @@ export default function StockReport() {
         .select(`
           id,
           size,
+          color,
           stock_qty,
           opening_qty,
           sale_price,
@@ -142,7 +143,7 @@ export default function StockReport() {
           id: item.id,
           product_name: item.products?.product_name || "",
           brand: item.products?.brand || "",
-          color: item.products?.color || "",
+          color: item.color || item.products?.color || "",
           size: item.size,
           stock_qty: item.stock_qty,
           opening_qty: item.opening_qty || 0,

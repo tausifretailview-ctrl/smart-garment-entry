@@ -368,7 +368,7 @@ export default function SaleOrderEntry() {
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
-          color: product.color || '',
+          color: variant.color || product.color || '',
         });
         setLineItems(prev => [...prev, newRow]);
       } else {
@@ -389,7 +389,7 @@ export default function SaleOrderEntry() {
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
-          color: product.color || '',
+          color: variant.color || product.color || '',
         });
         setLineItems(updatedItems);
       }
@@ -559,6 +559,7 @@ export default function SaleOrderEntry() {
         product_name: item.productName,
         size: item.size,
         barcode: item.barcode,
+        color: item.color || null,
         order_qty: item.orderQty,
         fulfilled_qty: 0,
         pending_qty: item.orderQty,

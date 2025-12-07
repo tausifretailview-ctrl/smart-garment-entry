@@ -826,6 +826,7 @@ export type Database = {
       purchase_return_items: {
         Row: {
           barcode: string | null
+          color: string | null
           created_at: string
           gst_per: number
           hsn_code: string | null
@@ -840,6 +841,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           gst_per: number
           hsn_code?: string | null
@@ -854,6 +856,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           gst_per?: number
           hsn_code?: string | null
@@ -942,6 +945,7 @@ export type Database = {
       quotation_items: {
         Row: {
           barcode: string | null
+          color: string | null
           created_at: string
           discount_percent: number
           gst_percent: number
@@ -959,6 +963,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           gst_percent?: number
@@ -976,6 +981,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           gst_percent?: number
@@ -1106,6 +1112,7 @@ export type Database = {
       sale_items: {
         Row: {
           barcode: string | null
+          color: string | null
           created_at: string
           discount_percent: number
           gst_percent: number
@@ -1123,6 +1130,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           gst_percent?: number
@@ -1140,6 +1148,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           gst_percent?: number
@@ -1168,6 +1177,7 @@ export type Database = {
       sale_order_items: {
         Row: {
           barcode: string | null
+          color: string | null
           created_at: string
           discount_percent: number
           fulfilled_qty: number
@@ -1187,6 +1197,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           fulfilled_qty?: number
@@ -1206,6 +1217,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           discount_percent?: number
           fulfilled_qty?: number
@@ -1348,6 +1360,7 @@ export type Database = {
       sale_return_items: {
         Row: {
           barcode: string | null
+          color: string | null
           created_at: string
           gst_percent: number
           hsn_code: string | null
@@ -1363,6 +1376,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           gst_percent: number
           hsn_code?: string | null
@@ -1378,6 +1392,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          color?: string | null
           created_at?: string
           gst_percent?: number
           hsn_code?: string | null
