@@ -370,18 +370,21 @@ export default function SaleOrderEntry() {
     const product = sizeGridProduct;
     if (!product) return;
 
+    // Build all changes first, then update state once
+    let updatedItems = [...lineItems];
+    let addedCount = 0;
+
     for (const { variant, qty } of items) {
-      const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
       if (existingIndex >= 0) {
-        const updatedItems = [...lineItems];
         updatedItems[existingIndex].orderQty += qty;
         updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
-        setLineItems(updatedItems);
+        addedCount++;
       } else {
-        const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+        const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         const newItem: LineItem = calculateLineTotal({
-          id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+          id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
           productName: product.product_name,
@@ -400,16 +403,20 @@ export default function SaleOrderEntry() {
         });
         
         if (emptyRowIndex >= 0) {
-          const updatedItems = [...lineItems];
           updatedItems[emptyRowIndex] = newItem;
-          setLineItems(updatedItems);
         } else {
-          setLineItems(prev => [...prev, newItem]);
+          updatedItems = [...updatedItems, newItem];
         }
+        addedCount++;
       }
     }
     
-    toast({ title: "Products Added", description: `${items.length} size(s) added to order` });
+    // Update state once with all changes
+    setLineItems(updatedItems);
+    
+    if (addedCount > 0) {
+      toast({ title: "Products Added", description: `${addedCount} size(s) added to order` });
+    }
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
