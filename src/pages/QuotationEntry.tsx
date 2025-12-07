@@ -310,20 +310,23 @@ export default function QuotationEntry() {
     const product = sizeGridProduct;
     if (!product) return;
 
+    // Build all changes first, then update state once
+    let updatedItems = [...lineItems];
+    let addedCount = 0;
+
     for (const { variant, qty } of items) {
-      // Check if already exists
-      const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      // Check if already exists in working array
+      const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
       if (existingIndex >= 0) {
-        const updatedItems = [...lineItems];
         updatedItems[existingIndex].quantity += qty;
         updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
-        setLineItems(updatedItems);
+        addedCount++;
       } else {
-        // Find empty row or add new
-        const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+        // Find empty row in working array or add new
+        const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         const newItem: LineItem = calculateLineTotal({
-          id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+          id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
           productName: product.product_name,
@@ -341,19 +344,23 @@ export default function QuotationEntry() {
         });
         
         if (emptyRowIndex >= 0) {
-          const updatedItems = [...lineItems];
           updatedItems[emptyRowIndex] = newItem;
-          setLineItems(updatedItems);
         } else {
-          setLineItems(prev => [...prev, newItem]);
+          updatedItems = [...updatedItems, newItem];
         }
+        addedCount++;
       }
     }
     
-    toast({
-      title: "Products Added",
-      description: `${items.length} size(s) added to quotation`,
-    });
+    // Update state once with all changes
+    setLineItems(updatedItems);
+    
+    if (addedCount > 0) {
+      toast({
+        title: "Products Added",
+        description: `${addedCount} size(s) added to quotation`,
+      });
+    }
     
     setTimeout(() => {
       tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });

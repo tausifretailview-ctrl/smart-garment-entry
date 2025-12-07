@@ -368,6 +368,10 @@ export default function SalesInvoice() {
     const product = sizeGridProduct;
     if (!product) return;
 
+    // Build all new items first, then update state once
+    let updatedItems = [...lineItems];
+    let addedCount = 0;
+
     for (const { variant, qty } of items) {
       // Stock validation
       const stockCheck = await checkStock(variant.id, qty);
@@ -376,25 +380,24 @@ export default function SalesInvoice() {
         continue;
       }
 
-      // Check if already exists
-      const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      // Check if already exists in current working array
+      const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
       if (existingIndex >= 0) {
-        const newQty = lineItems[existingIndex].quantity + qty;
+        const newQty = updatedItems[existingIndex].quantity + qty;
         const stockCheckIncrease = await checkStock(variant.id, newQty);
         if (!stockCheckIncrease.isAvailable) {
           showStockError(product.product_name, variant.size, newQty, stockCheckIncrease.availableStock);
           continue;
         }
-        const updatedItems = [...lineItems];
         updatedItems[existingIndex].quantity = newQty;
         updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
-        setLineItems(updatedItems);
+        addedCount++;
       } else {
-        // Find empty row or add new
-        const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+        // Find empty row in working array or add new
+        const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         const newItem: LineItem = calculateLineTotal({
-          id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+          id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
           variantId: variant.id,
           productName: product.product_name,
@@ -412,19 +415,23 @@ export default function SalesInvoice() {
         });
         
         if (emptyRowIndex >= 0) {
-          const updatedItems = [...lineItems];
           updatedItems[emptyRowIndex] = newItem;
-          setLineItems(updatedItems);
         } else {
-          setLineItems(prev => [...prev, newItem]);
+          updatedItems = [...updatedItems, newItem];
         }
+        addedCount++;
       }
     }
     
-    toast({
-      title: "Products Added",
-      description: `${items.length} size(s) added to invoice`,
-    });
+    // Update state once with all changes
+    setLineItems(updatedItems);
+    
+    if (addedCount > 0) {
+      toast({
+        title: "Products Added",
+        description: `${addedCount} size(s) added to invoice`,
+      });
+    }
     
     setTimeout(() => {
       tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
