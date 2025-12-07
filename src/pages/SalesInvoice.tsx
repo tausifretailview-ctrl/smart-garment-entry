@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
+import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -140,6 +142,12 @@ export default function SalesInvoice() {
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+  
+  // Size grid entry mode
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
+  const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -338,7 +346,100 @@ export default function SalesInvoice() {
     }
   }, [taxType]);
 
+  // Open size grid modal for a product
+  const openSizeGridForProduct = (product: any) => {
+    const variants = product.product_variants || [];
+    if (variants.length === 0) return;
+    
+    setSizeGridProduct(product);
+    setSizeGridVariants(variants.map((v: any) => ({
+      id: v.id,
+      size: v.size,
+      stock_qty: v.stock_qty || 0,
+      sale_price: v.sale_price,
+      color: v.color || product.color,
+      barcode: v.barcode,
+    })));
+    setShowSizeGrid(true);
+  };
+
+  // Handle size grid confirmation
+  const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>) => {
+    const product = sizeGridProduct;
+    if (!product) return;
+
+    for (const { variant, qty } of items) {
+      // Stock validation
+      const stockCheck = await checkStock(variant.id, qty);
+      if (!stockCheck.isAvailable) {
+        showStockError(product.product_name, variant.size, qty, stockCheck.availableStock);
+        continue;
+      }
+
+      // Check if already exists
+      const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      
+      if (existingIndex >= 0) {
+        const newQty = lineItems[existingIndex].quantity + qty;
+        const stockCheckIncrease = await checkStock(variant.id, newQty);
+        if (!stockCheckIncrease.isAvailable) {
+          showStockError(product.product_name, variant.size, newQty, stockCheckIncrease.availableStock);
+          continue;
+        }
+        const updatedItems = [...lineItems];
+        updatedItems[existingIndex].quantity = newQty;
+        updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
+        setLineItems(updatedItems);
+      } else {
+        // Find empty row or add new
+        const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+        const newItem: LineItem = calculateLineTotal({
+          id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          color: variant.color || product.color || '',
+          quantity: qty,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+        });
+        
+        if (emptyRowIndex >= 0) {
+          const updatedItems = [...lineItems];
+          updatedItems[emptyRowIndex] = newItem;
+          setLineItems(updatedItems);
+        } else {
+          setLineItems(prev => [...prev, newItem]);
+        }
+      }
+    }
+    
+    toast({
+      title: "Products Added",
+      description: `${items.length} size(s) added to invoice`,
+    });
+    
+    setTimeout(() => {
+      tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  };
+
   const addProductToInvoice = async (product: any, variant: any) => {
+    // If in grid mode, open size grid dialog
+    if (entryMode === "grid") {
+      openSizeGridForProduct(product);
+      setOpenProductSearch(false);
+      setSearchInput("");
+      return;
+    }
+
     // Real-time stock validation
     const stockCheck = await checkStock(variant.id, 1);
     if (!stockCheck.isAvailable) {
@@ -379,34 +480,47 @@ export default function SalesInvoice() {
       const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
       
       if (emptyRowIndex === -1) {
-        toast({
-          title: "Table Full",
-          description: "All 5 rows are filled. Remove an item to add more.",
-          variant: "destructive"
+        // Add new row instead of blocking
+        const newItem: LineItem = calculateLineTotal({
+          id: `row-${lineItems.length}`,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          color: variant.color || product.color || '',
+          quantity: 1,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
         });
-        return;
+        setLineItems(prev => [...prev, newItem]);
+      } else {
+        const updatedItems = [...lineItems];
+        const newItem: LineItem = {
+          id: updatedItems[emptyRowIndex].id,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          color: variant.color || product.color || '',
+          quantity: 1,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+        };
+        updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
+        setLineItems(updatedItems);
       }
-
-      const updatedItems = [...lineItems];
-      const newItem: LineItem = {
-        id: updatedItems[emptyRowIndex].id,
-        productId: product.id,
-        variantId: variant.id,
-        productName: product.product_name,
-        size: variant.size,
-        barcode: variant.barcode || '',
-        color: variant.color || product.color || '',
-        quantity: 1,
-        mrp: variant.sale_price || 0,
-        salePrice: variant.sale_price || 0,
-        discountPercent: 0,
-        discountAmount: 0,
-        gstPercent: product.gst_per || 0,
-        lineTotal: 0,
-        hsnCode: product.hsn_code || '',
-      };
-      updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
-      setLineItems(updatedItems);
     }
     
     setOpenProductSearch(false);
@@ -1157,10 +1271,27 @@ Thank you for choosing us!`;
         </div>
 
         {/* Product Search */}
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-4 flex-wrap">
+          {/* Entry Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">Entry Mode:</Label>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
+                Size Grid
+              </span>
+              <Switch
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
+                Inline
+              </span>
+            </div>
+          </div>
+
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="flex-1 justify-start min-w-[300px]">
                 <Search className="mr-2 h-4 w-4" />
                 Search Products (Stock Restricted)
               </Button>
@@ -1462,6 +1593,18 @@ Thank you for choosing us!`;
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Size Grid Dialog */}
+      <SizeGridDialog
+        open={showSizeGrid}
+        onClose={() => setShowSizeGrid(false)}
+        product={sizeGridProduct}
+        variants={sizeGridVariants}
+        onConfirm={handleSizeGridConfirm}
+        showStock={true}
+        validateStock={true}
+        title="Enter Size-wise Qty (Stock Validated)"
+      />
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>

@@ -10,10 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, FileText, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
   Command,
   CommandEmpty,
@@ -117,6 +119,12 @@ export default function QuotationEntry() {
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+
+  // Size grid entry mode
+  const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
+  const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -280,7 +288,87 @@ export default function QuotationEntry() {
     }
   }, [taxType]);
 
+  // Open size grid modal for a product
+  const openSizeGridForProduct = (product: any) => {
+    const variants = product.product_variants || [];
+    if (variants.length === 0) return;
+    
+    setSizeGridProduct(product);
+    setSizeGridVariants(variants.map((v: any) => ({
+      id: v.id,
+      size: v.size,
+      stock_qty: v.stock_qty || 0,
+      sale_price: v.sale_price,
+      color: v.color || product.color,
+      barcode: v.barcode,
+    })));
+    setShowSizeGrid(true);
+  };
+
+  // Handle size grid confirmation
+  const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
+    const product = sizeGridProduct;
+    if (!product) return;
+
+    for (const { variant, qty } of items) {
+      // Check if already exists
+      const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+      
+      if (existingIndex >= 0) {
+        const updatedItems = [...lineItems];
+        updatedItems[existingIndex].quantity += qty;
+        updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
+        setLineItems(updatedItems);
+      } else {
+        // Find empty row or add new
+        const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+        const newItem: LineItem = calculateLineTotal({
+          id: emptyRowIndex >= 0 ? lineItems[emptyRowIndex].id : `row-${lineItems.length}`,
+          productId: product.id,
+          variantId: variant.id,
+          productName: product.product_name,
+          size: variant.size,
+          barcode: variant.barcode || '',
+          quantity: qty,
+          mrp: variant.sale_price || 0,
+          salePrice: variant.sale_price || 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: product.gst_per || 0,
+          lineTotal: 0,
+          hsnCode: product.hsn_code || '',
+          color: variant.color || product.color || '',
+        });
+        
+        if (emptyRowIndex >= 0) {
+          const updatedItems = [...lineItems];
+          updatedItems[emptyRowIndex] = newItem;
+          setLineItems(updatedItems);
+        } else {
+          setLineItems(prev => [...prev, newItem]);
+        }
+      }
+    }
+    
+    toast({
+      title: "Products Added",
+      description: `${items.length} size(s) added to quotation`,
+    });
+    
+    setTimeout(() => {
+      tableEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const addProductToQuotation = (product: any, variant: any) => {
+    // If in grid mode, open size grid dialog
+    if (entryMode === "grid") {
+      openSizeGridForProduct(product);
+      setOpenProductSearch(false);
+      setSearchInput("");
+      return;
+    }
+
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
@@ -663,10 +751,27 @@ export default function QuotationEntry() {
         </div>
 
         {/* Product Search */}
-        <div className="mb-4">
+        <div className="mb-4 flex items-center gap-4 flex-wrap">
+          {/* Entry Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">Entry Mode:</Label>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
+                Size Grid
+              </span>
+              <Switch
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
+                Inline
+              </span>
+            </div>
+          </div>
+
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="flex-1 justify-start min-w-[300px]">
                 <Search className="mr-2 h-4 w-4" />
                 Search Products (No Stock Restriction)
               </Button>
@@ -923,6 +1028,18 @@ export default function QuotationEntry() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Size Grid Dialog */}
+      <SizeGridDialog
+        open={showSizeGrid}
+        onClose={() => setShowSizeGrid(false)}
+        product={sizeGridProduct}
+        variants={sizeGridVariants}
+        onConfirm={handleSizeGridConfirm}
+        showStock={true}
+        validateStock={false}
+        title="Enter Size-wise Qty"
+      />
     </div>
   );
 }
