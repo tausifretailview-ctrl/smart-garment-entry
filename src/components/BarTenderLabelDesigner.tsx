@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { 
-  Eye, GripVertical, ZoomIn, ZoomOut, AlignLeft, AlignCenter, AlignRight, 
-  Bold, Type, Maximize2, Move, ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+  Eye, ZoomIn, ZoomOut, AlignLeft, AlignCenter, AlignRight, 
+  Bold, Type, Maximize2, Move, Save, Trash2, FolderOpen,
   LayoutGrid, Printer, Rows, Columns
 } from "lucide-react";
 import JsBarcode from "jsbarcode";
+import { toast } from "sonner";
 
 interface LabelFieldConfig {
   show: boolean;
@@ -19,9 +22,9 @@ interface LabelFieldConfig {
   bold: boolean;
   fontFamily?: string;
   textAlign?: 'left' | 'center' | 'right';
-  x?: number; // X position in mm
-  y?: number; // Y position in mm
-  width?: number; // Width as percentage of label width (0-100)
+  x?: number;
+  y?: number;
+  width?: number;
   lineHeight?: number;
   row?: number;
 }
@@ -57,6 +60,11 @@ interface LabelItem {
   purchase_code?: string;
 }
 
+interface LabelTemplate {
+  name: string;
+  config: LabelDesignConfig;
+}
+
 interface BarTenderLabelDesignerProps {
   labelConfig: LabelDesignConfig;
   setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
@@ -65,6 +73,9 @@ interface BarTenderLabelDesignerProps {
   labelWidth: number;
   labelHeight: number;
   columns?: number;
+  savedTemplates?: LabelTemplate[];
+  onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
+  onDeleteTemplate?: (templateName: string) => Promise<boolean>;
 }
 
 type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
@@ -275,12 +286,20 @@ export function BarTenderLabelDesigner({
   sampleItem,
   labelWidth,
   labelHeight,
-  columns = 1
+  columns = 1,
+  savedTemplates = [],
+  onSaveTemplate,
+  onDeleteTemplate,
 }: BarTenderLabelDesignerProps) {
   const [selectedField, setSelectedField] = useState<FieldKey | null>(null);
   const [zoom, setZoom] = useState(150);
   const previewRef = useRef<HTMLDivElement>(null);
   const barcodeValue = sampleItem?.barcode || '12345678';
+  
+  // Template management state
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Calculate scale factor for proper mm to px conversion
   const basePxPerMm = 3.78;
@@ -496,6 +515,41 @@ export function BarTenderLabelDesigner({
     }
   };
 
+  // Template management handlers
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) {
+      toast.error("Please enter a template name");
+      return;
+    }
+    if (!onSaveTemplate) return;
+    
+    setIsSaving(true);
+    const success = await onSaveTemplate({
+      name: templateName.trim(),
+      config: labelConfig,
+    });
+    setIsSaving(false);
+    
+    if (success) {
+      toast.success(`Template "${templateName}" saved`);
+      setSaveDialogOpen(false);
+      setTemplateName("");
+    }
+  };
+
+  const handleLoadTemplate = (template: LabelTemplate) => {
+    setLabelConfig(template.config);
+    toast.success(`Template "${template.name}" loaded`);
+  };
+
+  const handleDeleteTemplate = async (name: string) => {
+    if (!onDeleteTemplate) return;
+    const success = await onDeleteTemplate(name);
+    if (success) {
+      toast.success(`Template "${name}" deleted`);
+    }
+  };
+
   // Render single label content with absolute positioned fields
   const renderLabelContent = () => (
     <div className="relative w-full h-full">
@@ -523,7 +577,96 @@ export function BarTenderLabelDesigner({
   );
 
   return (
+    <>
+    {/* Save Template Dialog */}
+    <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Save Label Template</DialogTitle>
+          <DialogDescription>
+            Save your current label design for quick reuse later.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="template-name">Template Name</Label>
+            <Input
+              id="template-name"
+              placeholder="e.g., Thermal Classic, Price Tag..."
+              value={templateName}
+              onChange={(e) => setTemplateName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveTemplate} disabled={isSaving}>
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? "Saving..." : "Save Template"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* Template Toolbar */}
+      <div className="lg:col-span-12 flex items-center gap-3 p-3 bg-muted/50 rounded-lg border">
+        <div className="flex items-center gap-2">
+          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Templates:</span>
+        </div>
+        
+        {savedTemplates.length > 0 ? (
+          <Select onValueChange={(value) => {
+            const template = savedTemplates.find(t => t.name === value);
+            if (template) handleLoadTemplate(template);
+          }}>
+            <SelectTrigger className="w-48 h-8">
+              <SelectValue placeholder="Load a template..." />
+            </SelectTrigger>
+            <SelectContent>
+              {savedTemplates.map((template) => (
+                <SelectItem key={template.name} value={template.name}>
+                  {template.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-muted-foreground">No saved templates</span>
+        )}
+
+        <div className="flex-1" />
+
+        {onSaveTemplate && (
+          <Button size="sm" variant="outline" onClick={() => setSaveDialogOpen(true)}>
+            <Save className="h-4 w-4 mr-2" />
+            Save Current
+          </Button>
+        )}
+
+        {savedTemplates.length > 0 && onDeleteTemplate && (
+          <Select onValueChange={handleDeleteTemplate}>
+            <SelectTrigger className="w-32 h-8 text-destructive border-destructive/30">
+              <SelectValue placeholder="Delete..." />
+            </SelectTrigger>
+            <SelectContent>
+              {savedTemplates.map((template) => (
+                <SelectItem key={template.name} value={template.name} className="text-destructive">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="h-3 w-3" />
+                    {template.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
       {/* Left Panel - Field List */}
       <Card className="lg:col-span-3 p-4">
         <div className="flex items-center gap-2 mb-3">
@@ -880,5 +1023,6 @@ export function BarTenderLabelDesigner({
         )}
       </Card>
     </div>
+    </>
   );
 }
