@@ -1203,6 +1203,13 @@ Thank you for choosing us!`;
 
         {/* Line Items Table */}
         <div ref={tableContainerRef}>
+          {/* Live Qty Total */}
+          <div className="mb-2 text-right">
+            <span className="text-sm font-medium">Total Qty: </span>
+            <span className="text-lg font-bold text-primary">
+              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+            </span>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -1306,16 +1313,10 @@ Thank you for choosing us!`;
           </div>
         </div>
 
-        {/* Notes & Terms - simplified like Quotation */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label>Terms & Conditions</Label>
-            <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} />
-          </div>
-          <div>
-            <Label>Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
+        {/* Notes */}
+        <div className="mt-6">
+          <Label>Notes</Label>
+          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="max-w-md" />
         </div>
 
         {/* Actions - simplified */}
