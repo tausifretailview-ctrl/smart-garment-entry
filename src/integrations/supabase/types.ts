@@ -523,6 +523,7 @@ export type Database = {
         Row: {
           active: boolean | null
           barcode: string | null
+          color: string | null
           created_at: string | null
           id: string
           mrp: number | null
@@ -538,6 +539,7 @@ export type Database = {
         Insert: {
           active?: boolean | null
           barcode?: string | null
+          color?: string | null
           created_at?: string | null
           id?: string
           mrp?: number | null
@@ -553,6 +555,7 @@ export type Database = {
         Update: {
           active?: boolean | null
           barcode?: string | null
+          color?: string | null
           created_at?: string | null
           id?: string
           mrp?: number | null
