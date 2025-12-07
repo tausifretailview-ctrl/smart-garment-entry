@@ -320,7 +320,7 @@ export default function PaymentsDashboard() {
           voucher_type: 'receipt',
           voucher_number: voucherNumber,
           voucher_date: format(paymentDate, 'yyyy-MM-dd'),
-          reference_type: 'customer_payment',
+          reference_type: 'customer',
           reference_id: selectedInvoice.id,
           total_amount: amount,
           description: `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}`,
