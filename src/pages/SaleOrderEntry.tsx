@@ -705,9 +705,13 @@ export default function SaleOrderEntry() {
   const filteredProducts = productsData?.filter(product => {
     const searchLower = searchInput.toLowerCase();
     const matchesProduct = product.product_name?.toLowerCase().includes(searchLower) ||
-      product.brand?.toLowerCase().includes(searchLower);
+      product.brand?.toLowerCase().includes(searchLower) ||
+      product.category?.toLowerCase().includes(searchLower) ||
+      product.style?.toLowerCase().includes(searchLower) ||
+      product.color?.toLowerCase().includes(searchLower);
     const matchesVariant = product.product_variants?.some((v: any) => 
-      v.barcode?.toLowerCase().includes(searchLower)
+      v.barcode?.toLowerCase().includes(searchLower) ||
+      v.color?.toLowerCase().includes(searchLower)
     );
     return matchesProduct || matchesVariant;
   }) || [];
@@ -825,26 +829,42 @@ export default function SaleOrderEntry() {
                 Search Products (Shows Stock)
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[600px] p-0" align="start">
+            <PopoverContent className="w-[650px] p-0" align="start">
               <Command>
-                <CommandInput placeholder="Search by name, barcode..." value={searchInput} onValueChange={setSearchInput} />
-                <CommandList>
+                <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
+                <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
                   <CommandGroup>
-                    {filteredProducts.slice(0, 10).map(product => (
+                    {filteredProducts.slice(0, 15).map(product => (
                       product.product_variants?.map((variant: any) => (
                         <CommandItem
                           key={variant.id}
                           onSelect={() => addProductToOrder(product, variant)}
-                          className="cursor-pointer"
+                          className="cursor-pointer py-2"
                         >
-                          <div className="flex justify-between w-full items-center">
-                            <span>{product.product_name} - {variant.size}</span>
-                            <div className="flex items-center gap-4">
-                              <span className="text-muted-foreground">₹{variant.sale_price}</span>
-                              <Badge variant={variant.stock_qty > 0 ? "default" : "destructive"}>
-                                Stock: {variant.stock_qty}
-                              </Badge>
+                          <div className="flex flex-col w-full gap-1">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium">{product.product_name}</span>
+                              <span className="font-semibold text-primary">₹{variant.sale_price}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                              <div className="flex gap-2 flex-wrap">
+                                {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
+                                {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
+                                {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
+                                {(variant.color || product.color) && (
+                                  <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
+                                )}
+                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                {variant.mrp && variant.mrp !== variant.sale_price && (
+                                  <span className="line-through">MRP: ₹{variant.mrp}</span>
+                                )}
+                                <Badge variant={variant.stock_qty > 5 ? "default" : variant.stock_qty > 0 ? "secondary" : "destructive"} className="text-xs">
+                                  Stock: {variant.stock_qty}
+                                </Badge>
+                              </div>
                             </div>
                           </div>
                         </CommandItem>
