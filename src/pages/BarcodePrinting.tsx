@@ -3524,6 +3524,9 @@ export default function BarcodePrinting() {
                   labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
                   labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
                   columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
+                  savedTemplates={dbLabelTemplates}
+                  onSaveTemplate={saveTemplateToDb}
+                  onDeleteTemplate={deleteTemplateFromDb}
                 />
               </div>
             )}
