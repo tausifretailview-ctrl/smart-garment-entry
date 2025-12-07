@@ -307,7 +307,7 @@ export default function QuotationEntry() {
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
-          color: product.color || '',
+          color: variant.color || product.color || '',
         });
         setLineItems(prev => [...prev, newRow]);
       } else {
@@ -327,7 +327,7 @@ export default function QuotationEntry() {
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
-          color: product.color || '',
+          color: variant.color || product.color || '',
         });
         setLineItems(updatedItems);
       }
@@ -489,6 +489,7 @@ export default function QuotationEntry() {
         product_name: item.productName,
         size: item.size,
         barcode: item.barcode,
+        color: item.color || null,
         quantity: item.quantity,
         unit_price: item.salePrice,
         mrp: item.mrp,

@@ -44,6 +44,7 @@ interface ReturnItem {
   variantId: string;
   productName: string;
   size: string;
+  color?: string;
   barcode: string | null;
   quantity: number;
   unitPrice: number;
@@ -385,6 +386,7 @@ export default function SaleReturnEntry() {
         product_name: item.productName,
         size: item.size,
         barcode: item.barcode,
+        color: item.color || null,
         quantity: item.quantity,
         unit_price: item.unitPrice,
         gst_percent: item.gstPercent,
