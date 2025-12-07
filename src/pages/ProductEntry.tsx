@@ -26,6 +26,7 @@ interface SizeGroup {
 }
 
 interface ProductVariant {
+  color: string;
   size: string;
   pur_price: number;
   sale_price: number;
@@ -41,7 +42,7 @@ interface ProductForm {
   category: string;
   brand: string;
   style: string;
-  color: string;
+  colors: string[]; // Changed to array for multi-color support
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
@@ -76,7 +77,7 @@ const ProductEntry = () => {
     category: "",
     brand: "",
     style: "",
-    color: "",
+    colors: [], // Multi-color array
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
@@ -85,6 +86,7 @@ const ProductEntry = () => {
     default_mrp: undefined,
     status: "active",
   });
+  const [colorInput, setColorInput] = useState("");
 
   useEffect(() => {
     fetchSizeGroups();
@@ -189,6 +191,11 @@ const ProductEntry = () => {
       if (error) throw error;
 
       if (product) {
+        // Extract colors from variants if editing
+        const variantColors = product.product_variants 
+          ? [...new Set(product.product_variants.map((v: any) => v.color).filter(Boolean))]
+          : [];
+        
         // Set form data
         setFormData({
           product_type: (product.product_type as ProductType) || "goods",
@@ -196,7 +203,7 @@ const ProductEntry = () => {
           category: product.category || "",
           brand: product.brand || "",
           style: product.style || "",
-          color: product.color || "",
+          colors: variantColors.length > 0 ? variantColors : (product.color ? [product.color] : []),
           size_group_id: product.size_group_id || "",
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per || 18,
@@ -215,6 +222,7 @@ const ProductEntry = () => {
         // Set variants
         if (product.product_variants && product.product_variants.length > 0) {
           const loadedVariants: ProductVariant[] = product.product_variants.map((v: any) => ({
+            color: v.color || "",
             size: v.size,
             pur_price: v.pur_price || 0,
             sale_price: v.sale_price || 0,
@@ -334,6 +342,7 @@ const ProductEntry = () => {
     // For service type, auto-generate a single "Standard" variant
     if (formData.product_type === 'service') {
       const newVariants: ProductVariant[] = [{
+        color: "",
         size: "Standard",
         pur_price: formData.default_pur_price ?? 0,
         sale_price: formData.default_sale_price ?? 0,
@@ -357,17 +366,32 @@ const ProductEntry = () => {
       return;
     }
 
-    const newVariants: ProductVariant[] = selectedGroup.sizes.map((size) => ({
-      size,
-      pur_price: formData.default_pur_price ?? 0,
-      sale_price: formData.default_sale_price ?? 0,
-      mrp: formData.default_mrp ?? null,
-      barcode: "",
-      active: true,
-      opening_qty: 0,
-    }));
+    // Get colors to generate variants for
+    const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
 
-    setVariants(newVariants);
+    // Generate color × size combinations
+    const newVariants: ProductVariant[] = [];
+    for (const color of colorsToUse) {
+      for (const size of selectedGroup.sizes) {
+        // Check if this color-size combination already exists
+        const exists = variants.some(v => v.color === color && v.size === size);
+        if (!exists) {
+          newVariants.push({
+            color,
+            size,
+            pur_price: formData.default_pur_price ?? 0,
+            sale_price: formData.default_sale_price ?? 0,
+            mrp: formData.default_mrp ?? null,
+            barcode: "",
+            active: true,
+            opening_qty: 0,
+          });
+        }
+      }
+    }
+
+    // Merge with existing variants
+    setVariants([...variants, ...newVariants]);
     setShowVariants(true);
   };
 
@@ -407,7 +431,7 @@ const ProductEntry = () => {
       category: formData.category || undefined,
       brand: formData.brand || undefined,
       style: formData.style || undefined,
-      color: formData.color || undefined,
+      color: formData.colors.join(", ") || undefined,
       size_group_id: formData.size_group_id || undefined,
       hsn_code: formData.hsn_code || undefined,
       gst_per: formData.gst_per,
@@ -523,13 +547,19 @@ const ProductEntry = () => {
 
       let productData: any;
       
+      // Prepare product payload (color field stores first color for backward compatibility)
+      const productColor = formData.colors.length > 0 ? formData.colors[0] : null;
+      
       if (editingProductId) {
         // Update existing product
         const productPayload = {
           ...formData,
+          color: productColor, // Store first color in products table for backward compatibility
           image_url: imageUrl,
           size_group_id: formData.size_group_id || null,
         };
+        delete (productPayload as any).colors; // Remove colors array from payload
+        
         const { data, error: productError } = await supabase
           .from("products")
           .update(productPayload)
@@ -543,11 +573,12 @@ const ProductEntry = () => {
         // For updates, handle variants with upsert
         if (variants.length > 0) {
           for (const v of variants) {
-            // Get existing variant to calculate stock adjustment
+            // Get existing variant to calculate stock adjustment (now includes color)
             const { data: existingVariant } = await supabase
               .from("product_variants")
               .select("id, opening_qty, stock_qty")
               .eq("product_id", editingProductId)
+              .eq("color", v.color || null)
               .eq("size", v.size)
               .maybeSingle();
 
@@ -562,12 +593,13 @@ const ProductEntry = () => {
               if (newStockQty < 0) newStockQty = 0;
             }
 
-            // Upsert the variant with updated stock_qty
+            // Upsert the variant with updated stock_qty (now includes color)
             const { error: variantError } = await supabase
               .from("product_variants")
               .upsert({
                 product_id: editingProductId,
                 organization_id: currentOrganization.id,
+                color: v.color || null,
                 size: v.size,
                 pur_price: v.pur_price,
                 sale_price: v.sale_price,
@@ -577,7 +609,7 @@ const ProductEntry = () => {
                 opening_qty: v.opening_qty,
                 stock_qty: newStockQty,
               }, {
-                onConflict: "product_id,size",
+                onConflict: "product_id,color,size",
               });
 
             if (variantError) throw variantError;
@@ -596,7 +628,17 @@ const ProductEntry = () => {
         // Insert new product
         if (!currentOrganization?.id) throw new Error("No organization selected");
         const productPayload = {
-          ...formData,
+          product_type: formData.product_type,
+          product_name: formData.product_name,
+          category: formData.category || null,
+          brand: formData.brand || null,
+          style: formData.style || null,
+          color: productColor, // Store first color for backward compatibility
+          hsn_code: formData.hsn_code || null,
+          gst_per: formData.gst_per,
+          default_pur_price: formData.default_pur_price,
+          default_sale_price: formData.default_sale_price,
+          status: formData.status,
           image_url: imageUrl,
           organization_id: currentOrganization.id,
           size_group_id: formData.size_group_id || null,
@@ -610,11 +652,12 @@ const ProductEntry = () => {
         if (productError) throw productError;
         productData = data;
 
-        // Upsert variants (insert or update based on product_id + size)
+        // Upsert variants (insert or update based on product_id + color + size)
         if (variants.length > 0) {
           const variantsToUpsert = variants.map((v) => ({
             product_id: productData.id,
             organization_id: currentOrganization.id,
+            color: v.color || null,
             size: v.size,
             pur_price: v.pur_price,
             sale_price: v.sale_price,
@@ -628,7 +671,7 @@ const ProductEntry = () => {
           const { data: insertedVariants, error: variantsError } = await supabase
             .from("product_variants")
             .upsert(variantsToUpsert, {
-              onConflict: "product_id,size",
+              onConflict: "product_id,color,size",
             })
             .select();
 
@@ -642,7 +685,7 @@ const ProductEntry = () => {
                 variant_id: v.id,
                 quantity: v.opening_qty,
                 movement_type: "opening_stock",
-                notes: `Opening stock for ${formData.product_name} - ${v.size}`,
+                notes: `Opening stock for ${formData.product_name} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
                 organization_id: currentOrganization.id,
               }));
 
@@ -699,7 +742,7 @@ const ProductEntry = () => {
           category: "",
           brand: "",
           style: "",
-          color: "",
+          colors: [],
           size_group_id: "",
           hsn_code: "",
           gst_per: 18,
@@ -708,6 +751,7 @@ const ProductEntry = () => {
           default_mrp: undefined,
           status: "active",
         });
+        setColorInput("");
         setVariants([]);
         setShowVariants(false);
         setImageFile(null);
@@ -1116,16 +1160,67 @@ const ProductEntry = () => {
               {(fieldSettings?.color?.enabled ?? true) && (
                 <div className="space-y-2">
                   <Label htmlFor="color">
-                    {fieldSettings?.color?.label || 'Color'}
+                    {fieldSettings?.color?.label || 'Colors'} (comma separated for multiple)
                   </Label>
-                  <Input
-                    id="color"
-                    value={formData.color}
-                    onChange={(e) =>
-                      setFormData({ ...formData, color: e.target.value })
-                    }
-                    placeholder="Color"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="color"
+                      value={colorInput}
+                      onChange={(e) => setColorInput(e.target.value)}
+                      onBlur={() => {
+                        // Parse colors on blur
+                        if (colorInput.trim()) {
+                          const newColors = colorInput
+                            .split(',')
+                            .map(c => c.trim())
+                            .filter(c => c && !formData.colors.includes(c));
+                          if (newColors.length > 0) {
+                            setFormData({ ...formData, colors: [...formData.colors, ...newColors] });
+                          }
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (colorInput.trim()) {
+                            const newColors = colorInput
+                              .split(',')
+                              .map(c => c.trim())
+                              .filter(c => c && !formData.colors.includes(c));
+                            if (newColors.length > 0) {
+                              setFormData({ ...formData, colors: [...formData.colors, ...newColors] });
+                              setColorInput("");
+                            }
+                          }
+                        }
+                      }}
+                      placeholder="e.g., Black, Brown, White"
+                    />
+                  </div>
+                  {formData.colors.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {formData.colors.map((color, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-sm"
+                        >
+                          {color}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                colors: formData.colors.filter((_, i) => i !== idx)
+                              });
+                            }}
+                            className="hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1281,7 +1376,7 @@ const ProductEntry = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">
-                    {formData.product_type === 'service' ? 'Service Details' : 'Size Variants'}
+                    {formData.product_type === 'service' ? 'Service Details' : `Color-Size Variants (${variants.length})`}
                   </h3>
                   <Button
                     onClick={handleAutoGenerateBarcodes}
@@ -1293,10 +1388,11 @@ const ProductEntry = () => {
                   </Button>
                 </div>
 
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        {formData.product_type !== 'service' && <TableHead>Color</TableHead>}
                         <TableHead>{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
                         <TableHead>Purchase Price</TableHead>
                         <TableHead>Sale Price</TableHead>
@@ -1305,6 +1401,7 @@ const ProductEntry = () => {
                         <TableHead>Barcode</TableHead>
                         {formData.product_type !== 'service' && <TableHead>Opening Qty</TableHead>}
                         <TableHead className="text-center">Active</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1318,6 +1415,9 @@ const ProductEntry = () => {
                         
                         return (
                           <TableRow key={index}>
+                            {formData.product_type !== 'service' && (
+                              <TableCell className="font-medium text-primary">{variant.color || '-'}</TableCell>
+                            )}
                             <TableCell className="font-medium">{variant.size}</TableCell>
                             <TableCell>
                               <Input
@@ -1421,6 +1521,19 @@ const ProductEntry = () => {
                                   handleVariantChange(index, "active", checked)
                                 }
                               />
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                onClick={() => {
+                                  setVariants(variants.filter((_, i) => i !== index));
+                                }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
