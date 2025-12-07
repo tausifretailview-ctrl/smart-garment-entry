@@ -36,7 +36,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
-import { InteractiveLabelPreview } from "@/components/InteractiveLabelPreview";
+import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 
 interface LabelItem {
   sku_id: string;
@@ -3511,13 +3511,14 @@ export default function BarcodePrinting() {
                   )}
                 </div>
                 
-                <InteractiveLabelPreview
+                <BarTenderLabelDesigner
                   labelConfig={labelConfig}
                   setLabelConfig={setLabelConfig}
                   businessName={businessName}
                   sampleItem={labelItems.length > 0 ? labelItems[0] : null}
                   labelWidth={sheetType === 'custom' ? customWidth : parseInt(sheetPresets[sheetType].width)}
                   labelHeight={sheetType === 'custom' ? customHeight : parseInt(sheetPresets[sheetType].height)}
+                  columns={sheetType === 'custom' ? customCols : sheetPresets[sheetType].cols}
                 />
               </div>
             )}
