@@ -148,9 +148,9 @@ function DraggableField({
   }, [isDragging, onDrag, onDragEnd, scale]);
 
   const fontSize = Math.max(4, field.fontSize * scale);
-  const xPx = field.x * scale;
-  const yPx = field.y * scale;
-  const widthPx = (field.width / 100) * labelWidthMm * scale;
+  const xPx = (field.x ?? 0) * scale;
+  const yPx = (field.y ?? 0) * scale;
+  const widthPx = ((field.width ?? 100) / 100) * labelWidthMm * scale;
 
   const selectionStyle = isSelected 
     ? 'border-2 border-dashed border-blue-500 bg-blue-100/40' 
