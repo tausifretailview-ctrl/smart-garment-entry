@@ -47,6 +47,7 @@ interface ProductForm {
   gst_per: number;
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
+  default_mrp: number | undefined;
   status: string;
   image_url?: string;
 }
@@ -81,6 +82,7 @@ const ProductEntry = () => {
     gst_per: 18,
     default_pur_price: undefined,
     default_sale_price: undefined,
+    default_mrp: undefined,
     status: "active",
   });
 
@@ -200,6 +202,7 @@ const ProductEntry = () => {
           gst_per: product.gst_per || 18,
           default_pur_price: product.default_pur_price || 0,
           default_sale_price: product.default_sale_price || 0,
+          default_mrp: undefined,
           status: product.status || "active",
           image_url: product.image_url,
         });
@@ -334,7 +337,7 @@ const ProductEntry = () => {
         size: "Standard",
         pur_price: formData.default_pur_price ?? 0,
         sale_price: formData.default_sale_price ?? 0,
-        mrp: null,
+        mrp: formData.default_mrp ?? null,
         barcode: "",
         active: true,
         opening_qty: 0,
@@ -358,7 +361,7 @@ const ProductEntry = () => {
       size,
       pur_price: formData.default_pur_price ?? 0,
       sale_price: formData.default_sale_price ?? 0,
-      mrp: null,
+      mrp: formData.default_mrp ?? null,
       barcode: "",
       active: true,
       opening_qty: 0,
@@ -702,6 +705,7 @@ const ProductEntry = () => {
           gst_per: 18,
           default_pur_price: 0,
           default_sale_price: 0,
+          default_mrp: undefined,
           status: "active",
         });
         setVariants([]);
@@ -1219,6 +1223,26 @@ const ProductEntry = () => {
                   }
                 />
               </div>
+
+              {showMrp && (
+                <div className="space-y-2">
+                  <Label htmlFor="default_mrp">Default MRP</Label>
+                  <Input
+                    id="default_mrp"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.default_mrp ?? ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        default_mrp: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="MRP"
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="status">Status</Label>
