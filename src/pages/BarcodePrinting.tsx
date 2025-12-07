@@ -99,6 +99,7 @@ interface LabelFieldConfig {
   x?: number; // X position in mm (optional for backward compatibility)
   y?: number; // Y position in mm (optional for backward compatibility)
   width?: number; // Width as percentage (optional for backward compatibility)
+  height?: number; // Height in mm (optional)
   lineHeight?: number;
   row?: number;
 }

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { 
   Eye, ZoomIn, ZoomOut, AlignLeft, AlignCenter, AlignRight, 
   Bold, Type, Maximize2, Move, Save, Trash2, FolderOpen,
-  LayoutGrid, Printer, Rows, Columns
+  LayoutGrid, Printer, Rows
 } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ interface LabelFieldConfig {
   x?: number;
   y?: number;
   width?: number;
+  height?: number; // Height in mm
   lineHeight?: number;
   row?: number;
 }
@@ -158,10 +159,12 @@ function DraggableField({
     };
   }, [isDragging, onDrag, onDragEnd, scale]);
 
-  const fontSize = Math.max(4, field.fontSize * scale);
+  // Scale font size properly - use a more conservative scaling
+  const scaledFontSize = Math.max(6, Math.min(field.fontSize * (scale * 0.28), 24));
   const xPx = (field.x ?? 0) * scale;
   const yPx = (field.y ?? 0) * scale;
   const widthPx = ((field.width ?? 100) / 100) * labelWidthMm * scale;
+  const heightPx = field.height ? field.height * scale : undefined;
 
   const selectionStyle = isSelected 
     ? 'border-2 border-dashed border-blue-500 bg-blue-100/40' 
@@ -189,7 +192,7 @@ function DraggableField({
           <svg 
             className={`bartender-barcode-${fieldKey}`} 
             style={{ 
-              height: `${(labelConfig.barcodeHeight || 25) * scale}px`, 
+              height: `${(labelConfig.barcodeHeight || 20) * scale * 0.35}px`, 
               width: 'auto',
               maxWidth: '100%'
             }} 
@@ -214,20 +217,21 @@ function DraggableField({
         left: `${xPx}px`,
         top: `${yPx}px`,
         width: `${widthPx}px`,
+        height: heightPx ? `${heightPx}px` : 'auto',
       }}
       onMouseDown={handleMouseDown}
       onClick={(e) => { e.stopPropagation(); onSelect(); }}
     >
       <div
         style={{
-          fontSize: `${fontSize}px`,
+          fontSize: `${scaledFontSize}px`,
           fontWeight: field.bold ? 'bold' : 'normal',
           textAlign: field.textAlign || 'center',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          lineHeight: field.lineHeight || 1.2,
-          padding: '1px 2px',
+          lineHeight: field.lineHeight || 1.1,
+          padding: '0px 1px',
         }}
       >
         {content}
@@ -867,22 +871,36 @@ export function BarTenderLabelDesigner({
               </div>
             </div>
 
-            {/* Width Control */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Columns className="h-4 w-4 text-muted-foreground" />
+            {/* Width & Height Controls */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
                 <Label className="text-xs font-medium">Width (%)</Label>
+                <div className="flex items-center gap-2">
+                  <Slider
+                    value={[selectedFieldConfig.width ?? 100]}
+                    onValueChange={([value]) => updateFieldProperty('width', value)}
+                    min={20}
+                    max={100}
+                    step={5}
+                    className="flex-1"
+                  />
+                  <span className="text-xs w-8">{selectedFieldConfig.width ?? 100}%</span>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Slider
-                  value={[selectedFieldConfig.width ?? 100]}
-                  onValueChange={([value]) => updateFieldProperty('width', value)}
-                  min={20}
-                  max={100}
-                  step={5}
-                  className="flex-1"
-                />
-                <span className="text-sm font-medium w-10 text-center">{selectedFieldConfig.width ?? 100}%</span>
+              <div className="space-y-1">
+                <Label className="text-xs font-medium">Height (mm)</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={selectedFieldConfig.height ?? ''}
+                    onChange={(e) => updateFieldProperty('height', e.target.value ? parseFloat(e.target.value) : undefined)}
+                    placeholder="Auto"
+                    className="h-7 text-xs"
+                  />
+                </div>
               </div>
             </div>
 
