@@ -139,17 +139,105 @@ interface LabelTemplate {
   config: LabelDesignConfig;
 }
 
-type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | "custom";
+type SheetType = "novajet48" | "novajet40" | "novajet65" | "a4_12x4" | 
+  "thermal_50x30_1up" | "thermal_50x25_1up" | "thermal_38x25_1up" |
+  "thermal_50x30_2up" | "thermal_50x25_2up" | "thermal_38x25_2up" | "custom";
 type DesignFormat = "BT1" | "BT2" | "BT3" | "BT4";
 type QuantityMode = "manual" | "lastPurchase" | "byBill";
 
 const sheetPresets = {
-  novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm" },
-  novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
-  a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
-  custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm" }, // default values
+  // A4 Sheet Presets
+  novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm", category: "a4" },
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm", category: "a4" },
+  novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm", category: "a4" },
+  a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
+  // Thermal Roll Presets (1UP - Single Column)
+  thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
+  thermal_38x25_1up: { cols: 1, width: "38mm", height: "25mm", gap: "0mm", category: "thermal", thermal: true },
+  // Thermal Roll Presets (2UP - Two Columns)
+  thermal_50x30_2up: { cols: 2, width: "50mm", height: "30mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_50x25_2up: { cols: 2, width: "50mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
+  thermal_38x25_2up: { cols: 2, width: "38mm", height: "25mm", gap: "2mm", category: "thermal", thermal: true },
+  // Custom
+  custom: { cols: 4, width: "50mm", height: "25mm", gap: "2mm", category: "custom" },
 };
+
+// Sheet preset labels for UI
+const sheetPresetLabels: Record<string, { label: string; description: string }> = {
+  novajet48: { label: "Novajet 48", description: "33×19mm, 8 cols" },
+  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8" },
+  novajet65: { label: "Novajet 65", description: "38×21mm, 5 cols" },
+  a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12" },
+  thermal_50x30_1up: { label: "50×30mm (1UP)", description: "Single column thermal" },
+  thermal_50x25_1up: { label: "50×25mm (1UP)", description: "Single column thermal" },
+  thermal_38x25_1up: { label: "38×25mm (1UP)", description: "Single column thermal" },
+  thermal_50x30_2up: { label: "50×30mm (2UP)", description: "Two column thermal" },
+  thermal_50x25_2up: { label: "50×25mm (2UP)", description: "Two column thermal" },
+  thermal_38x25_2up: { label: "38×25mm (2UP)", description: "Two column thermal" },
+  custom: { label: "Custom", description: "Set your own dimensions" },
+};
+
+// Built-in label templates for thermal printers
+const builtInLabelTemplates: LabelTemplate[] = [
+  {
+    name: "Thermal - Classic",
+    config: {
+      brand: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
+      productName: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      style: { show: true, fontSize: 8, bold: false, textAlign: 'left' },
+      size: { show: true, fontSize: 10, bold: true, textAlign: 'right' },
+      price: { show: true, fontSize: 11, bold: true, textAlign: 'center' },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
+      barcodeText: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
+      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      fieldOrder: ['brand', 'style', 'size', 'price', 'barcode', 'barcodeText', 'productName', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      barcodeHeight: 25,
+      barcodeWidth: 1.5,
+    }
+  },
+  {
+    name: "Thermal - Minimal",
+    config: {
+      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
+      productName: { show: false, fontSize: 8, bold: true, textAlign: 'center' },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      style: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      size: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
+      price: { show: true, fontSize: 12, bold: true, textAlign: 'center' },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
+      barcodeText: { show: true, fontSize: 8, bold: true, textAlign: 'center' },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
+      supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      fieldOrder: ['brand', 'size', 'price', 'barcode', 'barcodeText', 'productName', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      barcodeHeight: 28,
+      barcodeWidth: 1.6,
+    }
+  },
+  {
+    name: "Thermal - With Code",
+    config: {
+      brand: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
+      productName: { show: true, fontSize: 8, bold: true, textAlign: 'center' },
+      color: { show: false, fontSize: 7, bold: false, textAlign: 'center' },
+      style: { show: true, fontSize: 7, bold: false, textAlign: 'center' },
+      size: { show: true, fontSize: 9, bold: true, textAlign: 'center' },
+      price: { show: true, fontSize: 10, bold: true, textAlign: 'center' },
+      barcode: { show: true, fontSize: 8, bold: false, textAlign: 'center' },
+      barcodeText: { show: true, fontSize: 7, bold: false, textAlign: 'center' },
+      billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center' },
+      supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center' },
+      purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center' },
+      fieldOrder: ['brand', 'productName', 'style', 'size', 'price', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
+      barcodeHeight: 22,
+      barcodeWidth: 1.4,
+    }
+  },
+];
 
 interface LivePreviewLabelProps {
   labelConfig: LabelDesignConfig;
@@ -2873,17 +2961,32 @@ export default function BarcodePrinting() {
                 <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
-                  <SelectItem value="novajet48">Novajet 48 (33mm × 19mm, 8 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet40">Novajet 40 (39mm × 35mm, 5 cols × 8 rows - A4 Vertical)</SelectItem>
-                  <SelectItem value="novajet65">Novajet 65 (38mm × 21mm, 5 cols - A4 Vertical)</SelectItem>
-                  <SelectItem value="a4_12x4">A4 48-Sheet (50mm × 24mm, 4×12)</SelectItem>
+                <SelectContent className="bg-background z-50 max-h-[400px]">
+                  {/* A4 Sheet Presets */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">📄 A4 Sheet Labels</div>
+                  <SelectItem value="novajet48">Novajet 48 (33×19mm, 8 cols)</SelectItem>
+                  <SelectItem value="novajet40">Novajet 40 (39×35mm, 5×8)</SelectItem>
+                  <SelectItem value="novajet65">Novajet 65 (38×21mm, 5 cols)</SelectItem>
+                  <SelectItem value="a4_12x4">A4 48-Sheet (50×24mm, 4×12)</SelectItem>
+                  
+                  {/* Thermal Roll Presets */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal Printer (1UP)</div>
+                  <SelectItem value="thermal_50x30_1up">50×30mm (1UP) - Single Column</SelectItem>
+                  <SelectItem value="thermal_50x25_1up">50×25mm (1UP) - Single Column</SelectItem>
+                  <SelectItem value="thermal_38x25_1up">38×25mm (1UP) - Single Column</SelectItem>
+                  
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">🔥 Thermal Printer (2UP)</div>
+                  <SelectItem value="thermal_50x30_2up">50×30mm (2UP) - Two Column</SelectItem>
+                  <SelectItem value="thermal_50x25_2up">50×25mm (2UP) - Two Column</SelectItem>
+                  <SelectItem value="thermal_38x25_2up">38×25mm (2UP) - Two Column</SelectItem>
+                  
+                  {/* Custom */}
+                  <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">⚙️ Custom</div>
                   <SelectItem value="custom">Custom Dimensions</SelectItem>
+                  
                   {savedPresets.length > 0 && (
                     <>
-                      <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50 cursor-default">
-                        — My Saved Presets —
-                      </SelectItem>
+                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My Saved Presets</div>
                       {savedPresets.map((preset) => (
                         <SelectItem key={preset.name} value={`preset_${preset.name}`}>
                           {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
@@ -2893,7 +2996,7 @@ export default function BarcodePrinting() {
                   )}
                 </SelectContent>
               </Select>
-              {sheetType !== "custom" && (
+              {sheetType !== "custom" && !sheetType.startsWith("thermal") && (
                 <Button 
                   variant="outline" 
                   size="icon"
@@ -2909,6 +3012,16 @@ export default function BarcodePrinting() {
                 <strong>Recommended Print Settings:</strong> Scale 150% (auto-applied), Margins: None, Headers/Footers: Off<br />
                 <strong>Starting Offsets:</strong> Top 2mm, Left 1mm (auto-loaded, adjust as needed)
               </p>
+            )}
+            {sheetType.startsWith("thermal") && (
+              <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg border border-orange-200 dark:border-orange-800">
+                <p className="text-xs text-orange-700 dark:text-orange-300 font-medium mb-1">🔥 Thermal Printer Tips:</p>
+                <ul className="text-xs text-orange-600 dark:text-orange-400 space-y-0.5 list-disc list-inside">
+                  <li>Set printer paper size to match label size</li>
+                  <li>Use "No Margins" in print settings</li>
+                  <li>Select "Continuous Roll" if available</li>
+                </ul>
+              </div>
             )}
           </div>
 
@@ -3243,6 +3356,15 @@ export default function BarcodePrinting() {
                   onValueChange={(v) => {
                     if (v === "none") {
                       setSelectedLabelTemplate("");
+                    } else if (v.startsWith("builtin_")) {
+                      // Handle built-in template
+                      const templateName = v.replace("builtin_", "");
+                      const builtIn = builtInLabelTemplates.find(t => t.name === templateName);
+                      if (builtIn) {
+                        setLabelConfig(builtIn.config);
+                        setSelectedLabelTemplate(templateName);
+                        toast.success(`Loaded template "${templateName}"`);
+                      }
                     } else {
                       handleLoadLabelTemplate(v);
                     }
@@ -3251,13 +3373,20 @@ export default function BarcodePrinting() {
                   <SelectTrigger className="w-[200px]">
                     <SelectValue placeholder="Select template..." />
                   </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
+                  <SelectContent className="bg-background z-50 max-h-[300px]">
                     <SelectItem value="none">No Template</SelectItem>
+                    
+                    {/* Built-in Thermal Templates */}
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50">🔥 Thermal Templates</div>
+                    {builtInLabelTemplates.map((template) => (
+                      <SelectItem key={template.name} value={`builtin_${template.name}`}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                    
                     {savedLabelTemplates.length > 0 && (
                       <>
-                        <SelectItem value="divider" disabled className="font-semibold text-xs uppercase opacity-50">
-                          — Saved Templates —
-                        </SelectItem>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 mt-1">💾 My Templates</div>
                         {savedLabelTemplates.map((template) => (
                           <SelectItem key={template.name} value={template.name}>
                             <div className="flex items-center gap-2">

@@ -43,7 +43,9 @@ interface LabelConfig {
 }
 
 interface PrintOptions {
-  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4' | 'custom';
+  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4' | 
+    'thermal_50x30_1up' | 'thermal_50x25_1up' | 'thermal_38x25_1up' |
+    'thermal_50x30_2up' | 'thermal_50x25_2up' | 'thermal_38x25_2up' | 'custom';
   topOffset?: number;
   leftOffset?: number;
   labelConfig?: LabelConfig;
@@ -55,11 +57,20 @@ interface PrintOptions {
   };
 }
 
-const sheetPresets = {
+const sheetPresets: Record<string, { cols: number; width: string; height: string; gap: string; thermal?: boolean }> = {
+  // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.2mm", defaultTop: 2, defaultLeft: 1 },
+  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.2mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
+  // Thermal Roll Presets (1UP)
+  thermal_50x30_1up: { cols: 1, width: "50mm", height: "30mm", gap: "0mm", thermal: true },
+  thermal_50x25_1up: { cols: 1, width: "50mm", height: "25mm", gap: "0mm", thermal: true },
+  thermal_38x25_1up: { cols: 1, width: "38mm", height: "25mm", gap: "0mm", thermal: true },
+  // Thermal Roll Presets (2UP)
+  thermal_50x30_2up: { cols: 2, width: "50mm", height: "30mm", gap: "2mm", thermal: true },
+  thermal_50x25_2up: { cols: 2, width: "50mm", height: "25mm", gap: "2mm", thermal: true },
+  thermal_38x25_2up: { cols: 2, width: "38mm", height: "25mm", gap: "2mm", thermal: true },
 };
 
 const getLabelHTML = (
@@ -149,6 +160,10 @@ export const printBarcodesDirectly = async (
     customDimensions,
   } = options;
 
+  // Determine if this is a thermal print
+  const isThermal = sheetType.startsWith('thermal_');
+  const preset = sheetPresets[sheetType];
+
   // Open a dedicated print window so the preview is never blank
   const printWindow = window.open('', '_blank', 'width=1024,height=768');
   if (!printWindow) {
@@ -170,12 +185,7 @@ export const printBarcodesDirectly = async (
 
   const printContainer = doc.createElement('div');
   printContainer.id = 'barcode-print-container';
-  printContainer.style.cssText = `
-    width: 210mm;
-    margin: 0;
-    padding: 0;
-  `;
-
+  
   const dimensions = sheetType === 'custom' && customDimensions
     ? { 
         cols: customDimensions.cols, 
@@ -183,14 +193,29 @@ export const printBarcodesDirectly = async (
         height: `${customDimensions.height}mm`, 
         gap: `${customDimensions.gap}mm` 
       }
-    : sheetPresets[sheetType];
+    : preset || sheetPresets['a4_12x4'];
+
+  // Calculate dimensions for thermal vs A4
+  const labelWidth = parseFloat(dimensions.width);
+  const labelHeight = parseFloat(dimensions.height);
+  const gapValue = parseFloat(dimensions.gap);
+  
+  // For thermal: page width = (labelWidth * cols) + gap * (cols-1)
+  // For A4: fixed 210mm width
+  const pageWidth = isThermal 
+    ? (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1))
+    : 210;
+  
+  printContainer.style.cssText = `
+    width: ${pageWidth}mm;
+    margin: 0;
+    padding: 0;
+  `;
 
   // Calculate actual content height
   const labelCount = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   const rows = Math.ceil(labelCount / dimensions.cols);
-  const heightValue = parseFloat(dimensions.height);
-  const gapValue = parseFloat(dimensions.gap);
-  const contentHeight = (rows * heightValue) + ((rows - 1) * gapValue) + topOffset + 10;
+  const contentHeight = (rows * labelHeight) + ((rows - 1) * gapValue) + topOffset + 10;
 
   const style = doc.createElement('style');
   style.textContent = `
@@ -201,7 +226,7 @@ export const printBarcodesDirectly = async (
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     .label-cell {
-      border: 1px solid #ddd;
+      border: ${isThermal ? 'none' : '1px solid #ddd'};
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -217,13 +242,13 @@ export const printBarcodesDirectly = async (
       page-break-after: avoid !important;
     }
     @page {
-      size: 210mm ${contentHeight}mm;
+      size: ${pageWidth}mm ${isThermal ? labelHeight : contentHeight}mm;
       margin: 0;
     }
     @media print {
       html, body {
-        width: 210mm;
-        height: ${contentHeight}mm;
+        width: ${pageWidth}mm;
+        height: ${isThermal ? 'auto' : contentHeight + 'mm'};
         margin: 0;
         padding: 0;
         overflow: hidden;
@@ -232,12 +257,16 @@ export const printBarcodesDirectly = async (
         page-break-after: avoid !important;
         page-break-inside: avoid !important;
       }
+      ${isThermal ? `
+      .label-cell {
+        page-break-after: ${dimensions.cols === 1 ? 'always' : 'avoid'};
+      }
+      ` : ''}
     }
   `;
 
   doc.head.appendChild(style);
   doc.body.appendChild(printContainer);
-
   try {
     const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';
@@ -248,6 +277,7 @@ export const printBarcodesDirectly = async (
       gap: ${dimensions.gap};
       padding-top: ${topOffset}mm;
       padding-left: ${leftOffset}mm;
+      ${isThermal ? 'margin: 0;' : ''}
     `;
 
     // Generate label cells
