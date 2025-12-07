@@ -178,6 +178,14 @@ export function SizeGridDialog({
           </div>
         )}
 
+        {/* Total Quantity Summary */}
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg mb-4">
+          <span className="font-medium">Total Quantity:</span>
+          <span className="text-xl font-bold text-primary">
+            {Object.values(sizeQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0)}
+          </span>
+        </div>
+
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
