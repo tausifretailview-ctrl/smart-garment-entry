@@ -1491,72 +1491,169 @@ export default function Accounts() {
                 </div>
 
                 {/* Summary Cards */}
-                {reconciliationData && (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
-                          Total Payments
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                          {reconciliationData.filter((r) => {
-                            const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                            const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                            return matchesCustomer && matchesStatus;
-                          }).length}
-                        </div>
-                        <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                          Payment transactions
-                        </p>
-                      </CardContent>
-                    </Card>
+                {reconciliationData && (() => {
+                  const filteredData = reconciliationData.filter((r) => {
+                    const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
+                    const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
+                    return matchesCustomer && matchesStatus;
+                  });
 
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                          Total Amount Received
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                          ₹{reconciliationData
-                            .filter((r) => {
-                              const matchesCustomer = reconCustomerFilter === "all" || reconCustomerFilter === "" || r.invoiceDetails?.customer_id === reconCustomerFilter;
-                              const matchesStatus = reconStatusFilter === "all" || r.invoiceDetails?.payment_status === reconStatusFilter;
-                              return matchesCustomer && matchesStatus;
-                            })
-                            .reduce((sum, r) => sum + (r.total_amount || 0), 0)
-                            .toFixed(2)}
-                        </div>
-                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                          Cash + Card + UPI
-                        </p>
-                      </CardContent>
-                    </Card>
+                  // Calculate source-wise breakdown
+                  const sourceBreakdown = {
+                    accounts: { count: 0, amount: 0 },
+                    pos: { count: 0, amount: 0 },
+                    sales: { count: 0, amount: 0 },
+                  };
 
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">
-                          Unique Customers
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                          {new Set(
-                            reconciliationData
-                              ?.map((r) => r.invoiceDetails?.customer_id)
-                              .filter(Boolean)
-                          ).size}
-                        </div>
-                        <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
-                          Customers paid
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
+                  filteredData.forEach((r) => {
+                    const desc = (r.description || '').toLowerCase();
+                    const amount = r.total_amount || 0;
+                    
+                    if (desc.includes('pos') || desc.includes('pos payment')) {
+                      sourceBreakdown.pos.count++;
+                      sourceBreakdown.pos.amount += amount;
+                    } else if (desc.includes('sales') || desc.includes('sales invoice') || desc.includes('sale invoice')) {
+                      sourceBreakdown.sales.count++;
+                      sourceBreakdown.sales.amount += amount;
+                    } else {
+                      // Default to Accounts (direct entry)
+                      sourceBreakdown.accounts.count++;
+                      sourceBreakdown.accounts.amount += amount;
+                    }
+                  });
+
+                  const totalAmount = filteredData.reduce((sum, r) => sum + (r.total_amount || 0), 0);
+
+                  return (
+                    <>
+                      {/* Main Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+                              Total Payments
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+                              {filteredData.length}
+                            </div>
+                            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                              Payment transactions
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                              Total Amount Received
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                              ₹{totalAmount.toFixed(2)}
+                            </div>
+                            <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                              Cash + Card + UPI
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                              Unique Customers
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                              {new Set(
+                                filteredData
+                                  ?.map((r) => r.invoiceDetails?.customer_id)
+                                  .filter(Boolean)
+                              ).size}
+                            </div>
+                            <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
+                              Customers paid
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Payment Sources Breakdown */}
+                      <Card className="border-l-4 border-l-primary">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium flex items-center gap-2">
+                            <Receipt className="h-4 w-4" />
+                            Payment Sources Breakdown
+                          </CardTitle>
+                          <CardDescription>Payments categorized by entry source</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Accounts (Direct Entry) */}
+                            <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900 border border-emerald-200 dark:border-emerald-800">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                                  <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">Accounts</p>
+                                  <p className="text-xs text-emerald-700 dark:text-emerald-300">{sourceBreakdown.accounts.count} payments</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-emerald-900 dark:text-emerald-100">₹{sourceBreakdown.accounts.amount.toFixed(2)}</p>
+                                <p className="text-xs text-emerald-600 dark:text-emerald-400">
+                                  {totalAmount > 0 ? ((sourceBreakdown.accounts.amount / totalAmount) * 100).toFixed(1) : 0}%
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* POS Dashboard */}
+                            <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border border-blue-200 dark:border-blue-800">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                                  <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">POS Dashboard</p>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300">{sourceBreakdown.pos.count} payments</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-blue-900 dark:text-blue-100">₹{sourceBreakdown.pos.amount.toFixed(2)}</p>
+                                <p className="text-xs text-blue-600 dark:text-blue-400">
+                                  {totalAmount > 0 ? ((sourceBreakdown.pos.amount / totalAmount) * 100).toFixed(1) : 0}%
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Sales Invoice Dashboard */}
+                            <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border border-orange-200 dark:border-orange-800">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                  <TrendingUp className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-orange-900 dark:text-orange-100">Sales Dashboard</p>
+                                  <p className="text-xs text-orange-700 dark:text-orange-300">{sourceBreakdown.sales.count} payments</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-lg font-bold text-orange-900 dark:text-orange-100">₹{sourceBreakdown.sales.amount.toFixed(2)}</p>
+                                <p className="text-xs text-orange-600 dark:text-orange-400">
+                                  {totalAmount > 0 ? ((sourceBreakdown.sales.amount / totalAmount) * 100).toFixed(1) : 0}%
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  );
+                })()}
 
                 {/* Export Button */}
                 <div className="flex justify-end">
