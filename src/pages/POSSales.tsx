@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
   CommandEmpty,
@@ -83,6 +85,7 @@ export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
+  const { createCreditNote, isCreating: isCreatingCreditNote } = useCreditNotes();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
@@ -125,6 +128,9 @@ export default function POSSales() {
   const [invoiceSearchInput, setInvoiceSearchInput] = useState("");
   const [showMixPaymentDialog, setShowMixPaymentDialog] = useState(false);
   const [refundAmount, setRefundAmount] = useState(0);
+  const [creditNoteData, setCreditNoteData] = useState<any>(null);
+  const [showCreditNoteDialog, setShowCreditNoteDialog] = useState(false);
+  const creditNotePrintRef = useRef<HTMLDivElement>(null);
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -966,6 +972,7 @@ export default function POSSales() {
     upiAmount: number;
     totalPaid: number;
     refundAmount: number;
+    issueCreditNote?: boolean;
   }) => {
     // Check if there's a balance and customer mobile is missing
     const balanceAmount = finalAmount - paymentData.totalPaid;
@@ -993,7 +1000,7 @@ export default function POSSales() {
       return;
     }
 
-    // Save the sale with mix payment or refund
+    // Save the sale with mix payment, refund, or credit note
     const saleData = {
       customerId: customerId || null,
       customerName,
@@ -1006,10 +1013,10 @@ export default function POSSales() {
       saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
-      refundAmount: paymentData.refundAmount,
+      refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
     };
 
-    const paymentMethodType = paymentData.refundAmount > 0 ? 'refund' : 'multiple';
+    const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
     
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId 
@@ -1025,33 +1032,54 @@ export default function POSSales() {
       // Refetch today's sales
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
-      const isRefund = paymentData.refundAmount > 0;
-      const balanceAmount = isRefund ? 0 : finalAmount - paymentData.totalPaid;
+      const isRefund = paymentData.refundAmount > 0 && !paymentData.issueCreditNote;
+      const isCreditNote = paymentData.issueCreditNote && paymentData.refundAmount > 0;
+      
+      // If issuing credit note, create it
+      if (isCreditNote) {
+        const creditNote = await createCreditNote({
+          saleId: result.id,
+          customerId: customerId || null,
+          customerName: customerName || 'Walk in Customer',
+          customerPhone: customerPhone || null,
+          creditAmount: paymentData.refundAmount,
+          notes: `Credit note issued against invoice ${result.sale_number}`,
+        });
+        
+        if (creditNote) {
+          setCreditNoteData(creditNote);
+          setShowCreditNoteDialog(true);
+        }
+      }
       
       toast({
         title: wasEditing ? "Sale Updated" : "Sale Saved",
-        description: isRefund 
-          ? `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with refund of ₹${paymentData.refundAmount.toFixed(2)}`
-          : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
+        description: isCreditNote 
+          ? `Invoice ${result.sale_number} saved with Credit Note of ₹${paymentData.refundAmount.toFixed(2)}`
+          : isRefund 
+            ? `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with refund of ₹${paymentData.refundAmount.toFixed(2)}`
+            : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
       });
       
-      // Store invoice data and show print dialog
-      setSavedInvoiceData({
-        invoiceNumber: result.sale_number,
-        saleId: result.id,
-        items: items,
-        totals: totals,
-        flatDiscountAmount: flatDiscountAmount,
-        saleReturnAdjust: saleReturnAdjust,
-        finalAmount: finalAmount,
-        method: isRefund ? 'refund' : 'multiple',
-        customerName: customerName,
-        customerPhone: customerPhone,
-        roundOff: roundOff,
-        paymentBreakdown: paymentData,
-        refundAmount: paymentData.refundAmount,
-      });
-      setShowPrintConfirmDialog(true);
+      // Store invoice data and show print dialog (only for non-credit note cases)
+      if (!isCreditNote) {
+        setSavedInvoiceData({
+          invoiceNumber: result.sale_number,
+          saleId: result.id,
+          items: items,
+          totals: totals,
+          flatDiscountAmount: flatDiscountAmount,
+          saleReturnAdjust: saleReturnAdjust,
+          finalAmount: finalAmount,
+          method: isRefund ? 'refund' : 'multiple',
+          customerName: customerName,
+          customerPhone: customerPhone,
+          roundOff: roundOff,
+          paymentBreakdown: paymentData,
+          refundAmount: paymentData.refundAmount,
+        });
+        setShowPrintConfirmDialog(true);
+      }
       
       // Reset edit mode after successful save
       if (wasEditing) {
@@ -2515,6 +2543,89 @@ export default function POSSales() {
           billAmount={finalAmount}
           onSave={handleMixPaymentSave}
         />
+
+        {/* Credit Note Dialog */}
+        <Dialog open={showCreditNoteDialog} onOpenChange={setShowCreditNoteDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-purple-600">Credit Note Issued</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col gap-3 py-4">
+              {creditNoteData && (
+                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                  <p className="text-sm text-gray-600">Credit Note Number</p>
+                  <p className="text-lg font-bold text-purple-700">{creditNoteData.credit_note_number}</p>
+                  <p className="text-2xl font-bold text-purple-700 mt-2">₹{creditNoteData.credit_amount?.toFixed(2)}</p>
+                  <p className="text-sm text-gray-600 mt-2">Customer: {creditNoteData.customer_name}</p>
+                </div>
+              )}
+              <Button 
+                onClick={() => {
+                  if (creditNotePrintRef.current) {
+                    const printWindow = window.open('', '_blank');
+                    if (printWindow) {
+                      printWindow.document.write('<html><head><title>Credit Note</title>');
+                      printWindow.document.write('<style>body{margin:0;padding:20px;font-family:Arial,sans-serif;}</style>');
+                      printWindow.document.write('</head><body>');
+                      printWindow.document.write(creditNotePrintRef.current.innerHTML);
+                      printWindow.document.write('</body></html>');
+                      printWindow.document.close();
+                      printWindow.print();
+                    }
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700"
+              >
+                <Printer className="h-4 w-4" />
+                Print Credit Note
+              </Button>
+              {creditNoteData?.customer_phone && (
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    const message = `*CREDIT NOTE ISSUED*\n\nC/Note No: ${creditNoteData.credit_note_number}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\n\nCustomer: ${creditNoteData.customer_name}\nCredit Amount: ₹${creditNoteData.credit_amount?.toFixed(2)}\n\nThis credit can be used for your next purchase.\n\nThank you for your business!`;
+                    sendWhatsApp(creditNoteData.customer_phone, message);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 text-green-600 border-green-600 hover:bg-green-50 hover:text-green-700"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Send via WhatsApp
+                </Button>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowCreditNoteDialog(false);
+                  setCreditNoteData(null);
+                  // Clear cart
+                  setItems([]);
+                  setCustomerId("");
+                  setCustomerName("");
+                  setCustomerPhone("");
+                  setFlatDiscountPercent(0);
+                  setSaleReturnAdjust(0);
+                  setRoundOff(0);
+                  setSearchInput("");
+                }}
+              >
+                Done
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Hidden Credit Note for Printing */}
+        {creditNoteData && (
+          <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+            <CreditNotePrint 
+              ref={creditNotePrintRef}
+              creditNote={creditNoteData}
+              settings={null}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

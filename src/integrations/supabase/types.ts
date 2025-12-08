@@ -276,6 +276,85 @@ export type Database = {
           },
         ]
       }
+      credit_notes: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credit_amount: number
+          credit_note_number: string
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          expiry_date: string | null
+          id: string
+          issue_date: string | null
+          notes: string | null
+          organization_id: string
+          sale_id: string | null
+          status: string
+          updated_at: string | null
+          used_amount: number
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credit_amount?: number
+          credit_note_number: string
+          customer_id?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          notes?: string | null
+          organization_id: string
+          sale_id?: string | null
+          status?: string
+          updated_at?: string | null
+          used_amount?: number
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credit_amount?: number
+          credit_note_number?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          expiry_date?: string | null
+          id?: string
+          issue_date?: string | null
+          notes?: string | null
+          organization_id?: string
+          sale_id?: string | null
+          status?: string
+          updated_at?: string | null
+          used_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credit_notes_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -1472,6 +1551,8 @@ export type Database = {
           cash_amount: number | null
           created_at: string
           created_by: string | null
+          credit_note_amount: number | null
+          credit_note_id: string | null
           customer_address: string | null
           customer_email: string | null
           customer_id: string | null
@@ -1517,6 +1598,8 @@ export type Database = {
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
+          credit_note_amount?: number | null
+          credit_note_id?: string | null
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -1562,6 +1645,8 @@ export type Database = {
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
+          credit_note_amount?: number | null
+          credit_note_id?: string | null
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -1601,6 +1686,13 @@ export type Database = {
           upi_amount?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "sales_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "credit_notes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "sales_customer_id_fkey"
             columns: ["customer_id"]
@@ -2042,6 +2134,10 @@ export type Database = {
           details: Json
           fixed_count: number
         }[]
+      }
+      generate_credit_note_number: {
+        Args: { p_organization_id: string }
+        Returns: string
       }
       generate_next_barcode: {
         Args: { p_organization_id: string }
