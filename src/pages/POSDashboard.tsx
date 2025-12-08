@@ -1022,6 +1022,16 @@ const POSDashboard = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={creditNoteFilter} onValueChange={setCreditNoteFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Credit Note" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="with_credit_note">With C/Note</SelectItem>
+                  <SelectItem value="without_credit_note">Without C/Note</SelectItem>
+                </SelectContent>
+              </Select>
               <Select value={refundFilter} onValueChange={setRefundFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Refund" />
@@ -1137,6 +1147,7 @@ const POSDashboard = () => {
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
                       {columnSettings.refund && <TableHead>Refund</TableHead>}
+                      <TableHead>C/Note</TableHead>
                       {columnSettings.status && <TableHead>Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1144,7 +1155,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1213,14 +1224,30 @@ const POSDashboard = () => {
                                 )}
                               </TableCell>
                             )}
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              {sale.credit_note_id ? (
+                                <span className="font-semibold text-violet-600">
+                                  ₹{(sale.credit_note_amount || 0).toFixed(2)}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
-                                <Badge 
-                                  variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
-                                  className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
-                                >
-                                  {sale.payment_status}
-                                </Badge>
+                                <div className="flex flex-col gap-1">
+                                  <Badge 
+                                    variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
+                                    className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                                  >
+                                    {sale.payment_status}
+                                  </Badge>
+                                  {sale.credit_note_id && (
+                                    <Badge variant="outline" className="text-violet-600 border-violet-300 text-xs">
+                                      C/Note
+                                    </Badge>
+                                  )}
+                                </div>
                               </TableCell>
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -1293,7 +1320,7 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 15} className="bg-muted/50 p-4">
+                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="bg-muted/50 p-4">
                                 <div className="space-y-4">
                                   <div>
                                     <h4 className="font-semibold text-sm mb-2">Sale Items:</h4>
