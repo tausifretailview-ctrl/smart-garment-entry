@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
@@ -55,7 +56,7 @@ interface ProductRow {
 
 const ProductDashboard = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { navigate } = useOrgNavigation();
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
