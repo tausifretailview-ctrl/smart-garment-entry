@@ -9,6 +9,7 @@ interface BarcodeItem {
   style: string;
   size: string;
   sale_price: number;
+  mrp?: number;
   pur_price?: number;
   purchase_code?: string;
   barcode: string;
@@ -37,6 +38,7 @@ interface LabelConfig {
   style: LabelFieldConfig;
   size: LabelFieldConfig;
   price: LabelFieldConfig;
+  mrp?: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
@@ -160,6 +162,32 @@ const getAbsolutePositionedLabelHTML = (
   return fieldsHtml;
 };
 
+// VasyERP-style thermal label layout for 50x25mm
+const getThermalLabelHTML = (
+  item: BarcodeItem,
+  labelConfig?: LabelConfig
+): string => {
+  const barcode = item.barcode;
+  const mrp = item.mrp || item.sale_price;
+  const ourPrice = item.sale_price;
+  const productWithSize = `${item.product_name}${item.size ? '-' + item.size : ''}`;
+  const brand = item.brand || '';
+  
+  // Compact thermal layout matching VasyERP style
+  return `
+    <div style="width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between; padding: 1mm 1.5mm; box-sizing: border-box; font-family: Arial, sans-serif;">
+      <div style="font-size: 8px; font-weight: bold; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${productWithSize}</div>
+      <div style="font-size: 7px; text-align: center; font-weight: bold;">MRP: ₹${mrp}</div>
+      <div style="font-size: 7px; text-align: center; font-weight: bold;">Our Price: ₹${ourPrice}</div>
+      <div style="display: flex; justify-content: center; align-items: center; flex: 1; min-height: 8mm;">
+        <svg class="barcode" data-code="${barcode}" style="height: 8mm; max-width: 100%;"></svg>
+      </div>
+      <div style="font-size: 7px; text-align: center; font-weight: bold;">${barcode}</div>
+      <div style="font-size: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${brand}</div>
+    </div>
+  `;
+};
+
 // Legacy flow-based layout
 const getLegacyLabelHTML = (
   item: BarcodeItem,
@@ -243,6 +271,7 @@ export const printBarcodesDirectly = async (
   } = options;
 
   const isThermal = sheetType.startsWith('thermal_');
+  const is1Up = sheetType.includes('_1up');
   const preset = sheetPresets[sheetType];
 
   const printWindow = window.open('', '_blank', 'width=1024,height=768');
@@ -278,151 +307,247 @@ export const printBarcodesDirectly = async (
   const labelWidth = parseFloat(dimensions.width);
   const labelHeight = parseFloat(dimensions.height);
   const gapValue = parseFloat(dimensions.gap);
-  
-  // For thermal printers: exact label size, for A4: standard page width
-  const pageWidth = isThermal 
-    ? (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1))
-    : 210;
-  
-  const pageHeight = isThermal ? labelHeight : 297;
-  
-  printContainer.style.cssText = `
-    width: ${pageWidth}mm;
-    margin: 0;
-    padding: 0;
-  `;
-
-  const labelCount = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
-  const rows = Math.ceil(labelCount / dimensions.cols);
-  const contentHeight = (rows * labelHeight) + ((rows - 1) * gapValue) + topOffset + 10;
 
   // Check if using absolute positioning
   const useAbsolutePositioning = labelConfig && hasAbsolutePositioning(labelConfig);
 
   const style = doc.createElement('style');
-  style.textContent = `
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      ${isThermal ? `width: ${pageWidth}mm;` : ''}
-    }
-    .label-cell {
-      width: ${dimensions.width} !important;
-      height: ${dimensions.height} !important;
-      border: ${isThermal ? 'none' : '1px solid #ddd'};
-      ${useAbsolutePositioning ? 'position: relative;' : `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-      `}
-      padding: ${useAbsolutePositioning ? '0' : '0.5mm 1.5mm'};
-      box-sizing: border-box;
-      line-height: 1.4;
-      overflow: hidden;
-    }
-    .label-grid {
-      margin: 0;
-      padding: 0;
-    }
-    @page {
-      size: ${pageWidth}mm ${pageHeight}mm;
-      margin: 0;
-    }
-    @media print {
+  
+  if (isThermal && is1Up) {
+    // Thermal 1UP: Each label is a separate page
+    style.textContent = `
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      @page {
+        size: ${labelWidth}mm ${labelHeight}mm;
+        margin: 0;
+      }
       html, body {
-        width: ${pageWidth}mm !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+        margin: 0;
+        padding: 0;
+        width: ${labelWidth}mm;
+        font-family: Arial, sans-serif;
+      }
+      .thermal-page {
+        width: ${labelWidth}mm;
+        height: ${labelHeight}mm;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        overflow: hidden;
+        page-break-after: always;
+        break-after: page;
+      }
+      .thermal-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      @media print {
+        html, body {
+          width: ${labelWidth}mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .thermal-page {
+          width: ${labelWidth}mm !important;
+          height: ${labelHeight}mm !important;
+          page-break-after: always !important;
+          break-after: page !important;
+          page-break-inside: avoid !important;
+        }
+        .thermal-page:last-child {
+          page-break-after: auto !important;
+          break-after: auto !important;
+        }
+      }
+      @media screen {
+        .thermal-page {
+          border: 1px dashed #ccc;
+          margin-bottom: 5px;
+        }
+      }
+    `;
+  } else if (isThermal) {
+    // Thermal 2UP: Labels side by side
+    const pageWidth = (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1));
+    style.textContent = `
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      @page {
+        size: ${pageWidth}mm ${labelHeight}mm;
+        margin: 0;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: ${pageWidth}mm;
+        font-family: Arial, sans-serif;
+      }
+      .label-row {
+        display: flex;
+        gap: ${gapValue}mm;
+        width: ${pageWidth}mm;
+        height: ${labelHeight}mm;
+        page-break-after: always;
+        break-after: page;
+      }
+      .label-row:last-child {
+        page-break-after: auto;
+        break-after: auto;
       }
       .label-cell {
-        width: ${dimensions.width} !important;
-        height: ${dimensions.height} !important;
-        page-break-inside: avoid !important;
-        ${isThermal && dimensions.cols === 1 ? 'page-break-after: always !important;' : ''}
+        width: ${labelWidth}mm;
+        height: ${labelHeight}mm;
+        box-sizing: border-box;
+        overflow: hidden;
       }
-      ${isThermal ? `
+      @media print {
+        html, body {
+          width: ${pageWidth}mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+    `;
+  } else {
+    // A4 Sheet: Grid layout
+    const pageWidth = 210;
+    const pageHeight = 297;
+    style.textContent = `
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
       .label-grid {
-        display: ${dimensions.cols === 1 ? 'block' : 'flex'};
-        ${dimensions.cols === 1 ? '' : 'flex-wrap: wrap;'}
-        gap: ${dimensions.gap};
-        width: ${pageWidth}mm;
+        display: grid;
+        grid-template-columns: repeat(${dimensions.cols}, ${labelWidth}mm);
+        grid-auto-rows: ${labelHeight}mm;
+        gap: ${gapValue}mm;
+        padding-top: ${topOffset}mm;
+        padding-left: ${leftOffset}mm;
+        margin: 0;
       }
-      ` : ''}
-    }
-  `;
+      .label-cell {
+        width: ${labelWidth}mm;
+        height: ${labelHeight}mm;
+        border: 1px solid #ddd;
+        ${useAbsolutePositioning ? 'position: relative;' : `
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+        `}
+        padding: ${useAbsolutePositioning ? '0' : '0.5mm 1.5mm'};
+        box-sizing: border-box;
+        line-height: 1.4;
+        overflow: hidden;
+      }
+      @media print {
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+        .label-cell {
+          border: none !important;
+          page-break-inside: avoid !important;
+        }
+      }
+    `;
+  }
 
   doc.head.appendChild(style);
   doc.body.appendChild(printContainer);
   
   try {
-    const gridDiv = doc.createElement('div');
-    gridDiv.className = 'label-grid';
-    
-    if (isThermal && dimensions.cols === 1) {
-      // For thermal 1UP: stack labels vertically, each one page
-      gridDiv.style.cssText = `
-        display: block;
-        margin: 0;
-        padding: 0;
-      `;
-    } else {
-      // For A4 sheets or 2UP thermal: use grid layout
-      gridDiv.style.cssText = `
-        display: grid;
-        grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width});
-        grid-auto-rows: ${dimensions.height};
-        gap: ${dimensions.gap};
-        padding-top: ${topOffset}mm;
-        padding-left: ${leftOffset}mm;
-        margin: 0;
-      `;
-    }
+    if (isThermal && is1Up) {
+      // Thermal 1UP: Each label is wrapped in its own page div
+      items.forEach((item) => {
+        const qty = Number(item.qty) || 0;
+        for (let i = 0; i < qty; i++) {
+          const pageDiv = doc.createElement('div');
+          pageDiv.className = 'thermal-page';
+          
+          if (useAbsolutePositioning && labelConfig) {
+            pageDiv.style.position = 'relative';
+            pageDiv.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
+          } else {
+            pageDiv.innerHTML = getThermalLabelHTML(item, labelConfig);
+          }
+          printContainer.appendChild(pageDiv);
+        }
+      });
+    } else if (isThermal) {
+      // Thermal 2UP: Group labels into rows
+      const allLabels: Array<{ item: BarcodeItem; html: string }> = [];
+      items.forEach((item) => {
+        const qty = Number(item.qty) || 0;
+        for (let i = 0; i < qty; i++) {
+          const html = useAbsolutePositioning && labelConfig
+            ? getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight)
+            : getThermalLabelHTML(item, labelConfig);
+          allLabels.push({ item, html });
+        }
+      });
 
-    items.forEach((item) => {
-      const qty = Number(item.qty) || 0;
-      for (let i = 0; i < qty; i++) {
-        const cell = doc.createElement('div');
-        cell.className = 'label-cell';
+      for (let i = 0; i < allLabels.length; i += dimensions.cols) {
+        const rowDiv = doc.createElement('div');
+        rowDiv.className = 'label-row';
         
-        // For thermal 1UP, center the label content
-        if (isThermal && dimensions.cols === 1) {
-          cell.style.cssText = `
-            width: ${dimensions.width};
-            height: ${dimensions.height};
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            margin: 0 auto;
-            box-sizing: border-box;
-          `;
-        } else {
-          cell.style.width = dimensions.width;
-          cell.style.height = dimensions.height;
+        for (let j = 0; j < dimensions.cols; j++) {
+          const cell = doc.createElement('div');
+          cell.className = 'label-cell';
+          if (i + j < allLabels.length) {
+            cell.innerHTML = allLabels[i + j].html;
+          }
+          rowDiv.appendChild(cell);
         }
-        
-        if (useAbsolutePositioning && labelConfig) {
-          cell.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
-        } else {
-          cell.innerHTML = getLegacyLabelHTML(item, labelConfig);
-        }
-        gridDiv.appendChild(cell);
+        printContainer.appendChild(rowDiv);
       }
-    });
+    } else {
+      // A4 Sheet: Grid layout
+      const gridDiv = doc.createElement('div');
+      gridDiv.className = 'label-grid';
 
-    printContainer.appendChild(gridDiv);
+      items.forEach((item) => {
+        const qty = Number(item.qty) || 0;
+        for (let i = 0; i < qty; i++) {
+          const cell = doc.createElement('div');
+          cell.className = 'label-cell';
+          
+          if (useAbsolutePositioning && labelConfig) {
+            cell.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
+          } else {
+            cell.innerHTML = getLegacyLabelHTML(item, labelConfig);
+          }
+          gridDiv.appendChild(cell);
+        }
+      });
+
+      printContainer.appendChild(gridDiv);
+    }
 
     await new Promise((resolve) => {
       const checkJsBarcode = () => {
@@ -432,11 +557,15 @@ export const printBarcodesDirectly = async (
             const code = (svg as HTMLElement).dataset.code;
             if (code) {
               try {
+                // Smaller barcode dimensions for thermal labels
+                const barcodeHeight = isThermal ? 20 : (labelConfig?.barcodeHeight || 28);
+                const barcodeWidth = isThermal ? 1.2 : (labelConfig?.barcodeWidth || 1.8);
+                
                 (printWindow as any).JsBarcode(svg, code, {
                   format: 'CODE128',
-                  fontSize: 10,
-                  height: labelConfig?.barcodeHeight || 28,
-                  width: labelConfig?.barcodeWidth || 1.8,
+                  fontSize: 8,
+                  height: barcodeHeight,
+                  width: barcodeWidth,
                   textMargin: 0,
                   margin: 0,
                   displayValue: false,
