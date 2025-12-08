@@ -11,11 +11,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet } from "lucide-react";
+import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -70,6 +78,9 @@ const ProductEntry = () => {
   const [showMrp, setShowMrp] = useState(false);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
+  const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
+  const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
@@ -173,6 +184,69 @@ const ProductEntry = () => {
           : [],
       }));
       setSizeGroups(typedData);
+    }
+  };
+
+  const handleCreateSizeGroup = async () => {
+    if (!newSizeGroup.group_name || !newSizeGroup.sizes) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter group name and sizes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "No organization selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCreatingSizeGroup(true);
+    try {
+      const sizesArray = newSizeGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
+      
+      const { data, error } = await supabase
+        .from("size_groups")
+        .insert({
+          group_name: newSizeGroup.group_name,
+          sizes: sizesArray,
+          organization_id: currentOrganization.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Size group created successfully",
+      });
+
+      // Add new group to the list and select it
+      const newGroup: SizeGroup = {
+        id: data.id,
+        group_name: data.group_name,
+        sizes: sizesArray,
+      };
+      setSizeGroups(prev => [...prev, newGroup]);
+      setFormData(prev => ({ ...prev, size_group_id: data.id }));
+      
+      setNewSizeGroup({ group_name: "", sizes: "" });
+      setShowCreateSizeGroup(false);
+    } catch (error: any) {
+      console.error("Error creating size group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to create size group",
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingSizeGroup(false);
     }
   };
 
@@ -1230,14 +1304,24 @@ const ProductEntry = () => {
                   <Label htmlFor="size_group">Size Group</Label>
                   <Select
                     value={formData.size_group_id}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, size_group_id: value })
-                    }
+                    onValueChange={(value) => {
+                      if (value === "__create_new__") {
+                        setShowCreateSizeGroup(true);
+                      } else {
+                        setFormData({ ...formData, size_group_id: value });
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select size group" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="__create_new__" className="text-primary font-medium">
+                        <span className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          Create New Size Group
+                        </span>
+                      </SelectItem>
                       {sizeGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.group_name}
@@ -1564,6 +1648,57 @@ const ProductEntry = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Create Size Group Dialog */}
+        <Dialog open={showCreateSizeGroup} onOpenChange={setShowCreateSizeGroup}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create New Size Group</DialogTitle>
+              <DialogDescription>
+                Enter the group name and sizes separated by commas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_group_name">Group Name *</Label>
+                <Input
+                  id="new_group_name"
+                  value={newSizeGroup.group_name}
+                  onChange={(e) => setNewSizeGroup(prev => ({ ...prev, group_name: e.target.value }))}
+                  placeholder="e.g., Shirt Sizes, Shoe Sizes"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="new_sizes">Sizes (comma separated) *</Label>
+                <Input
+                  id="new_sizes"
+                  value={newSizeGroup.sizes}
+                  onChange={(e) => setNewSizeGroup(prev => ({ ...prev, sizes: e.target.value }))}
+                  placeholder="e.g., S, M, L, XL, XXL"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter sizes separated by commas. Example: 38, 40, 42, 44 or S, M, L, XL
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCreateSizeGroup(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleCreateSizeGroup} disabled={creatingSizeGroup}>
+                {creatingSizeGroup ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  "Create Size Group"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Excel Import Dialog */}
         <ExcelImportDialog
