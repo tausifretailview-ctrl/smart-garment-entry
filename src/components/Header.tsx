@@ -26,9 +26,16 @@ export const Header = () => {
   const { isInstallable, promptInstall } = useInstallPrompt();
 
   const handleSignOut = async () => {
-    // Store the current organization slug before signing out
-    const slug = currentOrganization?.slug || orgSlug;
+    // Get the organization slug (prefer current, fallback to localStorage)
+    const slug = currentOrganization?.slug || orgSlug || localStorage.getItem("selectedOrgSlug");
+    
+    // Ensure slug is preserved in localStorage for PWA support before signing out
+    if (slug) {
+      localStorage.setItem("selectedOrgSlug", slug);
+    }
+    
     await signOut();
+    
     // Redirect to organization login URL if available, otherwise default auth
     if (slug) {
       navigate(`/${slug}`);
