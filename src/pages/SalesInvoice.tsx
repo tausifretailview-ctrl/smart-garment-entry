@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check } from "lucide-react";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -128,6 +128,8 @@ export default function SalesInvoice() {
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
   const [paymentTerm, setPaymentTerm] = useState<string>("");
   const [termsConditions, setTermsConditions] = useState<string>("");
@@ -1180,32 +1182,87 @@ Thank you for choosing us!`;
               )}
             </div>
             <div className="flex gap-2">
-              <Select value={selectedCustomerId} onValueChange={(value) => {
-                setSelectedCustomerId(value);
-                const customer = customersData?.find(c => c.id === value);
-                setSelectedCustomer(customer);
-              }}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Select customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  {customersData?.map(customer => {
-                    const balance = getCustomerBalance(customer);
-                    return (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        <div className="flex items-center justify-between w-full gap-2">
-                          <span>{customer.customer_name} - {customer.phone}</span>
-                          {balance !== 0 && (
-                            <span className={`text-xs ${balance > 0 ? 'text-destructive' : 'text-green-600'}`}>
-                              ₹{Math.abs(balance).toLocaleString('en-IN')}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openCustomerSearch}
+                    className="flex-1 justify-between"
+                  >
+                    {selectedCustomer ? (
+                      <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
+                    ) : (
+                      <span className="text-muted-foreground">Search customer by name, phone...</span>
+                    )}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0 z-50" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput 
+                      placeholder="Search by name, phone, or email..." 
+                      value={customerSearchInput}
+                      onValueChange={setCustomerSearchInput}
+                    />
+                    <CommandList>
+                      <CommandEmpty>No customers found.</CommandEmpty>
+                      <CommandGroup heading="Customers">
+                        {(customersData || [])
+                          .filter(c => {
+                            const searchTerm = customerSearchInput.toLowerCase().trim();
+                            if (!searchTerm) return true;
+                            const normalizedPhone = (c.phone || '').replace(/\D/g, '');
+                            const normalizedSearch = searchTerm.replace(/\D/g, '');
+                            return (
+                              c.customer_name.toLowerCase().includes(searchTerm) ||
+                              (c.phone || '').toLowerCase().includes(searchTerm) ||
+                              (normalizedSearch && normalizedPhone.includes(normalizedSearch)) ||
+                              (c.email || '').toLowerCase().includes(searchTerm)
+                            );
+                          })
+                          .slice(0, 10)
+                          .map((customer) => {
+                            const balance = getCustomerBalance(customer);
+                            return (
+                              <CommandItem
+                                key={customer.id}
+                                value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
+                                onSelect={() => {
+                                  setSelectedCustomerId(customer.id);
+                                  setSelectedCustomer(customer);
+                                  setCustomerSearchInput("");
+                                  setOpenCustomerSearch(false);
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <Check className={cn("mr-2 h-4 w-4", selectedCustomerId === customer.id ? "opacity-100" : "opacity-0")} />
+                                <div className="flex flex-col flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-medium">{customer.customer_name}</span>
+                                    {balance !== 0 && (
+                                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                        balance > 0 
+                                          ? 'bg-destructive/10 text-destructive' 
+                                          : 'bg-green-500/10 text-green-600'
+                                      }`}>
+                                        ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-sm text-muted-foreground">
+                                    {customer.phone && `Phone: ${customer.phone}`}
+                                    {customer.email && ` | Email: ${customer.email}`}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
