@@ -15,6 +15,7 @@ interface MixPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   billAmount: number;
+  creditApplied?: number;
   onSave: (paymentData: {
     cashAmount: number;
     cardAmount: number;
@@ -29,6 +30,7 @@ export function MixPaymentDialog({
   open,
   onOpenChange,
   billAmount,
+  creditApplied = 0,
   onSave,
 }: MixPaymentDialogProps) {
   const [cashAmount, setCashAmount] = useState(0);
@@ -107,9 +109,25 @@ export function MixPaymentDialog({
           <div className={`flex items-center justify-between p-3 rounded-lg ${isRefundMode ? 'bg-orange-100 dark:bg-orange-900' : 'bg-muted'}`}>
             <span className="text-sm font-medium">Bill Amount:</span>
             <span className={`text-lg font-bold ${isRefundMode ? 'text-orange-600 dark:text-orange-400' : ''}`}>
-              {formatCurrency(isRefundMode ? -billAmount : billAmount)}
+              {formatCurrency(isRefundMode ? -(billAmount + creditApplied) : (billAmount + creditApplied))}
             </span>
           </div>
+
+          {/* Credit Applied */}
+          {creditApplied > 0 && (
+            <div className="flex items-center justify-between p-3 bg-purple-100 dark:bg-purple-900 rounded-lg border border-purple-300 dark:border-purple-700">
+              <span className="text-sm font-medium text-purple-700 dark:text-purple-300">Credit Applied:</span>
+              <span className="text-lg font-bold text-purple-700 dark:text-purple-300">-{formatCurrency(creditApplied)}</span>
+            </div>
+          )}
+
+          {/* Net Payable after credit */}
+          {creditApplied > 0 && !isRefundMode && (
+            <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-900 rounded-lg border border-green-300 dark:border-green-700">
+              <span className="text-sm font-medium text-green-700 dark:text-green-300">Net Payable:</span>
+              <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(billAmount)}</span>
+            </div>
+          )}
 
           {isRefundMode && (
             <div className="flex items-center justify-between p-3 bg-red-100 dark:bg-red-900 rounded-lg border border-red-300 dark:border-red-700">
