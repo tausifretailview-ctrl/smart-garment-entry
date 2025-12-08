@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText } from "lucide-react";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -76,6 +76,8 @@ interface Sale {
   card_amount?: number;
   upi_amount?: number;
   refund_amount?: number;
+  credit_note_id?: string | null;
+  credit_note_amount?: number;
   created_at: string;
 }
 
@@ -93,6 +95,7 @@ const POSDashboard = () => {
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
+  const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [saleItems, setSaleItems] = useState<Record<string, SaleItem[]>>({});
   const [saleReturns, setSaleReturns] = useState<Record<string, any[]>>({});
@@ -745,9 +748,14 @@ const POSDashboard = () => {
         (refundFilter === "with_refund" && (sale.refund_amount || 0) > 0) ||
         (refundFilter === "without_refund" && (sale.refund_amount || 0) === 0);
 
-      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund;
+      const matchesCreditNote =
+        creditNoteFilter === "all" ||
+        (creditNoteFilter === "with_credit_note" && sale.credit_note_id) ||
+        (creditNoteFilter === "without_credit_note" && !sale.credit_note_id);
+
+      return matchesSearch && matchesDateRange && matchesPaymentMethod && matchesPaymentStatus && matchesRefund && matchesCreditNote;
     });
-  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter]);
+  }, [sales, saleItems, searchQuery, startDate, endDate, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter]);
 
   // Memoize summary statistics to avoid recalculating on every render
   const summaryStats = useMemo(() => ({
@@ -766,6 +774,8 @@ const POSDashboard = () => {
     holdAmount: filteredSales.filter(sale => sale.payment_status === 'hold').reduce((sum, sale) => sum + sale.net_amount, 0),
     refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
     refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
+    creditNoteCount: filteredSales.filter(sale => sale.credit_note_id).length,
+    creditNoteAmount: filteredSales.reduce((sum, sale) => sum + (sale.credit_note_amount || 0), 0),
   }), [filteredSales, saleItems]);
 
   // Memoize pagination calculations
@@ -816,7 +826,7 @@ const POSDashboard = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter, refundFilter]);
+  }, [searchQuery, startDate, endDate, itemsPerPage, paymentMethodFilter, paymentStatusFilter, refundFilter, creditNoteFilter]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -854,7 +864,7 @@ const POSDashboard = () => {
         </div>
 
         {/* Summary Statistics - Modern Gradient Style Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           <Card 
             className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20"
             onClick={() => setPaymentStatusFilter("all")}
@@ -936,6 +946,20 @@ const POSDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold text-amber-600">{summaryStats.refundCount}</div>
               <p className="text-xs text-muted-foreground">₹{summaryStats.refundAmount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-violet-500 hover:scale-[1.02] bg-gradient-to-br from-violet-50 to-violet-100/50 dark:from-violet-950/30 dark:to-violet-900/20"
+            onClick={() => setCreditNoteFilter("with_credit_note")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Credit Notes</CardDescription>
+              <FileText className="h-4 w-4 text-violet-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-violet-600">{summaryStats.creditNoteCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.creditNoteAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>

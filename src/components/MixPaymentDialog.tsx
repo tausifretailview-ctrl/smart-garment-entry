@@ -21,6 +21,7 @@ interface MixPaymentDialogProps {
     upiAmount: number;
     totalPaid: number;
     refundAmount: number;
+    issueCreditNote?: boolean;
   }) => void;
 }
 
@@ -53,7 +54,7 @@ export function MixPaymentDialog({
     }
   }, [open, isRefundMode, refundRequired]);
 
-  const handleSave = () => {
+  const handleSave = (issueCreditNote: boolean = false) => {
     if (isRefundMode) {
       if (refundAmount <= 0) {
         return;
@@ -64,6 +65,7 @@ export function MixPaymentDialog({
         upiAmount: 0,
         totalPaid: 0,
         refundAmount,
+        issueCreditNote,
       });
     } else {
       if (totalPaid <= 0) {
@@ -75,6 +77,7 @@ export function MixPaymentDialog({
         upiAmount,
         totalPaid,
         refundAmount: 0,
+        issueCreditNote: false,
       });
     }
 
@@ -209,20 +212,38 @@ export function MixPaymentDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="flex-col sm:flex-row gap-2">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
           >
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isRefundMode ? refundAmount <= 0 : totalPaid <= 0}
-            className={isRefundMode ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            {isRefundMode ? "Process Refund" : "Save & Print"}
-          </Button>
+          {isRefundMode ? (
+            <>
+              <Button
+                onClick={() => handleSave(false)}
+                disabled={refundAmount <= 0}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                Process Refund
+              </Button>
+              <Button
+                onClick={() => handleSave(true)}
+                disabled={refundAmount <= 0}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Issue C/Note
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={() => handleSave(false)}
+              disabled={totalPaid <= 0}
+            >
+              Save & Print
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
