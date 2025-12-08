@@ -1207,7 +1207,7 @@ Thank you for choosing us!`;
                     />
                     <CommandList>
                       <CommandEmpty>No customers found.</CommandEmpty>
-                      <CommandGroup heading="Customers">
+                      <CommandGroup heading={`Customers (${customersData?.length || 0})`}>
                         {(customersData || [])
                           .filter(c => {
                             const searchTerm = customerSearchInput.toLowerCase().trim();
