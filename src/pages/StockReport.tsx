@@ -24,6 +24,7 @@ interface StockItem {
   sale_price: number;
   mrp: number | null;
   barcode: string;
+  supplier_name: string;
 }
 
 interface StockMovement {
@@ -47,6 +48,7 @@ interface BatchStock {
   brand: string;
   size: string;
   barcode: string;
+  supplier_name: string;
 }
 
 export default function StockReport() {
@@ -120,6 +122,27 @@ export default function StockReport() {
 
       if (movementsError) throw movementsError;
 
+      // Fetch batch stock with supplier info to get supplier names for each variant
+      const { data: batchData, error: batchError } = await supabase
+        .from("batch_stock")
+        .select(`
+          variant_id,
+          purchase_bills (
+            supplier_name
+          )
+        `)
+        .eq("organization_id", currentOrganization.id);
+
+      if (batchError) throw batchError;
+
+      // Map variant_id to supplier names (take the first/most recent supplier)
+      const variantSuppliers = (batchData || []).reduce((acc: any, batch: any) => {
+        if (!acc[batch.variant_id] && batch.purchase_bills?.supplier_name) {
+          acc[batch.variant_id] = batch.purchase_bills.supplier_name;
+        }
+        return acc;
+      }, {});
+
       // Calculate purchase and sales quantities per variant
       const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
         if (!acc[movement.variant_id]) {
@@ -152,6 +175,7 @@ export default function StockReport() {
           sale_price: item.sale_price,
           mrp: item.mrp || null,
           barcode: item.barcode || "",
+          supplier_name: variantSuppliers[item.id] || "",
         };
       }) || [];
 
@@ -221,6 +245,9 @@ export default function StockReport() {
               product_name,
               brand
             )
+          ),
+          purchase_bills (
+            supplier_name
           )
         `)
         .eq('organization_id', currentOrganization.id)
@@ -239,6 +266,7 @@ export default function StockReport() {
         brand: item.product_variants?.products?.brand || '',
         size: item.product_variants?.size || '',
         barcode: item.product_variants?.barcode || '',
+        supplier_name: item.purchase_bills?.supplier_name || '',
       }));
 
       setBatchStock(formattedData);
@@ -256,7 +284,8 @@ export default function StockReport() {
       item.brand.toLowerCase().includes(search) ||
       item.color.toLowerCase().includes(search) ||
       item.size.toLowerCase().includes(search) ||
-      item.barcode.toLowerCase().includes(search)
+      item.barcode.toLowerCase().includes(search) ||
+      item.supplier_name.toLowerCase().includes(search)
     );
   });
 
@@ -268,7 +297,8 @@ export default function StockReport() {
       item.brand.toLowerCase().includes(search) ||
       item.size.toLowerCase().includes(search) ||
       item.barcode.toLowerCase().includes(search) ||
-      item.bill_number.toLowerCase().includes(search)
+      item.bill_number.toLowerCase().includes(search) ||
+      item.supplier_name.toLowerCase().includes(search)
     );
   });
 
@@ -311,7 +341,7 @@ export default function StockReport() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Search by product name, barcode, brand, color, size, bill number..."
+          placeholder="Search by supplier, product name, barcode, brand, color, size, bill number..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-10 h-11"
@@ -404,9 +434,10 @@ export default function StockReport() {
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <Table>
+                  <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Supplier</TableHead>
                       <TableHead>Product</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead>Size</TableHead>
@@ -423,13 +454,14 @@ export default function StockReport() {
                   <TableBody>
                     {filteredStockItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                           No products found matching your search
                         </TableCell>
                       </TableRow>
                     ) : (
                       filteredStockItems.map((item) => (
                         <TableRow key={item.id}>
+                          <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
                           <TableCell className="font-medium">{item.product_name}</TableCell>
                           <TableCell>{item.brand}</TableCell>
                           <TableCell>{item.size}</TableCell>
@@ -499,6 +531,7 @@ export default function StockReport() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead>Supplier</TableHead>
                         <TableHead>Product</TableHead>
                         <TableHead>Brand</TableHead>
                         <TableHead>Size</TableHead>
@@ -512,13 +545,14 @@ export default function StockReport() {
                     <TableBody>
                       {lowStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                             {searchTerm ? "No low stock products found matching your search" : "No low stock items"}
                           </TableCell>
                         </TableRow>
                       ) : (
                         lowStockItems.map((item) => (
                           <TableRow key={item.id}>
+                            <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
                             <TableCell className="font-medium">{item.product_name}</TableCell>
                             <TableCell>{item.brand}</TableCell>
                             <TableCell>{item.size}</TableCell>
@@ -566,6 +600,7 @@ export default function StockReport() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Supplier</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead>Size</TableHead>
@@ -579,7 +614,7 @@ export default function StockReport() {
                   <TableBody>
                     {filteredBatchStock.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           No batch stock found matching your search
                         </TableCell>
                       </TableRow>
@@ -591,6 +626,7 @@ export default function StockReport() {
                       
                       return (
                         <TableRow key={batch.id}>
+                          <TableCell className="text-muted-foreground">{batch.supplier_name || '—'}</TableCell>
                           <TableCell className="font-medium">
                             {batch.product_name}
                           </TableCell>
