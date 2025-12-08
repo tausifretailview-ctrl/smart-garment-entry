@@ -1756,7 +1756,7 @@ export default function POSSales() {
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0 z-50" align="start">
-              <Command>
+              <Command shouldFilter={false}>
                 <CommandInput 
                   placeholder="Search by name, phone, or email..." 
                   value={customerName}
@@ -1766,11 +1766,18 @@ export default function POSSales() {
                   <CommandEmpty>No customers found.</CommandEmpty>
                   <CommandGroup heading="Customers">
                     {customers
-                      .filter(c => 
-                        c.customer_name.toLowerCase().includes(customerName.toLowerCase()) ||
-                        c.phone?.toLowerCase().includes(customerName.toLowerCase()) ||
-                        c.email?.toLowerCase().includes(customerName.toLowerCase())
-                      )
+                      .filter(c => {
+                        const searchTerm = customerName.toLowerCase().trim();
+                        if (!searchTerm) return true;
+                        const normalizedPhone = (c.phone || '').replace(/\D/g, '');
+                        const normalizedSearch = searchTerm.replace(/\D/g, '');
+                        return (
+                          c.customer_name.toLowerCase().includes(searchTerm) ||
+                          (c.phone || '').toLowerCase().includes(searchTerm) ||
+                          (normalizedSearch && normalizedPhone.includes(normalizedSearch)) ||
+                          (c.email || '').toLowerCase().includes(searchTerm)
+                        );
+                      })
                       .slice(0, 10)
                       .map((customer) => {
                         const balance = getCustomerBalance(customer);
