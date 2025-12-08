@@ -62,20 +62,28 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     pageStyle: `
       @page {
         size: ${getPageSize()};
-        margin: ${selectedFormat === 'thermal' ? '5mm' : '10mm'};
+        margin: 0;
       }
       @media print {
-        body {
-          margin: 0;
-          padding: 0;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
         .print-invoice-container {
+          width: ${selectedFormat === 'a4' ? '210mm' : selectedFormat === 'a5' ? '148mm' : selectedFormat === 'a5-horizontal' ? '210mm' : '80mm'} !important;
+          min-height: ${selectedFormat === 'a4' ? '297mm' : selectedFormat === 'a5' ? '210mm' : selectedFormat === 'a5-horizontal' ? '148mm' : 'auto'} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          transform: none !important;
           page-break-inside: avoid !important;
-          page-break-after: avoid !important;
-          overflow: hidden !important;
-          max-height: ${selectedFormat === 'a4' ? '277mm' : selectedFormat === 'a5' ? '190mm' : 'auto'} !important;
+          overflow: visible !important;
+        }
+        .print-invoice-container > * {
+          transform: none !important;
         }
       }
     `,
