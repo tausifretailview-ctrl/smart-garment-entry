@@ -1764,7 +1764,7 @@ export default function POSSales() {
                 />
                 <CommandList>
                   <CommandEmpty>No customers found.</CommandEmpty>
-                  <CommandGroup heading="Customers">
+                  <CommandGroup heading={`Customers (${customers?.length || 0})`}>
                     {customers
                       .filter(c => {
                         const searchTerm = customerName.toLowerCase().trim();
