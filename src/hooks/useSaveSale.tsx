@@ -544,7 +544,7 @@ export const useSaveSale = () => {
           sale_return_adjust: saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
-          payment_method: 'hold',
+          payment_method: 'pay_later',
           payment_status: 'hold',
           paid_amount: 0,
           cash_amount: 0,
