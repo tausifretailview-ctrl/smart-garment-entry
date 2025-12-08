@@ -53,8 +53,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setOrganizations([]);
       setOrganizationRole(null);
       setLoading(false);
-      // Clear stored org slug when user logs out
-      localStorage.removeItem("selectedOrgSlug");
+      // Keep selectedOrgSlug in localStorage for PWA redirect support
+      // This allows the app to redirect to org-specific login after logout
       return;
     }
 
