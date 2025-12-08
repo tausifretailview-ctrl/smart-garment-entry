@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -82,7 +82,8 @@ export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
-  const { saveSale, updateSale, isSaving } = useSaveSale();
+  const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
+  const [isHeldSale, setIsHeldSale] = useState(false);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -179,13 +180,9 @@ export default function POSSales() {
 
       if (saleError) throw saleError;
 
-      // Fetch sale items
-      const { data: saleItems, error: itemsError } = await supabase
-        .from('sale_items')
-        .select('*')
-        .eq('sale_id', saleId);
-
-      if (itemsError) throw itemsError;
+      // Check if this is a held sale
+      const isHeld = sale.payment_status === 'hold';
+      setIsHeldSale(isHeld);
 
       // Populate form with sale data
       setCurrentSaleId(saleId);
@@ -198,32 +195,66 @@ export default function POSSales() {
       setRoundOff(sale.round_off);
       setPaymentMethod(sale.payment_method as any);
 
-      // Convert sale items to cart items
-      const cartItems: CartItem[] = saleItems.map(item => ({
-        id: item.id,
-        barcode: item.barcode || '',
-        productName: item.product_name,
-        size: item.size,
-        color: item.color || '',
-        quantity: item.quantity,
-        mrp: item.mrp,
-        originalMrp: item.mrp > item.unit_price ? item.mrp : null, // Infer originalMrp
-        gstPer: item.gst_percent,
-        discountPercent: item.discount_percent,
-        discountAmount: 0,
-        unitCost: item.unit_price,
-        netAmount: item.line_total,
-        productId: item.product_id,
-        variantId: item.variant_id,
-        hsnCode: item.hsn_code || '',
-      }));
+      if (isHeld && sale.notes) {
+        // Load items from notes (held sale doesn't have sale_items)
+        try {
+          const holdData = JSON.parse(sale.notes);
+          if (holdData.items && Array.isArray(holdData.items)) {
+            setItems(holdData.items);
+            if (holdData.flatDiscountPercent !== undefined) {
+              setFlatDiscountPercent(holdData.flatDiscountPercent);
+            }
+            if (holdData.saleReturnAdjust !== undefined) {
+              setSaleReturnAdjust(holdData.saleReturnAdjust);
+            }
+            if (holdData.roundOff !== undefined) {
+              setRoundOff(holdData.roundOff);
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing held sale notes:', parseError);
+        }
+        
+        toast({
+          title: "Held Bill Loaded",
+          description: `Bill ${sale.sale_number} loaded. Complete the sale with a payment method.`,
+        });
+      } else {
+        // Fetch sale items for regular sales
+        const { data: saleItems, error: itemsError } = await supabase
+          .from('sale_items')
+          .select('*')
+          .eq('sale_id', saleId);
 
-      setItems(cartItems);
+        if (itemsError) throw itemsError;
 
-      toast({
-        title: "Invoice Loaded",
-        description: `Invoice ${sale.sale_number} loaded for editing`,
-      });
+        // Convert sale items to cart items
+        const cartItems: CartItem[] = saleItems.map(item => ({
+          id: item.id,
+          barcode: item.barcode || '',
+          productName: item.product_name,
+          size: item.size,
+          color: item.color || '',
+          quantity: item.quantity,
+          mrp: item.mrp,
+          originalMrp: item.mrp > item.unit_price ? item.mrp : null,
+          gstPer: item.gst_percent,
+          discountPercent: item.discount_percent,
+          discountAmount: 0,
+          unitCost: item.unit_price,
+          netAmount: item.line_total,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          hsnCode: item.hsn_code || '',
+        }));
+
+        setItems(cartItems);
+
+        toast({
+          title: "Invoice Loaded",
+          description: `Invoice ${sale.sale_number} loaded for editing`,
+        });
+      }
     } catch (error: any) {
       console.error('Error loading sale:', error);
       toast({
@@ -273,6 +304,11 @@ export default function POSSales() {
       else if (e.key === 'F4') {
         e.preventDefault();
         handleMixPayment();
+      }
+      // F5 - Hold Bill
+      else if (e.key === 'F5') {
+        e.preventDefault();
+        handleHoldBill();
       }
       // Esc - Clear items
       else if (e.key === 'Escape') {
@@ -861,10 +897,15 @@ export default function POSSales() {
       netAmount: finalAmount,
     };
 
-    // Use updateSale if editing existing sale, otherwise create new
-    const result = currentSaleId 
-      ? await updateSale(currentSaleId, saleData, method)
-      : await saveSale(saleData, method);
+    // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
+    let result;
+    if (isHeldSale && currentSaleId) {
+      result = await resumeHeldSale(currentSaleId, saleData, method);
+    } else if (currentSaleId) {
+      result = await updateSale(currentSaleId, saleData, method);
+    } else {
+      result = await saveSale(saleData, method);
+    }
     
     if (result) {
       // Store invoice number and sale ID for printing
@@ -1419,6 +1460,7 @@ export default function POSSales() {
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
     setCurrentInvoiceNumber("");
+    setIsHeldSale(false);
     
     toast({
       title: "New Invoice",
@@ -1429,6 +1471,52 @@ export default function POSSales() {
     setTimeout(() => {
       barcodeInputRef.current?.focus();
     }, 100);
+  };
+
+  // Handle putting bill on hold
+  const handleHoldBill = async () => {
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please add items to the cart before holding",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const saleData = {
+      customerId: customerId || null,
+      customerName: customerName || "Walk in Customer",
+      customerPhone: customerPhone || null,
+      items,
+      grossAmount: totals.mrp,
+      discountAmount: totals.discount,
+      flatDiscountPercent,
+      flatDiscountAmount,
+      saleReturnAdjust,
+      roundOff,
+      netAmount: finalAmount,
+    };
+
+    const result = await holdSale(saleData);
+    
+    if (result) {
+      // Clear cart after holding
+      setItems([]);
+      setCustomerId("");
+      setCustomerName("");
+      setCustomerPhone("");
+      setFlatDiscountPercent(0);
+      setSaleReturnAdjust(0);
+      setRoundOff(0);
+      setSearchInput("");
+      setCurrentSaleId(null);
+      setCurrentInvoiceNumber("");
+      setIsHeldSale(false);
+      
+      // Refetch today's sales
+      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+    }
   };
 
   const createCustomer = useMutation({
@@ -1491,6 +1579,17 @@ export default function POSSales() {
         >
           <FileText className="h-5 w-5" />
           <span>New</span>
+        </Button>
+        
+        <Button
+          onClick={handleHoldBill}
+          disabled={items.length === 0 || isSaving || isHeldSale}
+          className="h-16 flex flex-col items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs disabled:opacity-50"
+          title="Hold Bill (F5)"
+        >
+          <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F5</Badge>
+          <Pause className="h-5 w-5" />
+          <span>Hold</span>
         </Button>
         
         <Button
