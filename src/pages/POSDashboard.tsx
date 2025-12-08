@@ -231,12 +231,12 @@ const POSDashboard = () => {
       if (error) throw error;
       setSales(data || []);
       
-      // Fetch all sale items upfront for quantity calculation - include product details
+      // Fetch all sale items upfront for quantity calculation
       if (data && data.length > 0) {
         const saleIds = data.map(sale => sale.id);
         const { data: itemsData, error: itemsError } = await supabase
           .from("sale_items")
-          .select("*, products:product_id (brand, color, style)")
+          .select("*")
           .in("sale_id", saleIds);
         
         if (!itemsError && itemsData) {
@@ -245,13 +245,7 @@ const POSDashboard = () => {
             if (!itemsBySale[item.sale_id]) {
               itemsBySale[item.sale_id] = [];
             }
-            // Merge product details into item
-            itemsBySale[item.sale_id].push({
-              ...item,
-              brand: item.products?.brand,
-              color: item.products?.color,
-              style: item.products?.style,
-            });
+            itemsBySale[item.sale_id].push(item);
           });
           setSaleItems(itemsBySale);
         }
@@ -273,19 +267,13 @@ const POSDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("sale_items")
-        .select("*, products:product_id (brand, color, style)")
+        .select("*")
         .eq("sale_id", saleId);
 
       if (error) throw error;
 
-      const items = (data || []).map((item: any) => ({
-        ...item,
-        brand: item.products?.brand,
-        color: item.products?.color,
-        style: item.products?.style,
-      }));
-      setSaleItems((prev) => ({ ...prev, [saleId]: items }));
-      return items;
+      setSaleItems((prev) => ({ ...prev, [saleId]: data || [] }));
+      return data || [];
     } catch (error: any) {
       toast({
         title: "Error",
