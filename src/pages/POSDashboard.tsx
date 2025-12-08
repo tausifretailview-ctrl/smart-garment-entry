@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause } from "lucide-react";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -762,6 +762,8 @@ const POSDashboard = () => {
     completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
     pendingCount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,
     pendingAmount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    holdCount: filteredSales.filter(sale => sale.payment_status === 'hold').length,
+    holdAmount: filteredSales.filter(sale => sale.payment_status === 'hold').reduce((sum, sale) => sum + sale.net_amount, 0),
     refundCount: filteredSales.filter(sale => (sale.refund_amount || 0) > 0).length,
     refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
   }), [filteredSales, saleItems]);
@@ -852,7 +854,7 @@ const POSDashboard = () => {
         </div>
 
         {/* Summary Statistics - Modern Gradient Style Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <Card 
             className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20"
             onClick={() => setPaymentStatusFilter("all")}
@@ -864,6 +866,20 @@ const POSDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold text-blue-600">{summaryStats.totalBills}</div>
               <p className="text-xs text-muted-foreground">Qty: {summaryStats.totalQty}</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-yellow-500 hover:scale-[1.02] bg-gradient-to-br from-yellow-50 to-yellow-100/50 dark:from-yellow-950/30 dark:to-yellow-900/20"
+            onClick={() => setPaymentStatusFilter("hold")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">On Hold</CardDescription>
+              <Pause className="h-4 w-4 text-yellow-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-yellow-600">{summaryStats.holdCount}</div>
+              <p className="text-xs text-muted-foreground">₹{summaryStats.holdAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -976,6 +992,7 @@ const POSDashboard = () => {
                 </SelectTrigger>
                 <SelectContent className="bg-popover z-50">
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="hold">On Hold</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
@@ -1174,7 +1191,10 @@ const POSDashboard = () => {
                             )}
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
-                                <Badge variant={sale.payment_status === "completed" ? "default" : "destructive"}>
+                                <Badge 
+                                  variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
+                                  className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                                >
                                   {sale.payment_status}
                                 </Badge>
                               </TableCell>
