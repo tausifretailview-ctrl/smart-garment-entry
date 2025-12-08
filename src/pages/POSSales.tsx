@@ -85,8 +85,10 @@ export default function POSSales() {
   const { currentOrganization } = useOrganization();
   const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
-  const { createCreditNote, isCreating: isCreatingCreditNote } = useCreditNotes();
+  const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const [isHeldSale, setIsHeldSale] = useState(false);
+  const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
+  const [creditApplied, setCreditApplied] = useState(0);
   const { checkStock, validateCartStock, showStockError, showMultipleStockErrors } = useStockValidation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -366,6 +368,8 @@ export default function POSSales() {
       setSaleReturnAdjust(0);
       setRoundOff(0);
       setRefundAmount(0);
+      setCreditApplied(0);
+      setAvailableCreditBalance(0);
       setSearchInput("");
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(null);
@@ -576,6 +580,20 @@ export default function POSSales() {
     return openingBalance + salesData.totalSales - salesData.totalPaid;
   };
 
+  // Fetch credit balance when customer changes
+  useEffect(() => {
+    const fetchCreditBalance = async () => {
+      if (customerId) {
+        const balance = await getAvailableCreditBalance(customerId);
+        setAvailableCreditBalance(balance);
+      } else {
+        setAvailableCreditBalance(0);
+        setCreditApplied(0);
+      }
+    };
+    fetchCreditBalance();
+  }, [customerId]);
+
   // Handle barcode/product search on Enter
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchInput.trim()) {
@@ -784,7 +802,31 @@ export default function POSSales() {
   };
 
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
-  const finalAmount = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
+  const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
+  const finalAmount = amountBeforeCredit - creditApplied;
+
+  // Handle applying credit from credit notes
+  const handleApplyCredit = (amount: number) => {
+    if (!customerId) {
+      toast({
+        title: "Customer Required",
+        description: "Please select a customer to apply credit",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    const maxApplicable = Math.min(amount, availableCreditBalance, amountBeforeCredit);
+    if (maxApplicable <= 0) {
+      toast({
+        title: "Cannot Apply Credit",
+        description: "No credit available or bill amount is too low",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCreditApplied(maxApplicable);
+  };
 
   // Handle save sale
   const handleSaveSale = async (forcePaymentMethod?: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later') => {
@@ -819,6 +861,7 @@ export default function POSSales() {
       saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
+      creditApplied,
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -842,6 +885,11 @@ export default function POSSales() {
         description: `Invoice ${result.sale_number} ${currentSaleId ? 'updated' : 'saved'} successfully`,
       });
       
+      // Apply credit if any
+      if (creditApplied > 0 && customerId) {
+        await applyCredit(customerId, creditApplied);
+      }
+      
       // Clear cart on success
       setItems([]);
       setCustomerId("");
@@ -850,6 +898,8 @@ export default function POSSales() {
       setFlatDiscountPercent(0);
       setSaleReturnAdjust(0);
       setRoundOff(0);
+      setCreditApplied(0);
+      setAvailableCreditBalance(0);
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
     }
@@ -901,6 +951,7 @@ export default function POSSales() {
       saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
+      creditApplied,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -927,6 +978,11 @@ export default function POSSales() {
         description: `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with ${method.toUpperCase()} payment`,
       });
       
+      // Apply credit if any
+      if (creditApplied > 0 && customerId) {
+        await applyCredit(customerId, creditApplied);
+      }
+      
       // Store invoice data and show print dialog
       setSavedInvoiceData({
         invoiceNumber: result.sale_number,
@@ -940,8 +996,13 @@ export default function POSSales() {
         customerName: customerName,
         customerPhone: customerPhone,
         roundOff: roundOff,
+        creditApplied: creditApplied,
       });
       setShowPrintConfirmDialog(true);
+      
+      // Reset credit applied
+      setCreditApplied(0);
+      setAvailableCreditBalance(0);
       
       // Reset edit mode after successful save
       if (wasEditing) {
@@ -1014,6 +1075,7 @@ export default function POSSales() {
       roundOff,
       netAmount: finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
+      creditApplied,
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
@@ -1061,6 +1123,11 @@ export default function POSSales() {
             : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
       });
       
+      // Apply credit if any (for non-credit note cases)
+      if (!isCreditNote && creditApplied > 0 && customerId) {
+        await applyCredit(customerId, creditApplied);
+      }
+      
       // Store invoice data and show print dialog (only for non-credit note cases)
       if (!isCreditNote) {
         setSavedInvoiceData({
@@ -1077,9 +1144,14 @@ export default function POSSales() {
           roundOff: roundOff,
           paymentBreakdown: paymentData,
           refundAmount: paymentData.refundAmount,
+          creditApplied: creditApplied,
         });
         setShowPrintConfirmDialog(true);
       }
+      
+      // Reset credit applied
+      setCreditApplied(0);
+      setAvailableCreditBalance(0);
       
       // Reset edit mode after successful save
       if (wasEditing) {
@@ -1467,6 +1539,8 @@ export default function POSSales() {
     setSaleReturnAdjust(0);
     setRoundOff(0);
     setRefundAmount(0);
+    setCreditApplied(0);
+    setAvailableCreditBalance(0);
     setSearchInput("");
     
     toast({
@@ -1484,6 +1558,8 @@ export default function POSSales() {
     setSaleReturnAdjust(0);
     setRoundOff(0);
     setRefundAmount(0);
+    setCreditApplied(0);
+    setAvailableCreditBalance(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
@@ -1828,24 +1904,35 @@ export default function POSSales() {
                 <div className="flex items-center justify-between mb-1">
                   <Label className="text-sm font-medium">Customer Name</Label>
                   {/* Customer Balance Display - on top of label */}
-                  {customerId && (
-                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
-                      customerBalance > 0 
-                        ? 'bg-destructive/10 text-destructive border border-destructive/30' 
-                        : customerBalance < 0 
-                          ? 'bg-green-500/10 text-green-600 border border-green-500/30' 
-                          : 'bg-muted text-muted-foreground border border-border'
-                    }`}>
-                      <IndianRupee className="h-3 w-3" />
-                      <span>
-                        {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
-                      </span>
-                      <span className="text-[10px]">
-                        {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
-                        {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {/* Credit Note Balance */}
+                    {customerId && availableCreditBalance > 0 && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-purple-500/10 text-purple-600 border border-purple-500/30">
+                        <Wallet className="h-3 w-3" />
+                        <span>₹{availableCreditBalance.toLocaleString('en-IN')}</span>
+                        <span className="text-[10px]">C/Note</span>
+                      </div>
+                    )}
+                    {/* Outstanding Balance */}
+                    {customerId && (
+                      <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+                        customerBalance > 0 
+                          ? 'bg-destructive/10 text-destructive border border-destructive/30' 
+                          : customerBalance < 0 
+                            ? 'bg-green-500/10 text-green-600 border border-green-500/30' 
+                            : 'bg-muted text-muted-foreground border border-border'
+                      }`}>
+                        <IndianRupee className="h-3 w-3" />
+                        <span>
+                          {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
+                        </span>
+                        <span className="text-[10px]">
+                          {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
+                          {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <Input
                   value={customerName}
@@ -2202,7 +2289,7 @@ export default function POSSales() {
 
         {/* Totals Section - Fixed at Bottom */}
         <div className="fixed bottom-0 left-20 right-0 bg-cyan-500 text-white p-2 md:p-4 shadow-lg z-20">
-          <div className={`grid ${totals.savings > 0 ? 'grid-cols-4 md:grid-cols-9' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
+          <div className={`grid ${totals.savings > 0 || creditApplied > 0 || availableCreditBalance > 0 ? 'grid-cols-5 md:grid-cols-10' : 'grid-cols-4 md:grid-cols-8'} gap-1 md:gap-3`}>
             <div className="text-center">
               <div className="text-xl md:text-2xl font-bold">{totals.quantity}</div>
               <div className="text-xs md:text-sm mt-1">Quantity</div>
@@ -2247,6 +2334,25 @@ export default function POSSales() {
               />
               <div className="text-xs md:text-sm mt-1">S/R Adjust</div>
             </div>
+            {/* Credit Applied Field - Only show if customer has credit balance */}
+            {(availableCreditBalance > 0 || creditApplied > 0) && (
+              <div className="text-center bg-purple-600 rounded-md py-1">
+                <Input 
+                  type="number"
+                  className="w-20 h-8 bg-white text-purple-700 text-center text-base font-semibold mx-auto" 
+                  value={creditApplied}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value) || 0;
+                    const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
+                    handleApplyCredit(maxApplicable > 0 ? maxApplicable : value);
+                  }}
+                  max={Math.min(availableCreditBalance, amountBeforeCredit)}
+                  step="0.01"
+                  disabled={!customerId || availableCreditBalance <= 0 || isApplyingCredit}
+                />
+                <div className="text-xs md:text-sm mt-1">Credit (₹{availableCreditBalance.toFixed(0)})</div>
+              </div>
+            )}
             <div className="text-center">
               <Input 
                 type="number"
@@ -2541,6 +2647,7 @@ export default function POSSales() {
           open={showMixPaymentDialog}
           onOpenChange={setShowMixPaymentDialog}
           billAmount={finalAmount}
+          creditApplied={creditApplied}
           onSave={handleMixPaymentSave}
         />
 

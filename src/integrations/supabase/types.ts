@@ -1551,6 +1551,7 @@ export type Database = {
           cash_amount: number | null
           created_at: string
           created_by: string | null
+          credit_applied: number | null
           credit_note_amount: number | null
           credit_note_id: string | null
           customer_address: string | null
@@ -1598,6 +1599,7 @@ export type Database = {
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
+          credit_applied?: number | null
           credit_note_amount?: number | null
           credit_note_id?: string | null
           customer_address?: string | null
@@ -1645,6 +1647,7 @@ export type Database = {
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
+          credit_applied?: number | null
           credit_note_amount?: number | null
           credit_note_id?: string | null
           customer_address?: string | null
