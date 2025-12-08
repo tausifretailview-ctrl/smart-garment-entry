@@ -1777,7 +1777,7 @@ export default function POSSales() {
                         return (
                           <CommandItem
                             key={customer.id}
-                            value={customer.customer_name}
+                            value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
                             onSelect={() => {
                               setCustomerId(customer.id);
                               setCustomerName(customer.customer_name);
