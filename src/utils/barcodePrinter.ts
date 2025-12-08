@@ -279,9 +279,12 @@ export const printBarcodesDirectly = async (
   const labelHeight = parseFloat(dimensions.height);
   const gapValue = parseFloat(dimensions.gap);
   
+  // For thermal printers: exact label size, for A4: standard page width
   const pageWidth = isThermal 
     ? (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1))
     : 210;
+  
+  const pageHeight = isThermal ? labelHeight : 297;
   
   printContainer.style.cssText = `
     width: ${pageWidth}mm;
@@ -298,13 +301,21 @@ export const printBarcodesDirectly = async (
 
   const style = doc.createElement('style');
   style.textContent = `
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      ${isThermal ? `width: ${pageWidth}mm;` : ''}
     }
     .label-cell {
+      width: ${dimensions.width} !important;
+      height: ${dimensions.height} !important;
       border: ${isThermal ? 'none' : '1px solid #ddd'};
       ${useAbsolutePositioning ? 'position: relative;' : `
         display: flex;
@@ -315,33 +326,37 @@ export const printBarcodesDirectly = async (
       `}
       padding: ${useAbsolutePositioning ? '0' : '0.5mm 1.5mm'};
       box-sizing: border-box;
-      page-break-inside: avoid;
       line-height: 1.4;
       overflow: hidden;
     }
     .label-grid {
-      page-break-inside: avoid !important;
-      page-break-after: avoid !important;
+      margin: 0;
+      padding: 0;
     }
     @page {
-      size: ${pageWidth}mm ${isThermal ? labelHeight : contentHeight}mm;
+      size: ${pageWidth}mm ${pageHeight}mm;
       margin: 0;
     }
     @media print {
       html, body {
-        width: ${pageWidth}mm;
-        height: ${isThermal ? 'auto' : contentHeight + 'mm'};
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
+        width: ${pageWidth}mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
-      * {
-        page-break-after: avoid !important;
+      .label-cell {
+        width: ${dimensions.width} !important;
+        height: ${dimensions.height} !important;
         page-break-inside: avoid !important;
+        ${isThermal && dimensions.cols === 1 ? 'page-break-after: always !important;' : ''}
       }
       ${isThermal ? `
-      .label-cell {
-        page-break-after: ${dimensions.cols === 1 ? 'always' : 'avoid'};
+      .label-grid {
+        display: ${dimensions.cols === 1 ? 'block' : 'flex'};
+        ${dimensions.cols === 1 ? '' : 'flex-wrap: wrap;'}
+        gap: ${dimensions.gap};
+        width: ${pageWidth}mm;
       }
       ` : ''}
     }
@@ -353,23 +368,50 @@ export const printBarcodesDirectly = async (
   try {
     const gridDiv = doc.createElement('div');
     gridDiv.className = 'label-grid';
-    gridDiv.style.cssText = `
-      display: grid;
-      grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width});
-      grid-auto-rows: ${dimensions.height};
-      gap: ${dimensions.gap};
-      padding-top: ${topOffset}mm;
-      padding-left: ${leftOffset}mm;
-      ${isThermal ? 'margin: 0;' : ''}
-    `;
+    
+    if (isThermal && dimensions.cols === 1) {
+      // For thermal 1UP: stack labels vertically, each one page
+      gridDiv.style.cssText = `
+        display: block;
+        margin: 0;
+        padding: 0;
+      `;
+    } else {
+      // For A4 sheets or 2UP thermal: use grid layout
+      gridDiv.style.cssText = `
+        display: grid;
+        grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width});
+        grid-auto-rows: ${dimensions.height};
+        gap: ${dimensions.gap};
+        padding-top: ${topOffset}mm;
+        padding-left: ${leftOffset}mm;
+        margin: 0;
+      `;
+    }
 
     items.forEach((item) => {
       const qty = Number(item.qty) || 0;
       for (let i = 0; i < qty; i++) {
         const cell = doc.createElement('div');
         cell.className = 'label-cell';
-        cell.style.width = dimensions.width;
-        cell.style.height = dimensions.height;
+        
+        // For thermal 1UP, center the label content
+        if (isThermal && dimensions.cols === 1) {
+          cell.style.cssText = `
+            width: ${dimensions.width};
+            height: ${dimensions.height};
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            margin: 0 auto;
+            box-sizing: border-box;
+          `;
+        } else {
+          cell.style.width = dimensions.width;
+          cell.style.height = dimensions.height;
+        }
         
         if (useAbsolutePositioning && labelConfig) {
           cell.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
