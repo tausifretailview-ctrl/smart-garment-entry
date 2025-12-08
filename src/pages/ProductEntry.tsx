@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus } from "lucide-react";
+import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
@@ -24,6 +24,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -81,6 +91,13 @@ const ProductEntry = () => {
   const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
   const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
+  const [showEditSizeGroup, setShowEditSizeGroup] = useState(false);
+  const [editingSizeGroup, setEditingSizeGroup] = useState<SizeGroup | null>(null);
+  const [editSizeGroupData, setEditSizeGroupData] = useState({ group_name: "", sizes: "" });
+  const [updatingSizeGroup, setUpdatingSizeGroup] = useState(false);
+  const [showDeleteSizeGroup, setShowDeleteSizeGroup] = useState(false);
+  const [deletingSizeGroup, setDeletingSizeGroup] = useState<SizeGroup | null>(null);
+  const [deletingSizeGroupLoading, setDeletingSizeGroupLoading] = useState(false);
   
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
@@ -247,6 +264,113 @@ const ProductEntry = () => {
       });
     } finally {
       setCreatingSizeGroup(false);
+    }
+  };
+
+  const handleEditSizeGroup = (group: SizeGroup, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingSizeGroup(group);
+    setEditSizeGroupData({
+      group_name: group.group_name,
+      sizes: group.sizes.join(", "),
+    });
+    setShowEditSizeGroup(true);
+  };
+
+  const handleUpdateSizeGroup = async () => {
+    if (!editingSizeGroup || !editSizeGroupData.group_name || !editSizeGroupData.sizes) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter group name and sizes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUpdatingSizeGroup(true);
+    try {
+      const sizesArray = editSizeGroupData.sizes.split(",").map(s => s.trim()).filter(s => s);
+      
+      const { error } = await supabase
+        .from("size_groups")
+        .update({
+          group_name: editSizeGroupData.group_name,
+          sizes: sizesArray,
+        })
+        .eq("id", editingSizeGroup.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Size group updated successfully",
+      });
+
+      // Update local state
+      setSizeGroups(prev => prev.map(g => 
+        g.id === editingSizeGroup.id 
+          ? { ...g, group_name: editSizeGroupData.group_name, sizes: sizesArray }
+          : g
+      ));
+      
+      setShowEditSizeGroup(false);
+      setEditingSizeGroup(null);
+    } catch (error: any) {
+      console.error("Error updating size group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update size group",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingSizeGroup(false);
+    }
+  };
+
+  const handleDeleteSizeGroupClick = (group: SizeGroup, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletingSizeGroup(group);
+    setShowDeleteSizeGroup(true);
+  };
+
+  const handleDeleteSizeGroup = async () => {
+    if (!deletingSizeGroup) return;
+
+    setDeletingSizeGroupLoading(true);
+    try {
+      const { error } = await supabase
+        .from("size_groups")
+        .delete()
+        .eq("id", deletingSizeGroup.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Size group deleted successfully",
+      });
+
+      // Update local state
+      setSizeGroups(prev => prev.filter(g => g.id !== deletingSizeGroup.id));
+      
+      // Clear selection if deleted group was selected
+      if (formData.size_group_id === deletingSizeGroup.id) {
+        setFormData(prev => ({ ...prev, size_group_id: "" }));
+      }
+      
+      setShowDeleteSizeGroup(false);
+      setDeletingSizeGroup(null);
+    } catch (error: any) {
+      console.error("Error deleting size group:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to delete size group",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingSizeGroupLoading(false);
     }
   };
 
@@ -1307,7 +1431,7 @@ const ProductEntry = () => {
                     onValueChange={(value) => {
                       if (value === "__create_new__") {
                         setShowCreateSizeGroup(true);
-                      } else {
+                      } else if (!value.startsWith("__")) {
                         setFormData({ ...formData, size_group_id: value });
                       }
                     }}
@@ -1323,9 +1447,29 @@ const ProductEntry = () => {
                         </span>
                       </SelectItem>
                       {sizeGroups.map((group) => (
-                        <SelectItem key={group.id} value={group.id}>
-                          {group.group_name}
-                        </SelectItem>
+                        <div key={group.id} className="relative flex items-center">
+                          <SelectItem value={group.id} className="flex-1 pr-16">
+                            {group.group_name}
+                          </SelectItem>
+                          <div className="absolute right-2 flex items-center gap-1 z-10">
+                            <button
+                              type="button"
+                              onClick={(e) => handleEditSizeGroup(group, e)}
+                              className="p-1 hover:bg-muted rounded"
+                              title="Edit"
+                            >
+                              <Edit className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteSizeGroupClick(group, e)}
+                              className="p-1 hover:bg-muted rounded"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                            </button>
+                          </div>
+                        </div>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1699,6 +1843,86 @@ const ProductEntry = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Edit Size Group Dialog */}
+        <Dialog open={showEditSizeGroup} onOpenChange={setShowEditSizeGroup}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Size Group</DialogTitle>
+              <DialogDescription>
+                Update the group name and sizes.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit_group_name">Group Name *</Label>
+                <Input
+                  id="edit_group_name"
+                  value={editSizeGroupData.group_name}
+                  onChange={(e) => setEditSizeGroupData(prev => ({ ...prev, group_name: e.target.value }))}
+                  placeholder="e.g., Shirt Sizes, Shoe Sizes"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_sizes">Sizes (comma separated) *</Label>
+                <Input
+                  id="edit_sizes"
+                  value={editSizeGroupData.sizes}
+                  onChange={(e) => setEditSizeGroupData(prev => ({ ...prev, sizes: e.target.value }))}
+                  placeholder="e.g., S, M, L, XL, XXL"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter sizes separated by commas. Example: 38, 40, 42, 44 or S, M, L, XL
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditSizeGroup(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateSizeGroup} disabled={updatingSizeGroup}>
+                {updatingSizeGroup ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Size Group"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Size Group Confirmation */}
+        <AlertDialog open={showDeleteSizeGroup} onOpenChange={setShowDeleteSizeGroup}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Size Group</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{deletingSizeGroup?.group_name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteSizeGroup}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deletingSizeGroupLoading}
+              >
+                {deletingSizeGroupLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Excel Import Dialog */}
         <ExcelImportDialog
