@@ -26,6 +26,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
+import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 
 interface PurchaseItem {
   id: string;
@@ -43,6 +44,7 @@ interface PurchaseItem {
 
 interface PurchaseBill {
   id: string;
+  supplier_id?: string;
   supplier_name: string;
   supplier_invoice_no: string;
   software_bill_no: string;
@@ -90,6 +92,9 @@ const PurchaseBillDashboard = () => {
   const [paymentNotes, setPaymentNotes] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
+  // Supplier history dialog states
+  const [showSupplierHistory, setShowSupplierHistory] = useState(false);
+  const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{id: string; name: string} | null>(null);
   // Column visibility settings with database persistence
   const defaultPurchaseColumns = {
     status: true,
@@ -909,7 +914,18 @@ const PurchaseBillDashboard = () => {
                           </TableCell>
                           <TableCell className="font-mono text-sm">{bill.supplier_invoice_no}</TableCell>
                           <TableCell className="font-medium">
-                            {bill.supplier_name}
+                            <span 
+                              className={bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline" : ""}
+                              onClick={(e) => {
+                                if (bill.supplier_id) {
+                                  e.stopPropagation();
+                                  setSelectedSupplierForHistory({ id: bill.supplier_id, name: bill.supplier_name });
+                                  setShowSupplierHistory(true);
+                                }
+                              }}
+                            >
+                              {bill.supplier_name}
+                            </span>
                             <Badge variant="outline" className="ml-2 text-xs">
                               Qty: {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
                             </Badge>
@@ -1266,6 +1282,17 @@ const PurchaseBillDashboard = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Supplier History Dialog */}
+      {selectedSupplierForHistory && currentOrganization && (
+        <SupplierHistoryDialog
+          isOpen={showSupplierHistory}
+          onClose={() => setShowSupplierHistory(false)}
+          supplierId={selectedSupplierForHistory.id}
+          supplierName={selectedSupplierForHistory.name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };
