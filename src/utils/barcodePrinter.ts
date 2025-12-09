@@ -274,27 +274,7 @@ export const printBarcodesDirectly = async (
   const is1Up = sheetType.includes('_1up');
   const preset = sheetPresets[sheetType];
 
-  const printWindow = window.open('', '_blank', 'width=1024,height=768');
-  if (!printWindow) {
-    throw new Error('Unable to open print window for barcode printing');
-  }
-
-  const doc = printWindow.document;
-  doc.open();
-  doc.write(`
-    <html>
-      <head>
-        <title>Barcode Labels</title>
-        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-      </head>
-      <body></body>
-    </html>
-  `);
-  doc.close();
-
-  const printContainer = doc.createElement('div');
-  printContainer.id = 'barcode-print-container';
-  
+  // Calculate dimensions first (needed for print instructions)
   const dimensions = sheetType === 'custom' && customDimensions
     ? { 
         cols: customDimensions.cols, 
@@ -308,57 +288,128 @@ export const printBarcodesDirectly = async (
   const labelHeight = parseFloat(dimensions.height);
   const gapValue = parseFloat(dimensions.gap);
 
+  const printWindow = window.open('', '_blank', 'width=1024,height=768');
+  if (!printWindow) {
+    throw new Error('Unable to open print window for barcode printing');
+  }
+
+  const doc = printWindow.document;
+  doc.open();
+  
+  // For thermal printers, add print instructions banner (hidden when printing)
+  const printInstructions = isThermal ? `
+    <div id="print-instructions" style="
+      background: #FEF3C7;
+      border: 1px solid #F59E0B;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 10px;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      color: #92400E;
+    ">
+      <strong>🖨️ Thermal Printer Settings:</strong><br/>
+      1. Set <b>Margins</b> to "<b>None</b>"<br/>
+      2. Set <b>Paper size</b> to "<b>${labelWidth}mm × ${labelHeight}mm</b>" (or your custom stock)<br/>
+      3. Uncheck "<b>Headers and footers</b>"<br/>
+      4. For best results: Click "<b>More settings</b>" → "<b>Print using system dialog</b>" (Ctrl+Shift+P)
+    </div>
+  ` : '';
+  
+  doc.write(`
+    <html>
+      <head>
+        <title>Barcode Labels - ${isThermal ? `${labelWidth}×${labelHeight}mm` : 'A4'}</title>
+        <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+        <style>
+          @media print {
+            #print-instructions { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        ${printInstructions}
+      </body>
+    </html>
+  `);
+  doc.close();
+
+  const printContainer = doc.createElement('div');
+  printContainer.id = 'barcode-print-container';
+
   // Check if using absolute positioning
   const useAbsolutePositioning = labelConfig && hasAbsolutePositioning(labelConfig);
 
   const style = doc.createElement('style');
   
   if (isThermal && is1Up) {
-    // Thermal 1UP: Each label is a separate page
+    // Thermal 1UP: Each label is a separate page with strict page size enforcement
     style.textContent = `
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+      *, *::before, *::after {
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
       }
       @page {
-        size: ${labelWidth}mm ${labelHeight}mm;
-        margin: 0;
+        size: ${labelWidth}mm ${labelHeight}mm !important;
+        margin: 0mm 0mm 0mm 0mm !important;
+        padding: 0mm !important;
       }
-      html, body {
-        margin: 0;
-        padding: 0;
-        width: ${labelWidth}mm;
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${labelWidth}mm !important;
+        height: auto !important;
+      }
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${labelWidth}mm !important;
         font-family: Arial, sans-serif;
+        background: white;
       }
       .thermal-page {
-        width: ${labelWidth}mm;
-        height: ${labelHeight}mm;
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        overflow: hidden;
-        page-break-after: always;
-        break-after: page;
+        width: ${labelWidth}mm !important;
+        height: ${labelHeight}mm !important;
+        min-height: ${labelHeight}mm !important;
+        max-height: ${labelHeight}mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .thermal-page:last-child {
-        page-break-after: auto;
-        break-after: auto;
+        page-break-after: auto !important;
+        break-after: auto !important;
       }
       @media print {
+        @page {
+          size: ${labelWidth}mm ${labelHeight}mm !important;
+          margin: 0mm !important;
+        }
         html, body {
           width: ${labelWidth}mm !important;
           margin: 0 !important;
           padding: 0 !important;
+          background: white !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
         .thermal-page {
           width: ${labelWidth}mm !important;
           height: ${labelHeight}mm !important;
+          min-height: ${labelHeight}mm !important;
+          max-height: ${labelHeight}mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
           page-break-after: always !important;
           break-after: page !important;
           page-break-inside: avoid !important;
+          break-inside: avoid !important;
         }
         .thermal-page:last-child {
           page-break-after: auto !important;
@@ -366,56 +417,97 @@ export const printBarcodesDirectly = async (
         }
       }
       @media screen {
+        body {
+          background: #f0f0f0;
+          padding: 10px !important;
+        }
         .thermal-page {
-          border: 1px dashed #ccc;
-          margin-bottom: 5px;
+          border: 1px dashed #999;
+          margin-bottom: 8px !important;
+          background: white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
       }
     `;
   } else if (isThermal) {
-    // Thermal 2UP: Labels side by side
+    // Thermal 2UP: Labels side by side with strict page size enforcement
     const pageWidth = (labelWidth * dimensions.cols) + (gapValue * (dimensions.cols - 1));
     style.textContent = `
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+      *, *::before, *::after {
+        margin: 0 !important;
+        padding: 0 !important;
+        box-sizing: border-box !important;
       }
       @page {
-        size: ${pageWidth}mm ${labelHeight}mm;
-        margin: 0;
+        size: ${pageWidth}mm ${labelHeight}mm !important;
+        margin: 0mm 0mm 0mm 0mm !important;
+        padding: 0mm !important;
       }
-      html, body {
-        margin: 0;
-        padding: 0;
-        width: ${pageWidth}mm;
+      html {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${pageWidth}mm !important;
+      }
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: ${pageWidth}mm !important;
         font-family: Arial, sans-serif;
+        background: white;
       }
       .label-row {
-        display: flex;
+        display: flex !important;
         gap: ${gapValue}mm;
-        width: ${pageWidth}mm;
-        height: ${labelHeight}mm;
-        page-break-after: always;
-        break-after: page;
+        width: ${pageWidth}mm !important;
+        height: ${labelHeight}mm !important;
+        min-height: ${labelHeight}mm !important;
+        max-height: ${labelHeight}mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       .label-row:last-child {
-        page-break-after: auto;
-        break-after: auto;
+        page-break-after: auto !important;
+        break-after: auto !important;
       }
       .label-cell {
-        width: ${labelWidth}mm;
-        height: ${labelHeight}mm;
-        box-sizing: border-box;
-        overflow: hidden;
+        width: ${labelWidth}mm !important;
+        height: ${labelHeight}mm !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       @media print {
+        @page {
+          size: ${pageWidth}mm ${labelHeight}mm !important;
+          margin: 0mm !important;
+        }
         html, body {
           width: ${pageWidth}mm !important;
           margin: 0 !important;
           padding: 0 !important;
+          background: white !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
+        }
+        .label-row {
+          width: ${pageWidth}mm !important;
+          height: ${labelHeight}mm !important;
+        }
+      }
+      @media screen {
+        body {
+          background: #f0f0f0;
+          padding: 10px !important;
+        }
+        .label-row {
+          border: 1px dashed #999;
+          margin-bottom: 8px !important;
+          background: white;
         }
       }
     `;
