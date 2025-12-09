@@ -1,13 +1,57 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save } from "lucide-react";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const BackupSettings = () => {
   const { backupLogs, isLoadingLogs, isBackingUp, startBackup, formatFileSize } = useBackup();
+  
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [refreshToken, setRefreshToken] = useState("");
+  const [showClientSecret, setShowClientSecret] = useState(false);
+  const [showRefreshToken, setShowRefreshToken] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveCredentials = async () => {
+    if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) {
+      toast.error("Please fill in all credential fields");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Call an edge function to update the secrets
+      const { error } = await supabase.functions.invoke('update-google-secrets', {
+        body: {
+          clientId: clientId.trim(),
+          clientSecret: clientSecret.trim(),
+          refreshToken: refreshToken.trim()
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success("Google Drive credentials saved successfully!");
+      // Clear the form after successful save
+      setClientId("");
+      setClientSecret("");
+      setRefreshToken("");
+    } catch (error: any) {
+      console.error("Failed to save credentials:", error);
+      toast.error(error.message || "Failed to save credentials. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -83,6 +127,104 @@ const BackupSettings = () => {
               <li>• Settings</li>
             </ul>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Google Drive Credentials
+          </CardTitle>
+          <CardDescription>
+            Configure your Google API credentials for Drive backup. Get these from 
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary ml-1 underline">
+              Google Cloud Console
+            </a>
+            {" "}and{" "}
+            <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+              OAuth Playground
+            </a>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="clientId">Client ID</Label>
+              <Input
+                id="clientId"
+                type="text"
+                placeholder="xxxxx.apps.googleusercontent.com"
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="clientSecret">Client Secret</Label>
+              <div className="relative">
+                <Input
+                  id="clientSecret"
+                  type={showClientSecret ? "text" : "password"}
+                  placeholder="GOCSPX-xxxxxx"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowClientSecret(!showClientSecret)}
+                >
+                  {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="refreshToken">Refresh Token</Label>
+              <div className="relative">
+                <Input
+                  id="refreshToken"
+                  type={showRefreshToken ? "text" : "password"}
+                  placeholder="1//04xxxxxx"
+                  value={refreshToken}
+                  onChange={(e) => setRefreshToken(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowRefreshToken(!showRefreshToken)}
+                >
+                  {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Get this from OAuth Playground after authorizing with Google Drive API scope
+              </p>
+            </div>
+          </div>
+          
+          <Button 
+            onClick={handleSaveCredentials} 
+            disabled={isSaving || !clientId || !clientSecret || !refreshToken}
+            className="gap-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Credentials
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
