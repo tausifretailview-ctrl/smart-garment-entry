@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import JsBarcode from "jsbarcode";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { encodePurchasePrice } from "@/utils/purchaseCodeEncoder";
@@ -37,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
+import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 
 interface LabelItem {
   sku_id: string;
@@ -1097,6 +1098,7 @@ export default function BarcodePrinting() {
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
+  const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
 
   // Helper function to check if a template is the current default
   const getDefaultTemplateName = (): string | null => {
@@ -3846,7 +3848,7 @@ export default function BarcodePrinting() {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button onClick={handlePreview}>
           <Eye className="h-4 w-4 mr-2" />
           Preview Labels
@@ -3854,6 +3856,16 @@ export default function BarcodePrinting() {
         <Button onClick={handlePrint} variant="outline">
           Print
         </Button>
+        {sheetType.startsWith('thermal') && (
+          <Button 
+            onClick={() => setIsDirectPrintDialogOpen(true)} 
+            variant="outline"
+            className="bg-green-50 hover:bg-green-100 border-green-200 text-green-700 dark:bg-green-950 dark:hover:bg-green-900 dark:border-green-800 dark:text-green-300"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Direct Print
+          </Button>
+        )}
         <Button onClick={handleExportPDF} variant="outline">
           <Download className="h-4 w-4 mr-2" />
           Export PDF
@@ -3912,6 +3924,25 @@ export default function BarcodePrinting() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Direct Print Dialog for Thermal Printers */}
+      <DirectPrintDialog
+        open={isDirectPrintDialogOpen}
+        onOpenChange={setIsDirectPrintDialogOpen}
+        items={labelItems.map(item => ({
+          productName: item.product_name,
+          brand: item.brand,
+          size: item.size,
+          color: item.color,
+          mrp: undefined,
+          salePrice: item.sale_price,
+          barcode: item.barcode,
+          billNumber: item.bill_number,
+          purchaseCode: item.purchase_code,
+          quantity: item.qty,
+        }))}
+        labelSize={sheetType}
+      />
 
       {/* Print Area (hidden, used for printing) */}
       <div id="printArea" className="hidden"></div>
