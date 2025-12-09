@@ -4,6 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 
 interface ProductVariant {
   variant_id: string;
@@ -57,6 +59,7 @@ interface ProductRow {
 const ProductDashboard = () => {
   const { toast } = useToast();
   const { navigate } = useOrgNavigation();
+  const { currentOrganization } = useOrganization();
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,6 +87,9 @@ const ProductDashboard = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
+  // Product history dialog states
+  const [showProductHistory, setShowProductHistory] = useState(false);
+  const [selectedProductForHistory, setSelectedProductForHistory] = useState<{id: string; name: string} | null>(null);
   // Column visibility settings - persisted to database
   const defaultColumnSettings = {
     image: true,
@@ -988,7 +994,20 @@ const ProductDashboard = () => {
                             </Avatar>
                           </TableCell>
                           )}
-                          {columnVisibility.productName && <TableCell className="font-medium">{row.product_name}</TableCell>}
+                          {columnVisibility.productName && (
+                            <TableCell className="font-medium">
+                              <span 
+                                className="cursor-pointer text-blue-600 hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedProductForHistory({ id: row.product_id, name: row.product_name });
+                                  setShowProductHistory(true);
+                                }}
+                              >
+                                {row.product_name}
+                              </span>
+                            </TableCell>
+                          )}
                           {columnVisibility.category && <TableCell>{row.category || "—"}</TableCell>}
                           {columnVisibility.brand && <TableCell>{row.brand || "—"}</TableCell>}
                           {columnVisibility.style && <TableCell>{row.style || "—"}</TableCell>}
@@ -1173,6 +1192,17 @@ const ProductDashboard = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* Product History Dialog */}
+      {selectedProductForHistory && currentOrganization && (
+        <ProductHistoryDialog
+          isOpen={showProductHistory}
+          onClose={() => setShowProductHistory(false)}
+          productId={selectedProductForHistory.id}
+          productName={selectedProductForHistory.name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };
