@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -20,11 +20,10 @@ interface UseCustomerSearchOptions {
 
 /**
  * Reliable customer search hook with improved error handling and caching
- * Uses server-side search for better performance with large datasets
+ * Uses client-side filtering for cached data with searchTerm as parameter
  */
-export const useCustomerSearch = (options: UseCustomerSearchOptions = {}) => {
+export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerSearchOptions = {}) => {
   const { currentOrganization } = useOrganization();
-  const [searchTerm, setSearchTerm] = useState("");
 
   // Main customers query with improved configuration
   const {
@@ -94,7 +93,6 @@ export const useCustomerSearch = (options: UseCustomerSearchOptions = {}) => {
     customers,
     filteredCustomers,
     searchTerm,
-    setSearchTerm,
     isLoading,
     isError,
     error,
