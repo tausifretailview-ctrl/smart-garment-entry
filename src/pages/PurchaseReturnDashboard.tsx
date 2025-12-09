@@ -14,6 +14,7 @@ import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
+import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 
 interface PurchaseReturnItem {
   id: string;
@@ -60,6 +61,10 @@ const PurchaseReturnDashboard = () => {
   const [returnToPrint, setReturnToPrint] = useState<PurchaseReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Supplier history dialog states
+  const [showSupplierHistory, setShowSupplierHistory] = useState(false);
+  const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{id: string; name: string} | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -474,7 +479,18 @@ const PurchaseReturnDashboard = () => {
                           {format(new Date(returnRecord.return_date), "dd MMM yyyy")}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {returnRecord.supplier_name}
+                          <span 
+                            className={returnRecord.supplier_id ? "cursor-pointer text-blue-600 hover:underline" : ""}
+                            onClick={(e) => {
+                              if (returnRecord.supplier_id) {
+                                e.stopPropagation();
+                                setSelectedSupplierForHistory({ id: returnRecord.supplier_id, name: returnRecord.supplier_name });
+                                setShowSupplierHistory(true);
+                              }
+                            }}
+                          >
+                            {returnRecord.supplier_name}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
@@ -669,6 +685,17 @@ const PurchaseReturnDashboard = () => {
           />
         )}
       </div>
+
+      {/* Supplier History Dialog */}
+      {selectedSupplierForHistory && currentOrganization && (
+        <SupplierHistoryDialog
+          isOpen={showSupplierHistory}
+          onClose={() => setShowSupplierHistory(false)}
+          supplierId={selectedSupplierForHistory.id}
+          supplierName={selectedSupplierForHistory.name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };
