@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -528,56 +529,23 @@ export default function POSSales() {
     refetchInterval: 60000, // Auto-refetch every 60 seconds
   });
 
-  // Fetch customers
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("customer_name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 60000, // Cache for 60 seconds
-  });
+  // Use reliable customer search hook
+  const { 
+    customers = [], 
+    filteredCustomers,
+    searchTerm: customerSearchTerm,
+    setSearchTerm: setCustomerSearchTerm,
+    isLoading: isCustomersLoading,
+    isError: isCustomersError,
+    refetch: refetchCustomers,
+  } = useCustomerSearch();
+  
+  const { getCustomerBalance } = useCustomerBalances();
 
-  // Fetch customer balances for dropdown display
-  const { data: customerBalances = {} } = useQuery({
-    queryKey: ["customer-balances", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return {};
-      const { data: sales, error } = await supabase
-        .from("sales")
-        .select("customer_id, net_amount, paid_amount")
-        .eq("organization_id", currentOrganization.id)
-        .not("customer_id", "is", null);
-      if (error) throw error;
-      
-      // Aggregate by customer_id
-      const balanceMap: Record<string, { totalSales: number; totalPaid: number }> = {};
-      sales?.forEach((sale) => {
-        if (!sale.customer_id) return;
-        if (!balanceMap[sale.customer_id]) {
-          balanceMap[sale.customer_id] = { totalSales: 0, totalPaid: 0 };
-        }
-        balanceMap[sale.customer_id].totalSales += sale.net_amount || 0;
-        balanceMap[sale.customer_id].totalPaid += sale.paid_amount || 0;
-      });
-      return balanceMap;
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 60000,
-  });
-
-  // Helper to calculate customer balance
-  const getCustomerBalance = (customer: any) => {
-    const openingBalance = customer.opening_balance || 0;
-    const salesData = customerBalances[customer.id] || { totalSales: 0, totalPaid: 0 };
-    return openingBalance + salesData.totalSales - salesData.totalPaid;
+  // Sync customer search term with customerName for backwards compatibility
+  const handleCustomerSearchChange = (value: string) => {
+    setCustomerName(value);
+    setCustomerSearchTerm(value);
   };
 
   // Fetch credit balance when customer changes
@@ -1937,7 +1905,7 @@ export default function POSSales() {
                 <Input
                   value={customerName}
                   onChange={(e) => {
-                    setCustomerName(e.target.value);
+                    handleCustomerSearchChange(e.target.value);
                     setOpenCustomerSearch(true);
                   }}
                   className="h-12 text-lg pr-32"
@@ -1952,6 +1920,7 @@ export default function POSSales() {
                       setCustomerName("");
                       setCustomerId("");
                       setCustomerPhone("");
+                      setCustomerSearchTerm("");
                     }}
                   >
                     <X className="h-5 w-5" />
@@ -1974,62 +1943,72 @@ export default function POSSales() {
                 <CommandInput 
                   placeholder="Search by name, phone, or email..." 
                   value={customerName}
-                  onValueChange={setCustomerName}
+                  onValueChange={handleCustomerSearchChange}
                 />
                 <CommandList>
-                  <CommandEmpty>No customers found.</CommandEmpty>
-                  <CommandGroup heading={`Customers (${customers?.length || 0})`}>
-                    {customers
-                      .filter(c => {
-                        const searchTerm = customerName.toLowerCase().trim();
-                        if (!searchTerm) return true;
-                        const normalizedPhone = (c.phone || '').replace(/\D/g, '');
-                        const normalizedSearch = searchTerm.replace(/\D/g, '');
-                        return (
-                          c.customer_name.toLowerCase().includes(searchTerm) ||
-                          (c.phone || '').toLowerCase().includes(searchTerm) ||
-                          (normalizedSearch && normalizedPhone.includes(normalizedSearch)) ||
-                          (c.email || '').toLowerCase().includes(searchTerm)
-                        );
-                      })
-                      .slice(0, 10)
-                      .map((customer) => {
-                        const balance = getCustomerBalance(customer);
-                        return (
-                          <CommandItem
-                            key={customer.id}
-                            value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
-                            onSelect={() => {
-                              setCustomerId(customer.id);
-                              setCustomerName(customer.customer_name);
-                              setCustomerPhone(customer.phone || "");
-                              setOpenCustomerSearch(false);
-                            }}
-                            className="cursor-pointer"
-                          >
-                            <Check className="mr-2 h-4 w-4 opacity-0" />
-                            <div className="flex flex-col flex-1">
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium">{customer.customer_name}</span>
-                                {balance !== 0 && (
-                                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                    balance > 0 
-                                      ? 'bg-destructive/10 text-destructive' 
-                                      : 'bg-green-500/10 text-green-600'
-                                  }`}>
-                                    ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                  </span>
-                                )}
+                  {isCustomersLoading ? (
+                    <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading customers...
+                    </div>
+                  ) : isCustomersError ? (
+                    <div className="flex flex-col items-center justify-center p-4 text-sm">
+                      <div className="flex items-center text-destructive mb-2">
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Error loading customers
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => refetchCustomers()}
+                        className="text-xs"
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <CommandEmpty>No customers found.</CommandEmpty>
+                      <CommandGroup heading={`Customers (${customers?.length || 0})`}>
+                        {filteredCustomers.map((customer: any) => {
+                          const balance = getCustomerBalance(customer);
+                          return (
+                            <CommandItem
+                              key={customer.id}
+                              value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
+                              onSelect={() => {
+                                setCustomerId(customer.id);
+                                setCustomerName(customer.customer_name);
+                                setCustomerPhone(customer.phone || "");
+                                setOpenCustomerSearch(false);
+                              }}
+                              className="cursor-pointer"
+                            >
+                              <Check className="mr-2 h-4 w-4 opacity-0" />
+                              <div className="flex flex-col flex-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-medium">{customer.customer_name}</span>
+                                  {balance !== 0 && (
+                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                      balance > 0 
+                                        ? 'bg-destructive/10 text-destructive' 
+                                        : 'bg-green-500/10 text-green-600'
+                                    }`}>
+                                      ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-sm text-muted-foreground">
+                                  {customer.phone && `Phone: ${customer.phone}`}
+                                  {customer.email && ` | Email: ${customer.email}`}
+                                </span>
                               </div>
-                              <span className="text-sm text-muted-foreground">
-                                {customer.phone && `Phone: ${customer.phone}`}
-                                {customer.email && ` | Email: ${customer.email}`}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        );
-                      })}
-                  </CommandGroup>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>
