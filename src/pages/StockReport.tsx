@@ -92,48 +92,101 @@ export default function StockReport() {
     if (!currentOrganization?.id) return;
     
     try {
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          color,
-          stock_qty,
-          opening_qty,
-          sale_price,
-          mrp,
-          barcode,
-          products (
-            product_name,
-            brand,
-            color
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .eq("active", true)
-        .order("stock_qty", { ascending: true });
+      // Fetch ALL product variants using pagination to bypass 1000 row limit
+      const allVariants: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            id,
+            size,
+            color,
+            stock_qty,
+            opening_qty,
+            sale_price,
+            mrp,
+            barcode,
+            products (
+              product_name,
+              brand,
+              color
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .order("stock_qty", { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const data = allVariants;
 
-      // Fetch stock movements to calculate purchase and sales quantities
-      const { data: movementsData, error: movementsError } = await supabase
-        .from("stock_movements")
-        .select("variant_id, movement_type, quantity");
+      // Fetch ALL stock movements using pagination
+      const allMovements: any[] = [];
+      offset = 0;
+      hasMore = true;
+      
+      while (hasMore) {
+        const { data: movementsData, error: movementsError } = await supabase
+          .from("stock_movements")
+          .select("variant_id, movement_type, quantity")
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (movementsError) throw movementsError;
+        if (movementsError) throw movementsError;
+        
+        if (movementsData && movementsData.length > 0) {
+          allMovements.push(...movementsData);
+          offset += PAGE_SIZE;
+          hasMore = movementsData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const movementsData = allMovements;
 
-      // Fetch batch stock with supplier info to get supplier names for each variant
-      const { data: batchData, error: batchError } = await supabase
-        .from("batch_stock")
-        .select(`
-          variant_id,
-          purchase_bills (
-            supplier_name
-          )
-        `)
-        .eq("organization_id", currentOrganization.id);
+      // Fetch ALL batch stock with supplier info using pagination
+      const allBatchData: any[] = [];
+      offset = 0;
+      hasMore = true;
+      
+      while (hasMore) {
+        const { data: batchData, error: batchError } = await supabase
+          .from("batch_stock")
+          .select(`
+            variant_id,
+            purchase_bills (
+              supplier_name
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (batchError) throw batchError;
+        if (batchError) throw batchError;
+        
+        if (batchData && batchData.length > 0) {
+          allBatchData.push(...batchData);
+          offset += PAGE_SIZE;
+          hasMore = batchData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const batchData = allBatchData;
 
       // Map variant_id to supplier names (take the first/most recent supplier)
       const variantSuppliers = (batchData || []).reduce((acc: any, batch: any) => {
@@ -191,27 +244,45 @@ export default function StockReport() {
     if (!currentOrganization?.id) return;
     
     try {
-      const { data, error } = await supabase
-        .from("stock_movements")
-        .select(`
-          id,
-          movement_type,
-          quantity,
-          notes,
-          created_at,
-          variant_id,
-          product_variants (
-            size,
-            products (
-              product_name
+      // Fetch ALL stock movements using pagination to bypass 1000 row limit
+      const allMovements: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("stock_movements")
+          .select(`
+            id,
+            movement_type,
+            quantity,
+            notes,
+            created_at,
+            variant_id,
+            product_variants (
+              size,
+              products (
+                product_name
+              )
             )
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allMovements.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const data = allMovements;
 
       const formattedData = data?.map((item: any) => ({
         id: item.id,
@@ -234,27 +305,46 @@ export default function StockReport() {
     if (!currentOrganization?.id) return;
     
     try {
-      const { data, error } = await supabase
-        .from('batch_stock')
-        .select(`
-          *,
-          product_variants (
-            size,
-            barcode,
-            products (
-              product_name,
-              brand
-            )
-          ),
-          purchase_bills (
-            supplier_name
-          )
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .gt('quantity', 0)
-        .order('purchase_date', { ascending: true });
+      // Fetch ALL batch stock using pagination to bypass 1000 row limit
+      const allBatchStock: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
       
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('batch_stock')
+          .select(`
+            *,
+            product_variants (
+              size,
+              barcode,
+              products (
+                product_name,
+                brand
+              )
+            ),
+            purchase_bills (
+              supplier_name
+            )
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .gt('quantity', 0)
+          .order('purchase_date', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allBatchStock.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const data = allBatchStock;
 
       const formattedData: BatchStock[] = (data || []).map((item: any) => ({
         id: item.id,

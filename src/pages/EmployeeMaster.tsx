@@ -62,17 +62,37 @@ const EmployeeMaster = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
 
+  // Fetch ALL employees using pagination to bypass 1000 row limit
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["employees", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Employee[];
+      
+      const allEmployees: Employee[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allEmployees.push(...(data as Employee[]));
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allEmployees;
     },
     enabled: !!currentOrganization?.id,
   });

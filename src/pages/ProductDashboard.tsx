@@ -122,34 +122,53 @@ const ProductDashboard = () => {
   const fetchProductVariants = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          id,
-          product_name,
-          product_type,
-          category,
-          brand,
-          style,
-          color,
-          hsn_code,
-          image_url,
-          gst_per,
-          default_pur_price,
-          default_sale_price,
-          status,
-          product_variants (
+      // Fetch ALL products using pagination to bypass 1000 row limit
+      const allProducts: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("products")
+          .select(`
             id,
-            size,
-            barcode,
-            pur_price,
-            sale_price,
-            stock_qty
-          )
-        `)
-        .order("created_at", { ascending: false });
+            product_name,
+            product_type,
+            category,
+            brand,
+            style,
+            color,
+            hsn_code,
+            image_url,
+            gst_per,
+            default_pur_price,
+            default_sale_price,
+            status,
+            product_variants (
+              id,
+              size,
+              barcode,
+              pur_price,
+              sale_price,
+              stock_qty
+            )
+          `)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      const data = allProducts;
 
       const rows: ProductRow[] = (data || []).map((product: any) => {
         const variants: ProductVariant[] = (product.product_variants || []).map((v: any) => ({
