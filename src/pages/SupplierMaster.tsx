@@ -69,17 +69,37 @@ const SupplierMaster = () => {
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Fetch ALL suppliers using pagination to bypass 1000 row limit
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Supplier[];
+      
+      const allSuppliers: Supplier[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allSuppliers.push(...(data as Supplier[]));
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allSuppliers;
     },
     enabled: !!currentOrganization?.id,
   });
