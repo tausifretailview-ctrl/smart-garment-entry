@@ -110,6 +110,65 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_logs: {
+        Row: {
+          backup_type: string
+          completed_at: string | null
+          created_at: string
+          drive_file_id: string | null
+          drive_file_link: string | null
+          error_message: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          organization_id: string
+          records_count: Json | null
+          started_at: string
+          status: string
+          tables_included: string[] | null
+        }
+        Insert: {
+          backup_type: string
+          completed_at?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          drive_file_link?: string | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          organization_id: string
+          records_count?: Json | null
+          started_at?: string
+          status: string
+          tables_included?: string[] | null
+        }
+        Update: {
+          backup_type?: string
+          completed_at?: string | null
+          created_at?: string
+          drive_file_id?: string | null
+          drive_file_link?: string | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          organization_id?: string
+          records_count?: Json | null
+          started_at?: string
+          status?: string
+          tables_included?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "backup_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       barcode_label_settings: {
         Row: {
           created_at: string | null
