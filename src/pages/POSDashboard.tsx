@@ -37,6 +37,7 @@ import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useQuery } from "@tanstack/react-query";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface SaleItem {
   id: string;
@@ -60,6 +61,7 @@ interface SaleItem {
 interface Sale {
   id: string;
   sale_number: string;
+  customer_id?: string | null;
   customer_name: string;
   customer_phone: string | null;
   customer_address: string | null;
@@ -141,6 +143,10 @@ const POSDashboard = () => {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // Customer history dialog state
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1181,7 +1187,19 @@ const POSDashboard = () => {
                             <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
                               {sale.sale_number}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>{sale.customer_name}</TableCell>
+                            <TableCell 
+                              className="cursor-pointer text-blue-600 hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCustomerForHistory({
+                                  id: sale.customer_id || null,
+                                  name: sale.customer_name
+                                });
+                                setShowCustomerHistory(true);
+                              }}
+                            >
+                              {sale.customer_name}
+                            </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.customer_phone || '-'}
                             </TableCell>
@@ -1749,6 +1767,15 @@ const POSDashboard = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Customer History Dialog */}
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 };
