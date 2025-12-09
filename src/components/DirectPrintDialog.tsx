@@ -1,10 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Printer, RefreshCw, Download, Wifi, WifiOff, ExternalLink } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Printer, RefreshCw, Download, Wifi, WifiOff, ExternalLink, FileText, Upload, Trash2, Plus, Eye } from 'lucide-react';
 import { useQZTray } from '@/hooks/useQZTray';
 import { 
   generateTSPLBatchFromTemplate, 
@@ -14,6 +18,14 @@ import {
   TSPLLabelConfig,
   TSPLTemplateConfig
 } from '@/utils/tsplGenerator';
+import {
+  PRNTemplate,
+  SAMPLE_PRN_TEMPLATES,
+  detectPlaceholders,
+  generatePRNBatch,
+  parsePRNFile,
+  LabelDataForPRN,
+} from '@/utils/prnTemplateParser';
 import { toast } from 'sonner';
 
 interface LabelFieldConfig {
@@ -68,8 +80,11 @@ interface DirectPrintDialogProps {
     style?: string;
     quantity: number;
   }>;
-  labelSize: string; // e.g., "thermal-50x25-1up"
-  labelConfig?: LabelDesignConfig; // Template design configuration
+  labelSize: string;
+  labelConfig?: LabelDesignConfig;
+  prnTemplates?: PRNTemplate[];
+  onSavePRNTemplate?: (template: PRNTemplate) => Promise<boolean>;
+  onDeletePRNTemplate?: (name: string) => Promise<boolean>;
 }
 
 export const DirectPrintDialog = ({ 
@@ -77,7 +92,10 @@ export const DirectPrintDialog = ({
   onOpenChange, 
   items, 
   labelSize,
-  labelConfig: templateConfig 
+  labelConfig: templateConfig,
+  prnTemplates = [],
+  onSavePRNTemplate,
+  onDeletePRNTemplate,
 }: DirectPrintDialogProps) => {
   const {
     isConnected,
@@ -93,10 +111,19 @@ export const DirectPrintDialog = ({
   } = useQZTray();
 
   const [isPrinting, setIsPrinting] = useState(false);
+  const [printMode, setPrintMode] = useState<'template' | 'prn'>('template');
+  const [selectedPRNTemplate, setSelectedPRNTemplate] = useState<string>('');
+  const [customPRNContent, setCustomPRNContent] = useState('');
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const [previewContent, setPreviewContent] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // All available PRN templates (sample + saved)
+  const allPRNTemplates = [...SAMPLE_PRN_TEMPLATES, ...prnTemplates];
 
   // Parse label size to get dimensions
   const getLabelConfig = (): TSPLLabelConfig => {
-    // Extract dimensions from label size string
     const match = labelSize.match(/(\d+)x(\d+)/);
     if (match) {
       return {
@@ -105,7 +132,7 @@ export const DirectPrintDialog = ({
         gap: 2,
       };
     }
-    return TSPL_PRESETS['50x25']; // Default
+    return TSPL_PRESETS['50x25'];
   };
 
   const handleConnect = async () => {
@@ -120,6 +147,122 @@ export const DirectPrintDialog = ({
     toast.success('Printer list refreshed');
   };
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setCustomPRNContent(content);
+      
+      const placeholders = detectPlaceholders(content);
+      toast.success(`Template loaded with ${placeholders.length} placeholders: ${placeholders.join(', ')}`);
+    };
+    reader.readAsText(file);
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSelectPRNTemplate = (templateName: string) => {
+    setSelectedPRNTemplate(templateName);
+    const template = allPRNTemplates.find(t => t.name === templateName);
+    if (template) {
+      setCustomPRNContent(template.content);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!newTemplateName.trim()) {
+      toast.error('Please enter a template name');
+      return;
+    }
+    if (!customPRNContent.trim()) {
+      toast.error('Template content is empty');
+      return;
+    }
+
+    const template: PRNTemplate = {
+      name: newTemplateName.trim(),
+      content: customPRNContent,
+      placeholders: detectPlaceholders(customPRNContent),
+    };
+
+    if (onSavePRNTemplate) {
+      const success = await onSavePRNTemplate(template);
+      if (success) {
+        toast.success('Template saved successfully');
+        setNewTemplateName('');
+        setShowAddTemplate(false);
+      }
+    } else {
+      toast.error('Save function not available');
+    }
+  };
+
+  const handleDeleteTemplate = async (name: string) => {
+    if (onDeletePRNTemplate) {
+      const success = await onDeletePRNTemplate(name);
+      if (success) {
+        toast.success('Template deleted');
+        if (selectedPRNTemplate === name) {
+          setSelectedPRNTemplate('');
+          setCustomPRNContent('');
+        }
+      }
+    }
+  };
+
+  const handlePreview = () => {
+    if (!customPRNContent) {
+      toast.error('No template content to preview');
+      return;
+    }
+    
+    // Preview with first item
+    if (items.length > 0) {
+      const firstItem = items[0];
+      const data: LabelDataForPRN = {
+        productName: firstItem.productName,
+        brand: firstItem.brand,
+        size: firstItem.size,
+        color: firstItem.color,
+        mrp: firstItem.mrp,
+        salePrice: firstItem.salePrice,
+        barcode: firstItem.barcode,
+        billNumber: firstItem.billNumber,
+        purchaseCode: firstItem.purchaseCode,
+        supplierCode: firstItem.supplierCode,
+        style: firstItem.style,
+      };
+      
+      // Simple placeholder replacement for preview
+      let preview = customPRNContent;
+      preview = preview.replace(/\{BRAND\}/gi, data.brand || '[BRAND]');
+      preview = preview.replace(/\{PRODUCT\}/gi, data.productName || '[PRODUCT]');
+      preview = preview.replace(/\{PRODUCTNAME\}/gi, data.productName || '[PRODUCT]');
+      preview = preview.replace(/\{SIZE\}/gi, data.size || '[SIZE]');
+      preview = preview.replace(/\{COLOR\}/gi, data.color || '[COLOR]');
+      preview = preview.replace(/\{STYLE\}/gi, data.style || '[STYLE]');
+      preview = preview.replace(/\{MRP\}/gi, data.mrp ? `₹${data.mrp}` : '[MRP]');
+      preview = preview.replace(/\{PRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '[PRICE]');
+      preview = preview.replace(/\{SALEPRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '[PRICE]');
+      preview = preview.replace(/\{BARCODE\}/gi, data.barcode || '[BARCODE]');
+      preview = preview.replace(/\{BILLNO\}/gi, data.billNumber || '[BILLNO]');
+      preview = preview.replace(/\{BILLNUMBER\}/gi, data.billNumber || '[BILLNO]');
+      preview = preview.replace(/\{PURCHASECODE\}/gi, data.purchaseCode || '[PURCHASECODE]');
+      preview = preview.replace(/\{SUPPLIERCODE\}/gi, data.supplierCode || '[SUPPLIERCODE]');
+      
+      setPreviewContent(preview);
+      toast.success('Preview generated with first item data');
+    } else {
+      setPreviewContent(customPRNContent);
+    }
+  };
+
   const handlePrint = async () => {
     if (!selectedPrinter) {
       toast.error('Please select a printer');
@@ -129,56 +272,80 @@ export const DirectPrintDialog = ({
     setIsPrinting(true);
 
     try {
-      const labelDimensions = getLabelConfig();
-      
-      // Convert items to LabelData format
-      const labelItems = items.map(item => ({
-        data: {
-          productName: item.productName,
-          brand: item.brand,
-          size: item.size,
-          color: item.color,
-          mrp: item.mrp,
-          salePrice: item.salePrice,
-          barcode: item.barcode,
-          billNumber: item.billNumber,
-          purchaseCode: item.purchaseCode,
-          supplierCode: item.supplierCode,
-          style: item.style,
-        } as LabelData,
-        quantity: item.quantity,
-      }));
+      let commandsToSend: string;
 
-      let tsplCommands: string;
+      if (printMode === 'prn') {
+        // PRN Template Mode
+        if (!customPRNContent.trim()) {
+          toast.error('No PRN template content. Select a template or upload a file.');
+          setIsPrinting(false);
+          return;
+        }
 
-      // Use template-aware generator if template config is provided
-      if (templateConfig) {
-        // Convert LabelDesignConfig to TSPLTemplateConfig
-        const tsplTemplate: TSPLTemplateConfig = {
-          brand: templateConfig.brand,
-          productName: templateConfig.productName,
-          color: templateConfig.color,
-          style: templateConfig.style,
-          size: templateConfig.size,
-          price: templateConfig.price,
-          barcode: templateConfig.barcode,
-          barcodeText: templateConfig.barcodeText,
-          billNumber: templateConfig.billNumber,
-          supplierCode: templateConfig.supplierCode,
-          purchaseCode: templateConfig.purchaseCode,
-          fieldOrder: templateConfig.fieldOrder as string[],
-          barcodeHeight: templateConfig.barcodeHeight,
-          barcodeWidth: templateConfig.barcodeWidth,
-        };
-        
-        tsplCommands = generateTSPLBatchFromTemplate(labelDimensions, tsplTemplate, labelItems);
+        const labelItems = items.map(item => ({
+          data: {
+            productName: item.productName,
+            brand: item.brand,
+            size: item.size,
+            color: item.color,
+            mrp: item.mrp,
+            salePrice: item.salePrice,
+            barcode: item.barcode,
+            billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode,
+            supplierCode: item.supplierCode,
+            style: item.style,
+          } as LabelDataForPRN,
+          quantity: item.quantity,
+        }));
+
+        commandsToSend = generatePRNBatch(customPRNContent, labelItems);
       } else {
-        // Fall back to legacy hardcoded layout
-        tsplCommands = generateTSPLBatch(labelDimensions, labelItems);
+        // Template Mode (existing logic)
+        const labelDimensions = getLabelConfig();
+        
+        const labelItems = items.map(item => ({
+          data: {
+            productName: item.productName,
+            brand: item.brand,
+            size: item.size,
+            color: item.color,
+            mrp: item.mrp,
+            salePrice: item.salePrice,
+            barcode: item.barcode,
+            billNumber: item.billNumber,
+            purchaseCode: item.purchaseCode,
+            supplierCode: item.supplierCode,
+            style: item.style,
+          } as LabelData,
+          quantity: item.quantity,
+        }));
+
+        if (templateConfig) {
+          const tsplTemplate: TSPLTemplateConfig = {
+            brand: templateConfig.brand,
+            productName: templateConfig.productName,
+            color: templateConfig.color,
+            style: templateConfig.style,
+            size: templateConfig.size,
+            price: templateConfig.price,
+            barcode: templateConfig.barcode,
+            barcodeText: templateConfig.barcodeText,
+            billNumber: templateConfig.billNumber,
+            supplierCode: templateConfig.supplierCode,
+            purchaseCode: templateConfig.purchaseCode,
+            fieldOrder: templateConfig.fieldOrder as string[],
+            barcodeHeight: templateConfig.barcodeHeight,
+            barcodeWidth: templateConfig.barcodeWidth,
+          };
+          
+          commandsToSend = generateTSPLBatchFromTemplate(labelDimensions, tsplTemplate, labelItems);
+        } else {
+          commandsToSend = generateTSPLBatch(labelDimensions, labelItems);
+        }
       }
       
-      // Send to printer
-      const success = await printRaw(tsplCommands);
+      const success = await printRaw(commandsToSend);
       
       if (success) {
         onOpenChange(false);
@@ -193,10 +360,11 @@ export const DirectPrintDialog = ({
 
   const totalLabels = items.reduce((sum, item) => sum + item.quantity, 0);
   const labelDimensions = getLabelConfig();
+  const detectedPlaceholders = detectPlaceholders(customPRNContent);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Printer className="h-5 w-5" />
@@ -204,7 +372,7 @@ export const DirectPrintDialog = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="flex-1 overflow-y-auto space-y-4 py-4">
           {/* Connection Status */}
           <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
             <div className="flex items-center gap-2">
@@ -246,17 +414,12 @@ export const DirectPrintDialog = ({
                 QZ Tray Required
               </p>
               <p className="text-amber-700 dark:text-amber-300 mb-2">
-                QZ Tray is a free utility that enables direct printing to thermal printers without browser dialogs.
+                QZ Tray enables direct printing to thermal printers without browser dialogs.
               </p>
-              <ol className="list-decimal list-inside text-amber-700 dark:text-amber-300 space-y-1">
-                <li>Download QZ Tray from qz.io/download</li>
-                <li>Install and run QZ Tray</li>
-                <li>Refresh this page and try again</li>
-              </ol>
               <Button 
                 size="sm" 
                 variant="link" 
-                className="mt-2 p-0 h-auto text-amber-800 dark:text-amber-200"
+                className="p-0 h-auto text-amber-800 dark:text-amber-200"
                 onClick={() => window.open('https://qz.io/download/', '_blank')}
               >
                 <ExternalLink className="h-3 w-3 mr-1" />
@@ -270,11 +433,7 @@ export const DirectPrintDialog = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>Select Printer</Label>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={handleRefreshPrinters}
-                >
+                <Button size="sm" variant="ghost" onClick={handleRefreshPrinters}>
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
@@ -285,14 +444,10 @@ export const DirectPrintDialog = ({
                 </SelectTrigger>
                 <SelectContent>
                   {printers.length === 0 ? (
-                    <div className="p-2 text-sm text-muted-foreground">
-                      No printers found
-                    </div>
+                    <div className="p-2 text-sm text-muted-foreground">No printers found</div>
                   ) : (
                     printers.map(printer => (
-                      <SelectItem key={printer} value={printer}>
-                        {printer}
-                      </SelectItem>
+                      <SelectItem key={printer} value={printer}>{printer}</SelectItem>
                     ))
                   )}
                 </SelectContent>
@@ -300,26 +455,178 @@ export const DirectPrintDialog = ({
             </div>
           )}
 
-          {/* Print Summary */}
+          {/* Print Mode Tabs */}
           {isConnected && (
-            <div className="p-3 bg-muted rounded-lg space-y-1">
-              <div className="flex justify-between text-sm">
-                <span>Label Size:</span>
-                <Badge variant="secondary">{labelDimensions.width}×{labelDimensions.height}mm</Badge>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Template:</span>
-                <Badge variant="outline">{templateConfig ? 'Custom Design' : 'Default'}</Badge>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Total Products:</span>
-                <span className="font-medium">{items.length}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Total Labels:</span>
-                <span className="font-medium">{totalLabels}</span>
-              </div>
-            </div>
+            <Tabs value={printMode} onValueChange={(v) => setPrintMode(v as 'template' | 'prn')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="template">Template Mode</TabsTrigger>
+                <TabsTrigger value="prn">PRN File Mode</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="template" className="space-y-3 mt-3">
+                <div className="p-3 bg-muted rounded-lg space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Label Size:</span>
+                    <Badge variant="secondary">{labelDimensions.width}×{labelDimensions.height}mm</Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Template:</span>
+                    <Badge variant="outline">{templateConfig ? 'Custom Design' : 'Default'}</Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Total Products:</span>
+                    <span className="font-medium">{items.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Total Labels:</span>
+                    <span className="font-medium">{totalLabels}</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Uses the Interactive Label Designer template to generate TSPL commands.
+                </p>
+              </TabsContent>
+
+              <TabsContent value="prn" className="space-y-3 mt-3">
+                {/* PRN Template Selection */}
+                <div className="space-y-2">
+                  <Label>Select PRN Template</Label>
+                  <div className="flex gap-2">
+                    <Select value={selectedPRNTemplate} onValueChange={handleSelectPRNTemplate}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Choose a template..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <div className="px-2 py-1 text-xs text-muted-foreground font-medium">Sample Templates</div>
+                        {SAMPLE_PRN_TEMPLATES.map(template => (
+                          <SelectItem key={template.name} value={template.name}>
+                            <div className="flex flex-col">
+                              <span>{template.name}</span>
+                              <span className="text-xs text-muted-foreground">{template.description}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {prnTemplates.length > 0 && (
+                          <>
+                            <div className="px-2 py-1 text-xs text-muted-foreground font-medium mt-2">Saved Templates</div>
+                            {prnTemplates.map(template => (
+                              <SelectItem key={template.name} value={template.name}>
+                                {template.name}
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".prn,.bas,.txt"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Upload PRN file"
+                    >
+                      <Upload className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Template Content Editor */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Template Content (TSPL/PRN)</Label>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={handlePreview}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Preview
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setShowAddTemplate(!showAddTemplate)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Save As
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <Textarea
+                    value={customPRNContent}
+                    onChange={(e) => setCustomPRNContent(e.target.value)}
+                    placeholder={`Paste your PRN/TSPL template here or select from above...
+
+Example:
+SIZE 50 mm, 25 mm
+GAP 2 mm, 0 mm
+DIRECTION 1
+CLS
+TEXT 4,2,"2",0,1,1,"{BRAND}"
+TEXT 4,18,"1",0,1,1,"{PRODUCT}"
+BARCODE 30,48,"128",40,0,0,2,2,"{BARCODE}"
+PRINT 1,1`}
+                    className="font-mono text-xs h-32"
+                  />
+                </div>
+
+                {/* Detected Placeholders */}
+                {detectedPlaceholders.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-xs text-muted-foreground">Placeholders:</span>
+                    {detectedPlaceholders.map(p => (
+                      <Badge key={p} variant="secondary" className="text-xs">{p}</Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Save Template Form */}
+                {showAddTemplate && (
+                  <div className="flex gap-2 p-2 bg-muted rounded-lg">
+                    <Input
+                      placeholder="Template name..."
+                      value={newTemplateName}
+                      onChange={(e) => setNewTemplateName(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button size="sm" onClick={handleSaveTemplate}>Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowAddTemplate(false)}>Cancel</Button>
+                  </div>
+                )}
+
+                {/* Preview Output */}
+                {previewContent && (
+                  <div className="space-y-2">
+                    <Label className="text-xs">Preview (First Label)</Label>
+                    <ScrollArea className="h-24 border rounded-md p-2 bg-background">
+                      <pre className="text-xs font-mono whitespace-pre-wrap">{previewContent}</pre>
+                    </ScrollArea>
+                  </div>
+                )}
+
+                {/* Summary */}
+                <div className="p-3 bg-muted rounded-lg space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Mode:</span>
+                    <Badge variant="outline">PRN File</Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Total Products:</span>
+                    <span className="font-medium">{items.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Total Labels:</span>
+                    <span className="font-medium">{totalLabels}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  PRN mode sends exact template commands with placeholders replaced by product data. 
+                  Design in BarTender/TSC software for pixel-perfect alignment.
+                </p>
+              </TabsContent>
+            </Tabs>
           )}
 
           {/* Error Display */}
@@ -330,7 +637,7 @@ export const DirectPrintDialog = ({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

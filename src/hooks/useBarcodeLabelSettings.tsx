@@ -52,6 +52,14 @@ interface CustomPreset {
   scale?: number;
 }
 
+// PRN Template for direct thermal printing
+export interface PRNTemplate {
+  name: string;
+  content: string;
+  placeholders: string[];
+  description?: string;
+}
+
 interface DefaultFormat {
   defaultTemplate?: string | null;
   sheetType?: string;
@@ -77,6 +85,7 @@ export function useBarcodeLabelSettings() {
   const [labelTemplates, setLabelTemplates] = useState<LabelTemplate[]>([]);
   const [marginPresets, setMarginPresets] = useState<MarginPreset[]>([]);
   const [customPresets, setCustomPresets] = useState<CustomPreset[]>([]);
+  const [prnTemplates, setPrnTemplates] = useState<PRNTemplate[]>([]);
   const [defaultFormat, setDefaultFormat] = useState<DefaultFormat | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -98,6 +107,7 @@ export function useBarcodeLabelSettings() {
       const templates: LabelTemplate[] = [];
       const margins: MarginPreset[] = [];
       const customs: CustomPreset[] = [];
+      const prns: PRNTemplate[] = [];
       let defaultFmt: DefaultFormat | null = null;
 
       data?.forEach((row) => {
@@ -122,6 +132,14 @@ export function useBarcodeLabelSettings() {
               ...settingData,
             });
             break;
+          case "prn_template":
+            prns.push({
+              name: row.setting_name,
+              content: settingData.content,
+              placeholders: settingData.placeholders || [],
+              description: settingData.description,
+            });
+            break;
           case "default_format":
             defaultFmt = settingData;
             break;
@@ -131,6 +149,7 @@ export function useBarcodeLabelSettings() {
       setLabelTemplates(templates);
       setMarginPresets(margins);
       setCustomPresets(customs);
+      setPrnTemplates(prns);
       setDefaultFormat(defaultFmt);
     } catch (error) {
       console.error("Failed to fetch barcode settings:", error);
@@ -335,10 +354,68 @@ export function useBarcodeLabelSettings() {
     }
   };
 
+  // Save PRN template
+  const savePRNTemplate = async (template: PRNTemplate): Promise<boolean> => {
+    if (!currentOrganization?.id) {
+      toast.error("No organization selected");
+      return false;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("barcode_label_settings")
+        .upsert({
+          organization_id: currentOrganization.id,
+          setting_type: "prn_template",
+          setting_name: template.name,
+          setting_data: {
+            content: template.content,
+            placeholders: template.placeholders,
+            description: template.description,
+          } as any,
+        } as any, {
+          onConflict: "organization_id,setting_type,setting_name",
+        });
+
+      if (error) throw error;
+
+      await fetchSettings();
+      return true;
+    } catch (error) {
+      console.error("Failed to save PRN template:", error);
+      toast.error("Failed to save PRN template");
+      return false;
+    }
+  };
+
+  // Delete PRN template
+  const deletePRNTemplate = async (templateName: string): Promise<boolean> => {
+    if (!currentOrganization?.id) return false;
+
+    try {
+      const { error } = await supabase
+        .from("barcode_label_settings")
+        .delete()
+        .eq("organization_id", currentOrganization.id)
+        .eq("setting_type", "prn_template")
+        .eq("setting_name", templateName);
+
+      if (error) throw error;
+
+      await fetchSettings();
+      return true;
+    } catch (error) {
+      console.error("Failed to delete PRN template:", error);
+      toast.error("Failed to delete PRN template");
+      return false;
+    }
+  };
+
   return {
     labelTemplates,
     marginPresets,
     customPresets,
+    prnTemplates,
     defaultFormat,
     isLoading,
     saveLabelTemplate,
@@ -347,6 +424,8 @@ export function useBarcodeLabelSettings() {
     deleteMarginPreset,
     saveCustomPreset,
     deleteCustomPreset,
+    savePRNTemplate,
+    deletePRNTemplate,
     saveDefaultFormat,
     refetch: fetchSettings,
   };

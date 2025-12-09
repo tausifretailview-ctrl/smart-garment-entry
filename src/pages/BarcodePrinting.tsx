@@ -1061,6 +1061,7 @@ export default function BarcodePrinting() {
     labelTemplates: dbLabelTemplates,
     marginPresets: dbMarginPresets,
     customPresets: dbCustomPresets,
+    prnTemplates,
     defaultFormat: dbDefaultFormat,
     isLoading: isLoadingSettings,
     saveLabelTemplate: saveTemplateToDb,
@@ -1069,6 +1070,8 @@ export default function BarcodePrinting() {
     deleteMarginPreset: deleteMarginFromDb,
     saveCustomPreset: saveCustomToDb,
     deleteCustomPreset: deleteCustomFromDb,
+    savePRNTemplate,
+    deletePRNTemplate,
     saveDefaultFormat: saveDefaultToDb,
   } = useBarcodeLabelSettings();
   
@@ -3945,6 +3948,9 @@ export default function BarcodePrinting() {
         }))}
         labelSize={sheetType}
         labelConfig={labelConfig}
+        prnTemplates={prnTemplates}
+        onSavePRNTemplate={savePRNTemplate}
+        onDeletePRNTemplate={deletePRNTemplate}
       />
 
       {/* Print Area (hidden, used for printing) */}
