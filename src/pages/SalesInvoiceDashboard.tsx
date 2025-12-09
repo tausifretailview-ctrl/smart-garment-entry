@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface ColumnSettings {
   [key: string]: boolean;
@@ -112,6 +113,10 @@ export default function SalesInvoiceDashboard() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // Customer history dialog state
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -1030,7 +1035,19 @@ export default function SalesInvoiceDashboard() {
                             <TableCell className="font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_number}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>{invoice.customer_name}</TableCell>
+                            <TableCell 
+                              className="cursor-pointer text-blue-600 hover:underline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedCustomerForHistory({
+                                  id: invoice.customer_id || null,
+                                  name: invoice.customer_name
+                                });
+                                setShowCustomerHistory(true);
+                              }}
+                            >
+                              {invoice.customer_name}
+                            </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.customer_phone || '-'}
                             </TableCell>
@@ -1642,6 +1659,15 @@ export default function SalesInvoiceDashboard() {
             />
           </div>
         )}
+
+        {/* Customer History Dialog */}
+        <CustomerHistoryDialog
+          open={showCustomerHistory}
+          onOpenChange={setShowCustomerHistory}
+          customerId={selectedCustomerForHistory?.id || null}
+          customerName={selectedCustomerForHistory?.name || ''}
+          organizationId={currentOrganization?.id || ''}
+        />
       </div>
   );
 }
