@@ -179,16 +179,17 @@ export default function SalesInvoice() {
     },
   });
 
-  // Use reliable customer search hook
+  // Customer search state
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
+  
+  // Use reliable customer search hook - pass search term directly
   const { 
     customers: customersData = [], 
     filteredCustomers,
-    searchTerm: customerSearchInput,
-    setSearchTerm: setCustomerSearchInput,
     isLoading: isCustomersLoading,
     isError: isCustomersError,
     refetch: refetchCustomers,
-  } = useCustomerSearch();
+  } = useCustomerSearch(customerSearchInput);
   
   const { getCustomerBalance } = useCustomerBalances();
 

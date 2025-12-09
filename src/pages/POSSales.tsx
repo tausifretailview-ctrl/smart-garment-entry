@@ -529,24 +529,16 @@ export default function POSSales() {
     refetchInterval: 60000, // Auto-refetch every 60 seconds
   });
 
-  // Use reliable customer search hook
+  // Use reliable customer search hook - pass customerName directly as search term
   const { 
     customers = [], 
     filteredCustomers,
-    searchTerm: customerSearchTerm,
-    setSearchTerm: setCustomerSearchTerm,
     isLoading: isCustomersLoading,
     isError: isCustomersError,
     refetch: refetchCustomers,
-  } = useCustomerSearch();
+  } = useCustomerSearch(customerName);
   
   const { getCustomerBalance } = useCustomerBalances();
-
-  // Sync customer search term with customerName for backwards compatibility
-  const handleCustomerSearchChange = (value: string) => {
-    setCustomerName(value);
-    setCustomerSearchTerm(value);
-  };
 
   // Fetch credit balance when customer changes
   useEffect(() => {
@@ -1905,7 +1897,7 @@ export default function POSSales() {
                 <Input
                   value={customerName}
                   onChange={(e) => {
-                    handleCustomerSearchChange(e.target.value);
+                    setCustomerName(e.target.value);
                     setOpenCustomerSearch(true);
                   }}
                   className="h-12 text-lg pr-32"
@@ -1920,7 +1912,6 @@ export default function POSSales() {
                       setCustomerName("");
                       setCustomerId("");
                       setCustomerPhone("");
-                      setCustomerSearchTerm("");
                     }}
                   >
                     <X className="h-5 w-5" />
@@ -1943,7 +1934,7 @@ export default function POSSales() {
                 <CommandInput 
                   placeholder="Search by name, phone, or email..." 
                   value={customerName}
-                  onValueChange={handleCustomerSearchChange}
+                  onValueChange={setCustomerName}
                 />
                 <CommandList>
                   {isCustomersLoading ? (
