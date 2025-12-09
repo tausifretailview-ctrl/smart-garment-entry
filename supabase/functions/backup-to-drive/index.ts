@@ -149,24 +149,18 @@ Deno.serve(async (req) => {
 
     console.log('Starting backup for organization:', organizationId);
 
-    // Fetch all organization data
-    const tables = [
+    // Tables with organization_id column
+    const orgScopedTables = [
       'customers',
       'suppliers',
       'products',
       'product_variants',
       'sales',
-      'sale_items',
       'sale_returns',
-      'sale_return_items',
       'purchase_bills',
-      'purchase_items',
       'purchase_returns',
-      'purchase_return_items',
       'quotations',
-      'quotation_items',
       'sale_orders',
-      'sale_order_items',
       'credit_notes',
       'voucher_entries',
       'account_ledgers',
@@ -174,10 +168,21 @@ Deno.serve(async (req) => {
       'settings',
     ];
 
+    // Line item tables that need to be fetched via parent relationship
+    const lineItemTables = {
+      'sale_items': { parent: 'sales', foreignKey: 'sale_id' },
+      'sale_return_items': { parent: 'sale_returns', foreignKey: 'return_id' },
+      'purchase_items': { parent: 'purchase_bills', foreignKey: 'bill_id' },
+      'purchase_return_items': { parent: 'purchase_returns', foreignKey: 'return_id' },
+      'quotation_items': { parent: 'quotations', foreignKey: 'quotation_id' },
+      'sale_order_items': { parent: 'sale_orders', foreignKey: 'sale_order_id' },
+    };
+
     const backupData: Record<string, unknown[]> = {};
     const recordsCounts: Record<string, number> = {};
 
-    for (const table of tables) {
+    // Fetch organization-scoped tables
+    for (const table of orgScopedTables) {
       try {
         const { data, error } = await supabase
           .from(table)
@@ -199,6 +204,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fetch line item tables via parent IDs
+    for (const [table, config] of Object.entries(lineItemTables)) {
+      try {
+        const parentData = backupData[config.parent] as any[];
+        if (!parentData || parentData.length === 0) {
+          backupData[table] = [];
+          recordsCounts[table] = 0;
+          continue;
+        }
+
+        const parentIds = parentData.map(p => p.id);
+        const { data, error } = await supabase
+          .from(table)
+          .select('*')
+          .in(config.foreignKey, parentIds);
+
+        if (error) {
+          console.warn(`Failed to fetch ${table}:`, error.message);
+          backupData[table] = [];
+          recordsCounts[table] = 0;
+        } else {
+          backupData[table] = data || [];
+          recordsCounts[table] = data?.length || 0;
+        }
+      } catch (err) {
+        console.warn(`Error fetching ${table}:`, err);
+        backupData[table] = [];
+        recordsCounts[table] = 0;
+      }
+    }
+
+    const allTables = [...orgScopedTables, ...Object.keys(lineItemTables)];
+
     // Create backup JSON
     const backupContent = JSON.stringify({
       metadata: {
@@ -206,7 +244,7 @@ Deno.serve(async (req) => {
         organization_name: orgName,
         backup_date: new Date().toISOString(),
         backup_type: backupType,
-        tables_included: tables,
+        tables_included: allTables,
         records_count: recordsCounts,
       },
       data: backupData,
@@ -219,7 +257,25 @@ Deno.serve(async (req) => {
     console.log('Uploading to Google Drive...');
 
     // Get access token and upload
-    const accessToken = await getAccessToken();
+    let accessToken: string;
+    try {
+      accessToken = await getAccessToken();
+    } catch (tokenError) {
+      console.error('Failed to get Google access token:', tokenError);
+      
+      // Update backup log with failure
+      await supabase
+        .from('backup_logs')
+        .update({
+          status: 'failed',
+          error_message: 'Google Drive authentication failed. Please verify your API credentials (Client ID, Client Secret, and Refresh Token) are correct.',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', backupLog.id);
+
+      throw new Error('Google Drive authentication failed. Please check your credentials in Settings.');
+    }
+
     const { id: driveFileId, webViewLink } = await uploadToGoogleDrive(accessToken, fileName, backupContent);
 
     console.log('Upload successful. File ID:', driveFileId);
@@ -233,7 +289,7 @@ Deno.serve(async (req) => {
         drive_file_id: driveFileId,
         drive_file_link: webViewLink,
         file_size: fileSize,
-        tables_included: tables,
+        tables_included: allTables,
         records_count: recordsCounts,
         completed_at: new Date().toISOString(),
       })
