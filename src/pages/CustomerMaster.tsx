@@ -60,17 +60,37 @@ const CustomerMaster = () => {
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
 
+  // Fetch ALL customers using pagination to bypass 1000 row limit
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Customer[];
+      
+      const allCustomers: Customer[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("organization_id", currentOrganization.id)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allCustomers.push(...(data as Customer[]));
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allCustomers;
     },
     enabled: !!currentOrganization?.id,
   });
