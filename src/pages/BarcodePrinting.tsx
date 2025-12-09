@@ -3939,9 +3939,12 @@ export default function BarcodePrinting() {
           barcode: item.barcode,
           billNumber: item.bill_number,
           purchaseCode: item.purchase_code,
+          supplierCode: item.supplier_code,
+          style: item.style,
           quantity: item.qty,
         }))}
         labelSize={sheetType}
+        labelConfig={labelConfig}
       />
 
       {/* Print Area (hidden, used for printing) */}

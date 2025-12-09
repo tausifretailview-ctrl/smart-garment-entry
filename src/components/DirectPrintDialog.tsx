@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,8 +6,50 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Printer, RefreshCw, Download, Wifi, WifiOff, ExternalLink } from 'lucide-react';
 import { useQZTray } from '@/hooks/useQZTray';
-import { generateTSPLBatch, TSPL_PRESETS, LabelData, TSPLLabelConfig } from '@/utils/tsplGenerator';
+import { 
+  generateTSPLBatchFromTemplate, 
+  generateTSPLBatch,
+  TSPL_PRESETS, 
+  LabelData, 
+  TSPLLabelConfig,
+  TSPLTemplateConfig
+} from '@/utils/tsplGenerator';
 import { toast } from 'sonner';
+
+interface LabelFieldConfig {
+  show: boolean;
+  fontSize: number;
+  bold: boolean;
+  fontFamily?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  paddingTop?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  paddingRight?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  lineHeight?: number;
+  row?: number;
+}
+
+interface LabelDesignConfig {
+  brand: LabelFieldConfig;
+  productName: LabelFieldConfig;
+  color: LabelFieldConfig;
+  style: LabelFieldConfig;
+  size: LabelFieldConfig;
+  price: LabelFieldConfig;
+  barcode: LabelFieldConfig;
+  barcodeText: LabelFieldConfig;
+  billNumber: LabelFieldConfig;
+  supplierCode: LabelFieldConfig;
+  purchaseCode: LabelFieldConfig;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>>;
+  barcodeHeight?: number;
+  barcodeWidth?: number;
+}
 
 interface DirectPrintDialogProps {
   open: boolean;
@@ -22,16 +64,20 @@ interface DirectPrintDialogProps {
     barcode?: string;
     billNumber?: string;
     purchaseCode?: string;
+    supplierCode?: string;
+    style?: string;
     quantity: number;
   }>;
   labelSize: string; // e.g., "thermal-50x25-1up"
+  labelConfig?: LabelDesignConfig; // Template design configuration
 }
 
 export const DirectPrintDialog = ({ 
   open, 
   onOpenChange, 
   items, 
-  labelSize 
+  labelSize,
+  labelConfig: templateConfig 
 }: DirectPrintDialogProps) => {
   const {
     isConnected,
@@ -83,7 +129,7 @@ export const DirectPrintDialog = ({
     setIsPrinting(true);
 
     try {
-      const labelConfig = getLabelConfig();
+      const labelDimensions = getLabelConfig();
       
       // Convert items to LabelData format
       const labelItems = items.map(item => ({
@@ -97,12 +143,39 @@ export const DirectPrintDialog = ({
           barcode: item.barcode,
           billNumber: item.billNumber,
           purchaseCode: item.purchaseCode,
+          supplierCode: item.supplierCode,
+          style: item.style,
         } as LabelData,
         quantity: item.quantity,
       }));
 
-      // Generate TSPL commands
-      const tsplCommands = generateTSPLBatch(labelConfig, labelItems);
+      let tsplCommands: string;
+
+      // Use template-aware generator if template config is provided
+      if (templateConfig) {
+        // Convert LabelDesignConfig to TSPLTemplateConfig
+        const tsplTemplate: TSPLTemplateConfig = {
+          brand: templateConfig.brand,
+          productName: templateConfig.productName,
+          color: templateConfig.color,
+          style: templateConfig.style,
+          size: templateConfig.size,
+          price: templateConfig.price,
+          barcode: templateConfig.barcode,
+          barcodeText: templateConfig.barcodeText,
+          billNumber: templateConfig.billNumber,
+          supplierCode: templateConfig.supplierCode,
+          purchaseCode: templateConfig.purchaseCode,
+          fieldOrder: templateConfig.fieldOrder as string[],
+          barcodeHeight: templateConfig.barcodeHeight,
+          barcodeWidth: templateConfig.barcodeWidth,
+        };
+        
+        tsplCommands = generateTSPLBatchFromTemplate(labelDimensions, tsplTemplate, labelItems);
+      } else {
+        // Fall back to legacy hardcoded layout
+        tsplCommands = generateTSPLBatch(labelDimensions, labelItems);
+      }
       
       // Send to printer
       const success = await printRaw(tsplCommands);
@@ -119,6 +192,7 @@ export const DirectPrintDialog = ({
   };
 
   const totalLabels = items.reduce((sum, item) => sum + item.quantity, 0);
+  const labelDimensions = getLabelConfig();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -228,16 +302,20 @@ export const DirectPrintDialog = ({
 
           {/* Print Summary */}
           {isConnected && (
-            <div className="p-3 bg-muted rounded-lg">
+            <div className="p-3 bg-muted rounded-lg space-y-1">
               <div className="flex justify-between text-sm">
                 <span>Label Size:</span>
-                <Badge variant="secondary">{getLabelConfig().width}×{getLabelConfig().height}mm</Badge>
+                <Badge variant="secondary">{labelDimensions.width}×{labelDimensions.height}mm</Badge>
               </div>
-              <div className="flex justify-between text-sm mt-1">
+              <div className="flex justify-between text-sm">
+                <span>Template:</span>
+                <Badge variant="outline">{templateConfig ? 'Custom Design' : 'Default'}</Badge>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span>Total Products:</span>
                 <span className="font-medium">{items.length}</span>
               </div>
-              <div className="flex justify-between text-sm mt-1">
+              <div className="flex justify-between text-sm">
                 <span>Total Labels:</span>
                 <span className="font-medium">{totalLabels}</span>
               </div>
