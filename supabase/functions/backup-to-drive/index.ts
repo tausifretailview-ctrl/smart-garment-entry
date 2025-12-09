@@ -15,10 +15,21 @@ async function getAccessToken(): Promise<string> {
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
   const refreshToken = Deno.env.get('GOOGLE_REFRESH_TOKEN');
 
+  console.log('Checking Google credentials...');
+  console.log('Client ID present:', !!clientId, clientId ? `(${clientId.substring(0, 20)}...)` : '');
+  console.log('Client Secret present:', !!clientSecret);
+  console.log('Refresh Token present:', !!refreshToken, refreshToken ? `(${refreshToken.substring(0, 20)}...)` : '');
+
   if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error('Google API credentials not configured');
+    const missing = [];
+    if (!clientId) missing.push('GOOGLE_CLIENT_ID');
+    if (!clientSecret) missing.push('GOOGLE_CLIENT_SECRET');
+    if (!refreshToken) missing.push('GOOGLE_REFRESH_TOKEN');
+    throw new Error(`Missing Google API credentials: ${missing.join(', ')}`);
   }
 
+  console.log('Requesting access token from Google...');
+  
   const response = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -30,13 +41,20 @@ async function getAccessToken(): Promise<string> {
     }),
   });
 
+  const responseText = await response.text();
+  console.log('Google OAuth response status:', response.status);
+  console.log('Google OAuth response:', responseText);
+
   if (!response.ok) {
-    const error = await response.text();
-    console.error('Token refresh failed:', error);
-    throw new Error('Failed to refresh Google access token');
+    throw new Error(`Failed to refresh Google access token: ${responseText}`);
   }
 
-  const data = await response.json();
+  const data = JSON.parse(responseText);
+  if (!data.access_token) {
+    throw new Error('No access token in Google response');
+  }
+  
+  console.log('Successfully obtained access token');
   return data.access_token;
 }
 
