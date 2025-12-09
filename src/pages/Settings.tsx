@@ -21,6 +21,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
+import BackupSettings from "@/components/BackupSettings";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -732,7 +733,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
@@ -741,6 +742,7 @@ export default function Settings() {
             <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
+            <TabsTrigger value="backup">Backup</TabsTrigger>
           </TabsList>
 
           <TabsContent value="company">
@@ -3031,6 +3033,10 @@ export default function Settings() {
                 <UserManagement />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="backup">
+            <BackupSettings />
           </TabsContent>
         </Tabs>
       </div>

@@ -1,1 +1,4 @@
 project_id = "lkbbrqcsbhqjvsxiorvp"
+
+[functions.backup-to-drive]
+verify_jwt = false
