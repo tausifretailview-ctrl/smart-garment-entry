@@ -55,8 +55,9 @@ export const Header = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
       <div className="container flex h-16 items-center justify-between px-4">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
+        {/* Left Side - Logo and Mobile Menu */}
+        <div className="flex items-center gap-2">
+          {/* Mobile Menu */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
               <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
@@ -83,6 +84,7 @@ export const Header = () => {
             </SheetContent>
           </Sheet>
 
+          {/* Logo */}
           <button
             onClick={() => orgNavigate("/")}
             className="flex items-center gap-2 group"
