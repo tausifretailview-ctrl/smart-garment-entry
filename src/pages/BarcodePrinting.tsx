@@ -38,6 +38,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface LabelItem {
   sku_id: string;
@@ -1219,13 +1220,19 @@ export default function BarcodePrinting() {
     }
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]);
 
-  // Fetch business name from settings
+  // Get organization context
+  const { currentOrganization } = useOrganization();
+
+  // Fetch business name from settings (organization-scoped)
   useEffect(() => {
     const fetchBusinessName = async () => {
+      if (!currentOrganization?.id) return;
+      
       try {
         const { data, error } = await supabase
           .from("settings")
           .select("business_name, purchase_settings")
+          .eq("organization_id", currentOrganization.id)
           .maybeSingle();
 
         if (error) throw error;
@@ -1257,7 +1264,19 @@ export default function BarcodePrinting() {
     };
 
     fetchBusinessName();
-  }, []);
+  }, [currentOrganization?.id]);
+
+  // Recalculate purchase codes when alphabet changes (handles timing issues)
+  useEffect(() => {
+    if (purchaseCodeAlphabet && labelItems.length > 0) {
+      setLabelItems(prev => prev.map(item => ({
+        ...item,
+        purchase_code: item.pur_price && item.pur_price > 0 
+          ? encodePurchasePrice(item.pur_price, purchaseCodeAlphabet) 
+          : item.purchase_code
+      })));
+    }
+  }, [purchaseCodeAlphabet]);
 
   // Fetch recent bills
   useEffect(() => {
@@ -1505,7 +1524,7 @@ export default function BarcodePrinting() {
       size: result.size,
       sale_price: result.sale_price,
       pur_price: purPrice,
-      purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice) : '',
+      purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) : '',
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
@@ -1742,7 +1761,7 @@ export default function BarcodePrinting() {
             size: item.size || variantInfo.size,
             sale_price: item.sale_price || variantInfo.sale_price,
             pur_price: purPrice,
-            purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice) : '',
+            purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) : '',
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
             qty: item.qty,
