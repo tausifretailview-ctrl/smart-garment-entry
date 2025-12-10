@@ -44,6 +44,7 @@ interface SizeGroup {
 }
 
 interface ProductVariant {
+  id?: string; // Database ID for existing variants
   color: string;
   size: string;
   pur_price: number;
@@ -417,9 +418,10 @@ const ProductEntry = () => {
           setImagePreview(product.image_url);
         }
 
-        // Set variants
+        // Set variants with their IDs for proper updates
         if (product.product_variants && product.product_variants.length > 0) {
           const loadedVariants: ProductVariant[] = product.product_variants.map((v: any) => ({
+            id: v.id, // Store the database ID
             color: v.color || "",
             size: v.size,
             pur_price: v.pur_price || 0,
@@ -768,49 +770,65 @@ const ProductEntry = () => {
         if (productError) throw productError;
         productData = data;
 
-        // For updates, handle variants with upsert
+        // For updates, handle variants by their ID
         if (variants.length > 0) {
           for (const v of variants) {
-            // Get existing variant to calculate stock adjustment (now includes color)
-            const { data: existingVariant } = await supabase
-              .from("product_variants")
-              .select("id, opening_qty, stock_qty")
-              .eq("product_id", editingProductId)
-              .eq("color", v.color || null)
-              .eq("size", v.size)
-              .maybeSingle();
+            if (v.id) {
+              // Update existing variant by ID
+              const { data: existingVariant } = await supabase
+                .from("product_variants")
+                .select("id, opening_qty, stock_qty")
+                .eq("id", v.id)
+                .single();
 
-            let newStockQty = v.opening_qty;
+              let newStockQty = v.opening_qty;
 
-            if (existingVariant) {
-              // Calculate stock adjustment based on opening qty change
-              const openingQtyDiff = v.opening_qty - (existingVariant.opening_qty || 0);
-              newStockQty = (existingVariant.stock_qty || 0) + openingQtyDiff;
-              
-              // Ensure stock doesn't go negative
-              if (newStockQty < 0) newStockQty = 0;
+              if (existingVariant) {
+                // Calculate stock adjustment based on opening qty change
+                const openingQtyDiff = v.opening_qty - (existingVariant.opening_qty || 0);
+                newStockQty = (existingVariant.stock_qty || 0) + openingQtyDiff;
+                
+                // Ensure stock doesn't go negative
+                if (newStockQty < 0) newStockQty = 0;
+              }
+
+              // Update the variant by ID
+              const { error: variantError } = await supabase
+                .from("product_variants")
+                .update({
+                  color: v.color || null,
+                  size: v.size,
+                  pur_price: v.pur_price,
+                  sale_price: v.sale_price,
+                  mrp: v.mrp,
+                  barcode: v.barcode,
+                  active: v.active,
+                  opening_qty: v.opening_qty,
+                  stock_qty: newStockQty,
+                })
+                .eq("id", v.id);
+
+              if (variantError) throw variantError;
+            } else {
+              // Insert new variant
+              const { error: variantError } = await supabase
+                .from("product_variants")
+                .insert({
+                  product_id: editingProductId,
+                  organization_id: currentOrganization.id,
+                  color: v.color || null,
+                  size: v.size,
+                  pur_price: v.pur_price,
+                  sale_price: v.sale_price,
+                  mrp: v.mrp,
+                  barcode: v.barcode,
+                  active: v.active,
+                  opening_qty: v.opening_qty,
+                  stock_qty: v.opening_qty,
+                });
+
+              if (variantError) throw variantError;
             }
-
-            // Upsert the variant with updated stock_qty (now includes color)
-            const { error: variantError } = await supabase
-              .from("product_variants")
-              .upsert({
-                product_id: editingProductId,
-                organization_id: currentOrganization.id,
-                color: v.color || null,
-                size: v.size,
-                pur_price: v.pur_price,
-                sale_price: v.sale_price,
-                mrp: v.mrp,
-                barcode: v.barcode,
-                active: v.active,
-                opening_qty: v.opening_qty,
-                stock_qty: newStockQty,
-              }, {
-                onConflict: "product_id,color,size",
-              });
-
-            if (variantError) throw variantError;
           }
         }
 
