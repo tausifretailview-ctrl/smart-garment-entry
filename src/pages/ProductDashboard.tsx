@@ -32,6 +32,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 interface ProductVariant {
   variant_id: string;
   size: string;
+  color: string;
   barcode: string;
   pur_price: number;
   sale_price: number;
@@ -154,6 +155,7 @@ const ProductDashboard = () => {
             product_variants (
               id,
               size,
+              color,
               barcode,
               pur_price,
               sale_price,
@@ -180,6 +182,7 @@ const ProductDashboard = () => {
         const variants: ProductVariant[] = (product.product_variants || []).map((v: any) => ({
           variant_id: v.id,
           size: v.size,
+          color: v.color || "",
           barcode: v.barcode || "",
           pur_price: v.pur_price,
           sale_price: v.sale_price,
@@ -187,6 +190,10 @@ const ProductDashboard = () => {
         }));
 
         const total_stock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
+        
+        // Get unique colors from variants, or fallback to product color
+        const variantColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
+        const displayColor = variantColors.length > 0 ? variantColors.join(', ') : (product.color || "");
 
         return {
           product_id: product.id,
@@ -195,7 +202,7 @@ const ProductDashboard = () => {
           category: product.category || "",
           brand: product.brand || "",
           style: product.style || "",
-          color: product.color || "",
+          color: displayColor,
           image_url: product.image_url,
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per || 0,
