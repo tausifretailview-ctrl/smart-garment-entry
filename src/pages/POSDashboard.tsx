@@ -92,8 +92,11 @@ const POSDashboard = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  // Default to today's date
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
+  const [periodFilter, setPeriodFilter] = useState<string>("daily");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
   const [refundFilter, setRefundFilter] = useState<string>("all");
@@ -118,11 +121,42 @@ const POSDashboard = () => {
   const defaultPosColumns = {
     status: true,
     refund: true,
+    refundStatus: true,
+    creditNoteStatus: true,
     whatsapp: true,
     copyLink: true,
     preview: true,
     print: true,
     modify: true,
+  };
+
+  // Handle period filter changes
+  const handlePeriodChange = (period: string) => {
+    setPeriodFilter(period);
+    const now = new Date();
+    const todayStr = format(now, 'yyyy-MM-dd');
+    
+    switch (period) {
+      case 'daily':
+        setStartDate(todayStr);
+        setEndDate(todayStr);
+        break;
+      case 'monthly':
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        setStartDate(format(monthStart, 'yyyy-MM-dd'));
+        setEndDate(todayStr);
+        break;
+      case 'quarterly':
+        const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+        const quarterStart = new Date(now.getFullYear(), quarterMonth, 1);
+        setStartDate(format(quarterStart, 'yyyy-MM-dd'));
+        setEndDate(todayStr);
+        break;
+      case 'all':
+        setStartDate('');
+        setEndDate('');
+        break;
+    }
   };
   
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
@@ -989,17 +1023,34 @@ const POSDashboard = () => {
                   className="pl-10"
                 />
               </div>
+              <Select value={periodFilter} onValueChange={handlePeriodChange}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Period" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover z-50">
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
               <Input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPeriodFilter('custom');
+                }}
                 className="w-40"
                 placeholder="Start Date"
               />
               <Input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPeriodFilter('custom');
+                }}
                 className="w-40"
                 placeholder="End Date"
               />
@@ -1069,11 +1120,27 @@ const POSDashboard = () => {
                         />
                       </div>
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="col-refund" className="text-sm">Refund</Label>
+                        <Label htmlFor="col-refund" className="text-sm">Refund Amount</Label>
                         <Checkbox
                           id="col-refund"
                           checked={columnSettings.refund}
                           onCheckedChange={(checked) => updateColumnSetting('refund', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-refundStatus" className="text-sm">Refund Status</Label>
+                        <Checkbox
+                          id="col-refundStatus"
+                          checked={columnSettings.refundStatus}
+                          onCheckedChange={(checked) => updateColumnSetting('refundStatus', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="col-creditNoteStatus" className="text-sm">C/Note Status</Label>
+                        <Checkbox
+                          id="col-creditNoteStatus"
+                          checked={columnSettings.creditNoteStatus}
+                          onCheckedChange={(checked) => updateColumnSetting('creditNoteStatus', !!checked)}
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -1152,16 +1219,18 @@ const POSDashboard = () => {
                       <TableHead>UPI</TableHead>
                       <TableHead>Paid</TableHead>
                       <TableHead>Balance</TableHead>
-                      {columnSettings.refund && <TableHead>Refund</TableHead>}
-                      <TableHead>C/Note</TableHead>
-                      {columnSettings.status && <TableHead>Status</TableHead>}
+                      {columnSettings.refund && <TableHead>Refund Amt</TableHead>}
+                      {columnSettings.refundStatus && <TableHead>Refund Status</TableHead>}
+                      <TableHead>C/Note Amt</TableHead>
+                      {columnSettings.creditNoteStatus && <TableHead>C/Note Status</TableHead>}
+                      {columnSettings.status && <TableHead>Pay Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + 16} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1242,6 +1311,19 @@ const POSDashboard = () => {
                                 )}
                               </TableCell>
                             )}
+                            {columnSettings.refundStatus && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                {(sale.refund_amount || 0) > 0 ? (
+                                  <Badge variant="destructive" className="bg-red-500 text-white">
+                                    Refunded
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground">
+                                    No Refund
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.credit_note_id ? (
                                 <span className="font-semibold text-violet-600">
@@ -1251,21 +1333,27 @@ const POSDashboard = () => {
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
+                            {columnSettings.creditNoteStatus && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                {sale.credit_note_id ? (
+                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white">
+                                    Issued
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-muted-foreground">
+                                    None
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            )}
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
-                                <div className="flex flex-col gap-1">
-                                  <Badge 
-                                    variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
-                                    className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
-                                  >
-                                    {sale.payment_status}
-                                  </Badge>
-                                  {sale.credit_note_id && (
-                                    <Badge variant="outline" className="text-violet-600 border-violet-300 text-xs">
-                                      C/Note
-                                    </Badge>
-                                  )}
-                                </div>
+                                <Badge 
+                                  variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
+                                  className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                                >
+                                  {sale.payment_status}
+                                </Badge>
                               </TableCell>
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
