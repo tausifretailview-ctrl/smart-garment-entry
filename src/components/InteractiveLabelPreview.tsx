@@ -295,11 +295,11 @@ export function InteractiveLabelPreview({
       switch (fieldKey) {
         case 'brand': return sampleItem.brand || businessName || 'Brand';
         case 'productName': return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
-        case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
+        case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
-        case 'price': return `MRP: ₹${sampleItem.sale_price}`;
+        case 'price': return `₹${sampleItem.sale_price}`;
         case 'barcodeText': return sampleItem.barcode || '';
-        case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
+        case 'billNumber': return sampleItem.bill_number || '';
         case 'supplierCode': return sampleItem.supplier_code || '';
         case 'purchaseCode': return sampleItem.purchase_code || '';
         case 'size': return sampleItem.size || '';
@@ -309,11 +309,11 @@ export function InteractiveLabelPreview({
     switch (fieldKey) {
       case 'brand': return businessName || 'Brand';
       case 'productName': return 'Sample Product';
-      case 'color': return 'Color: Blue';
-      case 'style': return 'Style: Classic';
-      case 'price': return 'MRP: ₹999';
+      case 'color': return 'Blue';
+      case 'style': return 'Classic';
+      case 'price': return '₹999';
       case 'barcodeText': return '12345678';
-      case 'billNumber': return 'Bill: BILL001';
+      case 'billNumber': return 'BILL001';
       case 'supplierCode': return 'SUP01';
       case 'purchaseCode': return 'PC123';
       case 'size': return 'M';
