@@ -2279,71 +2279,67 @@ export default function BarcodePrinting() {
     const barcode = item.barcode || genEAN8();
     const config = labelConfig;
 
-    // Helper to build style string with padding
+    // Helper to build style string with padding - matching InteractiveLabelPreview exactly
     const getStyle = (field: LabelFieldConfig, extraStyles: string = '') => {
       const paddingTop = field.paddingTop ?? 0;
       const paddingBottom = field.paddingBottom ?? 0;
       const paddingLeft = field.paddingLeft ?? 0;
       const paddingRight = field.paddingRight ?? 0;
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; margin: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px; line-height: 1.1;${extraStyles}`;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; padding: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px; line-height: 1.1; width: 100%; box-sizing: border-box;${extraStyles}`;
+    };
+
+    // Get field content matching InteractiveLabelPreview.getFieldContent exactly
+    const getFieldContent = (fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>) => {
+      switch (fieldKey) {
+        case 'brand': 
+          return item.brand || businessName || 'Brand';
+        case 'productName': 
+          // Only add size if size field is NOT shown separately
+          return item.product_name + (config.size.show ? '' : ` (${item.size})`);
+        case 'color': 
+          return item.color || '';
+        case 'style': 
+          return item.style || '';
+        case 'price': 
+          return `₹${item.sale_price}`;
+        case 'barcodeText': 
+          return barcode;
+        case 'billNumber': 
+          return item.bill_number || '';
+        case 'supplierCode': 
+          return item.supplier_code || '';
+        case 'purchaseCode': 
+          return item.purchase_code || '';
+        case 'size': 
+          return item.size || '';
+        default: 
+          return '';
+      }
     };
 
     // Build label HTML based on field order
     let html = '';
     
-    // Use fieldOrder to determine the sequence
+    // Use fieldOrder to determine the sequence - matching InteractiveLabelPreview
     config.fieldOrder.forEach((fieldKey) => {
-      const field = config[fieldKey];
+      const field = config[fieldKey] as LabelFieldConfig;
       
       if (!field.show) return;
       
-      switch (fieldKey) {
-        case 'brand':
-          html += `<div class="brand" style="${getStyle(field)}">${businessName}</div>`;
-          break;
-        case 'productName':
-          const prodText = item.product_name + 
-            (config.size.show ? ` (${item.size})` : '');
-          html += `<div class="prod" style="${getStyle(field)}">${prodText}</div>`;
-          break;
-        case 'color':
-          html += `<div class="color" style="${getStyle(field)}">Color: ${item.color}</div>`;
-          break;
-        case 'style':
-          html += `<div class="style" style="${getStyle(field)}">Style: ${item.style}</div>`;
-          break;
-        case 'size':
-          // Size is already included in productName if shown
-          break;
-        case 'price':
-          html += `<div class="mrp" style="${getStyle(field)}">MRP: ₹${item.sale_price}</div>`;
-          break;
-        case 'barcode':
-          const barcodeField = config.barcode;
-          const bcPaddingTop = barcodeField.paddingTop ?? 0;
-          const bcPaddingBottom = barcodeField.paddingBottom ?? 0;
-          const bcPaddingLeft = barcodeField.paddingLeft ?? 0;
-          const bcPaddingRight = barcodeField.paddingRight ?? 0;
-          html += `<svg class="barcode" data-code="${barcode}" style="margin: ${bcPaddingTop}px ${bcPaddingRight}px ${bcPaddingBottom}px ${bcPaddingLeft}px;"></svg>`;
-          break;
-        case 'barcodeText':
-          html += `<div class="meta barcode-text" style="${getStyle(field)}">${barcode}</div>`;
-          break;
-        case 'billNumber':
-          if (item.bill_number) {
-            html += `<div class="bill-num" style="${getStyle(field)}">Bill: ${item.bill_number}</div>`;
-          }
-          break;
-        case 'supplierCode':
-          if (item.supplier_code) {
-            html += `<div class="supplier-code" style="${getStyle(field)}">Sup: ${item.supplier_code}</div>`;
-          }
-          break;
-        case 'purchaseCode':
-          if (item.purchase_code) {
-            html += `<div class="purchase-code" style="${getStyle(field)}">Code: ${item.purchase_code}</div>`;
-          }
-          break;
+      // Get content for this field
+      const content = getFieldContent(fieldKey);
+      if (!content) return;
+      
+      if (fieldKey === 'barcode') {
+        // Barcode SVG element
+        const bcPaddingTop = field.paddingTop ?? 0;
+        const bcPaddingBottom = field.paddingBottom ?? 0;
+        const bcPaddingLeft = field.paddingLeft ?? 0;
+        const bcPaddingRight = field.paddingRight ?? 0;
+        html += `<svg class="barcode" data-code="${barcode}" style="display: block; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px;"></svg>`;
+      } else {
+        // Text field - matching preview styling
+        html += `<div class="${fieldKey}" style="${getStyle(field)}">${content}</div>`;
       }
     });
 
