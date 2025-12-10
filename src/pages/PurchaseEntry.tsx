@@ -25,6 +25,7 @@ import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
+import { SizeGridDialog } from "@/components/SizeGridDialog";
 
 interface ProductVariant {
   id: string;
@@ -440,6 +441,7 @@ const PurchaseEntry = () => {
         sale_price,
         barcode,
         active,
+        color,
         products (
           id,
           product_name,
@@ -500,18 +502,74 @@ const PurchaseEntry = () => {
         discount_percent: 0,
         brand: product.brand || "",
         category: product.category || "",
-        color: product.color || "",
+        color: v.color || product.color || "",
         style: product.style || "",
       });
       return;
     }
 
+    // Map variants with color info for SizeGridDialog
+    const mappedVariants = data.map((v: any) => ({
+      id: v.id,
+      size: v.size,
+      sale_price: v.sale_price || v.products?.default_sale_price,
+      pur_price: v.pur_price || v.products?.default_pur_price,
+      barcode: v.barcode,
+      color: v.color || v.products?.color || "",
+    }));
+
     // Show size grid modal
     setSelectedProduct(data[0].products);
-    setSizeGridVariants(data);
+    setSizeGridVariants(mappedVariants);
     setSizeQty({});
     setShowSizeGrid(true);
-    setTimeout(() => firstSizeInputRef.current?.focus(), 100);
+  };
+
+  // Handle confirmation from SizeGridDialog
+  const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>) => {
+    for (const { variant, qty } of items) {
+      let barcode = variant.barcode || "";
+      
+      // Auto-generate barcode if missing
+      if (!barcode) {
+        try {
+          barcode = await generateCentralizedBarcode();
+          await supabase
+            .from("product_variants")
+            .update({ barcode })
+            .eq("id", variant.id);
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: `Failed to generate barcode for size ${variant.size}`,
+            variant: "destructive",
+          });
+          continue;
+        }
+      }
+
+      addItemRow({
+        product_name: selectedProduct.product_name,
+        product_id: selectedProduct.id,
+        sku_id: variant.id,
+        size: variant.size,
+        qty: qty,
+        pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
+        sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
+        gst_per: selectedProduct.gst_per || 0,
+        hsn_code: selectedProduct.hsn_code || "",
+        barcode: barcode,
+        discount_percent: 0,
+        brand: selectedProduct.brand || "",
+        category: selectedProduct.category || "",
+        color: variant.color || selectedProduct.color || "",
+        style: selectedProduct.style || "",
+      });
+    }
+
+    setShowSizeGrid(false);
+    setSizeQty({});
+    setTimeout(() => lastQtyInputRef.current?.focus(), 100);
   };
 
   const addInlineRow = (variant: ProductVariant) => {
@@ -1557,134 +1615,17 @@ const PurchaseEntry = () => {
           </Button>
         </div>
 
-        {/* Size Grid Popup */}
-        {showSizeGrid && (
-          <Dialog open={showSizeGrid} onOpenChange={setShowSizeGrid}>
-            <DialogContent 
-              className="max-w-4xl"
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setShowSizeGrid(false);
-                }
-              }}
-            >
-              <DialogHeader>
-                <DialogTitle>Enter Size-wise Qty</DialogTitle>
-              </DialogHeader>
-              
-              <h3 className="mb-2 font-semibold">{selectedProduct?.product_name}</h3>
-
-              <div className="flex gap-2 mb-4 flex-wrap">
-                {sizeGridVariants.map((v, index) => (
-                  <div key={v.id} className="flex flex-col items-center">
-                    <span className="text-sm font-medium">{v.size}</span>
-                    <input
-                      ref={index === 0 ? firstSizeInputRef : undefined}
-                      type="number"
-                      min="0"
-                      className="w-14 text-center border rounded p-1"
-                      value={sizeQty[v.size] || ""}
-                      onChange={(e) => setSizeQty({ ...sizeQty, [v.size]: e.target.value })}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="space-y-2">
-                  <Label>Purchase Price</Label>
-                  <Input
-                    type="number"
-                    value={selectedProduct?.default_pur_price || 0}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Sale Price (MRP)</Label>
-                  <Input
-                    type="number"
-                    value={selectedProduct?.default_sale_price || 0}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowSizeGrid(false)}>
-                  Cancel (Esc)
-                </Button>
-                <Button
-                  onClick={async () => {
-                    const entries = Object.entries(sizeQty);
-                    const hasQty = entries.some(([_, qty]) => Number(qty) > 0);
-                    
-                    if (!hasQty) {
-                      toast({
-                        title: "No Items",
-                        description: "Please enter quantities for at least one size",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-
-                    for (const [size, qty] of entries) {
-                      if (Number(qty) > 0) {
-                        const variant = sizeGridVariants.find((v) => v.size === size);
-                        let barcode = variant?.barcode || "";
-                        
-                        // Auto-generate barcode if missing
-                        if (!barcode && variant) {
-                          try {
-                            barcode = await generateCentralizedBarcode();
-                            await supabase
-                              .from("product_variants")
-                              .update({ barcode })
-                              .eq("id", variant.id);
-                          } catch (error) {
-                            toast({
-                              title: "Error",
-                              description: `Failed to generate barcode for size ${size}`,
-                              variant: "destructive",
-                            });
-                            continue; // Skip this variant
-                          }
-                        }
-
-                        addItemRow({
-                          product_name: selectedProduct.product_name,
-                          product_id: selectedProduct.id,
-                          sku_id: variant?.id || "",
-                          size,
-                          qty: Number(qty),
-                          pur_price: variant?.pur_price || selectedProduct.default_pur_price,
-                          sale_price: variant?.sale_price || selectedProduct.default_sale_price,
-                          gst_per: selectedProduct.gst_per,
-                          hsn_code: selectedProduct.hsn_code,
-                          barcode: barcode,
-                          discount_percent: 0,
-                          brand: selectedProduct.brand || "",
-                          category: selectedProduct.category || "",
-                          color: selectedProduct.color || "",
-                          style: selectedProduct.style || "",
-                        });
-                      }
-                    }
-
-                    setShowSizeGrid(false);
-                    setSizeQty({});
-                    
-                    // Focus on the first new item's quantity input
-                    setTimeout(() => lastQtyInputRef.current?.focus(), 100);
-                  }}
-                >
-                  Confirm (Enter)
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+        {/* Size Grid Dialog with Color Selection */}
+        <SizeGridDialog
+          open={showSizeGrid}
+          onClose={() => setShowSizeGrid(false)}
+          product={selectedProduct}
+          variants={sizeGridVariants}
+          onConfirm={handleSizeGridConfirm}
+          showStock={false}
+          validateStock={false}
+          title="Enter Size-wise Qty"
+        />
 
         {/* Print Barcode Dialog */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
