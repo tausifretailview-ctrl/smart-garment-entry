@@ -748,7 +748,17 @@ const PurchaseEntry = () => {
           description: "Purchase bill updated successfully",
         });
 
-        navigate("/purchase-bills");
+        // Stay on purchase bill page - reset form for new entry
+        setEditingBillId(null);
+        setBillData({
+          supplier_id: "",
+          supplier_name: "",
+          supplier_invoice_no: "",
+        });
+        setBillDate(new Date());
+        setLineItems([]);
+        setRoundOff(0);
+        setSoftwareBillNo("");
       } else {
         // Insert new purchase bill
         if (!currentOrganization?.id) throw new Error("No organization selected");
