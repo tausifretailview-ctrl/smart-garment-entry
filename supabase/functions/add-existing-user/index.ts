@@ -74,22 +74,41 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Find user by email
+    // Find user by email using pagination to handle large user bases
     console.log('Looking for user with email:', email)
-    const { data: { users }, error: getUserError } = await supabaseAdmin.auth.admin.listUsers()
     
-    if (getUserError) {
-      console.error('Error fetching users:', getUserError)
-      throw new Error('Failed to fetch users')
-    }
+    let existingUser = null
+    let page = 1
+    const perPage = 1000
+    
+    while (!existingUser) {
+      const { data: { users }, error: getUserError } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage
+      })
+      
+      if (getUserError) {
+        console.error('Error fetching users:', getUserError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to fetch users from database' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
 
-    const existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+      existingUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase())
+      
+      // If no more users to fetch, break
+      if (users.length < perPage) {
+        break
+      }
+      page++
+    }
     
     if (!existingUser) {
       console.error('User not found with email:', email)
       return new Response(
         JSON.stringify({ 
-          error: `User with email "${email}" does not exist. Please use "Create User" to create a new user account first, then they will be automatically assigned to the organization.`
+          error: `User "${email}" not found. Please use "Create User" button first to create the account.`
         }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
