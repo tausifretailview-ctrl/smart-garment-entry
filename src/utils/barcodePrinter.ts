@@ -123,7 +123,8 @@ const getAbsolutePositionedLabelHTML = (
     const heightStyle = field.height ? `height: ${field.height}mm;` : '';
 
     if (fieldKey === 'barcode') {
-      // Barcode SVG
+      // Barcode SVG - height calculated for proper visibility
+      const barcodeHeightMm = Math.max(5, (labelConfig.barcodeHeight || 25) * 0.4);
       fieldsHtml += `
         <div style="
           position: absolute;
@@ -135,7 +136,7 @@ const getAbsolutePositionedLabelHTML = (
           justify-content: ${field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center'};
           align-items: center;
         ">
-          <svg class="barcode" data-code="${content}" style="height: ${(labelConfig.barcodeHeight || 20) * 0.35}mm; max-width: 100%;"></svg>
+          <svg class="barcode" data-code="${content}" style="height: ${barcodeHeightMm}mm; max-width: 100%;"></svg>
         </div>
       `;
     } else {
@@ -649,9 +650,9 @@ export const printBarcodesDirectly = async (
             const code = (svg as HTMLElement).dataset.code;
             if (code) {
               try {
-                // Smaller barcode dimensions for thermal labels
-                const barcodeHeight = isThermal ? 20 : (labelConfig?.barcodeHeight || 28);
-                const barcodeWidth = isThermal ? 1.2 : (labelConfig?.barcodeWidth || 1.8);
+                // Use labelConfig barcodeHeight if available, with sensible defaults
+                const barcodeHeight = labelConfig?.barcodeHeight || (isThermal ? 25 : 28);
+                const barcodeWidth = labelConfig?.barcodeWidth || (isThermal ? 1.4 : 1.8);
                 
                 (printWindow as any).JsBarcode(svg, code, {
                   format: 'CODE128',
