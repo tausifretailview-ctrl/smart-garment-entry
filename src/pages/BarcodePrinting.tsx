@@ -40,6 +40,26 @@ import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
+// Helper function to pre-render barcode as image data URL
+const renderBarcodeToDataURL = (code: string, height: number = 30, width: number = 1.5): string => {
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, code, {
+      format: 'CODE128',
+      height: height,
+      width: width,
+      displayValue: false,
+      margin: 0,
+      background: '#ffffff',
+      lineColor: '#000000',
+    });
+    return canvas.toDataURL('image/png');
+  } catch (error) {
+    console.error('Failed to render barcode:', code, error);
+    return '';
+  }
+};
+
 interface LabelItem {
   sku_id: string;
   product_name: string;
@@ -2350,12 +2370,20 @@ export default function BarcodePrinting() {
       if (!content) return;
       
       if (fieldKey === 'barcode') {
-        // Barcode SVG element
+        // Pre-render barcode as image instead of SVG
         const bcPaddingTop = field.paddingTop ?? 0;
         const bcPaddingBottom = field.paddingBottom ?? 0;
         const bcPaddingLeft = field.paddingLeft ?? 0;
         const bcPaddingRight = field.paddingRight ?? 0;
-        html += `<svg class="barcode" data-code="${barcode}" style="display: block; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px;"></svg>`;
+        const barcodeHeight = config.barcodeHeight || 28;
+        const barcodeWidth = config.barcodeWidth || 1.8;
+        const barcodeDataUrl = renderBarcodeToDataURL(barcode, barcodeHeight, barcodeWidth);
+        
+        if (barcodeDataUrl) {
+          html += `<img src="${barcodeDataUrl}" class="barcode-img" style="display: block; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeight * 0.35}mm;" alt="barcode" />`;
+        } else {
+          html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${barcode}</div>`;
+        }
       } else {
         // Text field - matching preview styling
         html += `<div class="${fieldKey}" style="${getStyle(field)}">${content}</div>`;
@@ -2581,43 +2609,17 @@ export default function BarcodePrinting() {
 
       printArea.appendChild(gridDiv);
     }
-
-    // Render barcodes
-    setTimeout(() => {
-      const barcodes = printArea.querySelectorAll("svg.barcode");
-      barcodes.forEach((svg) => {
-        const code = (svg as HTMLElement).dataset.code;
-        if (code) {
-          try {
-            JsBarcode(svg, code, {
-              format: "CODE128",
-              fontSize: 8,
-              height: labelConfig.barcodeHeight || 28,
-              width: labelConfig.barcodeWidth || 1.8,
-              textMargin: 0,
-              margin: 0,
-              displayValue: false,
-            });
-          } catch (error) {
-            console.error("Barcode generation failed for code:", code, error);
-            const textEl = document.createElement("div");
-            textEl.textContent = code;
-            textEl.style.cssText = "font-size: 10px; font-weight: bold;";
-            svg.parentElement?.replaceChild(textEl, svg);
-          }
-        }
-      });
-    }, 100);
+    // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
 
   const handlePrint = () => {
     // Generate labels in the print area
     generatePreview("printArea");
     
-    // Wait for barcodes to render then print
+    // Print immediately since barcodes are pre-rendered
     setTimeout(() => {
       window.print();
-    }, 200);
+    }, 50);
   };
 
   const handleExportPDF = async () => {
