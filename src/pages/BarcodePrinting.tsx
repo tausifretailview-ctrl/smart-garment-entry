@@ -2789,29 +2789,105 @@ export default function BarcodePrinting() {
 
         tempContainer.appendChild(gridDiv);
 
-        // Render barcodes for this page
+        // Pre-render barcodes as canvas images for reliable PDF capture
         const barcodes = tempContainer.querySelectorAll("svg.barcode");
+        const barcodePromises: Promise<void>[] = [];
+        
         barcodes.forEach((svg) => {
           const code = (svg as HTMLElement).dataset.code;
           if (code) {
-            try {
-              JsBarcode(svg, code, {
-                format: "CODE128",
-                fontSize: 8,
-                height: labelConfig.barcodeHeight || 28,
-                width: labelConfig.barcodeWidth || 1.8,
-                textMargin: 0,
-                margin: 0,
-                displayValue: false,
-              });
-            } catch (error) {
-              console.error("Barcode generation failed for code:", code, error);
-            }
+            const promise = new Promise<void>((resolve) => {
+              try {
+                const barcodeHeight = labelConfig.barcodeHeight || 28;
+                const barcodeWidth = labelConfig.barcodeWidth || 1.8;
+                
+                // Create a temporary canvas to render barcode
+                const tempCanvas = document.createElement('canvas');
+                
+                // First render to SVG to get dimensions
+                const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                JsBarcode(tempSvg, code, {
+                  format: "CODE128",
+                  fontSize: 0,
+                  height: barcodeHeight,
+                  width: barcodeWidth,
+                  textMargin: 0,
+                  margin: 0,
+                  marginTop: 0,
+                  marginBottom: 0,
+                  marginLeft: 0,
+                  marginRight: 0,
+                  displayValue: false,
+                  background: 'transparent',
+                  lineColor: '#000000',
+                });
+                
+                // Get SVG dimensions
+                const svgWidth = tempSvg.getAttribute('width') || '100';
+                const svgHeight = tempSvg.getAttribute('height') || '30';
+                
+                // Convert SVG to data URL and create image
+                const svgString = new XMLSerializer().serializeToString(tempSvg);
+                const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+                const url = URL.createObjectURL(svgBlob);
+                
+                const img = new Image();
+                img.onload = () => {
+                  // Draw to canvas
+                  tempCanvas.width = img.width * 2; // Higher resolution
+                  tempCanvas.height = img.height * 2;
+                  const ctx = tempCanvas.getContext('2d');
+                  if (ctx) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                    ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+                  }
+                  
+                  // Convert canvas to data URL
+                  const dataUrl = tempCanvas.toDataURL('image/png');
+                  
+                  // Replace SVG with IMG element
+                  const imgElement = document.createElement('img');
+                  imgElement.src = dataUrl;
+                  imgElement.style.cssText = `width: 100%; height: ${barcodeHeight}px; display: block; object-fit: contain;`;
+                  
+                  svg.parentNode?.replaceChild(imgElement, svg);
+                  
+                  URL.revokeObjectURL(url);
+                  resolve();
+                };
+                
+                img.onerror = () => {
+                  console.error('Failed to load barcode image for:', code);
+                  // Fallback: render barcode number as text
+                  const textDiv = document.createElement('div');
+                  textDiv.textContent = code;
+                  textDiv.style.cssText = 'font-size: 10px; font-weight: bold; text-align: center; font-family: monospace;';
+                  svg.parentNode?.replaceChild(textDiv, svg);
+                  URL.revokeObjectURL(url);
+                  resolve();
+                };
+                
+                img.src = url;
+              } catch (error) {
+                console.error("Barcode generation failed for code:", code, error);
+                // Fallback: display barcode as text
+                const textDiv = document.createElement('div');
+                textDiv.textContent = code;
+                textDiv.style.cssText = 'font-size: 10px; font-weight: bold; text-align: center; font-family: monospace;';
+                svg.parentNode?.replaceChild(textDiv, svg);
+                resolve();
+              }
+            });
+            barcodePromises.push(promise);
           }
         });
 
-        // Wait a bit for barcodes to render
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Wait for all barcodes to be converted to images
+        await Promise.all(barcodePromises);
+        
+        // Additional wait to ensure DOM is updated
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Capture this page with high quality - only capture actual content height
         const captureHeight = Math.min(actualContentHeight, 297);
@@ -2819,6 +2895,8 @@ export default function BarcodePrinting() {
           scale: 3, // Higher scale for better quality
           backgroundColor: "#ffffff",
           logging: false,
+          useCORS: true,
+          allowTaint: true,
           width: 210 * 3.78, // Convert mm to pixels (1mm = ~3.78px)
           height: captureHeight * 3.78,
         });
