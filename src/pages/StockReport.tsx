@@ -1,15 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Package, TrendingDown, History, Search } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface StockItem {
   id: string;
@@ -51,6 +54,15 @@ interface BatchStock {
   supplier_name: string;
 }
 
+interface SizeWiseRow {
+  productKey: string;
+  productName: string;
+  brand: string;
+  color: string;
+  sizeStocks: Record<string, number>;
+  totalStock: number;
+}
+
 export default function StockReport() {
   const { currentOrganization } = useOrganization();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -60,6 +72,11 @@ export default function StockReport() {
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [brandFilter, setBrandFilter] = useState<string>("all");
+  const [colorFilter, setColorFilter] = useState<string>("all");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -365,46 +382,134 @@ export default function StockReport() {
     }
   };
 
-  // Filter data based on search term
-  const filteredStockItems = stockItems.filter(item => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      item.product_name.toLowerCase().includes(search) ||
-      item.brand.toLowerCase().includes(search) ||
-      item.color.toLowerCase().includes(search) ||
-      item.size.toLowerCase().includes(search) ||
-      item.barcode.toLowerCase().includes(search) ||
-      item.supplier_name.toLowerCase().includes(search)
-    );
-  });
+  // Get unique values for filters
+  const uniqueBrands = useMemo(() => [...new Set(stockItems.map(i => i.brand).filter(Boolean))].sort(), [stockItems]);
+  const uniqueColors = useMemo(() => [...new Set(stockItems.map(i => i.color).filter(Boolean))].sort(), [stockItems]);
+  const uniqueSuppliers = useMemo(() => [...new Set(stockItems.map(i => i.supplier_name).filter(Boolean))].sort(), [stockItems]);
 
-  const filteredBatchStock = batchStock.filter(item => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      item.product_name.toLowerCase().includes(search) ||
-      item.brand.toLowerCase().includes(search) ||
-      item.size.toLowerCase().includes(search) ||
-      item.barcode.toLowerCase().includes(search) ||
-      item.bill_number.toLowerCase().includes(search) ||
-      item.supplier_name.toLowerCase().includes(search)
-    );
-  });
+  // Filter data based on search term and filters
+  const filteredStockItems = useMemo(() => {
+    return stockItems.filter(item => {
+      // Search filter
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = (
+          item.product_name.toLowerCase().includes(search) ||
+          item.brand.toLowerCase().includes(search) ||
+          item.color.toLowerCase().includes(search) ||
+          item.size.toLowerCase().includes(search) ||
+          item.barcode.toLowerCase().includes(search) ||
+          item.supplier_name.toLowerCase().includes(search)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      // Brand filter
+      if (brandFilter !== "all" && item.brand !== brandFilter) return false;
+      
+      // Color filter
+      if (colorFilter !== "all" && item.color !== colorFilter) return false;
+      
+      // Supplier filter
+      if (supplierFilter !== "all" && item.supplier_name !== supplierFilter) return false;
+      
+      // Stock status filter
+      if (stockStatusFilter === "out" && item.stock_qty !== 0) return false;
+      if (stockStatusFilter === "low" && (item.stock_qty === 0 || item.stock_qty > lowStockThreshold)) return false;
+      if (stockStatusFilter === "in" && item.stock_qty <= lowStockThreshold) return false;
+      
+      return true;
+    });
+  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, stockStatusFilter, lowStockThreshold]);
 
-  const filteredMovements = movements.filter(item => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      item.product_name.toLowerCase().includes(search) ||
-      item.size.toLowerCase().includes(search) ||
-      item.movement_type.toLowerCase().includes(search) ||
-      item.notes?.toLowerCase().includes(search)
-    );
-  });
+  const filteredBatchStock = useMemo(() => {
+    return batchStock.filter(item => {
+      if (!searchTerm) return true;
+      const search = searchTerm.toLowerCase();
+      return (
+        item.product_name.toLowerCase().includes(search) ||
+        item.brand.toLowerCase().includes(search) ||
+        item.size.toLowerCase().includes(search) ||
+        item.barcode.toLowerCase().includes(search) ||
+        item.bill_number.toLowerCase().includes(search) ||
+        item.supplier_name.toLowerCase().includes(search)
+      );
+    });
+  }, [batchStock, searchTerm]);
+
+  const filteredMovements = useMemo(() => {
+    return movements.filter(item => {
+      if (!searchTerm) return true;
+      const search = searchTerm.toLowerCase();
+      return (
+        item.product_name.toLowerCase().includes(search) ||
+        item.size.toLowerCase().includes(search) ||
+        item.movement_type.toLowerCase().includes(search) ||
+        item.notes?.toLowerCase().includes(search)
+      );
+    });
+  }, [movements, searchTerm]);
+
+  // Size-wise stock report data
+  const sizeWiseData = useMemo(() => {
+    // Get all unique sizes across all products
+    const allSizes = [...new Set(filteredStockItems.map(i => i.size))].sort();
+    
+    // Group by product key (name + brand + color)
+    const productMap = new Map<string, SizeWiseRow>();
+    
+    filteredStockItems.forEach(item => {
+      const productKey = `${item.product_name}-${item.brand}-${item.color}`;
+      
+      if (!productMap.has(productKey)) {
+        productMap.set(productKey, {
+          productKey,
+          productName: item.product_name,
+          brand: item.brand,
+          color: item.color,
+          sizeStocks: {},
+          totalStock: 0
+        });
+      }
+      
+      const row = productMap.get(productKey)!;
+      row.sizeStocks[item.size] = (row.sizeStocks[item.size] || 0) + item.stock_qty;
+      row.totalStock += item.stock_qty;
+    });
+    
+    return {
+      sizes: allSizes,
+      rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName))
+    };
+  }, [filteredStockItems]);
+
+  // Calculate totals for size-wise report
+  const sizeWiseTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    let grandTotal = 0;
+    
+    sizeWiseData.rows.forEach(row => {
+      sizeWiseData.sizes.forEach(size => {
+        totals[size] = (totals[size] || 0) + (row.sizeStocks[size] || 0);
+      });
+      grandTotal += row.totalStock;
+    });
+    
+    return { sizeTotals: totals, grandTotal };
+  }, [sizeWiseData]);
 
   const lowStockItems = filteredStockItems.filter(item => item.stock_qty <= lowStockThreshold);
   const totalStock = filteredStockItems.reduce((sum, item) => sum + item.stock_qty, 0);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setBrandFilter("all");
+    setColorFilter("all");
+    setSupplierFilter("all");
+    setStockStatusFilter("all");
+  };
+
+  const hasActiveFilters = brandFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || stockStatusFilter !== "all";
 
   if (loading) {
     return (
@@ -427,15 +532,99 @@ export default function StockReport() {
         <p className="text-muted-foreground">Monitor inventory levels and stock movements</p>
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search by supplier, product name, barcode, brand, color, size, bill number..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 h-11"
-        />
+      {/* Search Bar with Filters */}
+      <div className="space-y-3">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search by supplier, product name, barcode, brand, color, size, bill number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 h-11"
+            />
+          </div>
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleTrigger asChild>
+              <Button variant="outline" className="h-11 gap-2">
+                <Filter className="h-4 w-4" />
+                Filters
+                {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">!</Badge>}
+                {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </CollapsibleTrigger>
+          </Collapsible>
+          {hasActiveFilters && (
+            <Button variant="ghost" onClick={clearFilters} className="h-11">
+              Clear
+            </Button>
+          )}
+        </div>
+        
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <CollapsibleContent>
+            <Card className="p-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Brand</label>
+                  <Select value={brandFilter} onValueChange={setBrandFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Brands" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Brands</SelectItem>
+                      {uniqueBrands.map(brand => (
+                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Color</label>
+                  <Select value={colorFilter} onValueChange={setColorFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Colors" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Colors</SelectItem>
+                      {uniqueColors.map(color => (
+                        <SelectItem key={color} value={color}>{color}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Supplier</label>
+                  <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Suppliers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Suppliers</SelectItem>
+                      {uniqueSuppliers.map(supplier => (
+                        <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Stock Status</label>
+                  <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="in">In Stock</SelectItem>
+                      <SelectItem value="low">Low Stock</SelectItem>
+                      <SelectItem value="out">Out of Stock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4 mb-6">
@@ -507,8 +696,12 @@ export default function StockReport() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="all">All Stock</TabsTrigger>
+          <TabsTrigger value="sizewise" className="gap-1">
+            <Grid3X3 className="h-4 w-4" />
+            Size-wise
+          </TabsTrigger>
           <TabsTrigger value="low">Low Stock</TabsTrigger>
           <TabsTrigger value="batch">Batch Stock</TabsTrigger>
           <TabsTrigger value="movements">Movement History</TabsTrigger>
@@ -600,6 +793,85 @@ export default function StockReport() {
                   </TableBody>
                 </Table>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sizewise" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Grid3X3 className="h-5 w-5" />
+                Size-wise Item Stock Report
+              </CardTitle>
+              <CardDescription>
+                Product stock grouped by sizes - shows quantity per size with total
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sizeWiseData.rows.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No products found matching your filters</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold min-w-[250px]">Product</TableHead>
+                        {sizeWiseData.sizes.map(size => (
+                          <TableHead key={size} className="text-center font-semibold min-w-[60px] bg-primary/10">
+                            {size}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-center font-bold min-w-[80px] bg-primary/20 text-primary">
+                          Stock
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sizeWiseData.rows.map((row, index) => (
+                        <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col">
+                              <span>{row.productName}</span>
+                              {(row.brand || row.color) && (
+                                <span className="text-xs text-muted-foreground">
+                                  {[row.brand, row.color].filter(Boolean).join(' - ')}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          {sizeWiseData.sizes.map(size => (
+                            <TableCell 
+                              key={size} 
+                              className={`text-center ${
+                                row.sizeStocks[size] === 0 ? 'text-destructive' : 
+                                row.sizeStocks[size] > 0 ? 'text-foreground' : 'text-muted-foreground'
+                              }`}
+                            >
+                              {row.sizeStocks[size] || 0}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-center font-bold text-primary bg-primary/10">
+                            {row.totalStock}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {/* Total Row */}
+                      <TableRow className="bg-destructive/10 font-bold border-t-2">
+                        <TableCell className="text-destructive font-bold">Total Stock</TableCell>
+                        {sizeWiseData.sizes.map(size => (
+                          <TableCell key={size} className="text-center text-destructive font-bold">
+                            {sizeWiseTotals.sizeTotals[size] || 0}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-center font-bold text-destructive bg-destructive/20">
+                          {sizeWiseTotals.grandTotal}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
