@@ -123,20 +123,21 @@ const getAbsolutePositionedLabelHTML = (
     const heightStyle = field.height ? `height: ${field.height}mm;` : '';
 
     if (fieldKey === 'barcode') {
-      // Barcode SVG - height calculated for proper visibility
-      const barcodeHeightMm = Math.max(5, (labelConfig.barcodeHeight || 25) * 0.4);
+      // Barcode SVG - ensure proper height and visibility
+      const barcodeHeightMm = Math.max(6, (labelConfig.barcodeHeight || 30) * 0.4);
       fieldsHtml += `
         <div style="
           position: absolute;
           left: ${x}mm;
           top: ${y}mm;
           width: ${widthMm}mm;
-          ${heightStyle}
+          height: ${barcodeHeightMm}mm;
           display: flex;
           justify-content: ${field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center'};
           align-items: center;
+          overflow: visible;
         ">
-          <svg class="barcode" data-code="${content}" style="height: ${barcodeHeightMm}mm; max-width: 100%;"></svg>
+          <svg class="barcode" data-code="${content}" style="height: ${barcodeHeightMm}mm; width: 100%; display: block;"></svg>
         </div>
       `;
     } else {
@@ -642,42 +643,64 @@ export const printBarcodesDirectly = async (
       printContainer.appendChild(gridDiv);
     }
 
-    await new Promise((resolve) => {
+    await new Promise<void>((resolve) => {
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max wait
+      
       const checkJsBarcode = () => {
+        attempts++;
         if ((printWindow as any).JsBarcode) {
           const barcodes = printContainer.querySelectorAll('svg.barcode');
-          barcodes.forEach((svg) => {
+          console.log(`Found ${barcodes.length} barcode SVGs to render`);
+          
+          barcodes.forEach((svg, index) => {
             const code = (svg as HTMLElement).dataset.code;
             if (code) {
               try {
                 // Use labelConfig barcodeHeight if available, with sensible defaults
-                const barcodeHeight = labelConfig?.barcodeHeight || (isThermal ? 25 : 28);
-                const barcodeWidth = labelConfig?.barcodeWidth || (isThermal ? 1.4 : 1.8);
+                const barcodeHeight = labelConfig?.barcodeHeight || (isThermal ? 30 : 35);
+                const barcodeWidth = labelConfig?.barcodeWidth || (isThermal ? 1.5 : 2);
+                
+                // Set explicit SVG dimensions before JsBarcode renders
+                (svg as SVGElement).setAttribute('width', '100%');
+                (svg as SVGElement).style.display = 'block';
+                (svg as SVGElement).style.visibility = 'visible';
                 
                 (printWindow as any).JsBarcode(svg, code, {
                   format: 'CODE128',
-                  fontSize: 8,
+                  fontSize: 0,
                   height: barcodeHeight,
                   width: barcodeWidth,
                   textMargin: 0,
                   margin: 0,
+                  marginTop: 0,
+                  marginBottom: 0,
+                  marginLeft: 0,
+                  marginRight: 0,
                   displayValue: false,
+                  background: 'transparent',
+                  lineColor: '#000000',
                 });
+                
+                console.log(`Barcode ${index + 1} rendered: ${code}`);
               } catch (error) {
                 console.error('Barcode generation failed for code:', code, error);
                 const textEl = doc.createElement('div');
                 textEl.textContent = code;
-                textEl.style.cssText = 'font-size: 10px; font-weight: bold;';
+                textEl.style.cssText = 'font-size: 10px; font-weight: bold; text-align: center;';
                 svg.parentElement?.replaceChild(textEl, svg);
               }
             }
           });
-          resolve(true);
-        } else {
+          resolve();
+        } else if (attempts < maxAttempts) {
           setTimeout(checkJsBarcode, 100);
+        } else {
+          console.error('JsBarcode library failed to load after 5 seconds');
+          resolve();
         }
       };
-      setTimeout(checkJsBarcode, 300);
+      setTimeout(checkJsBarcode, 500);
     });
 
     setTimeout(() => {
