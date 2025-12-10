@@ -359,6 +359,7 @@ const PurchaseEntry = () => {
           sale_price,
           barcode,
           active,
+          color,
           product_id,
           products (
             id,
@@ -396,7 +397,7 @@ const PurchaseEntry = () => {
         product_name: v.products?.product_name || "",
         brand: v.products?.brand || "",
         category: v.products?.category || "",
-        color: v.products?.color || "",
+        color: v.color || v.products?.color || "",
         style: v.products?.style || "",
         gst_per: v.products?.gst_per || 0,
         hsn_code: v.products?.hsn_code || "",
