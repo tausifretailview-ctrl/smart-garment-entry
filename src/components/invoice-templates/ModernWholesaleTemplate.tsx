@@ -235,8 +235,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
   const cellStyle: React.CSSProperties = {
     border: '1px solid #d1d5db',
-    padding: '6px 8px',
-    fontSize: '9pt',
+    padding: '4px 6px',
+    fontSize: '8pt',
     verticalAlign: 'top',
   };
 
@@ -246,26 +246,31 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     color: '#fff',
     fontWeight: '600',
     textAlign: 'center',
-    padding: '8px',
+    padding: '5px',
+    fontSize: '8pt',
   };
 
   return (
-    <div style={{
-      width: '210mm',
-      minHeight: '297mm',
-      margin: '0 auto',
-      padding: '8mm',
-      fontFamily: font,
-      fontSize: '10pt',
-      backgroundColor: '#fff',
-      color: '#1f2937',
-      boxSizing: 'border-box',
-    }}>
+    <div 
+      className="invoice-print invoice-format-a4-full"
+      style={{
+        width: '210mm',
+        maxHeight: '297mm',
+        margin: '0 auto',
+        padding: '6mm',
+        fontFamily: font,
+        fontSize: '9pt',
+        backgroundColor: '#fff',
+        color: '#1f2937',
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+      }}
+    >
       {/* Gradient Header Bar */}
       <div style={{
         background: colors.gradient,
-        height: '6px',
-        borderRadius: '3px 3px 0 0',
+        height: '4px',
+        borderRadius: '2px 2px 0 0',
         marginBottom: '0',
       }} />
 
@@ -273,43 +278,43 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {customHeaderText && (
         <div style={{ 
           textAlign: 'center', 
-          fontSize: '12pt', 
+          fontSize: '10pt', 
           fontWeight: '600',
-          padding: '8px',
+          padding: '5px',
           color: colors.primary,
-          borderBottom: `2px solid ${colors.light}`,
+          borderBottom: `1px solid ${colors.light}`,
         }}>
           {customHeaderText}
         </div>
       )}
 
       {/* Main Border Container */}
-      <div style={{ border: '2px solid #374151', borderTop: 'none' }}>
+      <div style={{ border: '1px solid #374151', borderTop: 'none' }}>
         {/* Header Section - Business Details */}
         <div style={{ 
           display: 'flex', 
-          borderBottom: '2px solid #374151',
+          borderBottom: '1px solid #374151',
           background: colors.light,
         }}>
           {/* Logo Section */}
           <div style={{ 
-            width: '90px', 
+            width: '70px', 
             borderRight: '1px solid #374151',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '10px',
+            padding: '6px',
           }}>
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo" style={{ maxWidth: '70px', maxHeight: '60px' }} />
+              <img src={logoUrl} alt="Logo" style={{ maxWidth: '55px', maxHeight: '45px' }} />
             ) : (
               <div style={{ 
-                fontSize: '8pt', 
+                fontSize: '7pt', 
                 color: '#9ca3af', 
                 textAlign: 'center',
                 border: '1px dashed #9ca3af',
-                padding: '8px',
-                borderRadius: '4px',
+                padding: '5px',
+                borderRadius: '3px',
               }}>LOGO</div>
             )}
           </div>
@@ -317,27 +322,27 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           {/* Business Details */}
           <div style={{ 
             flex: 1, 
-            padding: '12px',
+            padding: '8px',
             textAlign: 'center',
           }}>
             <div style={{ 
-              fontSize: '20pt', 
+              fontSize: '16pt', 
               fontWeight: '700', 
               color: colors.primary,
-              marginBottom: '4px',
-              letterSpacing: '1px',
+              marginBottom: '2px',
+              letterSpacing: '0.5px',
             }}>
               {businessName}
             </div>
-            <div style={{ fontSize: '9pt', color: '#4b5563', marginBottom: '2px' }}>{address}</div>
-            <div style={{ fontSize: '9pt', color: '#4b5563' }}>
+            <div style={{ fontSize: '8pt', color: '#4b5563', marginBottom: '1px' }}>{address}</div>
+            <div style={{ fontSize: '8pt', color: '#4b5563' }}>
               Mobile: {mobile} {email && `| Email: ${email}`}
             </div>
             {gstNumber && (
               <div style={{ 
-                fontSize: '10pt', 
+                fontSize: '9pt', 
                 fontWeight: '600', 
-                marginTop: '4px',
+                marginTop: '2px',
                 color: '#1f2937',
               }}>
                 GSTIN: {gstNumber}
@@ -347,22 +352,22 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
           {/* Tax Invoice Badge */}
           <div style={{ 
-            width: '120px', 
+            width: '90px', 
             borderLeft: '1px solid #374151',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '10px',
+            padding: '6px',
           }}>
             <div style={{ 
               background: colors.gradient,
               color: '#fff',
-              padding: '8px 12px',
-              borderRadius: '6px',
+              padding: '5px 8px',
+              borderRadius: '4px',
               fontWeight: '700',
-              fontSize: '11pt',
+              fontSize: '9pt',
               textAlign: 'center',
-              letterSpacing: '1px',
+              letterSpacing: '0.5px',
             }}>
               TAX<br/>INVOICE
             </div>
@@ -372,35 +377,35 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Customer & Invoice Details Row */}
         <div style={{ 
           display: 'flex', 
-          borderBottom: '2px solid #374151',
+          borderBottom: '1px solid #374151',
         }}>
           {/* Bill To - Left */}
           <div style={{ 
             flex: 1, 
-            padding: '10px',
+            padding: '6px 8px',
             borderRight: '1px solid #374151',
           }}>
             <div style={{ 
-              fontSize: '8pt', 
+              fontSize: '7pt', 
               fontWeight: '600', 
               color: colors.primary,
-              marginBottom: '4px',
+              marginBottom: '2px',
               textTransform: 'uppercase',
             }}>Bill To:</div>
-            <div style={{ fontWeight: '600', fontSize: '11pt', marginBottom: '2px' }}>
+            <div style={{ fontWeight: '600', fontSize: '10pt', marginBottom: '1px' }}>
               {customerName || 'Walk-in Customer'}
             </div>
             {customerAddress && (
-              <div style={{ fontSize: '9pt', color: '#4b5563', marginBottom: '2px' }}>{customerAddress}</div>
+              <div style={{ fontSize: '8pt', color: '#4b5563', marginBottom: '1px' }}>{customerAddress}</div>
             )}
             {customerMobile && (
-              <div style={{ fontSize: '9pt' }}>Mobile: {customerMobile}</div>
+              <div style={{ fontSize: '8pt' }}>Mobile: {customerMobile}</div>
             )}
             {customerGSTIN && (
-              <div style={{ fontSize: '9pt', fontWeight: '500' }}>GSTIN: {customerGSTIN}</div>
+              <div style={{ fontSize: '8pt', fontWeight: '500' }}>GSTIN: {customerGSTIN}</div>
             )}
             {salesman && (
-              <div style={{ fontSize: '9pt', fontWeight: '500', marginTop: '4px' }}>Salesman: {salesman}</div>
+              <div style={{ fontSize: '8pt', fontWeight: '500', marginTop: '2px' }}>Salesman: {salesman}</div>
             )}
           </div>
 
@@ -408,33 +413,33 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           {shippingAddress && shippingAddress !== customerAddress && (
             <div style={{ 
               flex: 1, 
-              padding: '10px',
+              padding: '6px 8px',
               borderRight: '1px solid #374151',
             }}>
               <div style={{ 
-                fontSize: '8pt', 
+                fontSize: '7pt', 
                 fontWeight: '600', 
                 color: colors.primary,
-                marginBottom: '4px',
+                marginBottom: '2px',
                 textTransform: 'uppercase',
               }}>Ship To:</div>
-              <div style={{ fontSize: '9pt', color: '#4b5563' }}>{shippingAddress}</div>
+              <div style={{ fontSize: '8pt', color: '#4b5563' }}>{shippingAddress}</div>
             </div>
           )}
 
           {/* Invoice Details - Right */}
           <div style={{ 
-            width: '180px', 
-            padding: '10px',
+            width: '150px', 
+            padding: '6px 8px',
             background: colors.light,
           }}>
-            <div style={{ marginBottom: '6px' }}>
-              <span style={{ fontSize: '8pt', color: '#6b7280' }}>Invoice No:</span>
-              <div style={{ fontWeight: '600', fontSize: '10pt' }}>{invoiceNumber}</div>
+            <div style={{ marginBottom: '4px' }}>
+              <span style={{ fontSize: '7pt', color: '#6b7280' }}>Invoice No:</span>
+              <div style={{ fontWeight: '600', fontSize: '9pt' }}>{invoiceNumber}</div>
             </div>
             <div>
-              <span style={{ fontSize: '8pt', color: '#6b7280' }}>Date:</span>
-              <div style={{ fontWeight: '600', fontSize: '10pt' }}>
+              <span style={{ fontSize: '7pt', color: '#6b7280' }}>Date:</span>
+              <div style={{ fontWeight: '600', fontSize: '9pt' }}>
                 {invoiceDate.toLocaleDateString('en-IN', { 
                   day: '2-digit', 
                   month: 'short', 
@@ -479,21 +484,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 <tr key={index}>
                   <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '500' }}>{index + 1}</td>
                   <td style={cellStyle}>
-                    <div style={{ fontWeight: '600', marginBottom: '2px' }}>{item.particulars}</div>
-                    <div style={{ fontSize: '8pt', color: '#6b7280' }}>
-                      {showProductColor && item.color && <span>Color: {item.color}</span>}
-                      {showProductBrand && item.brand && <span> | Brand: {item.brand}</span>}
-                      {showProductStyle && item.style && <span> | Style: {item.style}</span>}
-                    </div>
+                    <div style={{ fontWeight: '600', marginBottom: '1px', fontSize: '8pt' }}>{item.particulars}</div>
+                    {(showProductColor || showProductBrand || showProductStyle) && (
+                      <div style={{ fontSize: '7pt', color: '#6b7280' }}>
+                        {showProductColor && item.color && <span>Color: {item.color}</span>}
+                        {showProductBrand && item.brand && <span> | Brand: {item.brand}</span>}
+                        {showProductStyle && item.style && <span> | Style: {item.style}</span>}
+                      </div>
+                    )}
                   </td>
-                  {showHSN && <td style={{ ...cellStyle, textAlign: 'center', fontSize: '8pt' }}>{item.hsn || '-'}</td>}
-                  <td style={{ ...cellStyle, fontSize: '8pt' }}>
+                  {showHSN && <td style={{ ...cellStyle, textAlign: 'center', fontSize: '7pt' }}>{item.hsn || '-'}</td>}
+                  <td style={{ ...cellStyle, fontSize: '7pt' }}>
                     {enableWholesaleGrouping 
                       ? formatSizeQty(item.sizeQtyList)
                       : item.sizeQtyList[0]?.size
                     }
                   </td>
-                  <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '600' }}>{item.totalQty}</td>
+                  <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '600', fontSize: '8pt' }}>{item.totalQty}</td>
                   {showMRP && (
                     <td style={{ ...cellStyle, textAlign: 'right', textDecoration: 'line-through', color: '#9ca3af' }}>
                       {item.mrp ? `₹${item.mrp.toFixed(2)}` : '-'}
@@ -513,46 +520,28 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               );
             })}
             
-            {/* Empty rows for minimum display */}
-            {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
-              <tr key={`empty-${index}`}>
-                <td style={{ ...cellStyle, height: '24px' }}>&nbsp;</td>
-                <td style={cellStyle}>&nbsp;</td>
-                {showHSN && <td style={cellStyle}>&nbsp;</td>}
-                <td style={cellStyle}>&nbsp;</td>
-                <td style={cellStyle}>&nbsp;</td>
-                {showMRP && <td style={cellStyle}>&nbsp;</td>}
-                <td style={cellStyle}>&nbsp;</td>
-                {showGSTBreakdown && (
-                  <>
-                    <td style={cellStyle}>&nbsp;</td>
-                    <td style={cellStyle}>&nbsp;</td>
-                  </>
-                )}
-                <td style={cellStyle}>&nbsp;</td>
-              </tr>
-            ))}
-
+            {/* Empty rows removed to save space - only show actual items */}
+            
             {/* Total Row */}
             <tr style={{ background: colors.light }}>
-              <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '700' }} 
+              <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '700', fontSize: '8pt' }} 
                   colSpan={showHSN ? 4 : 3}>
                 TOTAL QUANTITY
               </td>
-              <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '700', fontSize: '11pt' }}>
+              <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '700', fontSize: '9pt' }}>
                 {totalQty}
               </td>
               {showMRP && <td style={cellStyle}></td>}
               <td style={cellStyle}></td>
               {showGSTBreakdown && (
                 <>
-                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', fontSize: '8pt' }}>
                     ₹{calculatedTaxableAmount.toFixed(2)}
                   </td>
                   <td style={cellStyle}></td>
                 </>
               )}
-              <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', fontSize: '11pt' }}>
+              <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', fontSize: '9pt' }}>
                 ₹{grandTotal.toFixed(2)}
               </td>
             </tr>
@@ -562,21 +551,21 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* GST Summary & Totals Section */}
         <div style={{ 
           display: 'flex', 
-          borderTop: '2px solid #374151',
+          borderTop: '1px solid #374151',
         }}>
           {/* GST Breakdown & Amount in Words - Left */}
           <div style={{ 
             flex: 1, 
-            padding: '10px',
+            padding: '6px 8px',
             borderRight: '1px solid #374151',
           }}>
             {showGSTBreakdown && (
-              <div style={{ marginBottom: '10px' }}>
-                <div style={{ fontSize: '8pt', fontWeight: '600', color: colors.primary, marginBottom: '4px' }}>
+              <div style={{ marginBottom: '6px' }}>
+                <div style={{ fontSize: '7pt', fontWeight: '600', color: colors.primary, marginBottom: '2px' }}>
                   TAX BREAKDOWN:
                 </div>
                 {Object.entries(gstSummary).map(([rate, values]) => (
-                  <div key={rate} style={{ fontSize: '8pt', marginBottom: '2px' }}>
+                  <div key={rate} style={{ fontSize: '7pt', marginBottom: '1px' }}>
                     <span>GST @{rate}%: ₹{values.taxable.toFixed(2)} → CGST: ₹{values.cgst.toFixed(2)} + SGST: ₹{values.sgst.toFixed(2)}</span>
                   </div>
                 ))}
@@ -584,13 +573,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             )}
             <div style={{ 
               borderTop: '1px solid #e5e7eb', 
-              paddingTop: '8px',
-              marginTop: '8px',
+              paddingTop: '4px',
+              marginTop: '4px',
             }}>
-              <div style={{ fontSize: '8pt', fontWeight: '600', color: colors.primary }}>
+              <div style={{ fontSize: '7pt', fontWeight: '600', color: colors.primary }}>
                 AMOUNT IN WORDS:
               </div>
-              <div style={{ fontSize: '9pt', fontStyle: 'italic', marginTop: '2px' }}>
+              <div style={{ fontSize: '8pt', fontStyle: 'italic', marginTop: '1px' }}>
                 {numberToWords(grandTotal)}
               </div>
             </div>
@@ -598,56 +587,56 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
           {/* Totals - Right */}
           <div style={{ 
-            width: '220px', 
-            padding: '10px',
+            width: '180px', 
+            padding: '6px 8px',
             background: colors.light,
           }}>
-            <table style={{ width: '100%', fontSize: '9pt' }}>
+            <table style={{ width: '100%', fontSize: '8pt' }}>
               <tbody>
                 <tr>
-                  <td style={{ padding: '3px 0' }}>Sub Total</td>
-                  <td style={{ padding: '3px 0', textAlign: 'right', fontWeight: '500' }}>₹{subtotal.toFixed(2)}</td>
+                  <td style={{ padding: '2px 0' }}>Sub Total</td>
+                  <td style={{ padding: '2px 0', textAlign: 'right', fontWeight: '500' }}>₹{subtotal.toFixed(2)}</td>
                 </tr>
                 {discount > 0 && (
                   <tr>
-                    <td style={{ padding: '3px 0', color: '#16a34a' }}>Discount</td>
-                    <td style={{ padding: '3px 0', textAlign: 'right', color: '#16a34a' }}>-₹{discount.toFixed(2)}</td>
+                    <td style={{ padding: '2px 0', color: '#16a34a' }}>Discount</td>
+                    <td style={{ padding: '2px 0', textAlign: 'right', color: '#16a34a' }}>-₹{discount.toFixed(2)}</td>
                   </tr>
                 )}
                 <tr>
-                  <td style={{ padding: '3px 0' }}>Taxable Amount</td>
-                  <td style={{ padding: '3px 0', textAlign: 'right' }}>₹{calculatedTaxableAmount.toFixed(2)}</td>
+                  <td style={{ padding: '2px 0' }}>Taxable Amount</td>
+                  <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{calculatedTaxableAmount.toFixed(2)}</td>
                 </tr>
                 {showGSTBreakdown && (
                   <>
                     <tr>
-                      <td style={{ padding: '3px 0' }}>CGST</td>
-                      <td style={{ padding: '3px 0', textAlign: 'right' }}>₹{cgstAmount.toFixed(2)}</td>
+                      <td style={{ padding: '2px 0' }}>CGST</td>
+                      <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{cgstAmount.toFixed(2)}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: '3px 0' }}>SGST</td>
-                      <td style={{ padding: '3px 0', textAlign: 'right' }}>₹{sgstAmount.toFixed(2)}</td>
+                      <td style={{ padding: '2px 0' }}>SGST</td>
+                      <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{sgstAmount.toFixed(2)}</td>
                     </tr>
                   </>
                 )}
                 {roundOff !== 0 && (
                   <tr>
-                    <td style={{ padding: '3px 0' }}>Round Off</td>
-                    <td style={{ padding: '3px 0', textAlign: 'right' }}>{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</td>
+                    <td style={{ padding: '2px 0' }}>Round Off</td>
+                    <td style={{ padding: '2px 0', textAlign: 'right' }}>{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</td>
                   </tr>
                 )}
-                <tr style={{ borderTop: '2px solid #374151' }}>
+                <tr style={{ borderTop: '1px solid #374151' }}>
                   <td style={{ 
-                    padding: '8px 0', 
+                    padding: '4px 0', 
                     fontWeight: '700', 
-                    fontSize: '12pt',
+                    fontSize: '10pt',
                     color: colors.primary,
                   }}>GRAND TOTAL</td>
                   <td style={{ 
-                    padding: '8px 0', 
+                    padding: '4px 0', 
                     textAlign: 'right', 
                     fontWeight: '700', 
-                    fontSize: '12pt',
+                    fontSize: '10pt',
                     color: colors.primary,
                   }}>₹{grandTotal.toFixed(2)}</td>
                 </tr>
@@ -659,23 +648,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Bank Details, QR Code & Signature Section */}
         <div style={{ 
           display: 'flex', 
-          borderTop: '2px solid #374151',
-          minHeight: '80px',
+          borderTop: '1px solid #374151',
+          minHeight: '60px',
         }}>
           {/* Bank Details - Left */}
           {showBankDetails && bankDetails && (
             <div style={{ 
               flex: 1, 
-              padding: '10px',
+              padding: '6px 8px',
               borderRight: '1px solid #374151',
             }}>
               <div style={{ 
-                fontSize: '8pt', 
+                fontSize: '7pt', 
                 fontWeight: '600', 
                 color: colors.primary,
-                marginBottom: '4px',
+                marginBottom: '2px',
               }}>BANK DETAILS:</div>
-              <div style={{ fontSize: '8pt' }}>
+              <div style={{ fontSize: '7pt' }}>
                 {bankDetails.bank_name && <div>Bank: {bankDetails.bank_name}</div>}
                 {bankDetails.account_number && <div>A/C No: {bankDetails.account_number}</div>}
                 {bankDetails.ifsc_code && <div>IFSC: {bankDetails.ifsc_code}</div>}
@@ -686,8 +675,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
 
           {/* QR Code - Center */}
           <div style={{ 
-            width: '100px', 
-            padding: '8px',
+            width: '80px', 
+            padding: '5px',
             borderRight: '1px solid #374151',
             display: 'flex',
             flexDirection: 'column',
@@ -696,20 +685,20 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           }}>
             {qrCodeUrl ? (
               <>
-                <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '70px', height: '70px' }} />
-                <div style={{ fontSize: '6pt', color: '#6b7280', marginTop: '2px' }}>Scan to Pay</div>
+                <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '55px', height: '55px' }} />
+                <div style={{ fontSize: '5pt', color: '#6b7280', marginTop: '1px' }}>Scan to Pay</div>
               </>
             ) : (
               <div style={{ 
-                width: '60px', 
-                height: '60px', 
+                width: '50px', 
+                height: '50px', 
                 border: '1px dashed #9ca3af',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '7pt',
+                fontSize: '6pt',
                 color: '#9ca3af',
-                borderRadius: '4px',
+                borderRadius: '3px',
               }}>
                 QR CODE
               </div>
@@ -719,24 +708,24 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           {/* Signature Section - Right */}
           <div style={{ 
             flex: 1,
-            padding: '10px',
+            padding: '6px 8px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             alignItems: 'flex-end',
           }}>
             <div style={{ 
-              width: '180px',
+              width: '140px',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '8pt', color: '#6b7280' }}>
+              <div style={{ fontSize: '7pt', color: '#6b7280' }}>
                 For {businessName}
               </div>
               <div style={{ 
                 borderTop: '1px solid #374151', 
-                marginTop: '35px',
-                paddingTop: '4px',
-                fontSize: '8pt',
+                marginTop: '25px',
+                paddingTop: '2px',
+                fontSize: '7pt',
                 fontWeight: '500',
               }}>
                 Authorised Signatory
@@ -748,17 +737,17 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Terms & Conditions */}
         {termsConditions && termsConditions.length > 0 && (
           <div style={{ 
-            borderTop: '2px solid #374151',
-            padding: '8px 10px',
+            borderTop: '1px solid #374151',
+            padding: '4px 8px',
             background: colors.light,
           }}>
             <div style={{ 
-              fontSize: '8pt', 
+              fontSize: '7pt', 
               fontWeight: '600', 
               color: colors.primary,
-              marginBottom: '4px',
+              marginBottom: '2px',
             }}>TERMS & CONDITIONS:</div>
-            <div style={{ fontSize: '7pt', color: '#4b5563' }}>
+            <div style={{ fontSize: '6pt', color: '#4b5563' }}>
               {termsConditions.map((term, index) => (
                 <span key={index}>{index + 1}. {term} &nbsp;&nbsp;</span>
               ))}
@@ -771,8 +760,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {customFooterText && (
         <div style={{ 
           textAlign: 'center', 
-          fontSize: '9pt', 
-          padding: '8px',
+          fontSize: '8pt', 
+          padding: '4px',
           color: '#6b7280',
           fontStyle: 'italic',
         }}>
@@ -783,8 +772,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {/* Bottom Gradient Bar */}
       <div style={{
         background: colors.gradient,
-        height: '4px',
-        borderRadius: '0 0 3px 3px',
+        height: '3px',
+        borderRadius: '0 0 2px 2px',
         marginTop: '0',
       }} />
     </div>
