@@ -2341,6 +2341,8 @@ export default function BarcodePrinting() {
           return item.style || '';
         case 'price': 
           return `₹${item.sale_price}`;
+        case 'barcode':
+          return barcode; // Return barcode value so it doesn't skip rendering
         case 'barcodeText': 
           return barcode;
         case 'billNumber': 
