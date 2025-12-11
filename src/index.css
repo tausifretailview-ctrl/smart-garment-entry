@@ -326,3 +326,55 @@ All colors MUST be HSL.
   size: A5 landscape;
   margin: 5mm;
 }
+
+/* ============================================
+   BARCODE LABEL PRINTING
+   ============================================ */
+@page barcode-labels {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  /* Barcode label grid - ensure proper page breaks */
+  .label-grid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  
+  /* Last label grid should not force page break after */
+  .label-grid:last-of-type {
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+  
+  /* Individual label cells should not break */
+  .label-cell {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    overflow: visible !important;
+  }
+  
+  /* Ensure barcode images render properly across pages */
+  .label-cell img {
+    max-width: 100% !important;
+    display: block !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  /* Hide page separators in print */
+  .page-separator,
+  .total-page-counter {
+    display: none !important;
+  }
+  
+  /* Print area should take full page */
+  #printArea {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 210mm !important;
+  }
+}
