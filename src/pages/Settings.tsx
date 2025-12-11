@@ -527,10 +527,14 @@ export default function Settings() {
       style: { show: true, fontSize: 8, bold: false },
       size: { show: true, fontSize: 10, bold: true },
       price: { show: true, fontSize: 10, bold: true },
+      mrp: { show: false, fontSize: 8, bold: false },
+      customText: { show: false, fontSize: 8, bold: false },
       barcode: { show: true, fontSize: 8, bold: false },
       barcodeText: { show: true, fontSize: 7, bold: false },
       billNumber: { show: true, fontSize: 7, bold: false },
-      fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'barcode', 'barcodeText', 'billNumber']
+      supplierCode: { show: false, fontSize: 7, bold: false },
+      purchaseCode: { show: false, fontSize: 7, bold: false },
+      fieldOrder: ['brand', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode']
     };
 
     try {
