@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -74,7 +75,7 @@ interface ProductForm {
 
 const ProductEntry = () => {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { orgNavigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
@@ -838,7 +839,7 @@ const ProductEntry = () => {
         });
 
         // Navigate back to product dashboard after edit
-        navigate("/products");
+        orgNavigate("/products");
         return;
       } else {
         // Insert new product
@@ -934,7 +935,7 @@ const ProductEntry = () => {
             .single();
 
           if (!fetchError && fullProductData) {
-            navigate("/purchase-entry", {
+            orgNavigate("/purchase-entry", {
               state: {
                 newProduct: {
                   id: fullProductData.id,
@@ -951,32 +952,8 @@ const ProductEntry = () => {
           }
         }
 
-        // Reset form (only if not navigating back)
-        setFormData({
-          product_type: "goods",
-          product_name: "",
-          category: "",
-          brand: "",
-          style: "",
-          colors: [],
-          size_group_id: "",
-          hsn_code: "",
-          gst_per: 18,
-          default_pur_price: 0,
-          default_sale_price: 0,
-          default_mrp: undefined,
-          status: "active",
-        });
-        setColorInput("");
-        setVariants([]);
-        setShowVariants(false);
-        setImageFile(null);
-        setImagePreview("");
-        
-        // Focus on product name input for next entry
-        setTimeout(() => {
-          productNameInputRef.current?.focus();
-        }, 0);
+        // Navigate to product dashboard after saving new product
+        orgNavigate("/products");
       }
     } catch (error: any) {
       toast({
@@ -1203,7 +1180,7 @@ const ProductEntry = () => {
     });
     
     // Navigate to product dashboard to see imported products
-    navigate('/products');
+    orgNavigate('/products');
   };
 
   return (
