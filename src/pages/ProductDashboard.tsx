@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2 } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -911,15 +911,47 @@ const ProductDashboard = () => {
                     {selectedProducts.size} product(s) selected
                   </span>
                 </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowBulkDeleteDialog(true)}
-                  className="gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Selected
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      // Get all variants from selected products
+                      const selectedProductData = productRows.filter(p => selectedProducts.has(p.product_id));
+                      const barcodeItems = selectedProductData.flatMap(product => 
+                        product.variants.map(variant => ({
+                          sku_id: variant.variant_id,
+                          product_name: product.product_name,
+                          brand: product.brand || "",
+                          category: product.category || "",
+                          color: variant.color || product.color || "",
+                          style: product.style || "",
+                          size: variant.size,
+                          sale_price: variant.sale_price,
+                          pur_price: variant.pur_price,
+                          barcode: variant.barcode,
+                          qty: variant.stock_qty,
+                          bill_number: "",
+                          supplier_code: "",
+                        }))
+                      );
+                      navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+                    }}
+                    className="gap-2"
+                  >
+                    <Barcode className="h-4 w-4" />
+                    Generate Barcode
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowBulkDeleteDialog(true)}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
