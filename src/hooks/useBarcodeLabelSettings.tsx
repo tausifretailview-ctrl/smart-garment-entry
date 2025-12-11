@@ -18,14 +18,17 @@ interface LabelDesignConfig {
   style: LabelFieldConfig;
   size: LabelFieldConfig;
   price: LabelFieldConfig;
+  mrp: LabelFieldConfig;
+  customText: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
+  customTextValue?: string;
 }
 
 interface LabelTemplate {

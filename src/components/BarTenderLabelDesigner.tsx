@@ -37,14 +37,17 @@ interface LabelDesignConfig {
   style: LabelFieldConfig;
   size: LabelFieldConfig;
   price: LabelFieldConfig;
+  mrp: LabelFieldConfig;
+  customText: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>>;
+  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
   barcodeHeight?: number;
   barcodeWidth?: number;
+  customTextValue?: string;
 }
 
 interface LabelItem {
@@ -55,6 +58,7 @@ interface LabelItem {
   style: string;
   size: string;
   sale_price: number;
+  mrp?: number;
   barcode: string;
   bill_number: string;
   supplier_code?: string;
@@ -79,7 +83,7 @@ interface BarTenderLabelDesignerProps {
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
 }
 
-type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
 
 const fieldLabels: Record<FieldKey, string> = {
   brand: 'Brand Name',
@@ -87,7 +91,9 @@ const fieldLabels: Record<FieldKey, string> = {
   color: 'Color',
   style: 'Style',
   size: 'Size',
-  price: 'Price (MRP)',
+  price: 'Sale Price',
+  mrp: 'MRP',
+  customText: 'Custom Text',
   barcode: 'Barcode',
   barcodeText: 'Barcode Number',
   billNumber: 'Bill Number',
@@ -319,18 +325,20 @@ export function BarTenderLabelDesigner({
       const updates: Partial<LabelDesignConfig> = {};
       
       // Default layout - arrange fields vertically with some side-by-side examples
-      const defaultPositions: Record<FieldKey, { x: number; y: number; width: number }> = {
+      const defaultPositions: Partial<Record<FieldKey, { x: number; y: number; width: number }>> = {
         brand: { x: 0, y: 0, width: 100 },
         productName: { x: 0, y: 4, width: 100 },
         size: { x: 0, y: 8, width: 50 }, // Left half
         color: { x: labelWidth / 2, y: 8, width: 50 }, // Right half
         style: { x: 0, y: 12, width: 50 },
         price: { x: labelWidth / 2, y: 12, width: 50 },
-        barcode: { x: 0, y: 16, width: 100 },
-        barcodeText: { x: 0, y: 24, width: 100 },
-        billNumber: { x: 0, y: 27, width: 50 },
-        supplierCode: { x: labelWidth / 2, y: 27, width: 50 },
-        purchaseCode: { x: 0, y: 30, width: 100 },
+        mrp: { x: 0, y: 16, width: 50 },
+        customText: { x: labelWidth / 2, y: 16, width: 50 },
+        barcode: { x: 0, y: 20, width: 100 },
+        barcodeText: { x: 0, y: 28, width: 100 },
+        billNumber: { x: 0, y: 31, width: 50 },
+        supplierCode: { x: labelWidth / 2, y: 31, width: 50 },
+        purchaseCode: { x: 0, y: 34, width: 100 },
       };
 
       labelConfig.fieldOrder.forEach((fieldKey) => {
@@ -430,6 +438,8 @@ export function BarTenderLabelDesigner({
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
+        case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
+        case 'customText': return labelConfig.customTextValue || '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number || '';
         case 'supplierCode': return sampleItem.supplier_code || '';
@@ -444,6 +454,8 @@ export function BarTenderLabelDesigner({
       case 'color': return 'Blue';
       case 'style': return 'ST-001';
       case 'price': return '₹999';
+      case 'mrp': return 'MRP ₹1299';
+      case 'customText': return labelConfig.customTextValue || 'Custom Text';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'B0125001';
       case 'supplierCode': return 'SUP01';
