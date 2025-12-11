@@ -84,11 +84,11 @@ interface PrintOptions {
   };
 }
 
-const sheetPresets: Record<string, { cols: number; width: string; height: string; gap: string; thermal?: boolean }> = {
+const sheetPresets: Record<string, { cols: number; rows?: number; width: string; height: string; gap: string; thermal?: boolean }> = {
   // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm" },
-  a4_35x37: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm" },
+  novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" },
+  a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   // Thermal Roll Presets (1UP)
@@ -652,26 +652,56 @@ export const printBarcodesDirectly = async (
         printContainer.appendChild(rowDiv);
       }
     } else {
-      // A4 Sheet: Grid layout
-      const gridDiv = doc.createElement('div');
-      gridDiv.className = 'label-grid';
-
+      // A4 Sheet: Grid layout with optional row limit per page
+      const preset = sheetPresets[sheetType];
+      const maxRowsPerPage = preset?.rows;
+      const labelsPerPage = maxRowsPerPage ? dimensions.cols * maxRowsPerPage : undefined;
+      
+      // Collect all labels first
+      const allLabels: string[] = [];
       items.forEach((item) => {
         const qty = Number(item.qty) || 0;
         for (let i = 0; i < qty; i++) {
-          const cell = doc.createElement('div');
-          cell.className = 'label-cell';
-          
-          if (useAbsolutePositioning && labelConfig) {
-            cell.innerHTML = getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight);
-          } else {
-            cell.innerHTML = getLegacyLabelHTML(item, labelConfig);
-          }
-          gridDiv.appendChild(cell);
+          const html = useAbsolutePositioning && labelConfig
+            ? getAbsolutePositionedLabelHTML(item, labelConfig, labelWidth, labelHeight)
+            : getLegacyLabelHTML(item, labelConfig);
+          allLabels.push(html);
         }
       });
 
-      printContainer.appendChild(gridDiv);
+      if (labelsPerPage) {
+        // Split into pages with fixed rows
+        for (let pageStart = 0; pageStart < allLabels.length; pageStart += labelsPerPage) {
+          const gridDiv = doc.createElement('div');
+          gridDiv.className = 'label-grid';
+          if (pageStart > 0) {
+            gridDiv.style.pageBreakBefore = 'always';
+          }
+          
+          const pageLabels = allLabels.slice(pageStart, pageStart + labelsPerPage);
+          pageLabels.forEach((html) => {
+            const cell = doc.createElement('div');
+            cell.className = 'label-cell';
+            cell.innerHTML = html;
+            gridDiv.appendChild(cell);
+          });
+          
+          printContainer.appendChild(gridDiv);
+        }
+      } else {
+        // No row limit - single grid
+        const gridDiv = doc.createElement('div');
+        gridDiv.className = 'label-grid';
+
+        allLabels.forEach((html) => {
+          const cell = doc.createElement('div');
+          cell.className = 'label-cell';
+          cell.innerHTML = html;
+          gridDiv.appendChild(cell);
+        });
+
+        printContainer.appendChild(gridDiv);
+      }
     }
 
     // Barcodes are now pre-rendered as images, no need to wait for JsBarcode library
