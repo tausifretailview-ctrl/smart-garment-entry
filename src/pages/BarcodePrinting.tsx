@@ -2314,26 +2314,39 @@ export default function BarcodePrinting() {
     }
   };
 
+  // Check if config has absolute positioning (x/y defined)
+  const hasAbsolutePositioning = (config: LabelDesignConfig): boolean => {
+    return config.fieldOrder.some(fieldKey => {
+      const field = config[fieldKey] as LabelFieldConfig;
+      return field && (field.x !== undefined || field.y !== undefined);
+    });
+  };
+
+  // Get label dimensions based on current sheet type
+  const getLabelDimensions = () => {
+    if (sheetType === "custom") {
+      return { width: customWidth, height: customHeight };
+    }
+    const preset = sheetPresets[sheetType];
+    return {
+      width: parseInt(preset.width),
+      height: parseInt(preset.height)
+    };
+  };
+
   const getLabelHTML = (item: LabelItem, format: DesignFormat) => {
     const barcode = item.barcode || genEAN8();
     const config = labelConfig;
+    const labelDimensions = getLabelDimensions();
+    const labelWidthMm = labelDimensions.width;
+    const labelHeightMm = labelDimensions.height;
 
-    // Helper to build style string with padding - matching InteractiveLabelPreview exactly
-    const getStyle = (field: LabelFieldConfig, extraStyles: string = '') => {
-      const paddingTop = field.paddingTop ?? 0;
-      const paddingBottom = field.paddingBottom ?? 0;
-      const paddingLeft = field.paddingLeft ?? 0;
-      const paddingRight = field.paddingRight ?? 0;
-      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; padding: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px; line-height: 1.1; width: 100%; box-sizing: border-box;${extraStyles}`;
-    };
-
-    // Get field content matching InteractiveLabelPreview.getFieldContent exactly
+    // Get field content matching BarTenderLabelDesigner.getFieldContent exactly
     const getFieldContent = (fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>) => {
       switch (fieldKey) {
         case 'brand': 
           return item.brand || businessName || 'Brand';
         case 'productName': 
-          // Only add size if size field is NOT shown separately
           return item.product_name + (config.size.show ? '' : ` (${item.size})`);
         case 'color': 
           return item.color || '';
@@ -2342,7 +2355,7 @@ export default function BarcodePrinting() {
         case 'price': 
           return `₹${item.sale_price}`;
         case 'barcode':
-          return barcode; // Return barcode value so it doesn't skip rendering
+          return barcode;
         case 'barcodeText': 
           return barcode;
         case 'billNumber': 
@@ -2358,21 +2371,91 @@ export default function BarcodePrinting() {
       }
     };
 
-    // Build label HTML based on field order
+    // Check if using absolute positioning (matching BarTenderLabelDesigner)
+    if (hasAbsolutePositioning(config)) {
+      // Generate HTML with absolute positioning matching the designer exactly
+      let fieldsHtml = '';
+
+      config.fieldOrder.forEach((fieldKey) => {
+        const field = config[fieldKey] as LabelFieldConfig;
+        if (!field.show) return;
+
+        const content = getFieldContent(fieldKey);
+        if (!content) return;
+
+        const x = field.x ?? 0;
+        const y = field.y ?? 0;
+        const widthPercent = field.width ?? 100;
+        const widthMm = (widthPercent / 100) * labelWidthMm;
+        const heightStyle = field.height ? `height: ${field.height}mm;` : '';
+
+        if (fieldKey === 'barcode') {
+          // Pre-render barcode as image for reliable printing
+          const barcodeHeight = config.barcodeHeight || 25;
+          const barcodeWidth = config.barcodeWidth || 1.5;
+          const barcodeHeightMm = Math.max(6, barcodeHeight * 0.35);
+          const barcodeDataUrl = renderBarcodeToDataURL(barcode, barcodeHeight, barcodeWidth);
+          
+          fieldsHtml += `
+            <div style="
+              position: absolute;
+              left: ${x}mm;
+              top: ${y}mm;
+              width: ${widthMm}mm;
+              height: ${barcodeHeightMm}mm;
+              display: flex;
+              justify-content: ${field.textAlign === 'left' ? 'flex-start' : field.textAlign === 'right' ? 'flex-end' : 'center'};
+              align-items: center;
+              overflow: visible;
+            ">
+              ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="height: ${barcodeHeightMm}mm; max-width: 100%; display: block;" alt="barcode" />` : `<span style="font-size: 8px;">${barcode}</span>`}
+            </div>
+          `;
+        } else {
+          // Text field with absolute positioning
+          fieldsHtml += `
+            <div style="
+              position: absolute;
+              left: ${x}mm;
+              top: ${y}mm;
+              width: ${widthMm}mm;
+              ${heightStyle}
+              font-size: ${field.fontSize}px;
+              font-weight: ${field.bold ? 'bold' : 'normal'};
+              ${field.fontFamily ? `font-family: ${field.fontFamily};` : ''}
+              text-align: ${field.textAlign || 'center'};
+              line-height: ${field.lineHeight || 1.1};
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            ">${content}</div>
+          `;
+        }
+      });
+
+      return fieldsHtml;
+    }
+
+    // Legacy flow-based layout for configs without absolute positioning
+    const getStyle = (field: LabelFieldConfig, extraStyles: string = '') => {
+      const paddingTop = field.paddingTop ?? 0;
+      const paddingBottom = field.paddingBottom ?? 0;
+      const paddingLeft = field.paddingLeft ?? 0;
+      const paddingRight = field.paddingRight ?? 0;
+      return `font-size: ${field.fontSize}px; font-weight: ${field.bold ? 'bold' : 'normal'};${field.fontFamily ? ` font-family: ${field.fontFamily};` : ''} text-align: ${field.textAlign || 'center'}; padding: ${paddingTop}px ${paddingRight}px ${paddingBottom}px ${paddingLeft}px; line-height: 1.1; width: 100%; box-sizing: border-box;${extraStyles}`;
+    };
+
     let html = '';
     
-    // Use fieldOrder to determine the sequence - matching InteractiveLabelPreview
     config.fieldOrder.forEach((fieldKey) => {
       const field = config[fieldKey] as LabelFieldConfig;
       
       if (!field.show) return;
       
-      // Get content for this field
       const content = getFieldContent(fieldKey);
       if (!content) return;
       
       if (fieldKey === 'barcode') {
-        // Pre-render barcode as image instead of SVG
         const bcPaddingTop = field.paddingTop ?? 0;
         const bcPaddingBottom = field.paddingBottom ?? 0;
         const bcPaddingLeft = field.paddingLeft ?? 0;
@@ -2387,7 +2470,6 @@ export default function BarcodePrinting() {
           html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${barcode}</div>`;
         }
       } else {
-        // Text field - matching preview styling
         html += `<div class="${fieldKey}" style="${getStyle(field)}">${content}</div>`;
       }
     });
@@ -2550,23 +2632,40 @@ export default function BarcodePrinting() {
         const startIdx = page * labelsPerPage;
         const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
         
+        // Check if using absolute positioning for cell styling
+        const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
+        
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
           cell.className = "label-cell";
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 2px;
-            box-sizing: border-box;
-            line-height: 1.1;
-          `;
+          
+          if (useAbsoluteLayout) {
+            // Absolute positioning layout - matches BarTenderLabelDesigner
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              position: relative;
+              overflow: hidden;
+              box-sizing: border-box;
+            `;
+          } else {
+            // Legacy flow-based layout
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+              padding: 2px;
+              box-sizing: border-box;
+              line-height: 1.1;
+            `;
+          }
           cell.innerHTML = allLabels[i].html;
           gridDiv.appendChild(cell);
         }
@@ -2588,23 +2687,40 @@ export default function BarcodePrinting() {
         padding-right: ${rightOffset}mm;
       `;
 
+      // Check if using absolute positioning for cell styling
+      const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
+
       allLabels.forEach((label) => {
         const cell = document.createElement("div");
         cell.className = "label-cell";
-        cell.style.cssText = `
-          width: ${dimensions.width}mm;
-          height: ${dimensions.height}mm;
-          font-family: Arial, sans-serif;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-          padding: 2px;
-          box-sizing: border-box;
-          line-height: 1.1;
-        `;
+        
+        if (useAbsoluteLayout) {
+          // Absolute positioning layout - matches BarTenderLabelDesigner
+          cell.style.cssText = `
+            width: ${dimensions.width}mm;
+            height: ${dimensions.height}mm;
+            font-family: Arial, sans-serif;
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+          `;
+        } else {
+          // Legacy flow-based layout
+          cell.style.cssText = `
+            width: ${dimensions.width}mm;
+            height: ${dimensions.height}mm;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 2px;
+            box-sizing: border-box;
+            line-height: 1.1;
+          `;
+        }
         cell.innerHTML = label.html;
         gridDiv.appendChild(cell);
       });
@@ -2760,25 +2876,45 @@ export default function BarcodePrinting() {
           overflow: hidden;
         `;
         
+        // Check if using absolute positioning for cell styling
+        const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
+        
         for (let i = startIdx; i < endIdx; i++) {
           const cell = document.createElement("div");
           cell.className = "label-cell";
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 2px;
-            box-sizing: border-box;
-            border: 1px solid #e5e5e5;
-            background: #fff;
-            line-height: 1.1;
-          `;
+          
+          if (useAbsoluteLayout) {
+            // Absolute positioning layout - matches BarTenderLabelDesigner
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              position: relative;
+              overflow: hidden;
+              box-sizing: border-box;
+              border: 1px solid #e5e5e5;
+              background: #fff;
+            `;
+          } else {
+            // Legacy flow-based layout
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+              padding: 2px;
+              box-sizing: border-box;
+              border: 1px solid #e5e5e5;
+              background: #fff;
+              line-height: 1.1;
+            `;
+          }
+          
           // Add style tag for inner elements to remove default spacing
           const styleTag = document.createElement("style");
           styleTag.textContent = `
