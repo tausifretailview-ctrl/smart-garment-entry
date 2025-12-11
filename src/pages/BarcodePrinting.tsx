@@ -138,7 +138,7 @@ const sheetPresets = {
   a4_65sheet: { cols: 5, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
   
   // Medium Labels
-  novajet40: { cols: 5, width: "39mm", height: "35mm", gap: "1.5mm", category: "a4" },
+  novajet40: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
   a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
   a4_32sheet: { cols: 4, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
@@ -193,7 +193,7 @@ const sheetPresetLabels: Record<string, { label: string; description: string; gr
   a4_65sheet: { label: "A4 65-Sheet", description: "38×22mm, 5 cols (shelf)", group: "A4 - Small Labels" },
   
   // A4 Sheets - Medium
-  novajet40: { label: "Novajet 40", description: "39×35mm, 5×8", group: "A4 - Medium Labels" },
+  novajet40: { label: "Novajet 40", description: "35×37mm, 5×8", group: "A4 - Medium Labels" },
   a4_12x4: { label: "A4 48-Sheet", description: "50×24mm, 4×12", group: "A4 - Medium Labels" },
   a4_36sheet: { label: "A4 36-Sheet", description: "48×30mm, 4×9", group: "A4 - Medium Labels" },
   a4_32sheet: { label: "A4 32-Sheet", description: "52×30mm, 4×8 (retail)", group: "A4 - Medium Labels" },
