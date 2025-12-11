@@ -34,10 +34,13 @@ export const encodePurchasePrice = (price: number, alphabet?: string): string =>
   const priceStr = intPrice.toString();
   
   // Map each digit to corresponding letter from alphabet
-  return priceStr.split('').map(digit => {
+  const encodedCode = priceStr.split('').map(digit => {
     const index = parseInt(digit);
     return codeAlphabet.toUpperCase()[index];
   }).join('');
+  
+  // Add "001" prefix to make the code harder to estimate
+  return `001${encodedCode}`;
 };
 
 /**
