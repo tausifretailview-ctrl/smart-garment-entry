@@ -28,6 +28,7 @@ interface StockItem {
   mrp: number | null;
   barcode: string;
   supplier_name: string;
+  supplier_invoice_no: string;
 }
 
 interface StockMovement {
@@ -52,6 +53,7 @@ interface BatchStock {
   size: string;
   barcode: string;
   supplier_name: string;
+  supplier_invoice_no: string;
 }
 
 interface SizeWiseRow {
@@ -76,6 +78,7 @@ export default function StockReport() {
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [colorFilter, setColorFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
+  const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
 
   useEffect(() => {
@@ -186,7 +189,8 @@ export default function StockReport() {
           .select(`
             variant_id,
             purchase_bills (
-              supplier_name
+              supplier_name,
+              supplier_invoice_no
             )
           `)
           .eq("organization_id", currentOrganization.id)
@@ -205,10 +209,13 @@ export default function StockReport() {
       
       const batchData = allBatchData;
 
-      // Map variant_id to supplier names (take the first/most recent supplier)
+      // Map variant_id to supplier names and invoice numbers (take the first/most recent supplier)
       const variantSuppliers = (batchData || []).reduce((acc: any, batch: any) => {
         if (!acc[batch.variant_id] && batch.purchase_bills?.supplier_name) {
-          acc[batch.variant_id] = batch.purchase_bills.supplier_name;
+          acc[batch.variant_id] = {
+            supplier_name: batch.purchase_bills.supplier_name,
+            supplier_invoice_no: batch.purchase_bills.supplier_invoice_no || ''
+          };
         }
         return acc;
       }, {});
@@ -231,6 +238,7 @@ export default function StockReport() {
 
       const formattedData = data?.map((item: any) => {
         const movements = variantMovements[item.id] || { purchase: 0, sales: 0 };
+        const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
         
         return {
           id: item.id,
@@ -245,7 +253,8 @@ export default function StockReport() {
           sale_price: item.sale_price,
           mrp: item.mrp || null,
           barcode: item.barcode || "",
-          supplier_name: variantSuppliers[item.id] || "",
+          supplier_name: supplierInfo.supplier_name || "",
+          supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
         };
       }) || [];
 
@@ -342,7 +351,8 @@ export default function StockReport() {
               )
             ),
             purchase_bills (
-              supplier_name
+              supplier_name,
+              supplier_invoice_no
             )
           `)
           .eq('organization_id', currentOrganization.id)
@@ -374,6 +384,7 @@ export default function StockReport() {
         size: item.product_variants?.size || '',
         barcode: item.product_variants?.barcode || '',
         supplier_name: item.purchase_bills?.supplier_name || '',
+        supplier_invoice_no: item.purchase_bills?.supplier_invoice_no || '',
       }));
 
       setBatchStock(formattedData);
@@ -386,6 +397,7 @@ export default function StockReport() {
   const uniqueBrands = useMemo(() => [...new Set(stockItems.map(i => i.brand).filter(Boolean))].sort(), [stockItems]);
   const uniqueColors = useMemo(() => [...new Set(stockItems.map(i => i.color).filter(Boolean))].sort(), [stockItems]);
   const uniqueSuppliers = useMemo(() => [...new Set(stockItems.map(i => i.supplier_name).filter(Boolean))].sort(), [stockItems]);
+  const uniqueSupplierInvoices = useMemo(() => [...new Set(stockItems.map(i => i.supplier_invoice_no).filter(Boolean))].sort(), [stockItems]);
 
   // Filter data based on search term and filters
   const filteredStockItems = useMemo(() => {
@@ -399,7 +411,8 @@ export default function StockReport() {
           item.color.toLowerCase().includes(search) ||
           item.size.toLowerCase().includes(search) ||
           item.barcode.toLowerCase().includes(search) ||
-          item.supplier_name.toLowerCase().includes(search)
+          item.supplier_name.toLowerCase().includes(search) ||
+          item.supplier_invoice_no.toLowerCase().includes(search)
         );
         if (!matchesSearch) return false;
       }
@@ -413,6 +426,9 @@ export default function StockReport() {
       // Supplier filter
       if (supplierFilter !== "all" && item.supplier_name !== supplierFilter) return false;
       
+      // Supplier Invoice filter
+      if (supplierInvoiceFilter !== "all" && item.supplier_invoice_no !== supplierInvoiceFilter) return false;
+      
       // Stock status filter
       if (stockStatusFilter === "out" && item.stock_qty !== 0) return false;
       if (stockStatusFilter === "low" && (item.stock_qty === 0 || item.stock_qty > lowStockThreshold)) return false;
@@ -420,22 +436,31 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, stockStatusFilter, lowStockThreshold]);
+  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold]);
 
   const filteredBatchStock = useMemo(() => {
     return batchStock.filter(item => {
-      if (!searchTerm) return true;
-      const search = searchTerm.toLowerCase();
-      return (
-        item.product_name.toLowerCase().includes(search) ||
-        item.brand.toLowerCase().includes(search) ||
-        item.size.toLowerCase().includes(search) ||
-        item.barcode.toLowerCase().includes(search) ||
-        item.bill_number.toLowerCase().includes(search) ||
-        item.supplier_name.toLowerCase().includes(search)
-      );
+      // Search filter
+      if (searchTerm) {
+        const search = searchTerm.toLowerCase();
+        const matchesSearch = (
+          item.product_name.toLowerCase().includes(search) ||
+          item.brand.toLowerCase().includes(search) ||
+          item.size.toLowerCase().includes(search) ||
+          item.barcode.toLowerCase().includes(search) ||
+          item.bill_number.toLowerCase().includes(search) ||
+          item.supplier_name.toLowerCase().includes(search) ||
+          item.supplier_invoice_no.toLowerCase().includes(search)
+        );
+        if (!matchesSearch) return false;
+      }
+      
+      // Supplier Invoice filter
+      if (supplierInvoiceFilter !== "all" && item.supplier_invoice_no !== supplierInvoiceFilter) return false;
+      
+      return true;
     });
-  }, [batchStock, searchTerm]);
+  }, [batchStock, searchTerm, supplierInvoiceFilter]);
 
   const filteredMovements = useMemo(() => {
     return movements.filter(item => {
@@ -506,10 +531,11 @@ export default function StockReport() {
     setBrandFilter("all");
     setColorFilter("all");
     setSupplierFilter("all");
+    setSupplierInvoiceFilter("all");
     setStockStatusFilter("all");
   };
 
-  const hasActiveFilters = brandFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters = brandFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
   if (loading) {
     return (
@@ -564,7 +590,7 @@ export default function StockReport() {
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
           <CollapsibleContent>
             <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Brand</label>
                   <Select value={brandFilter} onValueChange={setBrandFilter}>
@@ -603,6 +629,20 @@ export default function StockReport() {
                       <SelectItem value="all">All Suppliers</SelectItem>
                       {uniqueSuppliers.map(supplier => (
                         <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Supplier Invoice</label>
+                  <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Invoices" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Invoices</SelectItem>
+                      {uniqueSupplierInvoices.map(invoice => (
+                        <SelectItem key={invoice} value={invoice}>{invoice}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -721,6 +761,7 @@ export default function StockReport() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Supplier</TableHead>
+                      <TableHead>Supplier Invoice</TableHead>
                       <TableHead>Product</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead>Size</TableHead>
@@ -737,7 +778,7 @@ export default function StockReport() {
                   <TableBody>
                     {filteredStockItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                           No products found matching your search
                         </TableCell>
                       </TableRow>
@@ -745,6 +786,7 @@ export default function StockReport() {
                       filteredStockItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
+                          <TableCell className="font-mono text-sm">{item.supplier_invoice_no || '—'}</TableCell>
                           <TableCell className="font-medium">{item.product_name}</TableCell>
                           <TableCell>{item.brand}</TableCell>
                           <TableCell>{item.size}</TableCell>
@@ -894,6 +936,7 @@ export default function StockReport() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Supplier</TableHead>
+                        <TableHead>Supplier Invoice</TableHead>
                         <TableHead>Product</TableHead>
                         <TableHead>Brand</TableHead>
                         <TableHead>Size</TableHead>
@@ -907,7 +950,7 @@ export default function StockReport() {
                     <TableBody>
                       {lowStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                          <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                             {searchTerm ? "No low stock products found matching your search" : "No low stock items"}
                           </TableCell>
                         </TableRow>
@@ -915,6 +958,7 @@ export default function StockReport() {
                         lowStockItems.map((item) => (
                           <TableRow key={item.id}>
                             <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
+                            <TableCell className="font-mono text-sm">{item.supplier_invoice_no || '—'}</TableCell>
                             <TableCell className="font-medium">{item.product_name}</TableCell>
                             <TableCell>{item.brand}</TableCell>
                             <TableCell>{item.size}</TableCell>
@@ -963,6 +1007,7 @@ export default function StockReport() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Supplier</TableHead>
+                      <TableHead>Supplier Invoice</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead>Size</TableHead>
@@ -976,7 +1021,7 @@ export default function StockReport() {
                   <TableBody>
                     {filteredBatchStock.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                           No batch stock found matching your search
                         </TableCell>
                       </TableRow>
@@ -989,6 +1034,7 @@ export default function StockReport() {
                       return (
                         <TableRow key={batch.id}>
                           <TableCell className="text-muted-foreground">{batch.supplier_name || '—'}</TableCell>
+                          <TableCell className="font-mono text-sm">{batch.supplier_invoice_no || '—'}</TableCell>
                           <TableCell className="font-medium">
                             {batch.product_name}
                           </TableCell>
