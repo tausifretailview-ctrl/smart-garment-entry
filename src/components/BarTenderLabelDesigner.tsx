@@ -865,6 +865,20 @@ export function BarTenderLabelDesigner({
 
             {selectedField !== 'barcode' ? (
               <>
+                {/* Custom Text Value Input - only for customText field */}
+                {selectedField === 'customText' && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Custom Text Value</Label>
+                    <Input
+                      type="text"
+                      value={labelConfig.customTextValue || ''}
+                      onChange={(e) => setLabelConfig(prev => ({ ...prev, customTextValue: e.target.value }))}
+                      placeholder="Enter custom text..."
+                      className="h-8"
+                    />
+                  </div>
+                )}
+
                 {/* Font Size */}
                 <div className="space-y-2">
                   <Label className="text-xs font-medium">Font Size</Label>
