@@ -742,6 +742,14 @@ export default function POSSales() {
     setItems(updatedItems);
   };
 
+  const updateMrp = (index: number, newMrp: number) => {
+    if (newMrp < 0) return;
+    const updatedItems = [...items];
+    updatedItems[index].mrp = newMrp;
+    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+    setItems(updatedItems);
+  };
+
   // Calculate totals
   const totals = {
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -2214,7 +2222,16 @@ export default function POSSales() {
                           min="1"
                         />
                       </div>
-                      <div className="flex items-center">₹{item.mrp.toFixed(2)}</div>
+                      <div>
+                        <Input
+                          type="number"
+                          value={item.mrp}
+                          onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
+                          className="h-9 text-base w-full"
+                          min="0"
+                          step="0.01"
+                        />
+                      </div>
                       <div className="flex items-center">{item.gstPer}%</div>
                       <div>
                         <Input
