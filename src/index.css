@@ -194,3 +194,135 @@ All colors MUST be HSL.
     @apply relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-1 before:rounded-r-full before:bg-primary;
   }
 }
+
+/* ============================================
+   GLOBAL PRINT STYLES FOR BILLING SYSTEM
+   ============================================ */
+
+/* Utility class to hide elements during printing */
+.no-print {
+  @media print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* Print-only class - show only during print */
+.print-only {
+  display: none !important;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+
+  /* Hide all UI elements during printing */
+  [data-radix-dialog-overlay],
+  [role="dialog"]:not(.print-dialog),
+  header:not(.invoice-header),
+  nav,
+  aside,
+  footer:not(.invoice-footer),
+  .sidebar,
+  [data-sidebar],
+  [data-sonner-toaster],
+  .toaster,
+  .toast,
+  button:not(.print-include),
+  [role="menubar"],
+  [role="navigation"],
+  .breadcrumb,
+  .tabs-list,
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Reset body for clean printing */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Invoice container takes full paper width */
+  .invoice-print,
+  .print-invoice-container,
+  .professional-invoice-template {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+  }
+}
+
+/* Suppress browser headers/footers globally */
+@page {
+  margin: 0;
+}
+
+/* ============================================
+   THERMAL PRINTER MODE (72mm for 80mm rolls)
+   ============================================ */
+.print-thermal,
+.invoice-format-thermal-receipt {
+  width: 72mm !important;
+  max-width: 72mm !important;
+  font-size: 10px !important;
+  padding: 2mm !important;
+}
+
+@media print {
+  .print-thermal,
+  .invoice-format-thermal-receipt {
+    width: 72mm !important;
+    max-width: 72mm !important;
+    font-size: 10px !important;
+  }
+}
+
+@page thermal {
+  size: 80mm auto;
+  margin: 2mm 4mm;
+}
+
+/* ============================================
+   A4 STANDARD MODE
+   ============================================ */
+.print-a4 {
+  width: 100% !important;
+  max-width: 210mm !important;
+}
+
+@media print {
+  .print-a4,
+  .invoice-format-a4-full {
+    width: 210mm !important;
+    max-width: 210mm !important;
+  }
+}
+
+@page a4 {
+  size: A4 portrait;
+  margin: 10mm;
+}
+
+/* ============================================
+   A5 MODES
+   ============================================ */
+@page a5-portrait {
+  size: A5 portrait;
+  margin: 5mm;
+}
+
+@page a5-landscape {
+  size: A5 landscape;
+  margin: 5mm;
+}

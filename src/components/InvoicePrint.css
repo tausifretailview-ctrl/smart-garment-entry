@@ -73,10 +73,11 @@
 }
 
 .invoice-print.invoice-format-thermal-receipt {
-  width: 80mm;
+  width: 72mm;
+  max-width: 72mm;
   min-height: auto;
-  padding: 3mm;
-  font-size: 8pt;
+  padding: 2mm;
+  font-size: 10px;
 }
 
 .invoice-print.invoice-format-thermal-receipt .header {
