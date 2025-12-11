@@ -300,9 +300,9 @@ const PurchaseEntry = () => {
       });
     }
       
-    // Clear the state if any state was present
+    // Clear the state if any state was present - use window.history to avoid re-prefixing orgSlug
     if (state?.newProduct || state?.createdSupplier) {
-      navigate(location.pathname, { replace: true, state: {} });
+      window.history.replaceState({}, '', location.pathname);
     }
   }, [location.state]);
 
