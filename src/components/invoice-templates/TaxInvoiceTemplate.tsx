@@ -55,6 +55,7 @@ interface TaxInvoiceTemplateProps {
   grandTotal: number;
   totalSavings?: number;
   showMRP?: boolean;
+  minItemRows?: number;
   paymentMethod?: string;
   declarationText?: string;
   termsConditions?: string[];
@@ -105,6 +106,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   grandTotal,
   totalSavings = 0,
   showMRP = false,
+  minItemRows = 8,
   paymentMethod,
   declarationText,
   termsConditions,
@@ -323,6 +325,18 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
               </tr>
             );
           })}
+          {/* Empty rows to reach minimum */}
+          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+            <tr key={`empty-${index}`}>
+              <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, height: '18px' }}>&nbsp;</td>
+              <td style={{ padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              {showMRP && <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>}
+              <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
