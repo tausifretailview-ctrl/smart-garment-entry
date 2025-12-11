@@ -1391,11 +1391,17 @@ const PurchaseEntry = () => {
                               size: result.size
                             })}
                           </div>
-                          {result.barcode && (
-                            <div className="text-xs text-muted-foreground">
-                              Barcode: {result.barcode}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            {result.barcode && (
+                              <span>Barcode: {result.barcode}</span>
+                            )}
+                            <span className="text-primary font-medium">
+                              Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                            </span>
+                            <span className="text-green-600 dark:text-green-400 font-medium">
+                              Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                            </span>
+                          </div>
                         </button>
                       ))}
                     </div>
