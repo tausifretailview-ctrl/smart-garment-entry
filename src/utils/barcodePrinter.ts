@@ -70,7 +70,7 @@ interface LabelConfig {
 }
 
 interface PrintOptions {
-  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4' | 
+  sheetType?: 'novajet48' | 'novajet40' | 'novajet65' | 'a4_12x4' | 'a4_35x37' |
     'thermal_50x30_1up' | 'thermal_50x25_1up' | 'thermal_38x25_1up' |
     'thermal_50x30_2up' | 'thermal_50x25_2up' | 'thermal_38x25_2up' | 'custom';
   topOffset?: number;
@@ -88,6 +88,7 @@ const sheetPresets: Record<string, { cols: number; width: string; height: string
   // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
   novajet40: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm" },
+  a4_35x37: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   // Thermal Roll Presets (1UP)
@@ -543,6 +544,8 @@ export const printBarcodesDirectly = async (
     `;
   } else {
     // A4 Sheet: Grid layout
+    // Check if this is novajet40 which needs left alignment
+    const isNovajet40 = sheetType === 'novajet40' || sheetType === 'a4_35x37';
     const pageWidth = 210;
     const pageHeight = 297;
     style.textContent = `
@@ -576,11 +579,11 @@ export const printBarcodesDirectly = async (
         ${useAbsolutePositioning ? 'position: relative;' : `
           display: flex;
           flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
+          align-items: ${isNovajet40 ? 'flex-start' : 'center'};
+          justify-content: ${isNovajet40 ? 'flex-start' : 'center'};
+          text-align: ${isNovajet40 ? 'left' : 'center'};
         `}
-        padding: ${useAbsolutePositioning ? '0' : '0.5mm 1.5mm'};
+        padding: ${useAbsolutePositioning ? '0' : (isNovajet40 ? '1mm 1.5mm' : '0.5mm 1.5mm')};
         box-sizing: border-box;
         line-height: 1.4;
         overflow: hidden;
