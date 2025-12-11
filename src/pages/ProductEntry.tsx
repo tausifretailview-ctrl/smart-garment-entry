@@ -605,10 +605,6 @@ const ProductEntry = () => {
         }))
       );
       setVariants(updatedVariants);
-      toast({
-        title: "Success",
-        description: "Barcodes generated for all variants",
-      });
     } catch (error) {
       toast({
         title: "Error",
