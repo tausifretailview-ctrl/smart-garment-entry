@@ -87,8 +87,8 @@ interface PrintOptions {
 const sheetPresets: Record<string, { cols: number; rows?: number; width: string; height: string; gap: string; thermal?: boolean }> = {
   // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, rows: 8, width: "39mm", height: "34mm", gap: "0.5mm" },
-  a4_35x37: { cols: 5, rows: 8, width: "39mm", height: "34mm", gap: "0.5mm" },
+  novajet40: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "auto" },
+  a4_35x37: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "auto" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   // Thermal Roll Presets (1UP)
@@ -543,11 +543,23 @@ export const printBarcodesDirectly = async (
       }
     `;
   } else {
-    // A4 Sheet: Grid layout
-    // Check if this is novajet40 which needs left alignment
+    // A4 Sheet: Calculated exact positioning for perfect alignment
     const isNovajet40 = sheetType === 'novajet40' || sheetType === 'a4_35x37';
-    const pageWidth = 210;
-    const pageHeight = 297;
+    const pageWidth = 210; // A4 width in mm
+    const pageHeight = 297; // A4 height in mm
+    const cols = dimensions.cols;
+    const rows = preset?.rows || 8; // Default 8 rows for novajet40
+    
+    // Calculate exact margins and gaps for even distribution
+    const totalLabelWidth = cols * labelWidth;
+    const totalLabelHeight = rows * labelHeight;
+    const horizontalSpace = pageWidth - totalLabelWidth;
+    const verticalSpace = pageHeight - totalLabelHeight;
+    
+    // Distribute space evenly: margin on edges + gaps between labels
+    const hMargin = horizontalSpace / (cols + 1);
+    const vMargin = verticalSpace / (rows + 1);
+    
     style.textContent = `
       * {
         margin: 0;
@@ -562,21 +574,27 @@ export const printBarcodesDirectly = async (
         margin: 0;
         padding: 0;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        width: ${pageWidth}mm;
       }
-      .label-grid {
-        display: grid;
-        grid-template-columns: repeat(${dimensions.cols}, ${labelWidth}mm);
-        grid-auto-rows: ${labelHeight}mm;
-        gap: ${gapValue}mm;
-        padding-top: ${topOffset}mm;
-        padding-left: ${leftOffset}mm;
-        margin: 0;
+      .a4-page {
+        width: ${pageWidth}mm;
+        height: ${pageHeight}mm;
+        position: relative;
+        page-break-after: always;
+        break-after: page;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      .a4-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
       }
       .label-cell {
+        position: absolute;
         width: ${labelWidth}mm;
         height: ${labelHeight}mm;
         border: 1px solid #ddd;
-        ${useAbsolutePositioning ? 'position: relative;' : `
+        ${useAbsolutePositioning ? '' : `
           display: flex;
           flex-direction: column;
           align-items: ${isNovajet40 ? 'flex-start' : 'center'};
@@ -597,7 +615,21 @@ export const printBarcodesDirectly = async (
         }
         .label-cell {
           border: none !important;
-          page-break-inside: avoid !important;
+        }
+        .a4-page {
+          width: ${pageWidth}mm !important;
+          height: ${pageHeight}mm !important;
+        }
+      }
+      @media screen {
+        body {
+          background: #f0f0f0;
+          padding: 10px !important;
+        }
+        .a4-page {
+          background: white;
+          margin-bottom: 10px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
       }
     `;
@@ -652,10 +684,21 @@ export const printBarcodesDirectly = async (
         printContainer.appendChild(rowDiv);
       }
     } else {
-      // A4 Sheet: Grid layout with optional row limit per page
-      const preset = sheetPresets[sheetType];
-      const maxRowsPerPage = preset?.rows;
-      const labelsPerPage = maxRowsPerPage ? dimensions.cols * maxRowsPerPage : undefined;
+      // A4 Sheet: Calculated exact positioning for perfect alignment
+      const currentPreset = sheetPresets[sheetType];
+      const cols = dimensions.cols;
+      const rows = currentPreset?.rows || 8;
+      const labelsPerPage = cols * rows;
+      const pageWidth = 210;
+      const pageHeight = 297;
+      
+      // Calculate exact positioning
+      const totalLabelWidth = cols * labelWidth;
+      const totalLabelHeight = rows * labelHeight;
+      const horizontalSpace = pageWidth - totalLabelWidth;
+      const verticalSpace = pageHeight - totalLabelHeight;
+      const hMargin = horizontalSpace / (cols + 1);
+      const vMargin = verticalSpace / (rows + 1);
       
       // Collect all labels first
       const allLabels: string[] = [];
@@ -669,38 +712,32 @@ export const printBarcodesDirectly = async (
         }
       });
 
-      if (labelsPerPage) {
-        // Split into pages with fixed rows
-        for (let pageStart = 0; pageStart < allLabels.length; pageStart += labelsPerPage) {
-          const gridDiv = doc.createElement('div');
-          gridDiv.className = 'label-grid';
-          if (pageStart > 0) {
-            gridDiv.style.pageBreakBefore = 'always';
-          }
+      // Create pages with exact calculated positions
+      for (let pageStart = 0; pageStart < allLabels.length; pageStart += labelsPerPage) {
+        const pageDiv = doc.createElement('div');
+        pageDiv.className = 'a4-page';
+        
+        const pageLabels = allLabels.slice(pageStart, pageStart + labelsPerPage);
+        pageLabels.forEach((html, index) => {
+          const row = Math.floor(index / cols);
+          const col = index % cols;
           
-          const pageLabels = allLabels.slice(pageStart, pageStart + labelsPerPage);
-          pageLabels.forEach((html) => {
-            const cell = doc.createElement('div');
-            cell.className = 'label-cell';
-            cell.innerHTML = html;
-            gridDiv.appendChild(cell);
-          });
+          // Calculate exact position in mm
+          const x = hMargin + col * (labelWidth + hMargin) + (topOffset || 0);
+          const y = vMargin + row * (labelHeight + vMargin) + (leftOffset || 0);
           
-          printContainer.appendChild(gridDiv);
-        }
-      } else {
-        // No row limit - single grid
-        const gridDiv = doc.createElement('div');
-        gridDiv.className = 'label-grid';
-
-        allLabels.forEach((html) => {
           const cell = doc.createElement('div');
           cell.className = 'label-cell';
+          cell.style.left = `${x}mm`;
+          cell.style.top = `${y}mm`;
+          if (useAbsolutePositioning) {
+            cell.style.position = 'relative';
+          }
           cell.innerHTML = html;
-          gridDiv.appendChild(cell);
+          pageDiv.appendChild(cell);
         });
-
-        printContainer.appendChild(gridDiv);
+        
+        printContainer.appendChild(pageDiv);
       }
     }
 
