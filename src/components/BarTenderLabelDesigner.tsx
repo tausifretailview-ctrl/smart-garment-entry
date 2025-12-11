@@ -15,60 +15,7 @@ import {
 } from "lucide-react";
 import JsBarcode from "jsbarcode";
 import { toast } from "sonner";
-
-interface LabelFieldConfig {
-  show: boolean;
-  fontSize: number;
-  bold: boolean;
-  fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number; // Height in mm
-  lineHeight?: number;
-  row?: number;
-}
-
-interface LabelDesignConfig {
-  brand: LabelFieldConfig;
-  productName: LabelFieldConfig;
-  color: LabelFieldConfig;
-  style: LabelFieldConfig;
-  size: LabelFieldConfig;
-  price: LabelFieldConfig;
-  mrp: LabelFieldConfig;
-  customText: LabelFieldConfig;
-  barcode: LabelFieldConfig;
-  barcodeText: LabelFieldConfig;
-  billNumber: LabelFieldConfig;
-  supplierCode: LabelFieldConfig;
-  purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
-  barcodeHeight?: number;
-  barcodeWidth?: number;
-  customTextValue?: string;
-}
-
-interface LabelItem {
-  product_name: string;
-  brand: string;
-  category: string;
-  color: string;
-  style: string;
-  size: string;
-  sale_price: number;
-  mrp?: number;
-  barcode: string;
-  bill_number: string;
-  supplier_code?: string;
-  purchase_code?: string;
-}
-
-interface LabelTemplate {
-  name: string;
-  config: LabelDesignConfig;
-}
+import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 
 interface BarTenderLabelDesignerProps {
   labelConfig: LabelDesignConfig;
@@ -82,8 +29,6 @@ interface BarTenderLabelDesignerProps {
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
 }
-
-type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
 
 const fieldLabels: Record<FieldKey, string> = {
   brand: 'Brand Name',

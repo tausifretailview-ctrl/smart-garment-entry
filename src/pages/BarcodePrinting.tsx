@@ -39,7 +39,7 @@ import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
-
+import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 // Helper function to pre-render barcode as image data URL
 const renderBarcodeToDataURL = (code: string, height: number = 30, width: number = 1.5): string => {
   try {
@@ -59,24 +59,6 @@ const renderBarcodeToDataURL = (code: string, height: number = 30, width: number
     return '';
   }
 };
-
-interface LabelItem {
-  sku_id: string;
-  product_name: string;
-  brand: string;
-  category: string;
-  color: string;
-  style: string;
-  size: string;
-  sale_price: number;
-  mrp?: number;
-  pur_price?: number;
-  purchase_code?: string;
-  barcode: string;
-  bill_number: string;
-  qty: number;
-  supplier_code?: string;
-}
 
 interface SearchResult {
   id: string;
@@ -109,44 +91,6 @@ interface CustomPreset {
   scale?: number;
 }
 
-interface LabelFieldConfig {
-  show: boolean;
-  fontSize: number;
-  bold: boolean;
-  fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
-  paddingTop?: number;
-  paddingBottom?: number;
-  paddingLeft?: number;
-  paddingRight?: number;
-  x?: number; // X position in mm (optional for backward compatibility)
-  y?: number; // Y position in mm (optional for backward compatibility)
-  width?: number; // Width as percentage (optional for backward compatibility)
-  height?: number; // Height in mm (optional)
-  lineHeight?: number;
-  row?: number;
-}
-
-interface LabelDesignConfig {
-  brand: LabelFieldConfig;
-  productName: LabelFieldConfig;
-  color: LabelFieldConfig;
-  style: LabelFieldConfig;
-  size: LabelFieldConfig;
-  price: LabelFieldConfig;
-  mrp: LabelFieldConfig;
-  customText: LabelFieldConfig;
-  barcode: LabelFieldConfig;
-  barcodeText: LabelFieldConfig;
-  billNumber: LabelFieldConfig;
-  supplierCode: LabelFieldConfig;
-  purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
-  barcodeHeight?: number;
-  barcodeWidth?: number;
-  customTextValue?: string;
-}
-
 interface DesignFormatPreset {
   name: string;
   format: DesignFormat;
@@ -166,10 +110,6 @@ interface MarginPreset {
   description?: string;
 }
 
-interface LabelTemplate {
-  name: string;
-  config: LabelDesignConfig;
-}
 
 type SheetType = 
   // A4 Sheet Types
@@ -673,7 +613,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
 }
 
 interface SortableFieldItemProps {
-  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>;
+  fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
   labelConfig: LabelDesignConfig;
   setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
 }
