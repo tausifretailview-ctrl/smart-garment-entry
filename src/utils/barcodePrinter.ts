@@ -87,8 +87,8 @@ interface PrintOptions {
 const sheetPresets: Record<string, { cols: number; rows?: number; width: string; height: string; gap: string; thermal?: boolean }> = {
   // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" },
-  a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm" },
+  novajet40: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "1mm" },
+  a4_35x37: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "1mm" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   // Thermal Roll Presets (1UP)
