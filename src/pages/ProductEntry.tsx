@@ -1182,7 +1182,7 @@ const ProductEntry = () => {
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
-        <BackToDashboard />
+        <BackToDashboard label="Back to Products" to="/products" />
         <div className="mb-6 flex items-center gap-3">
           <Package className="h-8 w-8 text-primary" />
           <h1 className="text-3xl font-bold text-foreground">Smart Inventory</h1>
