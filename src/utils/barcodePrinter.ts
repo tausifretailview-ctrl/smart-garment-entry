@@ -409,6 +409,7 @@ export const printBarcodesDirectly = async (
         break-after: page !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        ${useAbsolutePositioning ? 'position: relative !important;' : ''}
       }
       .thermal-page:last-child {
         page-break-after: auto !important;
@@ -508,6 +509,7 @@ export const printBarcodesDirectly = async (
         overflow: hidden !important;
         margin: 0 !important;
         padding: 0 !important;
+        ${useAbsolutePositioning ? 'position: relative !important;' : ''}
       }
       @media print {
         @page {
