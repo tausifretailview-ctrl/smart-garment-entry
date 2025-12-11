@@ -56,6 +56,19 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     }
   };
 
+  const getContainerWidth = () => {
+    switch (selectedFormat) {
+      case 'thermal':
+        return '72mm';
+      case 'a5':
+        return '148mm';
+      case 'a5-horizontal':
+        return '210mm';
+      default:
+        return '210mm';
+    }
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: 'Invoice',
@@ -65,23 +78,43 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         margin: 0;
       }
       @media print {
+        /* Hide all non-print elements */
+        .no-print,
+        header:not(.invoice-header),
+        nav,
+        aside,
+        footer:not(.invoice-footer),
+        .sidebar,
+        [data-sidebar],
+        [data-sonner-toaster],
+        button:not(.print-include) {
+          display: none !important;
+          visibility: hidden !important;
+        }
+
         html, body {
           margin: 0 !important;
           padding: 0 !important;
           width: 100% !important;
-          height: 100% !important;
+          height: auto !important;
+          background: white !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
+
         .print-invoice-container {
-          width: ${selectedFormat === 'a4' ? '210mm' : selectedFormat === 'a5' ? '148mm' : selectedFormat === 'a5-horizontal' ? '210mm' : '80mm'} !important;
+          width: ${getContainerWidth()} !important;
+          max-width: ${getContainerWidth()} !important;
           min-height: ${selectedFormat === 'a4' ? '297mm' : selectedFormat === 'a5' ? '210mm' : selectedFormat === 'a5-horizontal' ? '148mm' : 'auto'} !important;
           margin: 0 !important;
           padding: 0 !important;
           transform: none !important;
           page-break-inside: avoid !important;
           overflow: visible !important;
+          box-shadow: none !important;
+          border: none !important;
         }
+
         .print-invoice-container > * {
           transform: none !important;
         }
@@ -111,7 +144,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         };
       case 'thermal':
         return {
-          width: '80mm',
+          width: '72mm',
           minHeight: 'auto',
           maxHeight: 'none',
         };
@@ -198,12 +231,12 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="gap-2 no-print">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print">
             <X className="mr-2 h-4 w-4" />
             Cancel
           </Button>
-          <Button onClick={handlePrint} disabled={isLoading}>
+          <Button onClick={handlePrint} disabled={isLoading} className="no-print">
             <Printer className="mr-2 h-4 w-4" />
             {isLoading ? 'Loading...' : 'Print'}
           </Button>
