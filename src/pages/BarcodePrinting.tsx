@@ -2640,59 +2640,78 @@ export default function BarcodePrinting() {
         printArea.appendChild(gridDiv);
       }
     } else {
-      // Print mode: Simple grid without page separators
-      const gridDiv = document.createElement("div");
-      gridDiv.className = "label-grid";
-      gridDiv.style.cssText = `
-        display: grid;
-        grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
-        grid-auto-rows: ${dimensions.height}mm;
-        gap: ${dimensions.gap}mm;
-        padding-top: ${topOffset}mm;
-        padding-left: ${leftOffset}mm;
-        padding-bottom: ${bottomOffset}mm;
-        padding-right: ${rightOffset}mm;
-      `;
-
+      // Print mode: Create separate grids per page for proper page breaks
+      const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
+      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+      const numPrintPages = allLabels.length > 0 ? Math.ceil(allLabels.length / labelsPerPage) : 0;
+      
       // Check if using absolute positioning for cell styling
       const useAbsoluteLayout = hasAbsolutePositioning(labelConfig);
 
-      allLabels.forEach((label) => {
-        const cell = document.createElement("div");
-        cell.className = "label-cell";
+      for (let page = 0; page < numPrintPages; page++) {
+        const gridDiv = document.createElement("div");
+        gridDiv.className = "label-grid";
+        gridDiv.style.cssText = `
+          display: grid;
+          grid-template-columns: repeat(${dimensions.cols}, ${dimensions.width}mm);
+          grid-auto-rows: ${dimensions.height}mm;
+          gap: ${dimensions.gap}mm;
+          padding-top: ${topOffset}mm;
+          padding-left: ${leftOffset}mm;
+          padding-bottom: ${bottomOffset}mm;
+          padding-right: ${rightOffset}mm;
+          page-break-after: always;
+          break-after: page;
+        `;
         
-        if (useAbsoluteLayout) {
-          // Absolute positioning layout - matches BarTenderLabelDesigner
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            position: relative;
-            overflow: hidden;
-            box-sizing: border-box;
-          `;
-        } else {
-          // Legacy flow-based layout
-          cell.style.cssText = `
-            width: ${dimensions.width}mm;
-            height: ${dimensions.height}mm;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 2px;
-            box-sizing: border-box;
-            line-height: 1.1;
-          `;
+        // Don't add page break after last page
+        if (page === numPrintPages - 1) {
+          gridDiv.style.pageBreakAfter = 'auto';
+          gridDiv.style.breakAfter = 'auto';
         }
-        cell.innerHTML = label.html;
-        gridDiv.appendChild(cell);
-      });
+        
+        // Add labels for this page
+        const startIdx = page * labelsPerPage;
+        const endIdx = Math.min(startIdx + labelsPerPage, allLabels.length);
+        
+        for (let i = startIdx; i < endIdx; i++) {
+          const cell = document.createElement("div");
+          cell.className = "label-cell";
+          
+          if (useAbsoluteLayout) {
+            // Absolute positioning layout - matches BarTenderLabelDesigner
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              position: relative;
+              overflow: hidden;
+              box-sizing: border-box;
+            `;
+          } else {
+            // Legacy flow-based layout
+            cell.style.cssText = `
+              width: ${dimensions.width}mm;
+              height: ${dimensions.height}mm;
+              font-family: Arial, sans-serif;
+              text-align: center;
+              display: flex;
+              flex-direction: column;
+              align-items: center;
+              justify-content: center;
+              overflow: hidden;
+              padding: 2px;
+              box-sizing: border-box;
+              line-height: 1.1;
+            `;
+          }
+          cell.innerHTML = allLabels[i].html;
+          gridDiv.appendChild(cell);
+        }
 
-      printArea.appendChild(gridDiv);
+        printArea.appendChild(gridDiv);
+      }
     }
     // Barcodes are now pre-rendered as images in getLabelHTML, no setTimeout needed
   };
