@@ -61,11 +61,11 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'thermal':
         return '72mm';
       case 'a5':
-        return '148mm';
+        return '138mm';
       case 'a5-horizontal':
-        return '210mm';
+        return '200mm';
       default:
-        return '210mm';
+        return '190mm';
     }
   };
 
@@ -75,7 +75,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     pageStyle: `
       @page {
         size: ${getPageSize()};
-        margin: 0;
+        margin: ${selectedFormat === 'thermal' ? '2mm 4mm' : '5mm'};
       }
       @media print {
         /* Hide all non-print elements */
@@ -105,18 +105,25 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         .print-invoice-container {
           width: ${getContainerWidth()} !important;
           max-width: ${getContainerWidth()} !important;
-          min-height: ${selectedFormat === 'a4' ? '297mm' : selectedFormat === 'a5' ? '210mm' : selectedFormat === 'a5-horizontal' ? '148mm' : 'auto'} !important;
+          height: ${selectedFormat === 'a4' ? '277mm' : selectedFormat === 'a5' ? '200mm' : selectedFormat === 'a5-horizontal' ? '138mm' : 'auto'} !important;
+          max-height: ${selectedFormat === 'a4' ? '277mm' : selectedFormat === 'a5' ? '200mm' : selectedFormat === 'a5-horizontal' ? '138mm' : 'none'} !important;
           margin: 0 !important;
           padding: 0 !important;
           transform: none !important;
-          page-break-inside: avoid !important;
-          overflow: visible !important;
+          overflow: hidden !important;
           box-shadow: none !important;
           border: none !important;
         }
 
         .print-invoice-container > * {
           transform: none !important;
+          max-height: 100% !important;
+          overflow: hidden !important;
+        }
+
+        .professional-invoice-template {
+          max-height: ${selectedFormat === 'a4' ? '277mm' : selectedFormat === 'a5' ? '200mm' : selectedFormat === 'a5-horizontal' ? '138mm' : 'auto'} !important;
+          overflow: hidden !important;
         }
       }
     `,
@@ -130,16 +137,16 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     switch (selectedFormat) {
       case 'a5':
         return {
-          width: '148mm',
-          minHeight: '210mm',
-          maxHeight: '210mm',
+          width: '138mm',
+          height: '200mm',
+          maxHeight: '200mm',
           overflow: 'hidden',
         };
       case 'a5-horizontal':
         return {
-          width: '210mm',
-          minHeight: '148mm',
-          maxHeight: '148mm',
+          width: '200mm',
+          height: '138mm',
+          maxHeight: '138mm',
           overflow: 'hidden',
         };
       case 'thermal':
@@ -150,9 +157,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         };
       default: // a4
         return {
-          width: '210mm',
-          minHeight: '297mm',
-          maxHeight: '297mm',
+          width: '190mm',
+          height: '277mm',
+          maxHeight: '277mm',
           overflow: 'hidden',
         };
     }

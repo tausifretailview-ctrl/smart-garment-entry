@@ -60,21 +60,34 @@
     box-shadow: none !important;
     margin: 0 !important;
     page-break-inside: avoid;
+    overflow: hidden !important;
   }
 
   .professional-invoice-template.format-a5-vertical {
-    width: 148mm;
-    min-height: 210mm;
+    width: 138mm !important;
+    max-width: 138mm !important;
+    height: 200mm !important;
+    max-height: 200mm !important;
+    overflow: hidden !important;
+    padding: 3mm !important;
   }
 
   .professional-invoice-template.format-a5-horizontal {
-    width: 210mm;
-    min-height: 148mm;
+    width: 200mm !important;
+    max-width: 200mm !important;
+    height: 138mm !important;
+    max-height: 138mm !important;
+    overflow: hidden !important;
+    padding: 3mm !important;
   }
 
   .professional-invoice-template.format-a4 {
-    width: 210mm;
-    min-height: 297mm;
+    width: 190mm !important;
+    max-width: 190mm !important;
+    height: 277mm !important;
+    max-height: 277mm !important;
+    overflow: hidden !important;
+    padding: 5mm !important;
   }
 
   /* Ensure elements don't break across pages */
@@ -93,33 +106,7 @@
 
 /* Default page setup */
 @page {
-  margin: 10mm;
-}
-
-/* A5 Vertical - Portrait (default fallback) */
-@media print {
-  @page {
-    size: A5 portrait;
-  }
-}
-
-/* A5 Horizontal - Landscape */
-@media print and (max-width: 210mm) {
-  body:has(.format-a5-horizontal) {
-    @page {
-      size: A5 landscape;
-    }
-  }
-}
-
-/* Force A5 Horizontal using page name */
-.professional-invoice-template.format-a5-horizontal {
-  page: a5horizontal;
-}
-
-@page a5horizontal {
-  size: A5 landscape;
-  margin: 10mm;
+  margin: 5mm;
 }
 
 /* Force A5 Vertical using page name */
@@ -129,7 +116,17 @@
 
 @page a5vertical {
   size: A5 portrait;
-  margin: 10mm;
+  margin: 5mm;
+}
+
+/* Force A5 Horizontal using page name */
+.professional-invoice-template.format-a5-horizontal {
+  page: a5horizontal;
+}
+
+@page a5horizontal {
+  size: A5 landscape;
+  margin: 5mm;
 }
 
 /* Force A4 using page name */
@@ -139,5 +136,5 @@
 
 @page a4page {
   size: A4 portrait;
-  margin: 15mm;
+  margin: 10mm;
 }
