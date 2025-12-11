@@ -2,39 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
-
-interface LabelFieldConfig {
-  show: boolean;
-  fontSize: number;
-  bold: boolean;
-  fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
-}
-
-interface LabelDesignConfig {
-  brand: LabelFieldConfig;
-  productName: LabelFieldConfig;
-  color: LabelFieldConfig;
-  style: LabelFieldConfig;
-  size: LabelFieldConfig;
-  price: LabelFieldConfig;
-  mrp: LabelFieldConfig;
-  customText: LabelFieldConfig;
-  barcode: LabelFieldConfig;
-  barcodeText: LabelFieldConfig;
-  billNumber: LabelFieldConfig;
-  supplierCode: LabelFieldConfig;
-  purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>>;
-  barcodeHeight?: number;
-  barcodeWidth?: number;
-  customTextValue?: string;
-}
-
-interface LabelTemplate {
-  name: string;
-  config: LabelDesignConfig;
-}
+import { LabelFieldConfig, LabelDesignConfig, LabelTemplate } from "@/types/labelTypes";
 
 interface MarginPreset {
   name: string;

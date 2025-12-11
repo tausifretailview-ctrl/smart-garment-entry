@@ -27,41 +27,7 @@ import {
   LabelDataForPRN,
 } from '@/utils/prnTemplateParser';
 import { toast } from 'sonner';
-
-interface LabelFieldConfig {
-  show: boolean;
-  fontSize: number;
-  bold: boolean;
-  fontFamily?: string;
-  textAlign?: 'left' | 'center' | 'right';
-  paddingTop?: number;
-  paddingBottom?: number;
-  paddingLeft?: number;
-  paddingRight?: number;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  lineHeight?: number;
-  row?: number;
-}
-
-interface LabelDesignConfig {
-  brand: LabelFieldConfig;
-  productName: LabelFieldConfig;
-  color: LabelFieldConfig;
-  style: LabelFieldConfig;
-  size: LabelFieldConfig;
-  price: LabelFieldConfig;
-  barcode: LabelFieldConfig;
-  barcodeText: LabelFieldConfig;
-  billNumber: LabelFieldConfig;
-  supplierCode: LabelFieldConfig;
-  purchaseCode: LabelFieldConfig;
-  fieldOrder: Array<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>>;
-  barcodeHeight?: number;
-  barcodeWidth?: number;
-}
+import { LabelFieldConfig, LabelDesignConfig } from '@/types/labelTypes';
 
 interface DirectPrintDialogProps {
   open: boolean;
