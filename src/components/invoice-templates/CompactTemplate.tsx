@@ -65,6 +65,7 @@ interface CompactTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+  minItemRows?: number;
 }
 
 export const CompactTemplate: React.FC<CompactTemplateProps> = ({
@@ -101,6 +102,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   showProductColor = true,
   showProductBrand = false,
   showProductStyle = false,
+  minItemRows = 8,
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -284,6 +286,17 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
               </tr>
             );
           })}
+          {/* Empty rows to reach minimum */}
+          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+            <tr key={`empty-${index}`} style={{ borderBottom: '1px dotted #ccc' }}>
+              <td style={{ padding: '3px 2px', height: '16px' }}>&nbsp;</td>
+              <td style={{ padding: '3px 2px' }}>&nbsp;</td>
+              <td style={{ padding: '3px 2px' }}>&nbsp;</td>
+              {showMRP && <td style={{ padding: '3px 2px' }}>&nbsp;</td>}
+              <td style={{ padding: '3px 2px' }}>&nbsp;</td>
+              <td style={{ padding: '3px 2px' }}>&nbsp;</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 

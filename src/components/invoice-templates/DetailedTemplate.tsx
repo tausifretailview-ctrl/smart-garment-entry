@@ -69,6 +69,7 @@ interface DetailedTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+  minItemRows?: number;
 }
 
 export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
@@ -111,6 +112,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   showProductColor = true,
   showProductBrand = false,
   showProductStyle = false,
+  minItemRows = 8,
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -320,6 +322,18 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
               </tr>
             );
           })}
+          {/* Empty rows to reach minimum */}
+          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+            <tr key={`empty-${index}`} style={{ backgroundColor: (groupedItems.length + index) % 2 === 0 ? '#fff' : colors.accent }}>
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd', height: '18px' }}>&nbsp;</td>
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>
+              {showMRP && <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>}
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>
+              <td style={{ padding: '5px 4px', border: '1px solid #ddd' }}>&nbsp;</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 

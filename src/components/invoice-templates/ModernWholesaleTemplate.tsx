@@ -520,7 +520,25 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               );
             })}
             
-            {/* Empty rows removed to save space - only show actual items */}
+            {/* Empty rows to reach minimum */}
+            {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+              <tr key={`empty-${index}`}>
+                <td style={{ ...cellStyle, height: '18px' }}>&nbsp;</td>
+                <td style={cellStyle}>&nbsp;</td>
+                {showHSN && <td style={cellStyle}>&nbsp;</td>}
+                <td style={cellStyle}>&nbsp;</td>
+                <td style={cellStyle}>&nbsp;</td>
+                {showMRP && <td style={cellStyle}>&nbsp;</td>}
+                <td style={cellStyle}>&nbsp;</td>
+                {showGSTBreakdown && (
+                  <>
+                    <td style={cellStyle}>&nbsp;</td>
+                    <td style={cellStyle}>&nbsp;</td>
+                  </>
+                )}
+                <td style={cellStyle}>&nbsp;</td>
+              </tr>
+            ))}
             
             {/* Total Row */}
             <tr style={{ background: colors.light }}>

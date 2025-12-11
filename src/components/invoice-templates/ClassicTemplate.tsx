@@ -54,6 +54,7 @@ interface ClassicTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+  minItemRows?: number;
 }
 
 interface GroupedItem {
@@ -99,6 +100,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   showProductColor = true,
   showProductBrand = false,
   showProductStyle = false,
+  minItemRows = 8,
 }) => {
   const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
     blue: { primary: '#2c3e50', secondary: '#3498db', accent: '#ecf0f1' },
@@ -330,6 +332,18 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                 </tr>
               );
             })}
+            {/* Empty rows to reach minimum */}
+            {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+              <tr key={`empty-${index}`} style={{ borderBottom: '1px solid #dee2e6' }}>
+                <td style={{ padding: '10px', height: '20px' }}>&nbsp;</td>
+                <td style={{ padding: '10px' }}>&nbsp;</td>
+                <td style={{ padding: '10px' }}>&nbsp;</td>
+                <td style={{ padding: '10px' }}>&nbsp;</td>
+                {showMRP && <td style={{ padding: '10px' }}>&nbsp;</td>}
+                <td style={{ padding: '10px' }}>&nbsp;</td>
+                <td style={{ padding: '10px' }}>&nbsp;</td>
+              </tr>
+            ))}
           </tbody>
         </table>
 

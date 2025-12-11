@@ -54,6 +54,7 @@ interface MinimalTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+  minItemRows?: number;
 }
 
 interface GroupedItem {
@@ -99,6 +100,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   showProductColor = true,
   showProductBrand = false,
   showProductStyle = false,
+  minItemRows = 8,
 }) => {
   const colorSchemes: Record<string, { primary: string; secondary: string; accent: string }> = {
     blue: { primary: '#1a365d', secondary: '#3182ce', accent: '#ebf8ff' },
@@ -260,7 +262,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
           </tr>
         </thead>
         <tbody>
-          {groupedItems.map((item, index) => {
+            {groupedItems.map((item, index) => {
             const productDetails = !enableWholesaleGrouping ? formatProductDetails(items[index]) : '';
             const wholesaleDetails: string[] = [];
             if (enableWholesaleGrouping) {
@@ -297,6 +299,17 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
               </tr>
             );
           })}
+          {/* Empty rows to reach minimum */}
+          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+            <tr key={`empty-${index}`} style={{ borderBottom: '1px solid #ddd' }}>
+              <td style={{ padding: '10px 0', height: '20px' }}>&nbsp;</td>
+              <td style={{ padding: '10px 0' }}>&nbsp;</td>
+              <td style={{ padding: '10px 0' }}>&nbsp;</td>
+              {showMRP && <td style={{ padding: '10px 0' }}>&nbsp;</td>}
+              <td style={{ padding: '10px 0' }}>&nbsp;</td>
+              <td style={{ padding: '10px 0' }}>&nbsp;</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
