@@ -181,13 +181,16 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       className={`professional-invoice-template format-${format}`}
       style={{
         width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
-        minHeight: isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm',
-        padding: isA4 ? '15mm' : isHorizontal ? '8mm' : '5mm',
+        maxHeight: isA4 ? '277mm' : isHorizontal ? '138mm' : '200mm',
+        height: 'auto',
+        padding: isA4 ? '10mm' : isHorizontal ? '6mm' : '4mm',
         fontFamily: 'Arial, sans-serif',
-        fontSize: isA4 ? '11pt' : isHorizontal ? '9pt' : '8pt',
+        fontSize: isA4 ? '10pt' : isHorizontal ? '8pt' : '7pt',
         backgroundColor: 'white',
         color: 'black',
-        boxSizing: 'border-box'
+        boxSizing: 'border-box',
+        overflow: 'hidden',
+        pageBreakInside: 'avoid'
       }}
     >
       {/* Header Section */}
@@ -351,17 +354,17 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
             </tr>
           ))}
-          {/* Add empty rows to reach minimum */}
-          {Array.from({ length: Math.max(0, minItemRows - items.length) }).map((_, index) => (
+          {/* Add empty rows only if items count is less than minimum - limit to avoid overflow */}
+          {Array.from({ length: Math.max(0, Math.min(minItemRows - items.length, 8 - items.length)) }).map((_, index) => (
             <tr key={`empty-${index}`}>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center', height: isA4 ? '20px' : '16px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
-              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
-              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px', textAlign: 'center', height: '14px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
+              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
+              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
             </tr>
           ))}
           {/* Total quantity row */}
@@ -518,8 +521,9 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       <div style={{
         display: 'flex',
         border: `1px solid ${colors.primary}`,
-        minHeight: isA4 ? '80px' : isHorizontal ? '70px' : '60px',
-        fontSize: isA4 ? '8pt' : '7pt'
+        maxHeight: isA4 ? '60px' : isHorizontal ? '50px' : '45px',
+        fontSize: isA4 ? '7pt' : '6pt',
+        overflow: 'hidden'
       }}>
         {/* Left side - Declaration & Terms */}
         <div style={{
@@ -581,11 +585,11 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       {/* Thank You Message */}
       <div style={{
         textAlign: 'center',
-        marginTop: isA4 ? '12px' : '8px',
-        padding: isA4 ? '8px' : '6px',
+        marginTop: isA4 ? '6px' : '4px',
+        padding: isA4 ? '4px' : '3px',
         backgroundColor: colors.accent,
         border: `1px solid ${colors.primary}`,
-        fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt',
+        fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '7pt',
         fontWeight: 'bold',
         color: colors.primary
       }}>
