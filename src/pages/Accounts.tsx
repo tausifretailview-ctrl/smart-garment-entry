@@ -1066,9 +1066,11 @@ export default function Accounts() {
                                   );
                                 }}
                               >
-                                <Checkbox 
+                                <input 
+                                  type="checkbox"
                                   checked={isSelected}
-                                  className="pointer-events-none"
+                                  readOnly
+                                  className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none"
                                 />
                                 <div className="flex-1 flex justify-between items-center">
                                   <span className="font-medium">{invoice.sale_number}</span>
