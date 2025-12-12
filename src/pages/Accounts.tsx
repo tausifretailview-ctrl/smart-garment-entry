@@ -1065,14 +1065,7 @@ export default function Accounts() {
                               >
                                 <Checkbox 
                                   checked={isSelected}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onCheckedChange={(checked) => {
-                                    setSelectedInvoiceIds(prev => 
-                                      checked 
-                                        ? [...prev, invoice.id]
-                                        : prev.filter(id => id !== invoice.id)
-                                    );
-                                  }}
+                                  className="pointer-events-none"
                                 />
                                 <div className="flex-1 flex justify-between items-center">
                                   <span className="font-medium">{invoice.sale_number}</span>
