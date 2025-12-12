@@ -771,6 +771,7 @@ export default function StockReport() {
                       <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
                       <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
                       <TableHead className="text-right">Pur Price</TableHead>
+                      <TableHead className="text-right">Stock Value</TableHead>
                       <TableHead className="text-right">Sale Price</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -806,6 +807,13 @@ export default function StockReport() {
                           <TableCell className="text-right">
                             {item.pur_price ? (
                               <span>₹{item.pur_price}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-primary">
+                            {item.pur_price ? (
+                              <span>₹{(item.pur_price * item.stock_qty).toLocaleString('en-IN')}</span>
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
