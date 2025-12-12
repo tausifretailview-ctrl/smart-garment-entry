@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +23,13 @@ import { CustomerLedger } from "@/components/CustomerLedger";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const { isAdmin, isManager } = useUserRoles();
   const [selectedTab, setSelectedTab] = useState("customer-ledger");
   
   // Card filter state
@@ -545,6 +548,78 @@ export default function Accounts() {
     },
     onError: (error: any) => {
       toast.error(`Failed to record payment: ${error.message}`);
+    },
+  });
+
+  // Delete receipt mutation - reverses payment on customer account
+  const deleteReceipt = useMutation({
+    mutationFn: async (payment: any) => {
+      const voucherId = payment.id;
+      const invoiceId = payment.reference_id;
+      const paymentAmount = Number(payment.total_amount);
+
+      // First, get the current invoice to update paid_amount
+      if (invoiceId) {
+        const { data: invoice, error: fetchError } = await supabase
+          .from("sales")
+          .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount")
+          .eq("id", invoiceId)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        // Calculate new paid amount (reverse the payment)
+        const currentPaid = Number(invoice.paid_amount || 0);
+        const newPaidAmount = Math.max(0, currentPaid - paymentAmount);
+        const netAmount = Number(invoice.net_amount || 0);
+
+        // Determine new payment status
+        let newPaymentStatus = 'pending';
+        if (newPaidAmount >= netAmount) {
+          newPaymentStatus = 'completed';
+        } else if (newPaidAmount > 0) {
+          newPaymentStatus = 'partial';
+        }
+
+        // Update the sales record with reversed payment
+        const { error: updateError } = await supabase
+          .from("sales")
+          .update({
+            paid_amount: newPaidAmount,
+            payment_status: newPaymentStatus,
+          })
+          .eq("id", invoiceId);
+
+        if (updateError) throw updateError;
+      }
+
+      // Delete the voucher items first (if any)
+      const { error: itemsError } = await supabase
+        .from("voucher_items")
+        .delete()
+        .eq("voucher_id", voucherId);
+
+      if (itemsError) throw itemsError;
+
+      // Delete the voucher entry
+      const { error: voucherError } = await supabase
+        .from("voucher_entries")
+        .delete()
+        .eq("id", voucherId);
+
+      if (voucherError) throw voucherError;
+
+      return { voucherId, paymentAmount };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      toast.success(`Receipt deleted. ₹${data.paymentAmount.toFixed(2)} reversed to customer account.`);
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to delete receipt: ${error.message}`);
     },
   });
 
@@ -1708,6 +1783,7 @@ export default function Accounts() {
                         <TableHead>Method</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Balance</TableHead>
+                        {isAdmin && <TableHead className="text-center">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1785,12 +1861,47 @@ export default function Accounts() {
                               )}>
                                 ₹{balance.toFixed(2)}
                               </TableCell>
+                              {isAdmin && (
+                                <TableCell className="text-center">
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                        disabled={deleteReceipt.isPending}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Payment Receipt?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will delete receipt <span className="font-medium">{payment.voucher_number}</span> and reverse ₹{Number(payment.total_amount).toFixed(2)} back to the customer's account.
+                                          <br /><br />
+                                          This action cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => deleteReceipt.mutate(payment)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Delete & Reverse
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </TableCell>
+                              )}
                             </TableRow>
                           );
                         })}
                       {(!reconciliationData || reconciliationData.length === 0) && (
                         <TableRow>
-                          <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                          <TableCell colSpan={isAdmin ? 12 : 11} className="text-center py-8 text-muted-foreground">
                             No payment records found for the selected period and filters
                           </TableCell>
                         </TableRow>
