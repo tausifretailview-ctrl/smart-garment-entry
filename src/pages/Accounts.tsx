@@ -1005,29 +1005,32 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Customer</Label>
-                      <Select value={referenceId || undefined} onValueChange={(val) => {
-                        setReferenceId(val);
-                        setReferenceType("customer");
-                        setVoucherType("receipt");
-                        setSelectedInvoiceIds([]);
-                        setSelectedInvoiceId("");
-                      }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select customer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {customersWithBalance?.length === 0 && (
-                            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                              No customers with outstanding balance
-                            </div>
-                          )}
-                          {customersWithBalance?.map((customer) => (
-                            <SelectItem key={customer.id} value={customer.id}>
-                              {customer.customer_name} - ₹{customer.outstandingBalance.toFixed(2)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <select
+                        value={referenceId || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setReferenceId(val);
+                          setReferenceType("customer");
+                          setVoucherType("receipt");
+                          setSelectedInvoiceIds([]);
+                          setSelectedInvoiceId("");
+                        }}
+                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          Select customer
+                        </option>
+                        {customersWithBalance?.length === 0 && (
+                          <option value="" disabled>
+                            No customers with outstanding balance
+                          </option>
+                        )}
+                        {customersWithBalance?.map((customer) => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.customer_name} - ₹{customer.outstandingBalance.toFixed(2)}
+                          </option>
+                        ))}
+                      </select>
                       {referenceId && referenceType === "customer" && customerBalance !== undefined && (
                         <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800 rounded-md">
                           <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
