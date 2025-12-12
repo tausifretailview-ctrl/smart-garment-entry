@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -900,7 +900,7 @@ export default function POSSales() {
     });
   };
 
-  const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi') => {
+  const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
     if (items.length === 0) {
       toast({
         title: "No Items",
@@ -1662,10 +1662,10 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative">
-        {/* Payment Method Buttons - TOP */}
+      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
+        {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         <div className="space-y-2">
-          <div className="text-[10px] text-center text-muted-foreground px-1 mb-1">Payment</div>
+          {/* 1. Cash */}
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
@@ -1676,16 +1676,8 @@ export default function POSSales() {
             <Banknote className="h-4 w-4" />
             <span>Cash</span>
           </Button>
-          <Button
-            onClick={() => handlePaymentAndPrint('card')}
-            disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
-            title="Card Payment - Save & Print (F2)"
-          >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
-            <CreditCard className="h-4 w-4" />
-            <span>Card</span>
-          </Button>
+          
+          {/* 2. UPI */}
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
@@ -1696,6 +1688,31 @@ export default function POSSales() {
             <Smartphone className="h-4 w-4" />
             <span>UPI</span>
           </Button>
+          
+          {/* 3. Card */}
+          <Button
+            onClick={() => handlePaymentAndPrint('card')}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            title="Card Payment - Save & Print (F2)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
+            <CreditCard className="h-4 w-4" />
+            <span>Card</span>
+          </Button>
+          
+          {/* 4. Credit */}
+          <Button
+            onClick={() => handlePaymentAndPrint('pay_later')}
+            disabled={items.length === 0 || isSaving}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+            title="Credit - Pay Later"
+          >
+            <Clock className="h-4 w-4" />
+            <span>Credit</span>
+          </Button>
+          
+          {/* 5. Mix */}
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
@@ -1706,19 +1723,8 @@ export default function POSSales() {
             <Wallet className="h-4 w-4" />
             <span>Mix</span>
           </Button>
-        </div>
-        
-        {/* Action Buttons - BOTTOM */}
-        <div className="mt-auto space-y-2">
-          <Button
-            onClick={handleNewInvoice}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs w-full"
-            title="New Invoice"
-          >
-            <FileText className="h-4 w-4" />
-            <span>New</span>
-          </Button>
           
+          {/* 6. Hold */}
           <Button
             onClick={handleHoldBill}
             disabled={items.length === 0 || isSaving || isHeldSale}
@@ -1730,6 +1736,17 @@ export default function POSSales() {
             <span>Hold</span>
           </Button>
           
+          {/* 7. New */}
+          <Button
+            onClick={handleNewInvoice}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs w-full"
+            title="New Invoice"
+          >
+            <FileText className="h-4 w-4" />
+            <span>New</span>
+          </Button>
+          
+          {/* 8. Last */}
           <Button
             onClick={handleLastInvoice}
             disabled={!todaysSales || todaysSales.length === 0}
@@ -1739,17 +1756,8 @@ export default function POSSales() {
             <RotateCcw className="h-4 w-4" />
             <span>Last</span>
           </Button>
-
-          <Button
-            onClick={handleDeleteInvoice}
-            disabled={!currentSaleId}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-50 w-full"
-            title="Delete Invoice"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span>Delete</span>
-          </Button>
-
+          
+          {/* 9. Print */}
           <Button
             onClick={handlePrint}
             disabled={items.length === 0}
@@ -1760,14 +1768,26 @@ export default function POSSales() {
             <span>Print</span>
           </Button>
           
+          {/* 10. Clear */}
           <Button
             onClick={handleClearAll}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs relative w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs relative w-full"
             title="Clear (Esc)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
             <X className="h-4 w-4" />
             <span>Clear</span>
+          </Button>
+          
+          {/* 11. WhatsApp */}
+          <Button
+            onClick={() => handleWhatsAppShare(true)}
+            disabled={items.length === 0}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs disabled:opacity-50 w-full"
+            title="Send via WhatsApp"
+          >
+            <MessageCircle className="h-4 w-4" />
+            <span>WhatsApp</span>
           </Button>
         </div>
       </div>
