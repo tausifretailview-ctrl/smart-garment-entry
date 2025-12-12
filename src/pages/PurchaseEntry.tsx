@@ -422,8 +422,11 @@ const PurchaseEntry = () => {
       openSizeGridModal(variant.product_id);
     } else {
       addInlineRow(variant);
-      // Focus on quantity input after adding inline row
-      setTimeout(() => lastQtyInputRef.current?.focus(), 100);
+      // Scroll to and focus on quantity input after adding inline row
+      setTimeout(() => {
+        lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lastQtyInputRef.current?.focus();
+      }, 100);
     }
     setSearchQuery("");
     setShowSearch(false);
@@ -569,7 +572,11 @@ const PurchaseEntry = () => {
 
     setShowSizeGrid(false);
     setSizeQty({});
-    setTimeout(() => lastQtyInputRef.current?.focus(), 100);
+    // Scroll to and focus on quantity input after adding from size grid
+    setTimeout(() => {
+      lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      lastQtyInputRef.current?.focus();
+    }, 100);
   };
 
   const addInlineRow = (variant: ProductVariant) => {
