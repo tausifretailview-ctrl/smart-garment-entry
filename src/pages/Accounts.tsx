@@ -1005,7 +1005,7 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Customer</Label>
-                      <Select value={referenceId} onValueChange={(val) => {
+                      <Select value={referenceId || undefined} onValueChange={(val) => {
                         setReferenceId(val);
                         setReferenceType("customer");
                         setVoucherType("receipt");
@@ -1112,7 +1112,7 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Payment Method</Label>
-                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <Select value={paymentMethod || undefined} onValueChange={setPaymentMethod}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -1265,7 +1265,7 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Supplier</Label>
-                      <Select value={referenceId} onValueChange={(val) => {
+                      <Select value={referenceId || undefined} onValueChange={(val) => {
                         setReferenceId(val);
                         setReferenceType("supplier");
                         setVoucherType("payment");
@@ -1394,7 +1394,7 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Employee</Label>
-                      <Select value={referenceId} onValueChange={(val) => {
+                      <Select value={referenceId || undefined} onValueChange={(val) => {
                         setReferenceId(val);
                         setReferenceType("employee");
                         setVoucherType("payment");
@@ -1680,7 +1680,7 @@ export default function Accounts() {
 
                   <div className="space-y-2">
                     <Label>Customer Filter</Label>
-                    <Select value={reconCustomerFilter} onValueChange={setReconCustomerFilter}>
+                    <Select value={reconCustomerFilter || "all"} onValueChange={setReconCustomerFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="All Customers" />
                       </SelectTrigger>
@@ -1697,7 +1697,7 @@ export default function Accounts() {
 
                   <div className="space-y-2">
                     <Label>Status Filter</Label>
-                    <Select value={reconStatusFilter} onValueChange={setReconStatusFilter}>
+                    <Select value={reconStatusFilter || "all"} onValueChange={setReconStatusFilter}>
                       <SelectTrigger>
                         <SelectValue placeholder="All Status" />
                       </SelectTrigger>
