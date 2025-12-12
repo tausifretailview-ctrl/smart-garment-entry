@@ -157,6 +157,31 @@ export default function POSSales() {
     }
   }, [currentOrganization?.id]);
 
+  // Always keep focus on barcode search bar when page is idle
+  useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Don't refocus if user is clicking on input, select, textarea, or button
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'SELECT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'BUTTON' ||
+        target.closest('button') ||
+        target.closest('[role="dialog"]') ||
+        target.closest('[role="listbox"]') ||
+        target.closest('[data-radix-collection-item]')
+      ) {
+        return;
+      }
+      // Refocus on barcode input after a small delay
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+    };
+
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
+
   const fetchPosBillFormat = async () => {
     try {
       const { data, error } = await supabase
@@ -683,11 +708,15 @@ export default function POSSales() {
     setOpenProductSearch(false);
     setSearchInput("");
     
-    // Auto-scroll to show newly added product
+    // Auto-scroll to show newly added product only after 6 items
     setTimeout(() => {
-      if (itemsContainerRef.current) {
-        itemsContainerRef.current.scrollTop = itemsContainerRef.current.scrollHeight;
+      if (itemsContainerRef.current && items.length >= 6) {
+        itemsContainerRef.current.scrollTo({
+          top: itemsContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
       }
+      // Always keep focus on barcode search bar
       barcodeInputRef.current?.focus();
     }, 100);
   };
@@ -701,6 +730,8 @@ export default function POSSales() {
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+    // Keep focus on barcode search bar
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
 
   const updateQuantity = async (index: number, newQty: number) => {
@@ -2175,8 +2206,8 @@ export default function POSSales() {
         </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-0">
-          <Card className="flex-1 overflow-hidden flex flex-col mb-32">
+        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36">
+          <Card className="flex-1 overflow-hidden flex flex-col">
             <div className="bg-black text-white overflow-x-auto">
               <div className="min-w-[1200px] grid gap-2 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 70px 100px 60px 70px 80px 100px 130px' }}>
                 <div>Sr No</div>
