@@ -14,7 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
@@ -41,10 +42,12 @@ export default function Accounts() {
   const [referenceType, setReferenceType] = useState("");
   const [referenceId, setReferenceId] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [nextReceiptNumber, setNextReceiptNumber] = useState<string>("");
   
   // Receipt states
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
@@ -87,6 +90,21 @@ export default function Accounts() {
       return data;
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  // Fetch next receipt number preview
+  const { data: previewReceiptNumber } = useQuery({
+    queryKey: ["next-receipt-number", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("generate_voucher_number", {
+        p_type: "receipt",
+        p_date: format(new Date(), "yyyy-MM-dd"),
+      });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 5000,
   });
 
   // Fetch customer outstanding balance (includes opening balance + actual outstanding)
@@ -456,33 +474,57 @@ export default function Accounts() {
   // Create voucher mutation with receipt generation
   const createVoucher = useMutation({
     mutationFn: async (voucherData: any) => {
-      if (voucherType === "receipt" && !selectedInvoiceId) {
-        throw new Error("Please select an invoice to record payment against");
+      const invoicesToProcess = selectedInvoiceIds.length > 0 ? selectedInvoiceIds : (selectedInvoiceId ? [selectedInvoiceId] : []);
+      
+      if (voucherType === "receipt" && invoicesToProcess.length === 0) {
+        throw new Error("Please select at least one invoice to record payment against");
       }
 
-      // For customer payments, update the sales invoice
-      if (voucherType === "receipt" && selectedInvoiceId) {
-        const invoice = customerInvoices?.find(inv => inv.id === selectedInvoiceId);
-        if (!invoice) throw new Error("Invoice not found");
+      const paymentAmount = parseFloat(amount);
+      let remainingAmount = paymentAmount;
+      const processedInvoices: any[] = [];
 
-        const currentPaid = invoice.paid_amount || 0;
-        const paymentAmount = parseFloat(amount);
-        const newPaidAmount = currentPaid + paymentAmount;
-        const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
-                         newPaidAmount > 0 ? 'partial' : 'pending';
+      // For customer payments, update the sales invoices (distribute payment across selected invoices)
+      if (voucherType === "receipt" && invoicesToProcess.length > 0) {
+        for (const invoiceId of invoicesToProcess) {
+          if (remainingAmount <= 0) break;
+          
+          const invoice = customerInvoices?.find(inv => inv.id === invoiceId);
+          if (!invoice) continue;
 
-        // Update sales invoice
-        const { error: updateError } = await supabase
-          .from('sales')
-          .update({
-            paid_amount: newPaidAmount,
-            payment_status: newStatus,
-            payment_date: format(voucherDate, 'yyyy-MM-dd'),
-            payment_method: paymentMethod,
-          })
-          .eq('id', selectedInvoiceId);
+          const currentPaid = invoice.paid_amount || 0;
+          const outstanding = invoice.net_amount - currentPaid;
+          const amountToApply = Math.min(remainingAmount, outstanding);
+          
+          if (amountToApply <= 0) continue;
 
-        if (updateError) throw updateError;
+          const newPaidAmount = currentPaid + amountToApply;
+          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
+                           newPaidAmount > 0 ? 'partial' : 'pending';
+
+          // Update sales invoice
+          const { error: updateError } = await supabase
+            .from('sales')
+            .update({
+              paid_amount: newPaidAmount,
+              payment_status: newStatus,
+              payment_date: format(voucherDate, 'yyyy-MM-dd'),
+              payment_method: paymentMethod,
+            })
+            .eq('id', invoiceId);
+
+          if (updateError) throw updateError;
+          
+          processedInvoices.push({
+            invoice,
+            amountApplied: amountToApply,
+            newPaidAmount,
+            previousBalance: outstanding,
+            currentBalance: outstanding - amountToApply,
+          });
+          
+          remainingAmount -= amountToApply;
+        }
       }
 
       // Generate voucher number
@@ -492,7 +534,11 @@ export default function Accounts() {
       );
       if (numberError) throw numberError;
 
-      // Create voucher entry
+      // Build description with invoice numbers
+      const invoiceNumbers = processedInvoices.map(p => p.invoice.sale_number).join(', ');
+      const finalDescription = description || `Payment for: ${invoiceNumbers}`;
+
+      // Create voucher entry - use first invoice as reference_id for compatibility
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher_entries")
         .insert({
@@ -501,47 +547,48 @@ export default function Accounts() {
           voucher_type: voucherType,
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
           reference_type: referenceType,
-          reference_id: selectedInvoiceId || referenceId || null,
-          description: description,
-          total_amount: parseFloat(amount),
+          reference_id: invoicesToProcess[0] || referenceId || null,
+          description: finalDescription,
+          total_amount: paymentAmount,
         })
         .select()
         .single();
 
       if (voucherError) throw voucherError;
 
-      return { voucher, voucherNumber };
+      return { voucher, voucherNumber, processedInvoices };
     },
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
       
       // Generate receipt for customer payments
-      if (voucherType === "receipt" && selectedInvoiceId) {
-        const invoice = customerInvoices?.find(inv => inv.id === selectedInvoiceId);
-        if (invoice) {
-          const currentPaid = invoice.paid_amount || 0;
-          const paymentAmount = parseFloat(amount);
-          const newPaidAmount = currentPaid + paymentAmount;
-          
-          setReceiptData({
-            voucherNumber: data.voucherNumber,
-            voucherDate: format(voucherDate, 'yyyy-MM-dd'),
-            customerName: invoice.customer_name,
-            customerPhone: invoice.customer_phone,
-            customerAddress: invoice.customer_address,
-            invoiceNumber: invoice.sale_number,
-            invoiceDate: invoice.sale_date,
-            invoiceAmount: invoice.net_amount,
-            paidAmount: paymentAmount,
-            previousBalance: invoice.net_amount - currentPaid,
-            currentBalance: invoice.net_amount - newPaidAmount,
-            paymentMethod: paymentMethod,
-          });
-          setShowReceiptDialog(true);
-        }
+      if (voucherType === "receipt" && data.processedInvoices.length > 0) {
+        const firstInvoice = data.processedInvoices[0].invoice;
+        const totalPaid = parseFloat(amount);
+        const totalPreviousBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.previousBalance, 0);
+        const totalCurrentBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.currentBalance, 0);
+        
+        setReceiptData({
+          voucherNumber: data.voucherNumber,
+          voucherDate: format(voucherDate, 'yyyy-MM-dd'),
+          customerName: firstInvoice.customer_name,
+          customerPhone: firstInvoice.customer_phone,
+          customerAddress: firstInvoice.customer_address,
+          invoiceNumber: data.processedInvoices.map((p: any) => p.invoice.sale_number).join(', '),
+          invoiceDate: firstInvoice.sale_date,
+          invoiceAmount: data.processedInvoices.reduce((sum: number, p: any) => sum + p.invoice.net_amount, 0),
+          paidAmount: totalPaid,
+          previousBalance: totalPreviousBalance,
+          currentBalance: totalCurrentBalance,
+          paymentMethod: paymentMethod,
+          multipleInvoices: data.processedInvoices,
+        });
+        setShowReceiptDialog(true);
       }
       
       resetForm();
@@ -628,10 +675,13 @@ export default function Accounts() {
     setReferenceType("");
     setReferenceId("");
     setSelectedInvoiceId("");
+    setSelectedInvoiceIds([]);
     setDescription("");
     setAmount("");
     setAccountId("");
     setPaymentMethod("cash");
+    // Refetch next receipt number
+    queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
 
   const handlePrintReceipt = useReactToPrint({
@@ -668,6 +718,10 @@ export default function Accounts() {
     e.preventDefault();
     if (!amount || parseFloat(amount) <= 0) {
       toast.error("Please enter a valid amount");
+      return;
+    }
+    if (voucherType === "receipt" && selectedInvoiceIds.length === 0 && !selectedInvoiceId) {
+      toast.error("Please select at least one invoice");
       return;
     }
     createVoucher.mutate({});
@@ -910,7 +964,14 @@ export default function Accounts() {
           <TabsContent value="customer-payment" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Customer Payment Receipt (RCP)</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Customer Payment Receipt (RCP)</span>
+                  {previewReceiptNumber && (
+                    <Badge variant="outline" className="text-lg font-mono bg-primary/10 text-primary border-primary/30">
+                      {previewReceiptNumber}
+                    </Badge>
+                  )}
+                </CardTitle>
                 <CardDescription>Record payment received from customers</CardDescription>
               </CardHeader>
               <CardContent>
@@ -948,6 +1009,8 @@ export default function Accounts() {
                         setReferenceId(val);
                         setReferenceType("customer");
                         setVoucherType("receipt");
+                        setSelectedInvoiceIds([]);
+                        setSelectedInvoiceId("");
                       }}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select customer" />
@@ -974,29 +1037,76 @@ export default function Accounts() {
                       )}
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Select Invoice</Label>
-                      <Select 
-                        value={selectedInvoiceId} 
-                        onValueChange={setSelectedInvoiceId}
-                        disabled={!referenceId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select invoice to pay" />
-                        </SelectTrigger>
-                        <SelectContent>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Select Invoices (Multiple)</Label>
+                      {!referenceId ? (
+                        <p className="text-xs text-muted-foreground">Select a customer first</p>
+                      ) : customerInvoices?.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No pending invoices for this customer</p>
+                      ) : (
+                        <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
                           {customerInvoices?.map((invoice) => {
                             const balance = invoice.net_amount - (invoice.paid_amount || 0);
+                            const isSelected = selectedInvoiceIds.includes(invoice.id);
                             return (
-                              <SelectItem key={invoice.id} value={invoice.id}>
-                                {invoice.sale_number} - ₹{balance.toFixed(2)} pending
-                              </SelectItem>
+                              <div 
+                                key={invoice.id} 
+                                className={cn(
+                                  "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                                  isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                                )}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedInvoiceIds(selectedInvoiceIds.filter(id => id !== invoice.id));
+                                  } else {
+                                    setSelectedInvoiceIds([...selectedInvoiceIds, invoice.id]);
+                                  }
+                                }}
+                              >
+                                <Checkbox 
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedInvoiceIds([...selectedInvoiceIds, invoice.id]);
+                                    } else {
+                                      setSelectedInvoiceIds(selectedInvoiceIds.filter(id => id !== invoice.id));
+                                    }
+                                  }}
+                                />
+                                <div className="flex-1 flex justify-between items-center">
+                                  <span className="font-medium">{invoice.sale_number}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {format(new Date(invoice.sale_date), 'dd/MM/yy')}
+                                  </span>
+                                  <Badge variant={balance > 0 ? "destructive" : "secondary"}>
+                                    ₹{balance.toFixed(2)}
+                                  </Badge>
+                                </div>
+                              </div>
                             );
                           })}
-                        </SelectContent>
-                      </Select>
-                      {!referenceId && (
-                        <p className="text-xs text-muted-foreground">Select a customer first</p>
+                        </div>
+                      )}
+                      {selectedInvoiceIds.length > 0 && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="secondary" className="bg-primary/10">
+                            {selectedInvoiceIds.length} invoice(s) selected
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            Total: ₹{customerInvoices
+                              ?.filter(inv => selectedInvoiceIds.includes(inv.id))
+                              .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0)
+                              .toFixed(2)}
+                          </span>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => setSelectedInvoiceIds([])}
+                          >
+                            Clear
+                          </Button>
+                        </div>
                       )}
                     </div>
 
