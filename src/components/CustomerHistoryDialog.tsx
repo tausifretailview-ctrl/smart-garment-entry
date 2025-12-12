@@ -7,9 +7,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+interface SaleItem {
+  id: string;
+  product_name: string;
+  size: string;
+  color: string | null;
+  quantity: number;
+  unit_price: number;
+  mrp: number;
+  line_total: number;
+  barcode: string | null;
+}
 
 interface CustomerHistoryDialogProps {
   open: boolean;
@@ -27,6 +40,7 @@ export function CustomerHistoryDialog({
   organizationId,
 }: CustomerHistoryDialogProps) {
   const [activeTab, setActiveTab] = useState("sales");
+  const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
 
   // Get customer balance
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
@@ -34,14 +48,19 @@ export function CustomerHistoryDialog({
     organizationId
   );
 
-  // Fetch sales history
+  // Fetch sales history with items
   const { data: salesHistory, isLoading: salesLoading } = useQuery({
     queryKey: ['customer-sales-history', customerId, organizationId],
     queryFn: async () => {
       if (!customerId || !organizationId) return [];
       const { data, error } = await supabase
         .from('sales')
-        .select('id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_type, refund_amount')
+        .select(`
+          id, sale_number, sale_date, net_amount, payment_status, paid_amount, sale_type, refund_amount,
+          sale_items (
+            id, product_name, size, color, quantity, unit_price, mrp, line_total, barcode
+          )
+        `)
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .order('sale_date', { ascending: false })
@@ -201,6 +220,7 @@ export function CustomerHistoryDialog({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-8"></TableHead>
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
@@ -210,22 +230,75 @@ export function CustomerHistoryDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {salesHistory.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell className="font-medium">{sale.sale_number}</TableCell>
-                        <TableCell>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{sale.sale_type?.toUpperCase()}</Badge>
-                        </TableCell>
-                        <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
-                        <TableCell>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
-                        <TableCell>
-                          <Badge variant={sale.payment_status === 'completed' ? 'default' : 'secondary'}>
-                            {sale.payment_status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {salesHistory.map((sale) => {
+                      const isExpanded = expandedSaleId === sale.id;
+                      const items = (sale as any).sale_items as SaleItem[] || [];
+                      
+                      return (
+                        <>
+                          <TableRow 
+                            key={sale.id} 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => setExpandedSaleId(isExpanded ? null : sale.id)}
+                          >
+                            <TableCell className="p-2">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </TableCell>
+                            <TableCell className="font-medium">{sale.sale_number}</TableCell>
+                            <TableCell>{format(new Date(sale.sale_date), 'dd/MM/yyyy')}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{sale.sale_type?.toUpperCase()}</Badge>
+                            </TableCell>
+                            <TableCell>₹{sale.net_amount.toFixed(2)}</TableCell>
+                            <TableCell>₹{(sale.paid_amount || 0).toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge variant={sale.payment_status === 'completed' ? 'default' : 'secondary'}>
+                                {sale.payment_status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && items.length > 0 && (
+                            <TableRow key={`${sale.id}-items`}>
+                              <TableCell colSpan={7} className="p-0 bg-muted/30">
+                                <div className="p-3">
+                                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                                    Purchased Items ({items.length})
+                                  </p>
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow className="text-xs">
+                                        <TableHead className="py-1">Product</TableHead>
+                                        <TableHead className="py-1">Size</TableHead>
+                                        <TableHead className="py-1">Color</TableHead>
+                                        <TableHead className="py-1 text-center">Qty</TableHead>
+                                        <TableHead className="py-1 text-right">Price</TableHead>
+                                        <TableHead className="py-1 text-right">Total</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {items.map((item) => (
+                                        <TableRow key={item.id} className="text-xs">
+                                          <TableCell className="py-1 font-medium">{item.product_name}</TableCell>
+                                          <TableCell className="py-1">{item.size}</TableCell>
+                                          <TableCell className="py-1">{item.color || '-'}</TableCell>
+                                          <TableCell className="py-1 text-center">{item.quantity}</TableCell>
+                                          <TableCell className="py-1 text-right">₹{item.unit_price.toFixed(2)}</TableCell>
+                                          <TableCell className="py-1 text-right font-medium">₹{item.line_total.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
