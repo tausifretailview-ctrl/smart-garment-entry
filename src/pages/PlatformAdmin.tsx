@@ -493,8 +493,8 @@ export default function PlatformAdmin() {
       toast.error("Organization name is required");
       return;
     }
-    if (organizations.length >= 5) {
-      toast.error("Maximum 5 organizations allowed");
+    if (organizations.length >= 20) {
+      toast.error("Maximum 20 organizations allowed");
       return;
     }
     createOrgMutation.mutate();
