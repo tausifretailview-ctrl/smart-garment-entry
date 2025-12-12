@@ -2206,7 +2206,8 @@ export default function POSSales() {
         </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36">
+        <div className="flex-1 overflow-hidden flex flex-col p-2 md:p-4 pb-36">
+          <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col">
             <div className="bg-black text-white overflow-x-auto">
               <div className="min-w-[1200px] grid gap-2 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 70px 100px 60px 70px 80px 100px 130px' }}>
@@ -2343,6 +2344,7 @@ export default function POSSales() {
             </div>
           </div>
         </Card>
+          </div>
         </div>
 
         {/* Totals Section - Fixed at Bottom */}
