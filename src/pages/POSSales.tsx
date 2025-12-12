@@ -1833,8 +1833,8 @@ export default function POSSales() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
-        <div className="sticky top-0 z-20 bg-background border-b shadow-sm p-2 md:p-4">
-          <div className="max-w-[1800px] mx-auto">
+        <div className="sticky top-0 z-20 bg-background border-b shadow-sm px-2 md:px-4 py-2">
+          <div className="max-w-[1800px] w-full">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
@@ -2110,104 +2110,104 @@ export default function POSSales() {
           </div>
           
           {/* Running Total Display */}
-          <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center">
+          <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center min-w-[180px]">
             <div className="text-white font-bold text-xl">
               ₹{finalAmount.toFixed(2)}
             </div>
           </div>
-          
-          <div className="relative h-12 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-4 flex items-center justify-center">
-            <div className="text-white font-semibold text-base">
-              {items.length} {items.length === 1 ? 'Item' : 'Items'}
-            </div>
-          </div>
-          
-          <TooltipProvider>
-            <div className="flex gap-2 items-center">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handlePreviousInvoice}
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-1"
-                    disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    <div className="flex flex-col items-start">
-                      <span className="text-xs">Previous</span>
-                      {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {todaysSales[currentInvoiceIndex + 1]?.sale_number}
-                        </span>
-                      )}
-                    </div>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Page Up</p>
-                </TooltipContent>
-              </Tooltip>
-              {/* Position Indicator */}
-              {todaysSales && todaysSales.length > 0 && currentSaleId && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
-                      <span className="text-sm font-semibold text-foreground">
-                        {todaysSales.length - currentInvoiceIndex}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        of {todaysSales.length}
-                      </span>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>End - Go to Latest</p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={handleNextInvoice}
-                    variant="outline"
-                    size="sm"
-                    className="h-12 flex-1"
-                    disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
-                  >
-                    <div className="flex flex-col items-end">
-                      <span className="text-xs">Next</span>
-                      {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          {todaysSales[currentInvoiceIndex - 1]?.sale_number}
-                        </span>
-                      )}
-                    </div>
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Page Down</p>
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-          
-          {/* Date & Time Display */}
-          <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
-            <div className="text-white font-semibold text-sm">
-              {currentDateTime.toLocaleDateString('en-GB')}
-            </div>
-            <div className="text-white text-xs">
-              {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </div>
+              
+              <div className="relative h-12 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-4 flex items-center justify-center min-w-[100px]">
+                <div className="text-white font-semibold text-base">
+                  {items.length} {items.length === 1 ? 'Item' : 'Items'}
+                </div>
+              </div>
+              
+              <TooltipProvider>
+                <div className="flex gap-2 items-center">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handlePreviousInvoice}
+                        variant="outline"
+                        size="sm"
+                        className="h-12"
+                        disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex >= todaysSales.length - 1}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        <div className="flex flex-col items-start">
+                          <span className="text-xs">Previous</span>
+                          {todaysSales && todaysSales.length > 0 && currentInvoiceIndex < todaysSales.length - 1 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {todaysSales[currentInvoiceIndex + 1]?.sale_number}
+                            </span>
+                          )}
+                        </div>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Page Up</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  {/* Position Indicator */}
+                  {todaysSales && todaysSales.length > 0 && currentSaleId && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
+                          <span className="text-sm font-semibold text-foreground">
+                            {todaysSales.length - currentInvoiceIndex}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            of {todaysSales.length}
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>End - Go to Latest</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handleNextInvoice}
+                        variant="outline"
+                        size="sm"
+                        className="h-12"
+                        disabled={!todaysSales || todaysSales.length === 0 || currentInvoiceIndex <= 0}
+                      >
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs">Next</span>
+                          {todaysSales && todaysSales.length > 0 && currentInvoiceIndex > 0 && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {todaysSales[currentInvoiceIndex - 1]?.sale_number}
+                            </span>
+                          )}
+                        </div>
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Page Down</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
+              
+              {/* Date & Time Display */}
+              <div className="relative h-12 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-md px-4 flex flex-col items-center justify-center">
+                <div className="text-white font-semibold text-sm">
+                  {currentDateTime.toLocaleDateString('en-GB')}
+                </div>
+                <div className="text-white text-xs">
+                  {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Items Table - Scrollable Section */}
-        <div className="flex-1 overflow-hidden flex flex-col p-2 md:p-4 pb-36">
-          <div className="max-w-[1800px] mx-auto w-full flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col px-2 md:px-4 pb-36">
+          <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col">
             <div className="bg-black text-white overflow-x-auto">
               <div className="min-w-[1200px] grid gap-2 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 70px 100px 60px 70px 80px 100px 130px' }}>
@@ -2343,7 +2343,7 @@ export default function POSSales() {
               )}
             </div>
           </div>
-        </Card>
+          </Card>
           </div>
         </div>
 
