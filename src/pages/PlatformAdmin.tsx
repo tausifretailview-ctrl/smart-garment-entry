@@ -573,9 +573,9 @@ export default function PlatformAdmin() {
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{orgCount} / 5</div>
+              <div className="text-2xl font-bold">{orgCount} / 20</div>
               <p className="text-xs text-muted-foreground">
-                {5 - orgCount} slots remaining
+                {20 - orgCount} slots remaining
               </p>
             </CardContent>
           </Card>
@@ -617,7 +617,7 @@ export default function PlatformAdmin() {
               <h2 className="text-xl font-semibold">Organizations</h2>
               <Dialog open={createOrgOpen} onOpenChange={setCreateOrgOpen}>
                 <DialogTrigger asChild>
-                  <Button disabled={orgCount >= 5}>
+                  <Button disabled={orgCount >= 20}>
                     <Plus className="h-4 w-4 mr-2" />
                     Create Organization
                   </Button>
