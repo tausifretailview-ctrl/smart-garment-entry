@@ -87,8 +87,8 @@ interface PrintOptions {
 const sheetPresets: Record<string, { cols: number; rows?: number; width: string; height: string; gap: string; thermal?: boolean }> = {
   // A4 Sheet Presets
   novajet48: { cols: 8, width: "33mm", height: "19mm", gap: "1mm" },
-  novajet40: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "auto" },
-  a4_35x37: { cols: 5, rows: 8, width: "39mm", height: "35mm", gap: "auto" },
+  novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "auto" },
+  a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "auto" },
   novajet65: { cols: 5, width: "38mm", height: "21mm", gap: "1mm" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm" },
   // Thermal Roll Presets (1UP)
@@ -723,8 +723,8 @@ export const printBarcodesDirectly = async (
           const col = index % cols;
           
           // Calculate exact position in mm
-          const x = hMargin + col * (labelWidth + hMargin) + (topOffset || 0);
-          const y = vMargin + row * (labelHeight + vMargin) + (leftOffset || 0);
+          const x = hMargin + col * (labelWidth + hMargin) + (leftOffset || 0);
+          const y = vMargin + row * (labelHeight + vMargin) + (topOffset || 0);
           
           const cell = doc.createElement('div');
           cell.className = 'label-cell';

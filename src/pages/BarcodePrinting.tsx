@@ -138,8 +138,8 @@ const sheetPresets = {
   a4_65sheet: { cols: 5, width: "38mm", height: "22mm", gap: "1mm", category: "a4" },
   
   // Medium Labels
-  novajet40: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
-  a4_35x37: { cols: 5, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
+  novajet40: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
+  a4_35x37: { cols: 5, rows: 8, width: "35mm", height: "37mm", gap: "1.2mm", category: "a4" },
   a4_12x4: { cols: 4, width: "50mm", height: "24mm", gap: "1mm", category: "a4" },
   a4_36sheet: { cols: 4, width: "48mm", height: "30mm", gap: "1mm", category: "a4" },
   a4_32sheet: { cols: 4, width: "52mm", height: "30mm", gap: "1mm", category: "a4" },
