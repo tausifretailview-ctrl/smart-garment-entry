@@ -1436,9 +1436,9 @@ const PurchaseEntry = () => {
                       <TableHead className="w-28">SALE.RATE</TableHead>
                       <TableHead className="w-24">SUB TOTAL</TableHead>
                       <TableHead className="w-20">DISC %</TableHead>
-                      <TableHead className="w-24">TOTAL</TableHead>
                       <TableHead className="w-16">GST %</TableHead>
                       <TableHead className="w-24">GST AMT</TableHead>
+                      <TableHead className="w-24">TOTAL</TableHead>
                       <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1524,17 +1524,17 @@ const PurchaseEntry = () => {
                                   parseFloat(e.target.value) || 0
                                 )
                               }
-                              className="w-24"
+                              className="w-20"
                             />
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            ₹{total.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-center text-muted-foreground">
                             {item.gst_per}%
                           </TableCell>
                           <TableCell className="font-medium">
                             ₹{gstAmount.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            ₹{total.toFixed(2)}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -1548,6 +1548,12 @@ const PurchaseEntry = () => {
                         </TableRow>
                       );
                     })}
+                    {/* Footer row with QTY total */}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell colSpan={3} className="text-right">Total:</TableCell>
+                      <TableCell className="text-center">{totals.totalQty}</TableCell>
+                      <TableCell colSpan={8}></TableCell>
+                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
