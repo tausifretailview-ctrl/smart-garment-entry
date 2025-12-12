@@ -1059,23 +1059,58 @@ export default function Accounts() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Amount</TableHead>
                       <TableHead>Description</TableHead>
+                      {isAdmin && <TableHead>Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {vouchers
                       ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
                       .slice(0, 10)
-                      .map((voucher) => (
-                        <TableRow key={voucher.id}>
-                          <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
-                          <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
-                          <TableCell>
-                            {customers?.find((c) => c.id === voucher.reference_id)?.customer_name || "-"}
-                          </TableCell>
-                          <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
-                          <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
-                        </TableRow>
-                      ))}
+                      .map((voucher) => {
+                        // Look up customer from sales table via reference_id (invoice id)
+                        const invoice = sales?.find((s) => s.id === voucher.reference_id);
+                        const customerName = invoice?.customer_name || 
+                          customers?.find((c) => c.id === voucher.reference_id)?.customer_name || 
+                          "-";
+                        
+                        return (
+                          <TableRow key={voucher.id}>
+                            <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
+                            <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
+                            <TableCell>{customerName}</TableCell>
+                            <TableCell>₹{voucher.total_amount.toFixed(2)}</TableCell>
+                            <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
+                            {isAdmin && (
+                              <TableCell>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete Payment Receipt?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will delete receipt {voucher.voucher_number} and reverse ₹{voucher.total_amount.toFixed(2)} back to the customer's outstanding balance.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => deleteReceipt.mutate(voucher)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete & Reverse
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        );
+                      })}
                   </TableBody>
                 </Table>
               </CardContent>
