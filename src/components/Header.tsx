@@ -127,26 +127,19 @@ export const Header = () => {
             <Search className="h-5 w-5" />
           </Button>
 
-          {/* Install App Button */}
+          {/* Install App Button - Visible on all devices */}
           {isInstallable && (
             <Button
-              variant="ghost"
-              size="icon"
+              variant="outline"
+              size="sm"
               onClick={promptInstall}
-              className="relative text-sidebar-foreground hover:bg-primary/10 hover:text-primary"
+              className="relative text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1"
               title="Install App"
             >
-              <Download className="h-5 w-5" />
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Install App</span>
               <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
             </Button>
-          )}
-
-          {/* Organization Context Display */}
-          {orgSlug && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-lg border border-primary/20">
-              <span className="text-xs text-muted-foreground">Org:</span>
-              <span className="text-sm font-medium text-primary">{orgSlug}</span>
-            </div>
           )}
 
           {/* Organization Selector */}
