@@ -750,6 +750,13 @@ export default function POSSales() {
     setItems(updatedItems);
   };
 
+  const updateGstPer = (index: number, newGstPer: number) => {
+    const updatedItems = [...items];
+    updatedItems[index].gstPer = newGstPer;
+    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+    setItems(updatedItems);
+  };
+
   // Calculate totals
   const totals = {
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
@@ -2253,7 +2260,19 @@ export default function POSSales() {
                           step="0.01"
                         />
                       </div>
-                      <div className="flex items-center">{item.gstPer}%</div>
+                      <div>
+                        <select
+                          value={item.gstPer}
+                          onChange={(e) => updateGstPer(index, parseInt(e.target.value))}
+                          className="h-9 w-full rounded-md border border-input bg-background px-2 text-base focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="0">0%</option>
+                          <option value="5">5%</option>
+                          <option value="12">12%</option>
+                          <option value="18">18%</option>
+                          <option value="28">28%</option>
+                        </select>
+                      </div>
                       <div>
                         <Input
                           type="number"

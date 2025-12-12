@@ -1527,8 +1527,24 @@ const PurchaseEntry = () => {
                               className="w-20"
                             />
                           </TableCell>
-                          <TableCell className="text-center text-muted-foreground">
-                            {item.gst_per}%
+                          <TableCell>
+                            <Select
+                              value={String(item.gst_per)}
+                              onValueChange={(value) =>
+                                updateLineItem(item.temp_id, "gst_per", parseInt(value))
+                              }
+                            >
+                              <SelectTrigger className="w-16 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">0%</SelectItem>
+                                <SelectItem value="5">5%</SelectItem>
+                                <SelectItem value="12">12%</SelectItem>
+                                <SelectItem value="18">18%</SelectItem>
+                                <SelectItem value="28">28%</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell className="font-medium">
                             ₹{gstAmount.toFixed(2)}
