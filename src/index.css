@@ -307,6 +307,22 @@ All colors MUST be HSL.
     width: 210mm !important;
     max-width: 210mm !important;
   }
+  
+  /* Force invoice templates to fit on single page */
+  .professional-invoice-template {
+    max-height: 277mm !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  
+  .professional-invoice-template.format-a5-vertical {
+    max-height: 200mm !important;
+  }
+  
+  .professional-invoice-template.format-a5-horizontal {
+    max-height: 138mm !important;
+  }
 }
 
 @page a4 {

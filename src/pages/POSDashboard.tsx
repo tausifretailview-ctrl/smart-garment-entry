@@ -545,10 +545,18 @@ const POSDashboard = () => {
         paidAmount: sale.paid_amount,
       };
 
+      // Set print data first
       setPrintData(invoiceData);
       
-      // Small delay to ensure InvoiceWrapper is fully rendered
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Wait for React to render the InvoiceWrapper with new data
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Request animation frame to ensure DOM is painted
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      
+      // Additional delay for complex rendering
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       handlePrint();
       
       toast({
