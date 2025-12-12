@@ -113,11 +113,17 @@ const PurchaseEntry = () => {
   const firstSizeInputRef = useRef<HTMLInputElement>(null);
   const lastQtyInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const inlineSearchInputRef = useRef<HTMLInputElement>(null);
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
   const [showExcelImport, setShowExcelImport] = useState(false);
+  // Inline search state for table row
+  const [inlineSearchQuery, setInlineSearchQuery] = useState("");
+  const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
+  const [showInlineSearch, setShowInlineSearch] = useState(false);
+  const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -252,6 +258,132 @@ const PurchaseEntry = () => {
       setShowSearch(false);
     }
   }, [searchQuery]);
+
+  // Inline search effect for table row
+  useEffect(() => {
+    if (inlineSearchQuery.length >= 3) {
+      searchProductsInline(inlineSearchQuery);
+    } else {
+      setInlineSearchResults([]);
+      if (inlineSearchQuery.length > 0 && inlineSearchQuery.length < 3) {
+        setShowInlineSearch(true); // Show "enter 3 or more" message
+      } else {
+        setShowInlineSearch(false);
+      }
+    }
+  }, [inlineSearchQuery]);
+
+  const searchProductsInline = async (query: string) => {
+    if (!query || query.length < 3) {
+      setInlineSearchResults([]);
+      setSelectedInlineIndex(0);
+      return;
+    }
+
+    try {
+      // First, search products by name, brand, and style
+      const { data: matchingProducts } = await supabase
+        .from("products")
+        .select("id")
+        .eq("organization_id", currentOrganization?.id)
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+
+      const productIds = matchingProducts?.map(p => p.id) || [];
+
+      // Then search product_variants by barcode OR matching product IDs
+      let variantsQuery = supabase
+        .from("product_variants")
+        .select(`
+          id,
+          size,
+          pur_price,
+          sale_price,
+          barcode,
+          active,
+          color,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            category,
+            style,
+            color,
+            hsn_code,
+            gst_per,
+            default_pur_price,
+            default_sale_price
+          )
+        `)
+        .eq("organization_id", currentOrganization?.id)
+        .eq("active", true);
+
+      // Add barcode or product_id filters
+      if (productIds.length > 0) {
+        variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+      } else {
+        variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+      }
+
+      const { data, error } = await variantsQuery.limit(50);
+
+      if (error) throw error;
+
+      const results = (data || []).map((v: any) => ({
+        id: v.id,
+        product_id: v.products?.id || "",
+        size: v.size,
+        pur_price: v.pur_price,
+        sale_price: v.sale_price,
+        barcode: v.barcode || "",
+        product_name: v.products?.product_name || "",
+        brand: v.products?.brand || "",
+        category: v.products?.category || "",
+        color: v.color || v.products?.color || "",
+        style: v.products?.style || "",
+        gst_per: v.products?.gst_per || 0,
+        hsn_code: v.products?.hsn_code || "",
+      }));
+
+      setInlineSearchResults(results);
+      setSelectedInlineIndex(0);
+      setShowInlineSearch(true);
+    } catch (error: any) {
+      console.error(error);
+    }
+  };
+
+  const handleInlineProductSelect = async (variant: ProductVariant) => {
+    if (entryMode === "grid") {
+      openSizeGridModal(variant.product_id);
+    } else {
+      addInlineRow(variant);
+      setTimeout(() => {
+        lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lastQtyInputRef.current?.focus();
+      }, 100);
+    }
+    setInlineSearchQuery("");
+    setShowInlineSearch(false);
+    setInlineSearchResults([]);
+    // Focus back on inline search after adding
+    setTimeout(() => {
+      inlineSearchInputRef.current?.focus();
+    }, 150);
+  };
+
+  const handleAddNewProductFromInline = () => {
+    // Save current state before navigating
+    const stateToSave = {
+      billData,
+      softwareBillNo,
+      billDate: billDate.toISOString(),
+      lineItems,
+      roundOff,
+    };
+    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
+    navigate('/product-entry', { state: { returnToPurchase: true } });
+  };
 
   // Check if returning from product creation with new product data
   useEffect(() => {
@@ -1423,161 +1555,288 @@ const PurchaseEntry = () => {
             </div>
           </CardHeader>
           <CardContent>
-            {lineItems.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">SR.NO</TableHead>
-                      <TableHead className="w-auto">ITEM NAME</TableHead>
-                      <TableHead className="w-28">BARCODE</TableHead>
-                      <TableHead className="w-20">QTY</TableHead>
-                      <TableHead className="w-28">PUR.RATE</TableHead>
-                      <TableHead className="w-28">SALE.RATE</TableHead>
-                      <TableHead className="w-24">SUB TOTAL</TableHead>
-                      <TableHead className="w-20">DISC %</TableHead>
-                      <TableHead className="w-16">GST %</TableHead>
-                      <TableHead className="w-24">GST AMT</TableHead>
-                      <TableHead className="w-24">TOTAL</TableHead>
-                      <TableHead className="w-12"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lineItems.map((item, index) => {
-                      const subTotal = item.qty * item.pur_price;
-                      const total = item.line_total;
-                      const gstAmount = (total * item.gst_per) / 100;
-                      
-                      return (
-                        <TableRow key={item.temp_id}>
-                          <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-medium whitespace-nowrap">
-                            {formatProductDescription(item)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {item.barcode || "—"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
-                              type="number"
-                              min="1"
-                              value={item.qty}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "qty",
-                                  parseInt(e.target.value) || 0
-                                )
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">SR.NO</TableHead>
+                    <TableHead className="w-auto min-w-[300px]">ITEM NAME</TableHead>
+                    <TableHead className="w-28">BARCODE</TableHead>
+                    <TableHead className="w-20">QTY</TableHead>
+                    <TableHead className="w-28">PUR.RATE</TableHead>
+                    <TableHead className="w-28">SALE.RATE</TableHead>
+                    <TableHead className="w-24">SUB TOTAL</TableHead>
+                    <TableHead className="w-20">DISC %</TableHead>
+                    <TableHead className="w-16">GST %</TableHead>
+                    <TableHead className="w-24">GST AMT</TableHead>
+                    <TableHead className="w-24">TOTAL</TableHead>
+                    <TableHead className="w-12"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lineItems.map((item, index) => {
+                    const subTotal = item.qty * item.pur_price;
+                    const total = item.line_total;
+                    const gstAmount = (total * item.gst_per) / 100;
+                    
+                    return (
+                      <TableRow key={item.temp_id}>
+                        <TableCell className="text-center font-medium">{index + 1}</TableCell>
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {formatProductDescription(item)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {item.barcode || "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            ref={index === lineItems.length - 1 ? lastQtyInputRef : undefined}
+                            type="number"
+                            min="1"
+                            value={item.qty}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "qty",
+                                parseInt(e.target.value) || 0
+                              )
+                            }
+                            className="w-20"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.pur_price}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "pur_price",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-28"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.sale_price}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "sale_price",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-28"
+                          />
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          ₹{subTotal.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={item.discount_percent}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "discount_percent",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-20"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={String(item.gst_per)}
+                            onValueChange={(value) =>
+                              updateLineItem(item.temp_id, "gst_per", parseInt(value))
+                            }
+                          >
+                            <SelectTrigger className="w-16 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">0%</SelectItem>
+                              <SelectItem value="5">5%</SelectItem>
+                              <SelectItem value="12">12%</SelectItem>
+                              <SelectItem value="18">18%</SelectItem>
+                              <SelectItem value="28">28%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          ₹{gstAmount.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="font-semibold">
+                          ₹{total.toFixed(2)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeLineItem(item.temp_id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  
+                  {/* Inline Search Row - Always visible at bottom */}
+                  <TableRow className="bg-accent/30">
+                    <TableCell className="text-center font-medium text-muted-foreground">
+                      {lineItems.length + 1}
+                    </TableCell>
+                    <TableCell className="relative">
+                      <div className="relative">
+                        <Input
+                          ref={inlineSearchInputRef}
+                          value={inlineSearchQuery}
+                          onChange={(e) => setInlineSearchQuery(e.target.value)}
+                          onFocus={() => {
+                            if (inlineSearchQuery.length >= 3) {
+                              setShowInlineSearch(true);
+                            }
+                          }}
+                          onBlur={() => {
+                            // Delay hiding to allow click on dropdown items
+                            setTimeout(() => setShowInlineSearch(false), 200);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'ArrowDown') {
+                              e.preventDefault();
+                              if (inlineSearchResults.length > 0) {
+                                setSelectedInlineIndex(prev => 
+                                  prev < inlineSearchResults.length - 1 ? prev + 1 : 0
+                                );
                               }
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.pur_price}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "pur_price",
-                                  parseFloat(e.target.value) || 0
-                                )
+                            } else if (e.key === 'ArrowUp') {
+                              e.preventDefault();
+                              if (inlineSearchResults.length > 0) {
+                                setSelectedInlineIndex(prev => 
+                                  prev > 0 ? prev - 1 : inlineSearchResults.length - 1
+                                );
                               }
-                              className="w-28"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={item.sale_price}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "sale_price",
-                                  parseFloat(e.target.value) || 0
-                                )
+                            } else if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (inlineSearchResults.length > 0) {
+                                handleInlineProductSelect(inlineSearchResults[selectedInlineIndex]);
                               }
-                              className="w-28"
-                            />
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            ₹{subTotal.toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={item.discount_percent}
-                              onChange={(e) =>
-                                updateLineItem(
-                                  item.temp_id,
-                                  "discount_percent",
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              className="w-20"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={String(item.gst_per)}
-                              onValueChange={(value) =>
-                                updateLineItem(item.temp_id, "gst_per", parseInt(value))
-                              }
-                            >
-                              <SelectTrigger className="w-16 h-8">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="0">0%</SelectItem>
-                                <SelectItem value="5">5%</SelectItem>
-                                <SelectItem value="12">12%</SelectItem>
-                                <SelectItem value="18">18%</SelectItem>
-                                <SelectItem value="28">28%</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            ₹{gstAmount.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="font-semibold">
-                            ₹{total.toFixed(2)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeLineItem(item.temp_id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                    {/* Footer row with QTY total */}
+                            }
+                          }}
+                          placeholder="Search product name, brand, barcode..."
+                          className="w-full pr-8"
+                        />
+                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        
+                        {/* Inline Search Dropdown */}
+                        {showInlineSearch && (
+                          <div className="absolute top-full left-0 mt-1 w-full min-w-[400px] bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
+                            {inlineSearchQuery.length > 0 && inlineSearchQuery.length < 3 ? (
+                              <div className="px-4 py-3 text-sm text-muted-foreground">
+                                Please enter 3 or more characters
+                              </div>
+                            ) : inlineSearchResults.length > 0 ? (
+                              <>
+                                {inlineSearchResults.map((result, idx) => (
+                                  <button
+                                    key={result.id + idx}
+                                    onClick={() => handleInlineProductSelect(result)}
+                                    onMouseEnter={() => setSelectedInlineIndex(idx)}
+                                    className={cn(
+                                      "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
+                                      idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
+                                    )}
+                                  >
+                                    <div className="font-medium">
+                                      {formatProductDescription({
+                                        product_name: result.product_name,
+                                        category: result.category,
+                                        brand: result.brand,
+                                        style: result.style,
+                                        color: result.color,
+                                        size: result.size
+                                      })}
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                      {result.barcode && (
+                                        <span>Barcode: {result.barcode}</span>
+                                      )}
+                                      <span className="text-primary font-medium">
+                                        Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                                      </span>
+                                      <span className="text-green-600 dark:text-green-400 font-medium">
+                                        Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                                      </span>
+                                    </div>
+                                  </button>
+                                ))}
+                                {/* Add New Product button at bottom of results */}
+                                <button
+                                  onClick={handleAddNewProductFromInline}
+                                  className="w-full text-left px-4 py-3 text-primary font-medium border-t border-border hover:bg-accent/50 transition-colors flex items-center gap-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Add New Product
+                                </button>
+                              </>
+                            ) : inlineSearchQuery.length >= 3 ? (
+                              <>
+                                <div className="px-4 py-3 text-sm text-muted-foreground">
+                                  No products found for "{inlineSearchQuery}"
+                                </div>
+                                {/* Add New Product button when no results */}
+                                <button
+                                  onClick={handleAddNewProductFromInline}
+                                  className="w-full text-left px-4 py-3 text-primary font-medium border-t border-border hover:bg-accent/50 transition-colors flex items-center gap-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                  Add New Product
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell colSpan={10} className="text-muted-foreground text-sm">
+                      <span className="hidden md:inline">Type to search or </span>
+                      <button 
+                        onClick={handleAddNewProductFromInline}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        + Add New Product
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                  
+                  {/* Footer row with QTY total */}
+                  {lineItems.length > 0 && (
                     <TableRow className="bg-muted/50 font-semibold">
                       <TableCell colSpan={3} className="text-right">Total:</TableCell>
                       <TableCell className="text-center">{totals.totalQty}</TableCell>
                       <TableCell colSpan={8}></TableCell>
                     </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No products added. Search and add products using the search box above.</p>
-                <p className="text-xs mt-2">Tip: Press Alt+↓ to copy the last row</p>
-              </div>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            {lineItems.length === 0 && (
+              <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
             )}
           </CardContent>
         </Card>
