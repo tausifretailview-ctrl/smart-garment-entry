@@ -1429,7 +1429,7 @@ const PurchaseEntry = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">SR.NO</TableHead>
-                      <TableHead className="min-w-[280px]">ITEM NAME</TableHead>
+                      <TableHead className="w-auto">ITEM NAME</TableHead>
                       <TableHead className="w-28">BARCODE</TableHead>
                       <TableHead className="w-20">QTY</TableHead>
                       <TableHead className="w-28">PUR.RATE</TableHead>
