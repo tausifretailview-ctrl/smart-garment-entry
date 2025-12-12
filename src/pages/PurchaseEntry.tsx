@@ -1298,59 +1298,10 @@ const PurchaseEntry = () => {
                   </PopoverContent>
                 </Popover>
               </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        <Card className="shadow-lg border-border mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle>Products</CardTitle>
-              <div className="flex items-center gap-4">
-                <Button
-                  onClick={() => setShowExcelImport(true)}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Import Excel
-                </Button>
-                <Button
-                  onClick={() => {
-                    // Save current state before navigating
-                    const stateToSave = {
-                      billData,
-                      softwareBillNo,
-                      billDate: billDate.toISOString(),
-                      lineItems,
-                      roundOff,
-                    };
-                    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
-                    navigate('/product-entry', { state: { returnToPurchase: true } });
-                  }}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add New Product
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="entry-mode" className="text-sm">Entry Mode:</Label>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-sm", entryMode === "grid" ? "font-semibold" : "text-muted-foreground")}>
-                      Size Grid
-                    </span>
-                    <Switch
-                      id="entry-mode"
-                      checked={entryMode === "inline"}
-                      onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
-                    />
-                    <span className={cn("text-sm", entryMode === "inline" ? "font-semibold" : "text-muted-foreground")}>
-                      Inline Rows
-                    </span>
-                  </div>
-                </div>
-                <div className="relative w-80">
+              <div className="space-y-2 md:col-span-2">
+                <Label>Search Product</Label>
+                <div className="relative">
                   <Input
                     ref={searchInputRef}
                     value={searchQuery}
@@ -1414,6 +1365,59 @@ const PurchaseEntry = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-lg border-border mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <CardTitle>Products</CardTitle>
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setShowExcelImport(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Import Excel
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Save current state before navigating
+                    const stateToSave = {
+                      billData,
+                      softwareBillNo,
+                      billDate: billDate.toISOString(),
+                      lineItems,
+                      roundOff,
+                    };
+                    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
+                    navigate('/product-entry', { state: { returnToPurchase: true } });
+                  }}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add New Product
+                </Button>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="entry-mode" className="text-sm">Entry Mode:</Label>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-sm", entryMode === "grid" ? "font-semibold" : "text-muted-foreground")}>
+                      Size Grid
+                    </span>
+                    <Switch
+                      id="entry-mode"
+                      checked={entryMode === "inline"}
+                      onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+                    />
+                    <span className={cn("text-sm", entryMode === "inline" ? "font-semibold" : "text-muted-foreground")}>
+                      Inline Rows
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
