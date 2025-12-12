@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -134,6 +134,22 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipContent>
               </Tooltip>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => orgNavigate("/stock-report?tab=size-wise")}
+                  className="text-primary-foreground hover:bg-primary/80 gap-1"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span className="hidden sm:inline">Size Stock</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                <p>Size-wise Stock Report</p>
+              </TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button 
