@@ -1663,89 +1663,8 @@ export default function POSSales() {
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
       <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative">
-        <Button
-          onClick={handleNewInvoice}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs"
-          title="New Invoice"
-        >
-          <FileText className="h-5 w-5" />
-          <span>New</span>
-        </Button>
-        
-        <Button
-          onClick={handleHoldBill}
-          disabled={items.length === 0 || isSaving || isHeldSale}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs disabled:opacity-50"
-          title="Hold Bill (F5)"
-        >
-          <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F5</Badge>
-          <Pause className="h-5 w-5" />
-          <span>Hold</span>
-        </Button>
-        
-        <Button
-          onClick={() => handleSaveSale('pay_later')}
-          disabled={items.length === 0 || isSaving}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-amber-600 hover:bg-amber-700 text-white text-xs disabled:opacity-50"
-          title="Credit Sale"
-        >
-          <Check className="h-5 w-5" />
-          <span>Credit</span>
-        </Button>
-
-        <Button
-          onClick={handleLastInvoice}
-          disabled={!todaysSales || todaysSales.length === 0}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs disabled:opacity-50"
-          title="Last Invoice"
-        >
-          <RotateCcw className="h-5 w-5" />
-          <span>Last</span>
-        </Button>
-
-        <Button
-          onClick={handleDeleteInvoice}
-          disabled={!currentSaleId}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-50"
-          title="Delete Invoice"
-        >
-          <Trash2 className="h-5 w-5" />
-          <span>Delete</span>
-        </Button>
-
-        <Button
-          onClick={handlePrint}
-          disabled={items.length === 0}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50"
-          title="Print"
-        >
-          <Printer className="h-5 w-5" />
-          <span>Print</span>
-        </Button>
-        
-        <Button
-          onClick={handleClearAll}
-          className="h-16 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs relative"
-          title="Clear (Esc)"
-        >
-          <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
-          <X className="h-5 w-5" />
-          <span>Clear</span>
-        </Button>
-        
-        {/* WhatsApp Share Button */}
-        <Button
-          onClick={() => handleWhatsAppShare(true)}
-          disabled={!customerPhone || items.length === 0}
-          className="h-16 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
-          title="Share on WhatsApp"
-        >
-          <MessageCircle className="h-5 w-5" />
-          <span>WhatsApp</span>
-        </Button>
-        
-        {/* Payment Method Buttons */}
-        <div className="mt-auto space-y-2">
+        {/* Payment Method Buttons - TOP */}
+        <div className="space-y-2">
           <div className="text-[10px] text-center text-muted-foreground px-1 mb-1">Payment</div>
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
@@ -1786,6 +1705,69 @@ export default function POSSales() {
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F4</Badge>
             <Wallet className="h-4 w-4" />
             <span>Mix</span>
+          </Button>
+        </div>
+        
+        {/* Action Buttons - BOTTOM */}
+        <div className="mt-auto space-y-2">
+          <Button
+            onClick={handleNewInvoice}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs w-full"
+            title="New Invoice"
+          >
+            <FileText className="h-4 w-4" />
+            <span>New</span>
+          </Button>
+          
+          <Button
+            onClick={handleHoldBill}
+            disabled={items.length === 0 || isSaving || isHeldSale}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs disabled:opacity-50 w-full relative"
+            title="Hold Bill (F5)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F5</Badge>
+            <Pause className="h-4 w-4" />
+            <span>Hold</span>
+          </Button>
+          
+          <Button
+            onClick={handleLastInvoice}
+            disabled={!todaysSales || todaysSales.length === 0}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs disabled:opacity-50 w-full"
+            title="Last Invoice"
+          >
+            <RotateCcw className="h-4 w-4" />
+            <span>Last</span>
+          </Button>
+
+          <Button
+            onClick={handleDeleteInvoice}
+            disabled={!currentSaleId}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-50 w-full"
+            title="Delete Invoice"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete</span>
+          </Button>
+
+          <Button
+            onClick={handlePrint}
+            disabled={items.length === 0}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50 w-full"
+            title="Print"
+          >
+            <Printer className="h-4 w-4" />
+            <span>Print</span>
+          </Button>
+          
+          <Button
+            onClick={handleClearAll}
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-xs relative w-full"
+            title="Clear (Esc)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
+            <X className="h-4 w-4" />
+            <span>Clear</span>
           </Button>
         </div>
       </div>
