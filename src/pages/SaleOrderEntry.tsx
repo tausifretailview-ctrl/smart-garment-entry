@@ -820,7 +820,24 @@ export default function SaleOrderEntry() {
           </div>
         </div>
 
-        {/* Product Search */}
+        {/* Entry Mode Toggle & Product Search */}
+        <div className="mb-4 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Label className="text-sm">Entry Mode:</Label>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
+                Size Grid
+              </span>
+              <Switch
+                checked={entryMode === "inline"}
+                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              />
+              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
+                Inline
+              </span>
+            </div>
+          </div>
+        </div>
         <div className="mb-4">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
@@ -1115,6 +1132,18 @@ export default function SaleOrderEntry() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Size Grid Dialog */}
+      <SizeGridDialog
+        open={showSizeGrid}
+        onClose={() => setShowSizeGrid(false)}
+        product={sizeGridProduct}
+        variants={sizeGridVariants}
+        onConfirm={handleSizeGridConfirm}
+        showStock={true}
+        validateStock={false}
+        title="Enter Size-wise Qty"
+      />
     </div>
   );
 }
