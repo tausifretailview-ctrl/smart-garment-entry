@@ -990,20 +990,18 @@ export default function BarcodePrinting() {
   const [printScale, setPrintScale] = useState(100);
   
   // Auto-load default offsets and scale when novajet40 is selected
+  // Only set default offsets for specific presets, don't auto-reset printScale
   useEffect(() => {
-    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number; defaultScale?: number }> = {
-      novajet40: { defaultTop: 2, defaultLeft: 1, defaultScale: 150 },
+    const sheetPresets: Record<string, { defaultTop?: number; defaultLeft?: number }> = {
+      novajet40: { defaultTop: 2, defaultLeft: 1 },
     };
     
     const preset = sheetPresets[sheetType];
     if (preset) {
       if (preset.defaultTop !== undefined) setTopOffset(preset.defaultTop);
       if (preset.defaultLeft !== undefined) setLeftOffset(preset.defaultLeft);
-      if (preset.defaultScale !== undefined) setPrintScale(preset.defaultScale);
-    } else {
-      // Reset to 100% for other sheet types
-      setPrintScale(100);
     }
+    // Don't auto-reset printScale - let user control it
   }, [sheetType]);
   
   // Custom dimensions state
