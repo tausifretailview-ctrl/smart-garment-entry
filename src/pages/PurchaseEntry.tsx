@@ -80,12 +80,12 @@ const formatProductDescription = (item: {
   size: string;
 }) => {
   const parts = [item.product_name];
-  if (item.category) parts.push(item.category);
   if (item.brand) parts.push(item.brand);
+  if (item.category) parts.push(item.category);
   if (item.style) parts.push(item.style);
   if (item.color) parts.push(item.color);
   parts.push(item.size);
-  return parts.join(' - ');
+  return parts.join(' | ');
 };
 
 const PurchaseEntry = () => {
@@ -1428,18 +1428,18 @@ const PurchaseEntry = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">SR.NO</TableHead>
-                      <TableHead>ITEM NAME</TableHead>
-                      <TableHead className="w-32">BARCODE</TableHead>
+                      <TableHead className="w-12">SR.NO</TableHead>
+                      <TableHead className="min-w-[280px]">ITEM NAME</TableHead>
+                      <TableHead className="w-28">BARCODE</TableHead>
                       <TableHead className="w-20">QTY</TableHead>
                       <TableHead className="w-28">PUR.RATE</TableHead>
                       <TableHead className="w-28">SALE.RATE</TableHead>
-                      <TableHead className="w-28">SUB TOTAL</TableHead>
-                      <TableHead className="w-24">DISC %</TableHead>
-                      <TableHead className="w-28">TOTAL</TableHead>
-                      <TableHead className="w-24">I-GST</TableHead>
-                      <TableHead className="w-24">O-GST</TableHead>
-                      <TableHead className="w-16"></TableHead>
+                      <TableHead className="w-24">SUB TOTAL</TableHead>
+                      <TableHead className="w-20">DISC %</TableHead>
+                      <TableHead className="w-24">TOTAL</TableHead>
+                      <TableHead className="w-16">GST %</TableHead>
+                      <TableHead className="w-24">GST AMT</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1451,7 +1451,7 @@ const PurchaseEntry = () => {
                       return (
                         <TableRow key={item.temp_id}>
                           <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium whitespace-nowrap">
                             {formatProductDescription(item)}
                           </TableCell>
                           <TableCell>
@@ -1530,8 +1530,8 @@ const PurchaseEntry = () => {
                           <TableCell className="font-semibold">
                             ₹{total.toFixed(2)}
                           </TableCell>
-                          <TableCell className="font-medium">
-                            ₹{gstAmount.toFixed(2)}
+                          <TableCell className="text-center text-muted-foreground">
+                            {item.gst_per}%
                           </TableCell>
                           <TableCell className="font-medium">
                             ₹{gstAmount.toFixed(2)}
