@@ -770,6 +770,25 @@ export default function POSSales() {
   };
 
   const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
+  
+  // Calculate amount before round-off (without roundOff in calculation)
+  const amountBeforeRoundOff = totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
+  
+  // Auto-calculate round-off to make final amount a whole number
+  const calculatedRoundOff = Math.round(amountBeforeRoundOff) - amountBeforeRoundOff;
+  
+  // Auto-update roundOff state when calculation changes
+  useEffect(() => {
+    if (items.length > 0) {
+      const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
+      if (Math.abs(newRoundOff - roundOff) > 0.001) {
+        setRoundOff(newRoundOff);
+      }
+    } else if (roundOff !== 0) {
+      setRoundOff(0);
+    }
+  }, [amountBeforeRoundOff, items.length]);
+  
   const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
   const finalAmount = amountBeforeCredit - creditApplied;
 
@@ -2341,18 +2360,14 @@ export default function POSSales() {
               </div>
             )}
             <div className="text-center">
-              <Input 
-                type="number"
-                className="w-20 h-8 bg-white text-black text-center text-base font-semibold mx-auto" 
-                value={roundOff}
-                onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                step="0.01"
-              />
+              <div className={`w-20 h-8 flex items-center justify-center mx-auto rounded border ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'} text-base font-semibold`}>
+                {roundOff >= 0 ? '+' : ''}{roundOff.toFixed(2)}
+              </div>
               <div className="text-xs md:text-sm mt-1">Round OFF</div>
             </div>
             <div className="text-center">
               <div className={`text-2xl md:text-3xl font-bold ${finalAmount < 0 ? 'text-orange-300' : ''}`}>
-                ₹{finalAmount.toFixed(2)}
+                ₹{Math.round(finalAmount)}
               </div>
               <div className="text-xs md:text-sm mt-1">
                 {finalAmount < 0 ? "Refund" : "Amount"}
