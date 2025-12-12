@@ -23,7 +23,7 @@ export const Header = () => {
   const navigate = useNavigate();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isInstallable, promptInstall } = useInstallPrompt();
+  const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
 
   const handleSignOut = async () => {
     // Get the organization slug (prefer current, fallback to localStorage)
@@ -127,18 +127,31 @@ export const Header = () => {
             <Search className="h-5 w-5" />
           </Button>
 
-          {/* Install App Button - Visible on all devices */}
-          {isInstallable && (
+          {/* Install App Button - Always visible on mobile, shows install prompt or instructions */}
+          {!isInstalled && (
             <Button
               variant="outline"
               size="sm"
-              onClick={promptInstall}
+              onClick={() => {
+                if (isInstallable) {
+                  promptInstall();
+                } else {
+                  // Show manual install instructions for browsers that don't support beforeinstallprompt
+                  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                  const message = isIOS 
+                    ? "Tap the Share button, then 'Add to Home Screen'" 
+                    : "Open browser menu (⋮) and tap 'Install App' or 'Add to Home Screen'";
+                  alert(message);
+                }
+              }}
               className="relative text-primary border-primary/30 hover:bg-primary/10 hover:text-primary gap-1"
               title="Install App"
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Install App</span>
-              <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
+              {isInstallable && (
+                <span className="absolute -top-1 -right-1 h-3 w-3 bg-green-500 rounded-full animate-pulse" />
+              )}
             </Button>
           )}
 
