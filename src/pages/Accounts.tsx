@@ -1056,21 +1056,22 @@ export default function Accounts() {
                                   isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
                                 )}
                                 onClick={() => {
-                                  if (isSelected) {
-                                    setSelectedInvoiceIds(selectedInvoiceIds.filter(id => id !== invoice.id));
-                                  } else {
-                                    setSelectedInvoiceIds([...selectedInvoiceIds, invoice.id]);
-                                  }
+                                  setSelectedInvoiceIds(prev => 
+                                    prev.includes(invoice.id) 
+                                      ? prev.filter(id => id !== invoice.id)
+                                      : [...prev, invoice.id]
+                                  );
                                 }}
                               >
                                 <Checkbox 
                                   checked={isSelected}
+                                  onClick={(e) => e.stopPropagation()}
                                   onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedInvoiceIds([...selectedInvoiceIds, invoice.id]);
-                                    } else {
-                                      setSelectedInvoiceIds(selectedInvoiceIds.filter(id => id !== invoice.id));
-                                    }
+                                    setSelectedInvoiceIds(prev => 
+                                      checked 
+                                        ? [...prev, invoice.id]
+                                        : prev.filter(id => id !== invoice.id)
+                                    );
                                   }}
                                 />
                                 <div className="flex-1 flex justify-between items-center">
