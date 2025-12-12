@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3 } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -525,6 +525,7 @@ export default function StockReport() {
 
   const lowStockItems = filteredStockItems.filter(item => item.stock_qty <= lowStockThreshold);
   const totalStock = filteredStockItems.reduce((sum, item) => sum + item.stock_qty, 0);
+  const totalStockValue = filteredStockItems.reduce((sum, item) => sum + (item.pur_price || 0) * item.stock_qty, 0);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -667,7 +668,7 @@ export default function StockReport() {
         </Collapsible>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-5 mb-6">
         <Card 
           className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
           onClick={() => setActiveTab("all")}
@@ -677,8 +678,19 @@ export default function StockReport() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalStock}</div>
+            <div className="text-2xl font-bold">{totalStock.toLocaleString('en-IN')}</div>
             <p className="text-xs text-muted-foreground">{stockItems.length} variants</p>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-md transition-shadow border-primary/50 bg-primary/5">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stock Value</CardTitle>
+            <IndianRupee className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">₹{totalStockValue.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-muted-foreground">Inventory valuation</p>
           </CardContent>
         </Card>
 
