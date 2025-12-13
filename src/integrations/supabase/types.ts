@@ -509,6 +509,44 @@ export type Database = {
           },
         ]
       }
+      drafts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          draft_data: Json
+          draft_type: string
+          id: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          draft_data?: Json
+          draft_type: string
+          id?: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          draft_data?: Json
+          draft_type?: string
+          id?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drafts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           address: string | null

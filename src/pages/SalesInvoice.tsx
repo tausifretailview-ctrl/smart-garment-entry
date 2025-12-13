@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -62,6 +62,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface LineItem {
   id: string;
@@ -150,6 +152,82 @@ export default function SalesInvoice() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+
+  // Draft save hook
+  const {
+    hasDraft,
+    draftData,
+    saveDraft,
+    deleteDraft,
+    updateCurrentData,
+    startAutoSave,
+    stopAutoSave,
+  } = useDraftSave('sale_invoice');
+
+  // Load draft data
+  const loadDraftData = useCallback((data: any) => {
+    if (!data) return;
+    setInvoiceDate(data.invoiceDate ? new Date(data.invoiceDate) : new Date());
+    setDueDate(data.dueDate ? new Date(data.dueDate) : new Date());
+    setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
+      id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
+      quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+    })));
+    setSelectedCustomerId(data.selectedCustomerId || "");
+    setSelectedCustomer(data.selectedCustomer || null);
+    setPaymentTerm(data.paymentTerm || "");
+    setTermsConditions(data.termsConditions || "");
+    setNotes(data.notes || "");
+    setShippingAddress(data.shippingAddress || "");
+    setShippingInstructions(data.shippingInstructions || "");
+    setTaxType(data.taxType || "inclusive");
+    setSalesman(data.salesman || "");
+    setFlatDiscountPercent(data.flatDiscountPercent || 0);
+    setRoundOff(data.roundOff || 0);
+    toast({
+      title: "Draft Loaded",
+      description: "Your previous work has been restored",
+    });
+  }, [toast]);
+
+  // Check for draft on mount (only if not in edit mode)
+  useEffect(() => {
+    if (!location.state?.editInvoiceId && hasDraft && draftData) {
+      setShowDraftDialog(true);
+    }
+  }, [hasDraft, draftData, location.state?.editInvoiceId]);
+
+  // Update current data for auto-save whenever form data changes
+  useEffect(() => {
+    const filledItems = lineItems.filter(item => item.productId !== '');
+    if (!editingInvoiceId && filledItems.length > 0) {
+      updateCurrentData({
+        invoiceDate: invoiceDate.toISOString(),
+        dueDate: dueDate.toISOString(),
+        lineItems,
+        selectedCustomerId,
+        selectedCustomer,
+        paymentTerm,
+        termsConditions,
+        notes,
+        shippingAddress,
+        shippingInstructions,
+        taxType,
+        salesman,
+        flatDiscountPercent,
+        roundOff,
+      });
+    }
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, editingInvoiceId, updateCurrentData]);
+
+  // Start auto-save when not in edit mode
+  useEffect(() => {
+    if (!editingInvoiceId && !location.state?.editInvoiceId) {
+      startAutoSave();
+    }
+    return () => stopAutoSave();
+  }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId]);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -1661,6 +1739,21 @@ Thank you for choosing us!`;
         showStock={true}
         validateStock={true}
         title="Enter Size-wise Qty (Stock Validated)"
+      />
+
+      {/* Draft Resume Dialog */}
+      <DraftResumeDialog
+        open={showDraftDialog}
+        onOpenChange={setShowDraftDialog}
+        draftType="sale_invoice"
+        onResume={() => {
+          loadDraftData(draftData);
+          setShowDraftDialog(false);
+        }}
+        onStartFresh={async () => {
+          await deleteDraft();
+          setShowDraftDialog(false);
+        }}
       />
 
       {/* Hidden Invoice for Printing */}

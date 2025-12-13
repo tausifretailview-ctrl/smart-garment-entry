@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery } from "@tanstack/react-query";
@@ -26,6 +26,8 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface ProductVariant {
   id: string;
@@ -124,6 +126,7 @@ const PurchaseEntry = () => {
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -131,6 +134,61 @@ const PurchaseEntry = () => {
     supplier_invoice_no: "",
   });
   const [softwareBillNo, setSoftwareBillNo] = useState<string>("");
+
+  // Draft save hook
+  const {
+    hasDraft,
+    draftData,
+    saveDraft,
+    deleteDraft,
+    updateCurrentData,
+    startAutoSave,
+    stopAutoSave,
+  } = useDraftSave('purchase');
+
+  // Load draft data
+  const loadDraftData = useCallback((data: any) => {
+    if (!data) return;
+    setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
+    setSoftwareBillNo(data.softwareBillNo || "");
+    setBillDate(data.billDate ? new Date(data.billDate) : new Date());
+    setLineItems(data.lineItems || []);
+    setRoundOff(data.roundOff || 0);
+    setEntryMode(data.entryMode || "grid");
+    toast({
+      title: "Draft Loaded",
+      description: "Your previous work has been restored",
+    });
+  }, [toast]);
+
+  // Check for draft on mount (only if not in edit mode)
+  useEffect(() => {
+    if (!location.state?.editBillId && hasDraft && draftData) {
+      setShowDraftDialog(true);
+    }
+  }, [hasDraft, draftData, location.state?.editBillId]);
+
+  // Update current data for auto-save whenever form data changes
+  useEffect(() => {
+    if (!isEditMode && lineItems.length > 0) {
+      updateCurrentData({
+        billData,
+        softwareBillNo,
+        billDate: billDate.toISOString(),
+        lineItems,
+        roundOff,
+        entryMode,
+      });
+    }
+  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, updateCurrentData]);
+
+  // Start auto-save when not in edit mode
+  useEffect(() => {
+    if (!isEditMode && !location.state?.editBillId) {
+      startAutoSave();
+    }
+    return () => stopAutoSave();
+  }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId]);
 
   // Fetch suppliers
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
@@ -1054,6 +1112,9 @@ const PurchaseEntry = () => {
         // Store items for barcode printing and show dialog
         setSavedPurchaseItems(itemsWithDetails);
         setShowPrintDialog(true);
+
+        // Delete draft after successful save
+        await deleteDraft();
 
         // Reset form and generate new bill number
         setBillData({
@@ -2022,6 +2083,21 @@ const PurchaseEntry = () => {
           title="Import Purchase Bill from Excel"
           sampleData={purchaseBillSampleData}
           sampleFileName="Purchase_Bill_Sample.xlsx"
+        />
+
+        {/* Draft Resume Dialog */}
+        <DraftResumeDialog
+          open={showDraftDialog}
+          onOpenChange={setShowDraftDialog}
+          draftType="purchase"
+          onResume={() => {
+            loadDraftData(draftData);
+            setShowDraftDialog(false);
+          }}
+          onStartFresh={async () => {
+            await deleteDraft();
+            setShowDraftDialog(false);
+          }}
         />
       </div>
     </div>
