@@ -115,7 +115,7 @@ const POSDashboard = () => {
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
-  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('thermal');
+  const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   
   // Column visibility state with database persistence
@@ -1558,7 +1558,7 @@ const POSDashboard = () => {
         <PrintPreviewDialog
           open={showPreviewDialog}
           onOpenChange={setShowPreviewDialog}
-          defaultFormat={posBillFormat}
+          defaultFormat={posBillFormat || 'thermal'}
           renderInvoice={(format) => (
             <InvoiceWrapper
               format={format}
