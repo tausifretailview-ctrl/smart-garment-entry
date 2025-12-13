@@ -38,6 +38,7 @@ import {
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface ColumnSettings {
   [key: string]: boolean;
@@ -209,31 +210,19 @@ export default function SalesInvoiceDashboard() {
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
   
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
 
     setIsDeleting(true);
     try {
-      // Delete sale_items first - trigger will automatically restore stock
-      const { error: itemsError } = await supabase
-        .from("sale_items")
-        .delete()
-        .eq("sale_id", invoiceToDelete.id);
-
-      if (itemsError) throw itemsError;
-
-      // Then delete the sale record
-      const { error: saleError } = await supabase
-        .from("sales")
-        .delete()
-        .eq("id", invoiceToDelete.id);
-
-      if (saleError) throw saleError;
+      const success = await softDelete("sales", invoiceToDelete.id);
+      if (!success) throw new Error("Failed to delete invoice");
 
       toast({
         title: "Success",
-        description: `Invoice ${invoiceToDelete.sale_number} deleted and stock restored`,
+        description: `Invoice ${invoiceToDelete.sale_number} moved to recycle bin`,
       });
 
       refetch();
@@ -255,27 +244,11 @@ export default function SalesInvoiceDashboard() {
     setIsDeleting(true);
     try {
       const invoicesToDelete = Array.from(selectedInvoices);
-      
-      // Delete sale_items for all invoices - triggers will automatically restore stock
-      for (const invoiceId of invoicesToDelete) {
-        const { error: itemsError } = await supabase
-          .from("sale_items")
-          .delete()
-          .eq("sale_id", invoiceId);
-
-        if (itemsError) throw itemsError;
-
-        const { error: saleError } = await supabase
-          .from("sales")
-          .delete()
-          .eq("id", invoiceId);
-
-        if (saleError) throw saleError;
-      }
+      const count = await bulkSoftDelete("sales", invoicesToDelete);
 
       toast({
         title: "Success",
-        description: `${invoicesToDelete.length} invoice(s) deleted and stock restored`,
+        description: `${count} invoice(s) moved to recycle bin`,
       });
 
       setSelectedInvoices(new Set());

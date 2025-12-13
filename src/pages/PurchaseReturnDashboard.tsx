@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface PurchaseReturnItem {
   id: string;
@@ -171,20 +172,18 @@ const PurchaseReturnDashboard = () => {
     setDeleteDialogOpen(true);
   };
 
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
+
   const handleDeleteConfirm = async () => {
     if (!returnToDelete) return;
 
     try {
-      const { error } = await supabase
-        .from("purchase_returns" as any)
-        .delete()
-        .eq("id", returnToDelete.id);
-
-      if (error) throw error;
+      const success = await softDelete("purchase_returns", returnToDelete.id);
+      if (!success) throw new Error("Failed to delete purchase return");
 
       toast({
         title: "Success",
-        description: "Purchase return deleted successfully",
+        description: "Purchase return moved to recycle bin",
       });
 
       fetchReturns();
@@ -223,16 +222,11 @@ const PurchaseReturnDashboard = () => {
     if (selectedReturns.size === 0) return;
 
     try {
-      const { error } = await supabase
-        .from("purchase_returns" as any)
-        .delete()
-        .in("id", Array.from(selectedReturns));
-
-      if (error) throw error;
+      const count = await bulkSoftDelete("purchase_returns", Array.from(selectedReturns));
 
       toast({
         title: "Success",
-        description: `${selectedReturns.size} purchase returns deleted successfully`,
+        description: `${count} purchase returns moved to recycle bin`,
       });
 
       setSelectedReturns(new Set());

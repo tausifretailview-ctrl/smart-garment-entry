@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Badge } from "@/components/ui/badge";
 
 interface Employee {
@@ -133,16 +134,18 @@ const EmployeeMaster = () => {
     },
   });
 
+  const { softDelete } = useSoftDelete();
+
   const deleteEmployee = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("employees").delete().eq("id", id);
-      if (error) throw error;
+      const success = await softDelete("employees", id);
+      if (!success) throw new Error("Failed to delete employee");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      toast({ title: "Employee deleted successfully" });
+      toast({ title: "Employee moved to recycle bin" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting employee", description: error.message, variant: "destructive" });
     },
   });

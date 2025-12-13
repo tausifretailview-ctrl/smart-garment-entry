@@ -28,6 +28,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface ProductVariant {
   variant_id: string;
@@ -310,6 +311,8 @@ const ProductDashboard = () => {
     return { hasTransactions, productName };
   };
 
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
+
   const handleBulkDelete = async () => {
     setIsDeleting(true);
     try {
@@ -336,50 +339,12 @@ const ProductDashboard = () => {
         return;
       }
 
-      // Only delete products without transaction history
-      for (const productId of productsToDelete) {
-        // Get variant IDs first
-        const { data: variants } = await supabase
-          .from("product_variants")
-          .select("id")
-          .eq("product_id", productId);
-
-        if (variants && variants.length > 0) {
-          const variantIds = variants.map(v => v.id);
-          
-          // Delete batch stock for these variants (only if no transactions)
-          await supabase
-            .from("batch_stock")
-            .delete()
-            .in("variant_id", variantIds);
-
-          // Delete stock movements for these variants (only if no transactions)
-          await supabase
-            .from("stock_movements")
-            .delete()
-            .in("variant_id", variantIds);
-        }
-
-        // Delete variants
-        const { error: variantsError } = await supabase
-          .from("product_variants")
-          .delete()
-          .eq("product_id", productId);
-
-        if (variantsError) throw variantsError;
-
-        // Finally delete product
-        const { error: productError } = await supabase
-          .from("products")
-          .delete()
-          .eq("id", productId);
-
-        if (productError) throw productError;
-      }
+      // Soft delete products without transaction history
+      const count = await bulkSoftDelete("products", productsToDelete);
 
       toast({
         title: "Success",
-        description: `${productsToDelete.length} product(s) permanently deleted`,
+        description: `${count} product(s) moved to recycle bin`,
       });
 
       setSelectedProducts(new Set());

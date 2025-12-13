@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface ConversionItem {
   id: string;
@@ -309,15 +310,17 @@ export default function SaleOrderDashboard() {
     }
   };
 
+  const { softDelete } = useSoftDelete();
+
   const handleDeleteOrder = async () => {
     if (!orderToDelete) return;
 
     setIsDeleting(true);
     try {
-      await supabase.from("sale_order_items").delete().eq("order_id", orderToDelete.id);
-      await supabase.from("sale_orders").delete().eq("id", orderToDelete.id);
+      const success = await softDelete("sale_orders", orderToDelete.id);
+      if (!success) throw new Error("Failed to delete sale order");
 
-      toast({ title: "Success", description: `Sale Order ${orderToDelete.order_number} deleted` });
+      toast({ title: "Success", description: `Sale Order ${orderToDelete.order_number} moved to recycle bin` });
       refetch();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

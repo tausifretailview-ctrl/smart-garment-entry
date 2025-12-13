@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface PurchaseItem {
   id: string;
@@ -198,6 +199,8 @@ const PurchaseBillDashboard = () => {
     }
   }, [expandedBill, billItems]);
 
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
+
   const handleDeleteClick = (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
     setBillToDelete(bill);
@@ -208,25 +211,12 @@ const PurchaseBillDashboard = () => {
 
     setDeletingBill(billToDelete.id);
     try {
-      // Delete purchase items - database triggers will handle stock restoration automatically
-      const { error: itemsError } = await supabase
-        .from("purchase_items")
-        .delete()
-        .eq("bill_id", billToDelete.id);
-
-      if (itemsError) throw itemsError;
-
-      // Delete purchase bill
-      const { error: billError } = await supabase
-        .from("purchase_bills")
-        .delete()
-        .eq("id", billToDelete.id);
-
-      if (billError) throw billError;
+      const success = await softDelete("purchase_bills", billToDelete.id);
+      if (!success) throw new Error("Failed to delete purchase bill");
 
       toast({
         title: "Success",
-        description: "Purchase bill deleted and stock restored successfully",
+        description: "Purchase bill moved to recycle bin",
       });
 
       setBillToDelete(null);
@@ -252,27 +242,11 @@ const PurchaseBillDashboard = () => {
     setIsDeleting(true);
     try {
       const billsToDelete = Array.from(selectedBills);
-      
-      for (const billId of billsToDelete) {
-        // Delete purchase items - database triggers will handle stock restoration automatically
-        const { error: itemsError } = await supabase
-          .from("purchase_items")
-          .delete()
-          .eq("bill_id", billId);
-
-        if (itemsError) throw itemsError;
-
-        const { error: billError } = await supabase
-          .from("purchase_bills")
-          .delete()
-          .eq("id", billId);
-
-        if (billError) throw billError;
-      }
+      const count = await bulkSoftDelete("purchase_bills", billsToDelete);
 
       toast({
         title: "Success",
-        description: `${billsToDelete.length} purchase bill(s) deleted and stock restored successfully`,
+        description: `${count} purchase bill(s) moved to recycle bin`,
       });
 
       setSelectedBills(new Set());

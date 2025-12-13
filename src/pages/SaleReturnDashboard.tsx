@@ -12,6 +12,7 @@ import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, Trendin
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface SaleReturn {
   id: string;
@@ -135,21 +136,16 @@ export default function SaleReturnDashboard() {
     setExpandedRows(newExpanded);
   };
 
+  const { softDelete } = useSoftDelete();
+
   const handleDelete = async () => {
     if (!returnToDelete) return;
 
-    const { error } = await supabase
-      .from("sale_returns")
-      .delete()
-      .eq("id", returnToDelete);
-
-    if (error) {
-      toast({ title: "Error", description: "Failed to delete return", variant: "destructive" });
-      return;
+    const success = await softDelete("sale_returns", returnToDelete);
+    if (success) {
+      toast({ title: "Success", description: "Return moved to recycle bin" });
+      setReturns(returns.filter((r) => r.id !== returnToDelete));
     }
-
-    toast({ title: "Success", description: "Return deleted successfully" });
-    setReturns(returns.filter((r) => r.id !== returnToDelete));
     setDeleteDialogOpen(false);
     setReturnToDelete(null);
   };
