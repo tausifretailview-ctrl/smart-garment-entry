@@ -794,6 +794,9 @@ const PurchaseEntry = () => {
   }, [lineItems]);
 
   const handleSave = async () => {
+    // Prevent double-click saves
+    if (loading) return;
+    
     // Use Zod schema validation
     const validation = validatePurchaseBill({
       supplier_name: billData.supplier_name,
@@ -946,8 +949,15 @@ const PurchaseEntry = () => {
           description: "Purchase bill updated successfully",
         });
 
-        // Stay on purchase bill page - reset form for new entry
+        // Reset edit mode state - Critical fix for duplicate bill prevention
+        setIsEditMode(false);
+        setOriginalLineItems([]);
         setEditingBillId(null);
+        
+        // Clear location state to prevent re-triggering edit mode on refresh
+        window.history.replaceState({}, document.title);
+        
+        // Stay on purchase bill page - reset form for new entry
         setBillData({
           supplier_id: "",
           supplier_name: "",
