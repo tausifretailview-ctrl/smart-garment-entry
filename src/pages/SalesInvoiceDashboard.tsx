@@ -79,7 +79,7 @@ export default function SalesInvoiceDashboard() {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>('a4');
+  const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [invoiceTemplate, setInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
   const [showInvoicePreviewSetting, setShowInvoicePreviewSetting] = useState(true);
   const printRef = useRef<HTMLDivElement>(null);
@@ -1547,7 +1547,7 @@ export default function SalesInvoiceDashboard() {
           <PrintPreviewDialog
             open={showPrintPreview}
             onOpenChange={setShowPrintPreview}
-            defaultFormat={billFormat}
+            defaultFormat={billFormat || 'a4'}
             renderInvoice={(format) => 
               invoiceToPrint ? (
               <InvoiceWrapper
