@@ -58,6 +58,7 @@ import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
+import RecycleBin from "./pages/RecycleBin";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -541,6 +542,20 @@ const App = () => {
                       <Layout>
                         <DeliveryDashboard />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Recycle Bin - Admin Only */}
+                <Route
+                  path="recycle-bin"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <RecycleBin />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
