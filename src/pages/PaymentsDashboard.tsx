@@ -85,6 +85,9 @@ export default function PaymentsDashboard() {
   const [paymentAmount, setPaymentAmount] = useState<string>("");
   const [paymentDate, setPaymentDate] = useState<Date>(new Date());
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
+  const [transactionId, setTransactionId] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -241,6 +244,9 @@ export default function PaymentsDashboard() {
     setPaymentAmount(pendingAmount.toFixed(2));
     setPaymentDate(new Date());
     setPaymentMethod("cash");
+    setChequeNumber("");
+    setChequeDate(undefined);
+    setTransactionId("");
     setShowPaymentDialog(true);
   };
 
@@ -312,6 +318,17 @@ export default function PaymentsDashboard() {
 
       if (voucherError) throw voucherError;
 
+      // Build payment details for description
+      let paymentDetails = '';
+      if (paymentMethod === 'cheque' && chequeNumber) {
+        paymentDetails = ` | Cheque No: ${chequeNumber}`;
+        if (chequeDate) {
+          paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
+        }
+      } else if (paymentMethod === 'other' && transactionId) {
+        paymentDetails = ` | Transaction ID: ${transactionId}`;
+      }
+
       // Create voucher entry
       const { error: voucherEntryError } = await supabase
         .from('voucher_entries')
@@ -323,7 +340,7 @@ export default function PaymentsDashboard() {
           reference_type: 'customer',
           reference_id: selectedInvoice.id,
           total_amount: amount,
-          description: `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}`,
+          description: `Payment received from ${selectedInvoice.customer_name} for invoice ${selectedInvoice.sale_number}${paymentDetails}`,
         });
 
       if (voucherEntryError) throw voucherEntryError;
@@ -847,7 +864,12 @@ Thank you for your business!`;
 
             <div className="space-y-2">
               <Label htmlFor="paymentMethod">Payment Method *</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select value={paymentMethod} onValueChange={(value) => {
+                setPaymentMethod(value);
+                setChequeNumber("");
+                setChequeDate(undefined);
+                setTransactionId("");
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -857,9 +879,55 @@ Thank you for your business!`;
                   <SelectItem value="card">Card</SelectItem>
                   <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                   <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Cheque fields */}
+            {paymentMethod === 'cheque' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Cheque Number</Label>
+                  <Input
+                    placeholder="Enter cheque number"
+                    value={chequeNumber}
+                    onChange={(e) => setChequeNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Cheque Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={chequeDate}
+                        onSelect={setChequeDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
+
+            {/* Other payment - Transaction ID field */}
+            {paymentMethod === 'other' && (
+              <div className="space-y-2">
+                <Label>Transaction ID</Label>
+                <Input
+                  placeholder="Enter transaction ID"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           <DialogFooter>
