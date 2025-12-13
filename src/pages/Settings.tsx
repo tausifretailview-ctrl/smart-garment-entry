@@ -90,7 +90,8 @@ interface SaleSettings {
   default_discount?: number;
   payment_methods?: string[];
   default_payment_method?: string;
-  invoice_numbering_format?: string;  // For INV-{YYYY}-{####}
+  invoice_numbering_format?: string;  // For Sale Invoice INV-{YYYY}-{####}
+  pos_numbering_format?: string;  // For POS billing POS-{YYYY}-{####}
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
@@ -1313,7 +1314,7 @@ export default function Settings() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_numbering_format">Invoice Numbering Format</Label>
+                  <Label htmlFor="invoice_numbering_format">Sale Invoice Numbering Format</Label>
                   <Input
                     id="invoice_numbering_format"
                     value={settings.sale_settings?.invoice_numbering_format || ""}
@@ -1326,10 +1327,30 @@ export default function Settings() {
                         },
                       })
                     }
-                    placeholder="e.g., INV-{YYYY}-{####}"
+                    placeholder="Default: INV/YY-YY/N"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment number)
+                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default INV/25-26/1 format.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pos_numbering_format">POS Bill Numbering Format</Label>
+                  <Input
+                    id="pos_numbering_format"
+                    value={settings.sale_settings?.pos_numbering_format || ""}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_numbering_format: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="Default: POS/YY-YY/N"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Available placeholders: {"{YYYY}"} (year), {"{MM}"} (month), {"{####}"} (auto-increment). Leave empty for default POS/25-26/1 format.
                   </p>
                 </div>
                 <div className="space-y-2">

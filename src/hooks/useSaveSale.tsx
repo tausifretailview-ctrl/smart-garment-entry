@@ -134,7 +134,8 @@ export const useSaveSale = () => {
       upiAmount: number;
       totalPaid: number;
       refundAmount: number;
-    }
+    },
+    saleType: 'pos' | 'sale_invoice' = 'pos'
   ) => {
     if (!user) {
       toast({
@@ -175,14 +176,29 @@ export const useSaveSale = () => {
 
       let saleNumber: string;
       
-      // Always use custom format if available, otherwise use default
-      if (settings?.sale_settings?.invoice_numbering_format) {
-        saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+      // Use POS format for POS sales, Invoice format for regular sales
+      if (saleType === 'pos') {
+        // Check for custom POS format first
+        if (settings?.sale_settings?.pos_numbering_format) {
+          saleNumber = await generateInvoiceNumber(settings.sale_settings.pos_numbering_format);
+        } else {
+          // Use default POS format: POS/YY-YY/N
+          const { data: defaultNumber, error: numberError } = await (supabase as any)
+            .rpc('generate_pos_number', { p_organization_id: currentOrganization.id });
+          if (numberError) throw numberError;
+          saleNumber = defaultNumber;
+        }
       } else {
-        const { data: defaultNumber, error: numberError } = await (supabase as any)
-          .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
-        if (numberError) throw numberError;
-        saleNumber = defaultNumber;
+        // Sale Invoice format
+        if (settings?.sale_settings?.invoice_numbering_format) {
+          saleNumber = await generateInvoiceNumber(settings.sale_settings.invoice_numbering_format);
+        } else {
+          // Use default INV format: INV/YY-YY/N
+          const { data: defaultNumber, error: numberError } = await (supabase as any)
+            .rpc('generate_sale_number', { p_organization_id: currentOrganization.id });
+          if (numberError) throw numberError;
+          saleNumber = defaultNumber;
+        }
       }
 
       // Calculate payment status and amounts
@@ -236,7 +252,7 @@ export const useSaveSale = () => {
         .from('sales')
         .insert({
           sale_number: saleNumber,
-          sale_type: 'pos',
+          sale_type: saleType,
           customer_id: saleData.customerId || null,
           customer_name: saleData.customerName,
           customer_phone: saleData.customerPhone || null,
