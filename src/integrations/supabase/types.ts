@@ -559,6 +559,66 @@ export type Database = {
           },
         ]
       }
+      legacy_invoices: {
+        Row: {
+          amount: number
+          created_at: string | null
+          customer_id: string | null
+          customer_name: string
+          id: string
+          invoice_date: string
+          invoice_number: string
+          notes: string | null
+          organization_id: string
+          payment_status: string
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          customer_id?: string | null
+          customer_name: string
+          id?: string
+          invoice_date: string
+          invoice_number: string
+          notes?: string | null
+          organization_id: string
+          payment_status?: string
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          notes?: string | null
+          organization_id?: string
+          payment_status?: string
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legacy_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "legacy_invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       login_attempts: {
         Row: {
           attempt_type: string

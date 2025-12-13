@@ -22,11 +22,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
 
 interface Customer {
   id: string;
@@ -57,6 +58,7 @@ const CustomerMaster = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -371,9 +373,13 @@ const CustomerMaster = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Customer Master</h1>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowLegacyImport(true)}>
+            <History className="h-4 w-4 mr-2" />
+            Import Legacy Invoices
+          </Button>
           <Button variant="outline" onClick={() => setShowExcelImport(true)}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Import Excel
+            Import Customers
           </Button>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
@@ -588,6 +594,14 @@ const CustomerMaster = () => {
         sampleFileName="Customer_Master_Sample.xlsx"
         title="Import Customers"
       />
+
+      {currentOrganization?.id && (
+        <LegacyInvoiceImportDialog
+          open={showLegacyImport}
+          onOpenChange={setShowLegacyImport}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };
