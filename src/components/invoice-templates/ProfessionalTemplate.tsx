@@ -521,44 +521,44 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       <div style={{
         display: 'flex',
         border: `1px solid ${colors.primary}`,
-        minHeight: isA4 ? '80px' : isHorizontal ? '65px' : '60px',
-        fontSize: isA4 ? '7pt' : '6pt'
+        fontSize: isA4 ? '7pt' : '6pt',
+        pageBreakInside: 'avoid'
       }}>
         {/* Left side - Declaration & Terms */}
         <div style={{
           flex: 1,
           borderRight: `1px solid ${colors.primary}`,
-          padding: isA4 ? '8px' : isHorizontal ? '6px' : '5px'
+          padding: isA4 ? '6px' : isHorizontal ? '5px' : '4px'
         }}>
           {declarationText && (
-            <div style={{ marginBottom: '4px' }}>
-              <p style={{ margin: '0', fontStyle: 'italic', lineHeight: 1.3 }}>{declarationText}</p>
+            <div style={{ marginBottom: '3px' }}>
+              <p style={{ margin: '0', fontStyle: 'italic', lineHeight: 1.2, fontSize: isA4 ? '6pt' : '5pt' }}>{declarationText}</p>
             </div>
           )}
           {termsConditions && termsConditions.length > 0 && (
             <div>
-              <strong>Terms & Conditions:</strong>
-              <ol style={{ margin: '3px 0', paddingLeft: '14px', lineHeight: 1.3 }}>
+              <strong style={{ fontSize: isA4 ? '6pt' : '5pt' }}>Terms & Conditions:</strong>
+              <ol style={{ margin: '2px 0', paddingLeft: '12px', lineHeight: 1.2 }}>
                 {termsConditions.map((term, index) => (
-                  <li key={index} style={{ marginBottom: '1px' }}>{term}</li>
+                  <li key={index} style={{ marginBottom: '1px', fontSize: isA4 ? '6pt' : '5pt' }}>{term}</li>
                 ))}
               </ol>
             </div>
           )}
           {showBankDetails && bankDetails && (
-            <div style={{ marginTop: '6px' }}>
-              <strong>Bank Details:</strong>
-              <p style={{ margin: '2px 0' }}>{bankDetails.bankName}</p>
-              <p style={{ margin: '2px 0' }}>A/c: {bankDetails.accountNumber}</p>
-              <p style={{ margin: '2px 0' }}>IFSC: {bankDetails.ifscCode}</p>
+            <div style={{ marginTop: '4px' }}>
+              <strong style={{ fontSize: isA4 ? '6pt' : '5pt' }}>Bank Details:</strong>
+              <p style={{ margin: '1px 0', fontSize: isA4 ? '6pt' : '5pt' }}>{bankDetails.bankName}</p>
+              <p style={{ margin: '1px 0', fontSize: isA4 ? '6pt' : '5pt' }}>A/c: {bankDetails.accountNumber}</p>
+              <p style={{ margin: '1px 0', fontSize: isA4 ? '6pt' : '5pt' }}>IFSC: {bankDetails.ifscCode}</p>
             </div>
           )}
         </div>
         
         {/* Right side - QR Code & Signature */}
         <div style={{
-          width: isHorizontal ? '30%' : '35%',
-          padding: isA4 ? '6px' : isHorizontal ? '5px' : '4px',
+          width: isA4 ? '110px' : isHorizontal ? '90px' : '80px',
+          padding: isA4 ? '5px' : '4px',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -567,14 +567,14 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           {qrCodeUrl && (
             <div style={{ textAlign: 'center' }}>
               <img src={qrCodeUrl} alt="QR Code" style={{
-                width: isA4 ? '55px' : isHorizontal ? '45px' : '42px',
-                height: isA4 ? '55px' : isHorizontal ? '45px' : '42px'
+                width: isA4 ? '48px' : isHorizontal ? '40px' : '36px',
+                height: isA4 ? '48px' : isHorizontal ? '40px' : '36px'
               }} />
-              {upiId && <p style={{ margin: '2px 0', fontSize: isA4 ? '7pt' : '6pt' }}>UPI: {upiId}</p>}
+              {upiId && <p style={{ margin: '1px 0', fontSize: isA4 ? '6pt' : '5pt' }}>UPI: {upiId}</p>}
             </div>
           )}
-          <div style={{ textAlign: 'center', marginTop: qrCodeUrl ? '4px' : 'auto' }}>
-            <p style={{ margin: '0', fontWeight: 'bold', fontSize: isA4 ? '8pt' : '7pt', color: colors.primary }}>
+          <div style={{ textAlign: 'center', marginTop: '2px' }}>
+            <p style={{ margin: '0', fontWeight: 'bold', fontSize: isA4 ? '7pt' : '6pt', color: colors.primary }}>
               Authorized Signatory
             </p>
           </div>
