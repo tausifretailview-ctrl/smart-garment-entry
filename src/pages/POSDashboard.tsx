@@ -750,10 +750,11 @@ const POSDashboard = () => {
       
       const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
-      // Normalize dates to yyyy-MM-dd format for accurate comparison
-      const saleDateStr = sale.sale_date.split('T')[0];
-      const startDateStr = startDate ? format(new Date(startDate), 'yyyy-MM-dd') : null;
-      const endDateStr = endDate ? format(new Date(endDate), 'yyyy-MM-dd') : null;
+      // Convert sale_date to local date for comparison
+      const saleLocalDate = new Date(sale.sale_date);
+      const saleDateStr = format(saleLocalDate, 'yyyy-MM-dd');
+      const startDateStr = startDate ? startDate : null;
+      const endDateStr = endDate ? endDate : null;
 
       const matchesDateRange =
         (!startDateStr || saleDateStr >= startDateStr) &&
