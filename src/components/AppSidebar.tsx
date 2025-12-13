@@ -21,6 +21,7 @@ import {
   PackageCheck,
   DollarSign,
   FileSpreadsheet,
+  Archive,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -570,6 +571,22 @@ export function AppSidebar() {
             </CollapsibleContent>
           </Collapsible>
         </SidebarGroup>
+
+        {/* Recycle Bin - Admin Only */}
+        {canAccessSettings && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/recycle-bin")}>
+                  <NavLink to="/recycle-bin" className="flex items-center gap-3 group">
+                    <Archive className="h-5 w-5 sidebar-icon" />
+                    {open && <span className="font-medium">Recycle Bin</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );

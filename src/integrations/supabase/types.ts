@@ -344,6 +344,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           expiry_date: string | null
           id: string
           issue_date: string | null
@@ -362,6 +364,8 @@ export type Database = {
           customer_id?: string | null
           customer_name: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           expiry_date?: string | null
           id?: string
           issue_date?: string | null
@@ -380,6 +384,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           expiry_date?: string | null
           id?: string
           issue_date?: string | null
@@ -419,6 +425,8 @@ export type Database = {
           address: string | null
           created_at: string | null
           customer_name: string
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           gst_number: string | null
           id: string
@@ -431,6 +439,8 @@ export type Database = {
           address?: string | null
           created_at?: string | null
           customer_name: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -443,6 +453,8 @@ export type Database = {
           address?: string | null
           created_at?: string | null
           customer_name?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -551,6 +563,8 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           designation: string | null
           email: string | null
           employee_name: string
@@ -564,6 +578,8 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           designation?: string | null
           email?: string | null
           employee_name: string
@@ -577,6 +593,8 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           designation?: string | null
           email?: string | null
           employee_name?: string
@@ -761,6 +779,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           mrp: number | null
           opening_qty: number | null
@@ -777,6 +797,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           mrp?: number | null
           opening_qty?: number | null
@@ -793,6 +815,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           mrp?: number | null
           opening_qty?: number | null
@@ -829,6 +853,8 @@ export type Database = {
           created_at: string | null
           default_pur_price: number | null
           default_sale_price: number | null
+          deleted_at: string | null
+          deleted_by: string | null
           gst_per: number | null
           hsn_code: string | null
           id: string
@@ -848,6 +874,8 @@ export type Database = {
           created_at?: string | null
           default_pur_price?: number | null
           default_sale_price?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per?: number | null
           hsn_code?: string | null
           id?: string
@@ -867,6 +895,8 @@ export type Database = {
           created_at?: string | null
           default_pur_price?: number | null
           default_sale_price?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per?: number | null
           hsn_code?: string | null
           id?: string
@@ -900,6 +930,8 @@ export type Database = {
         Row: {
           bill_date: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           gross_amount: number
           gst_amount: number
           id: string
@@ -918,6 +950,8 @@ export type Database = {
         Insert: {
           bill_date?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -936,6 +970,8 @@ export type Database = {
         Update: {
           bill_date?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -977,6 +1013,8 @@ export type Database = {
           category: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           gst_per: number
           hsn_code: string | null
           id: string
@@ -999,6 +1037,8 @@ export type Database = {
           category?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per?: number
           hsn_code?: string | null
           id?: string
@@ -1021,6 +1061,8 @@ export type Database = {
           category?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per?: number
           hsn_code?: string | null
           id?: string
@@ -1064,6 +1106,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           gst_per: number
           hsn_code: string | null
           id: string
@@ -1079,6 +1123,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per: number
           hsn_code?: string | null
           id?: string
@@ -1094,6 +1140,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_per?: number
           hsn_code?: string | null
           id?: string
@@ -1125,6 +1173,8 @@ export type Database = {
       purchase_returns: {
         Row: {
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           gross_amount: number
           gst_amount: number
           id: string
@@ -1140,6 +1190,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -1155,6 +1207,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -1183,6 +1237,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           discount_percent: number
           gst_percent: number
           hsn_code: string | null
@@ -1201,6 +1257,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           gst_percent?: number
           hsn_code?: string | null
@@ -1219,6 +1277,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           gst_percent?: number
           hsn_code?: string | null
@@ -1252,6 +1312,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           discount_amount: number
           flat_discount_amount: number
           flat_discount_percent: number
@@ -1280,6 +1342,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
@@ -1308,6 +1372,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
@@ -1350,6 +1416,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           discount_percent: number
           gst_percent: number
           hsn_code: string | null
@@ -1368,6 +1436,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           gst_percent?: number
           hsn_code?: string | null
@@ -1386,6 +1456,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           gst_percent?: number
           hsn_code?: string | null
@@ -1415,6 +1487,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           discount_percent: number
           fulfilled_qty: number
           gst_percent: number
@@ -1435,6 +1509,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           fulfilled_qty?: number
           gst_percent?: number
@@ -1455,6 +1531,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_percent?: number
           fulfilled_qty?: number
           gst_percent?: number
@@ -1490,6 +1568,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           discount_amount: number
           expected_delivery_date: string | null
           flat_discount_amount: number
@@ -1519,6 +1599,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_amount?: number
           expected_delivery_date?: string | null
           flat_discount_amount?: number
@@ -1548,6 +1630,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           discount_amount?: number
           expected_delivery_date?: string | null
           flat_discount_amount?: number
@@ -1598,6 +1682,8 @@ export type Database = {
           barcode: string | null
           color: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           gst_percent: number
           hsn_code: string | null
           id: string
@@ -1614,6 +1700,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_percent: number
           hsn_code?: string | null
           id?: string
@@ -1630,6 +1718,8 @@ export type Database = {
           barcode?: string | null
           color?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gst_percent?: number
           hsn_code?: string | null
           id?: string
@@ -1657,6 +1747,8 @@ export type Database = {
           created_at: string
           customer_id: string | null
           customer_name: string
+          deleted_at: string | null
+          deleted_by: string | null
           gross_amount: number
           gst_amount: number
           id: string
@@ -1672,6 +1764,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_name: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -1687,6 +1781,8 @@ export type Database = {
           created_at?: string
           customer_id?: string | null
           customer_name?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
@@ -1716,6 +1812,8 @@ export type Database = {
           customer_id: string | null
           customer_name: string
           customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           delivery_status: string | null
           discount_amount: number
           due_date: string | null
@@ -1764,6 +1862,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
@@ -1812,6 +1912,8 @@ export type Database = {
           customer_id?: string | null
           customer_name?: string
           customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           delivery_status?: string | null
           discount_amount?: number
           due_date?: string | null
@@ -2022,6 +2124,8 @@ export type Database = {
           address: string | null
           contact_person: string | null
           created_at: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           gst_number: string | null
           id: string
@@ -2036,6 +2140,8 @@ export type Database = {
           address?: string | null
           contact_person?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -2050,6 +2156,8 @@ export type Database = {
           address?: string | null
           contact_person?: string | null
           created_at?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -2130,6 +2238,8 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           id: string
           organization_id: string | null
@@ -2144,6 +2254,8 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null
@@ -2158,6 +2270,8 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           organization_id?: string | null
@@ -2185,6 +2299,8 @@ export type Database = {
           created_at: string | null
           credit_amount: number | null
           debit_amount: number | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           id: string
           voucher_id: string
@@ -2194,6 +2310,8 @@ export type Database = {
           created_at?: string | null
           credit_amount?: number | null
           debit_amount?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           voucher_id: string
@@ -2203,6 +2321,8 @@ export type Database = {
           created_at?: string | null
           credit_amount?: number | null
           debit_amount?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           voucher_id?: string
@@ -2388,6 +2508,47 @@ export type Database = {
           p_success?: boolean
         }
         Returns: Json
+      }
+      restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
+      restore_purchase_return: {
+        Args: { p_return_id: string }
+        Returns: undefined
+      }
+      restore_quotation: {
+        Args: { p_quotation_id: string }
+        Returns: undefined
+      }
+      restore_sale: { Args: { p_sale_id: string }; Returns: undefined }
+      restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
+      restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
+      restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      soft_delete_purchase_bill: {
+        Args: { p_bill_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_purchase_return: {
+        Args: { p_return_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_quotation: {
+        Args: { p_quotation_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_sale: {
+        Args: { p_sale_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_sale_order: {
+        Args: { p_order_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_sale_return: {
+        Args: { p_return_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      soft_delete_voucher: {
+        Args: { p_user_id: string; p_voucher_id: string }
+        Returns: undefined
       }
       user_belongs_to_org: {
         Args: { org_id: string; user_id: string }
