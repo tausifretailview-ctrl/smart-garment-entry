@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -49,6 +49,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useReactToPrint } from "react-to-print";
 import { QuotationPrint } from "@/components/QuotationPrint";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface LineItem {
   id: string;
@@ -125,6 +127,80 @@ export default function QuotationEntry() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
+
+  // Draft save hook
+  const {
+    hasDraft,
+    draftData,
+    saveDraft,
+    deleteDraft,
+    updateCurrentData,
+    startAutoSave,
+    stopAutoSave,
+  } = useDraftSave('quotation');
+
+  // Load draft data
+  const loadDraftData = useCallback((data: any) => {
+    if (!data) return;
+    setQuotationDate(data.quotationDate ? new Date(data.quotationDate) : new Date());
+    setValidUntil(data.validUntil ? new Date(data.validUntil) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+    setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
+      id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '',
+      quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
+    })));
+    setSelectedCustomerId(data.selectedCustomerId || "");
+    setSelectedCustomer(data.selectedCustomer || null);
+    setTermsConditions(data.termsConditions || "");
+    setNotes(data.notes || "");
+    setShippingAddress(data.shippingAddress || "");
+    setTaxType(data.taxType || "inclusive");
+    setSalesman(data.salesman || "");
+    setFlatDiscountPercent(data.flatDiscountPercent || 0);
+    setFlatDiscountAmount(data.flatDiscountAmount || 0);
+    setRoundOff(data.roundOff || 0);
+    toast({
+      title: "Draft Loaded",
+      description: "Your previous work has been restored",
+    });
+  }, [toast]);
+
+  // Check for draft on mount (only if not in edit mode)
+  useEffect(() => {
+    if (!location.state?.editQuotationId && hasDraft && draftData) {
+      setShowDraftDialog(true);
+    }
+  }, [hasDraft, draftData, location.state?.editQuotationId]);
+
+  // Update current data for auto-save whenever form data changes
+  useEffect(() => {
+    const filledItems = lineItems.filter(item => item.productId !== '');
+    if (!editingQuotationId && filledItems.length > 0) {
+      updateCurrentData({
+        quotationDate: quotationDate.toISOString(),
+        validUntil: validUntil.toISOString(),
+        lineItems,
+        selectedCustomerId,
+        selectedCustomer,
+        termsConditions,
+        notes,
+        shippingAddress,
+        taxType,
+        salesman,
+        flatDiscountPercent,
+        flatDiscountAmount,
+        roundOff,
+      });
+    }
+  }, [quotationDate, validUntil, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, editingQuotationId, updateCurrentData]);
+
+  // Start auto-save when not in edit mode
+  useEffect(() => {
+    if (!editingQuotationId && !location.state?.editQuotationId) {
+      startAutoSave();
+    }
+    return () => stopAutoSave();
+  }, [editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId]);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -1070,6 +1146,21 @@ export default function QuotationEntry() {
         showStock={true}
         validateStock={false}
         title="Enter Size-wise Qty"
+      />
+
+      {/* Draft Resume Dialog */}
+      <DraftResumeDialog
+        open={showDraftDialog}
+        onOpenChange={setShowDraftDialog}
+        draftType="quotation"
+        onResume={() => {
+          loadDraftData(draftData);
+          setShowDraftDialog(false);
+        }}
+        onStartFresh={async () => {
+          await deleteDraft();
+          setShowDraftDialog(false);
+        }}
       />
     </div>
   );
