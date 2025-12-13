@@ -205,8 +205,8 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         {logoUrl && (
           <div style={{ flexShrink: 0 }}>
             <img src={logoUrl} alt="Logo" style={{
-              width: isA4 ? '70px' : isHorizontal ? '60px' : '50px',
-              height: isA4 ? '70px' : isHorizontal ? '60px' : '50px',
+              width: isA4 ? '85px' : isHorizontal ? '70px' : '60px',
+              height: isA4 ? '85px' : isHorizontal ? '70px' : '60px',
               objectFit: 'contain'
             }} />
           </div>
@@ -557,7 +557,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         
         {/* Right side - QR Code & Signature */}
         <div style={{
-          width: isA4 ? '110px' : isHorizontal ? '90px' : '80px',
+          width: isA4 ? '140px' : isHorizontal ? '120px' : '105px',
           padding: isA4 ? '5px' : '4px',
           display: 'flex',
           flexDirection: 'column',
@@ -567,8 +567,8 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           {qrCodeUrl && (
             <div style={{ textAlign: 'center' }}>
               <img src={qrCodeUrl} alt="QR Code" style={{
-                width: isA4 ? '48px' : isHorizontal ? '40px' : '36px',
-                height: isA4 ? '48px' : isHorizontal ? '40px' : '36px'
+                width: isA4 ? '80px' : isHorizontal ? '68px' : '60px',
+                height: isA4 ? '80px' : isHorizontal ? '68px' : '60px'
               }} />
               {upiId && <p style={{ margin: '1px 0', fontSize: isA4 ? '6pt' : '5pt' }}>UPI: {upiId}</p>}
             </div>
