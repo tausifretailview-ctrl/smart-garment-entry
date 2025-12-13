@@ -364,7 +364,7 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
         case 'brand':
           return sampleItem.brand || businessName || 'Brand';
         case 'productName':
-          return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
+          return sampleItem.product_name;
         case 'color':
           return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style':
@@ -496,7 +496,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
     if (sampleItem) {
       switch (fieldKey) {
         case 'brand': return sampleItem.brand || businessName || 'Brand';
-        case 'productName': return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
+        case 'productName': return sampleItem.product_name;
         case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
@@ -2314,7 +2314,7 @@ export default function BarcodePrinting() {
         case 'brand': 
           return item.brand || businessName || 'Brand';
         case 'productName': 
-          return item.product_name + (config.size.show ? '' : ` (${item.size})`);
+          return item.product_name;
         case 'color': 
           return item.color || '';
         case 'style': 

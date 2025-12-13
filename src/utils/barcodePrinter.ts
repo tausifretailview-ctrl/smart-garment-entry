@@ -194,7 +194,7 @@ const getThermalLabelHTML = (
   const barcode = item.barcode;
   const mrp = item.mrp || item.sale_price;
   const ourPrice = item.sale_price;
-  const productWithSize = `${item.product_name}${item.size ? '-' + item.size : ''}`;
+  const productWithSize = item.product_name;
   const brand = item.brand || '';
   
   // Compact thermal layout matching VasyERP style
@@ -256,15 +256,7 @@ const getLegacyLabelHTML = (
   }
   
   if (config.productName.show) {
-    const descParts = [item.product_name];
-    if (item.category) descParts.push(item.category);
-    if (item.brand) descParts.push(item.brand);
-    if (item.style) descParts.push(item.style);
-    if (item.color) descParts.push(item.color);
-    descParts.push(item.size);
-    
-    const productDesc = descParts.join(' - ');
-    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; text-align: ${config.productName.textAlign || 'center'}; margin-bottom: 3mm;">${productDesc}</div>`;
+    html += `<div class="prod" style="font-size: ${config.productName.fontSize}px; font-weight: ${config.productName.bold ? 'bold' : 'normal'}; text-align: ${config.productName.textAlign || 'center'}; margin-bottom: 3mm;">${item.product_name}</div>`;
   }
   if (config.price.show) {
     html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; text-align: ${config.price.textAlign || 'center'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;
