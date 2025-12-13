@@ -75,6 +75,7 @@ export default function QuotationDashboard() {
         .from('quotations')
         .select(`*, quotation_items (*)`)
         .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

@@ -179,6 +179,7 @@ export default function SalesInvoiceDashboard() {
         .select(`*, sale_items (*)`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       // Note: Basic search query for sale-level fields

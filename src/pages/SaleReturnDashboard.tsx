@@ -93,6 +93,7 @@ export default function SaleReturnDashboard() {
       .from("sale_returns")
       .select("*")
       .eq("organization_id", currentOrganization?.id)
+      .is("deleted_at", null)
       .order("return_date", { ascending: false });
 
     if (error) {

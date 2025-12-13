@@ -108,6 +108,7 @@ export default function SaleOrderDashboard() {
         .from('sale_orders')
         .select(`*, sale_order_items (*)`)
         .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;

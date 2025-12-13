@@ -127,6 +127,8 @@ const PurchaseBillDashboard = () => {
       const { data, error } = await supabase
         .from("purchase_bills")
         .select("*")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
         .order("bill_date", { ascending: false });
 
       if (error) throw error;

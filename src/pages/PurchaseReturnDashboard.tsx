@@ -103,6 +103,7 @@ const PurchaseReturnDashboard = () => {
         .from("purchase_returns" as any)
         .select("*")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .order("return_date", { ascending: false });
 
       if (error) throw error;

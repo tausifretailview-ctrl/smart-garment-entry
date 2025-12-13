@@ -270,6 +270,7 @@ const POSDashboard = () => {
         .select("*")
         .eq("organization_id", currentOrganization.id)
         .eq("sale_type", "pos")
+        .is("deleted_at", null)
         .order("sale_date", { ascending: false });
 
       if (error) throw error;
