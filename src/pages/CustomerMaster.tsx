@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -154,31 +155,34 @@ const CustomerMaster = () => {
     },
   });
 
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
+
   const deleteCustomer = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("customers").delete().eq("id", id);
-      if (error) throw error;
+      const success = await softDelete("customers", id);
+      if (!success) throw new Error("Failed to delete customer");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast({ title: "Customer deleted successfully" });
+      toast({ title: "Customer moved to recycle bin" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting customer", description: error.message, variant: "destructive" });
     },
   });
 
   const bulkDeleteCustomers = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("customers").delete().in("id", ids);
-      if (error) throw error;
+      const count = await bulkSoftDelete("customers", ids);
+      if (count === 0) throw new Error("Failed to delete customers");
+      return count;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast({ title: `${selectedCustomers.size} customers deleted successfully` });
+      toast({ title: `${count} customers moved to recycle bin` });
       setSelectedCustomers(new Set());
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting customers", description: error.message, variant: "destructive" });
     },
   });

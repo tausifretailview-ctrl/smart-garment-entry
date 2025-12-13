@@ -38,6 +38,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 interface SaleItem {
   id: string;
@@ -366,31 +367,19 @@ const POSDashboard = () => {
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
 
   const handleDeleteSale = async () => {
     if (!saleToDelete) return;
 
     setIsDeleting(true);
     try {
-      // Delete sale_items first - trigger will automatically restore stock
-      const { error: itemsError } = await supabase
-        .from("sale_items")
-        .delete()
-        .eq("sale_id", saleToDelete.id);
-
-      if (itemsError) throw itemsError;
-
-      // Then delete the sale record
-      const { error: saleError } = await supabase
-        .from("sales")
-        .delete()
-        .eq("id", saleToDelete.id);
-
-      if (saleError) throw saleError;
+      const success = await softDelete("sales", saleToDelete.id);
+      if (!success) throw new Error("Failed to delete sale");
 
       toast({
         title: "Success",
-        description: `Sale ${saleToDelete.sale_number} deleted and stock restored`,
+        description: `Sale ${saleToDelete.sale_number} moved to recycle bin`,
       });
 
       await fetchSales();
@@ -413,27 +402,11 @@ const POSDashboard = () => {
     setIsDeleting(true);
     try {
       const salesToDelete = Array.from(selectedSales);
-      
-      // Delete sale_items for all sales - triggers will automatically restore stock
-      for (const saleId of salesToDelete) {
-        const { error: itemsError } = await supabase
-          .from("sale_items")
-          .delete()
-          .eq("sale_id", saleId);
-
-        if (itemsError) throw itemsError;
-
-        const { error: saleError } = await supabase
-          .from("sales")
-          .delete()
-          .eq("id", saleId);
-
-        if (saleError) throw saleError;
-      }
+      const count = await bulkSoftDelete("sales", salesToDelete);
 
       toast({
         title: "Success",
-        description: `${salesToDelete.length} sale(s) deleted and stock restored`,
+        description: `${count} sale(s) moved to recycle bin`,
       });
 
       setSelectedSales(new Set());

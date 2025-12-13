@@ -27,6 +27,7 @@ import {
 import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 
@@ -165,31 +166,34 @@ const SupplierMaster = () => {
     },
   });
 
+  const { softDelete, bulkSoftDelete } = useSoftDelete();
+
   const deleteSupplier = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("suppliers").delete().eq("id", id);
-      if (error) throw error;
+      const success = await softDelete("suppliers", id);
+      if (!success) throw new Error("Failed to delete supplier");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast({ title: "Supplier deleted successfully" });
+      toast({ title: "Supplier moved to recycle bin" });
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting supplier", description: error.message, variant: "destructive" });
     },
   });
 
   const bulkDeleteSuppliers = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("suppliers").delete().in("id", ids);
-      if (error) throw error;
+      const count = await bulkSoftDelete("suppliers", ids);
+      if (count === 0) throw new Error("Failed to delete suppliers");
+      return count;
     },
-    onSuccess: () => {
+    onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast({ title: `${selectedSuppliers.size} suppliers deleted successfully` });
+      toast({ title: `${count} suppliers moved to recycle bin` });
       setSelectedSuppliers(new Set());
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast({ title: "Error deleting suppliers", description: error.message, variant: "destructive" });
     },
   });

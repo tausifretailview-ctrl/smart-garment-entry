@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 export default function QuotationDashboard() {
   const { toast } = useToast();
@@ -82,15 +83,17 @@ export default function QuotationDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
+  const { softDelete } = useSoftDelete();
+
   const handleDeleteQuotation = async () => {
     if (!quotationToDelete) return;
 
     setIsDeleting(true);
     try {
-      await supabase.from("quotation_items").delete().eq("quotation_id", quotationToDelete.id);
-      await supabase.from("quotations").delete().eq("id", quotationToDelete.id);
+      const success = await softDelete("quotations", quotationToDelete.id);
+      if (!success) throw new Error("Failed to delete quotation");
 
-      toast({ title: "Success", description: `Quotation ${quotationToDelete.quotation_number} deleted` });
+      toast({ title: "Success", description: `Quotation ${quotationToDelete.quotation_number} moved to recycle bin` });
       refetch();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
