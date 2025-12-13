@@ -28,6 +28,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
+import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 
 interface Customer {
   id: string;
@@ -61,6 +62,8 @@ const CustomerMaster = () => {
   const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [showCustomerHistory, setShowCustomerHistory] = useState(false);
+  const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
 
   // Fetch ALL customers using pagination to bypass 1000 row limit
   const { data: customers = [], isLoading } = useQuery({
@@ -525,7 +528,18 @@ const CustomerMaster = () => {
                     />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
-                  <TableCell className="font-medium">{customer.customer_name}</TableCell>
+                  <TableCell 
+                    className="font-medium cursor-pointer text-blue-600 hover:underline"
+                    onClick={() => {
+                      setSelectedCustomerForHistory({
+                        id: customer.id,
+                        name: customer.customer_name
+                      });
+                      setShowCustomerHistory(true);
+                    }}
+                  >
+                    {customer.customer_name}
+                  </TableCell>
                   <TableCell>{customer.phone || "-"}</TableCell>
                   <TableCell>{customer.email || "-"}</TableCell>
                   <TableCell>{customer.gst_number || "-"}</TableCell>
@@ -602,6 +616,15 @@ const CustomerMaster = () => {
           organizationId={currentOrganization.id}
         />
       )}
+
+      {/* Customer History Dialog */}
+      <CustomerHistoryDialog
+        open={showCustomerHistory}
+        onOpenChange={setShowCustomerHistory}
+        customerId={selectedCustomerForHistory?.id || null}
+        customerName={selectedCustomerForHistory?.name || ''}
+        organizationId={currentOrganization?.id || ''}
+      />
     </div>
   );
 };
