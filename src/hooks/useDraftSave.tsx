@@ -12,7 +12,7 @@ interface UseDraftSaveOptions {
 }
 
 export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions = {}) => {
-  const { autoSaveInterval = 30000, onDraftLoaded } = options;
+  const { autoSaveInterval = 15000, onDraftLoaded } = options; // 15 seconds for more frequent saves
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const [hasDraft, setHasDraft] = useState(false);
@@ -153,12 +153,16 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     }
   }, []);
 
-  // Cleanup on unmount
+  // Cleanup on unmount - SAVE draft before stopping auto-save
   useEffect(() => {
     return () => {
+      // Save current data before unmounting (SPA navigation)
+      if (currentDataRef.current) {
+        saveDraft(currentDataRef.current, false);
+      }
       stopAutoSave();
     };
-  }, [stopAutoSave]);
+  }, [stopAutoSave, saveDraft]);
 
   // Handle beforeunload to save draft
   useEffect(() => {

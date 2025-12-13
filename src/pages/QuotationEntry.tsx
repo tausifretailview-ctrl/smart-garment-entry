@@ -199,8 +199,29 @@ export default function QuotationEntry() {
     if (!editingQuotationId && !location.state?.editQuotationId) {
       startAutoSave();
     }
-    return () => stopAutoSave();
-  }, [editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId]);
+    return () => {
+      // Save draft immediately when component unmounts (tab switch, navigation)
+      const filledItems = lineItems.filter(item => item.productId !== '');
+      if (!editingQuotationId && filledItems.length > 0) {
+        saveDraft({
+          quotationDate: quotationDate.toISOString(),
+          validUntil: validUntil.toISOString(),
+          lineItems,
+          selectedCustomerId,
+          selectedCustomer,
+          termsConditions,
+          notes,
+          shippingAddress,
+          taxType,
+          salesman,
+          flatDiscountPercent,
+          flatDiscountAmount,
+          roundOff,
+        }, false);
+      }
+      stopAutoSave();
+    };
+  }, [editingQuotationId, startAutoSave, stopAutoSave, location.state?.editQuotationId, lineItems, quotationDate, validUntil, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft]);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
