@@ -66,18 +66,18 @@ export function LegacyInvoiceImportDialog({
         .filter(row => {
           // Filter out rows without essential data
           const invoiceNum = row['Number'] || row['Invoice Number'] || row['number'] || '';
-          const customerName = row['Partner Name'] || row['Customer Name'] || row['customer_name'] || row['Customer'] || '';
+          const customerName = row['Invoice Partner Display Name'] || row['Partner Name'] || row['Customer Name'] || row['customer_name'] || row['Customer'] || '';
           return invoiceNum && customerName;
         })
         .map(row => {
           // Parse amount (handle various formats like "₹ 1,500.00", "1500", etc.)
-          let amount = row['Total in Currency'] || row['Amount'] || row['total'] || row['Net Amount'] || 0;
+          let amount = row['Total in Currency Signed'] || row['Total in Currency'] || row['Amount'] || row['total'] || row['Net Amount'] || 0;
           if (typeof amount === 'string') {
             amount = parseFloat(amount.replace(/[₹,\s]/g, '')) || 0;
           }
 
           // Parse date (handle various formats)
-          let dateStr = row['Date'] || row['Invoice Date'] || row['invoice_date'] || new Date().toISOString();
+          let dateStr = row['Invoice/Bill Date'] || row['Date'] || row['Invoice Date'] || row['invoice_date'] || new Date().toISOString();
           let parsedDate: Date;
           
           if (typeof dateStr === 'number') {
@@ -110,10 +110,10 @@ export function LegacyInvoiceImportDialog({
 
           return {
             invoice_number: String(row['Number'] || row['Invoice Number'] || row['number'] || '').trim(),
-            customer_name: String(row['Partner Name'] || row['Customer Name'] || row['customer_name'] || row['Customer'] || '').trim(),
+            customer_name: String(row['Invoice Partner Display Name'] || row['Partner Name'] || row['Customer Name'] || row['customer_name'] || row['Customer'] || '').trim(),
             invoice_date: parsedDate.toISOString().split('T')[0],
             amount: Math.abs(amount),
-            payment_status: String(row['Status'] || row['Payment Status'] || 'Paid').toLowerCase().includes('paid') ? 'Paid' : 'Unpaid',
+            payment_status: String(row['Status In Payment'] || row['Status'] || row['Payment Status'] || 'Paid').toLowerCase().includes('paid') ? 'Paid' : 'Unpaid',
           };
         });
 
