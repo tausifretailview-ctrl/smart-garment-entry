@@ -294,7 +294,7 @@ export function InteractiveLabelPreview({
     if (sampleItem) {
       switch (fieldKey) {
         case 'brand': return sampleItem.brand || businessName || 'Brand';
-        case 'productName': return sampleItem.product_name + (labelConfig.size.show ? '' : ` (${sampleItem.size})`);
+        case 'productName': return sampleItem.product_name;
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
