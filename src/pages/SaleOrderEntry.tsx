@@ -204,8 +204,29 @@ export default function SaleOrderEntry() {
     if (!editingOrderId && !location.state?.editOrderId) {
       startAutoSave();
     }
-    return () => stopAutoSave();
-  }, [editingOrderId, startAutoSave, stopAutoSave, location.state?.editOrderId]);
+    return () => {
+      // Save draft immediately when component unmounts (tab switch, navigation)
+      const filledItems = lineItems.filter(item => item.productId !== '');
+      if (!editingOrderId && filledItems.length > 0) {
+        saveDraft({
+          orderDate: orderDate.toISOString(),
+          expectedDelivery: expectedDelivery.toISOString(),
+          lineItems,
+          selectedCustomerId,
+          selectedCustomer,
+          termsConditions,
+          notes,
+          shippingAddress,
+          taxType,
+          salesman,
+          flatDiscountPercent,
+          flatDiscountAmount,
+          roundOff,
+        }, false);
+      }
+      stopAutoSave();
+    };
+  }, [editingOrderId, startAutoSave, stopAutoSave, location.state?.editOrderId, lineItems, orderDate, expectedDelivery, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft]);
 
   // Fetch settings for print
   const { data: settings } = useQuery({

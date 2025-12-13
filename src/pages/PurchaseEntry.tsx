@@ -187,8 +187,21 @@ const PurchaseEntry = () => {
     if (!isEditMode && !location.state?.editBillId) {
       startAutoSave();
     }
-    return () => stopAutoSave();
-  }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId]);
+    return () => {
+      // Save draft immediately when component unmounts (tab switch, navigation)
+      if (!isEditMode && lineItems.length > 0) {
+        saveDraft({
+          billData,
+          softwareBillNo,
+          billDate: billDate.toISOString(),
+          lineItems,
+          roundOff,
+          entryMode,
+        }, false);
+      }
+      stopAutoSave();
+    };
+  }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, saveDraft]);
 
   // Fetch suppliers
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({

@@ -226,8 +226,30 @@ export default function SalesInvoice() {
     if (!editingInvoiceId && !location.state?.editInvoiceId) {
       startAutoSave();
     }
-    return () => stopAutoSave();
-  }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId]);
+    return () => {
+      // Save draft immediately when component unmounts (tab switch, navigation)
+      const filledItems = lineItems.filter(item => item.productId !== '');
+      if (!editingInvoiceId && filledItems.length > 0) {
+        saveDraft({
+          invoiceDate: invoiceDate.toISOString(),
+          dueDate: dueDate.toISOString(),
+          lineItems,
+          selectedCustomerId,
+          selectedCustomer,
+          paymentTerm,
+          termsConditions,
+          notes,
+          shippingAddress,
+          shippingInstructions,
+          taxType,
+          salesman,
+          flatDiscountPercent,
+          roundOff,
+        }, false);
+      }
+      stopAutoSave();
+    };
+  }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, saveDraft]);
 
   // Keyboard shortcut for printing
   useEffect(() => {
