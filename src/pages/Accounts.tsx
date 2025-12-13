@@ -47,6 +47,9 @@ export default function Accounts() {
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [chequeNumber, setChequeNumber] = useState("");
+  const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
+  const [transactionId, setTransactionId] = useState("");
   const [nextReceiptNumber, setNextReceiptNumber] = useState<string>("");
   
   // Receipt states
@@ -534,9 +537,18 @@ export default function Accounts() {
       );
       if (numberError) throw numberError;
 
-      // Build description with invoice numbers
+      // Build description with invoice numbers and payment details
       const invoiceNumbers = processedInvoices.map(p => p.invoice.sale_number).join(', ');
-      const finalDescription = description || `Payment for: ${invoiceNumbers}`;
+      let paymentDetails = '';
+      if (paymentMethod === 'cheque' && chequeNumber) {
+        paymentDetails = ` | Cheque No: ${chequeNumber}`;
+        if (chequeDate) {
+          paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
+        }
+      } else if (paymentMethod === 'other' && transactionId) {
+        paymentDetails = ` | Transaction ID: ${transactionId}`;
+      }
+      const finalDescription = description ? `${description}${paymentDetails}` : `Payment for: ${invoiceNumbers}${paymentDetails}`;
 
       // Create voucher entry - use first invoice as reference_id for compatibility
       const { data: voucher, error: voucherError } = await supabase
@@ -1111,7 +1123,13 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Payment Method</Label>
-                      <Select value={paymentMethod || undefined} onValueChange={setPaymentMethod}>
+                      <Select value={paymentMethod || undefined} onValueChange={(value) => {
+                        setPaymentMethod(value);
+                        // Clear conditional fields when method changes
+                        setChequeNumber("");
+                        setChequeDate(undefined);
+                        setTransactionId("");
+                      }}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -1121,9 +1139,55 @@ export default function Accounts() {
                           <SelectItem value="upi">UPI</SelectItem>
                           <SelectItem value="cheque">Cheque</SelectItem>
                           <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Cheque fields */}
+                    {paymentMethod === 'cheque' && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Cheque Number</Label>
+                          <Input
+                            placeholder="Enter cheque number"
+                            value={chequeNumber}
+                            onChange={(e) => setChequeNumber(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cheque Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {chequeDate ? format(chequeDate, "dd/MM/yyyy") : "Select date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={chequeDate}
+                                onSelect={setChequeDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Other payment - Transaction ID field */}
+                    {paymentMethod === 'other' && (
+                      <div className="space-y-2">
+                        <Label>Transaction ID</Label>
+                        <Input
+                          placeholder="Enter transaction ID"
+                          value={transactionId}
+                          onChange={(e) => setTransactionId(e.target.value)}
+                        />
+                      </div>
+                    )}
 
                     <div className="space-y-2">
                       <Label>Amount</Label>
