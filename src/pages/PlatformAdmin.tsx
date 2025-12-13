@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Building2, Users, Plus, Shield, Edit, Trash2, UserX, Link2, Settings, Database, FileText, Activity, Download } from "lucide-react";
+import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -229,7 +229,7 @@ export default function PlatformAdmin() {
   const [createUserOpen, setCreateUserOpen] = useState(false);
   const [editFeaturesOpen, setEditFeaturesOpen] = useState(false);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
+  
   const [editMemberOpen, setEditMemberOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<OrgMember | null>(null);
   const [newRole, setNewRole] = useState<"admin" | "manager" | "user">("user");
@@ -375,36 +375,6 @@ export default function PlatformAdmin() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to update features");
-    },
-  });
-
-  // Delete organization mutation
-  const deleteOrgMutation = useMutation({
-    mutationFn: async (orgId: string) => {
-      // First delete all organization members
-      const { error: membersError } = await supabase
-        .from("organization_members")
-        .delete()
-        .eq("organization_id", orgId);
-
-      if (membersError) throw membersError;
-
-      // Then delete the organization
-      const { error: orgError } = await supabase
-        .from("organizations")
-        .delete()
-        .eq("id", orgId);
-
-      if (orgError) throw orgError;
-    },
-    onSuccess: () => {
-      toast.success("Organization deleted successfully!");
-      setDeleteOrgId(null);
-      queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
-      queryClient.invalidateQueries({ queryKey: ["platform-members"] });
-    },
-    onError: (error: any) => {
-      toast.error(error.message || "Failed to delete organization");
     },
   });
 
@@ -761,13 +731,6 @@ export default function PlatformAdmin() {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => setDeleteOrgId(org.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1018,26 +981,6 @@ export default function PlatformAdmin() {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Organization Confirmation */}
-        <AlertDialog open={!!deleteOrgId} onOpenChange={() => setDeleteOrgId(null)}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Organization</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete this organization? This will remove all associated users and data. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => deleteOrgId && deleteOrgMutation.mutate(deleteOrgId)}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         {/* Edit User Role Dialog */}
         <Dialog open={editMemberOpen} onOpenChange={setEditMemberOpen}>
