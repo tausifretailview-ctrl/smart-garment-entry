@@ -3,14 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface SaleItem {
   id: string;
@@ -137,6 +136,47 @@ export function CustomerHistoryDialog({
     enabled: open && !!customerId && !!organizationId,
   });
 
+  // Fetch legacy invoices (historical data from Odoo/other systems)
+  const { data: legacyInvoices, isLoading: legacyLoading } = useQuery({
+    queryKey: ['customer-legacy-invoices', customerId, customerName, organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+      
+      if (!accessToken) return [];
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/legacy_invoices?organization_id=eq.${organizationId}&order=invoice_date.desc&limit=100`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${accessToken}`,
+          }
+        }
+      );
+      
+      if (!response.ok) return [];
+      const invoices = await response.json();
+      
+      // Filter by customer name
+      return invoices.filter((inv: any) => 
+        (customerId && inv.customer_id === customerId) || 
+        inv.customer_name?.toLowerCase().includes(customerName.toLowerCase())
+      ) as Array<{
+        id: string;
+        invoice_number: string;
+        customer_name: string;
+        invoice_date: string;
+        amount: number;
+        payment_status: string;
+        source: string | null;
+      }>;
+    },
+    enabled: open && !!organizationId && !!customerName,
+  });
+
   // Calculate refunds from sales
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
 
@@ -186,24 +226,28 @@ export function CustomerHistoryDialog({
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="grid grid-cols-5 w-full">
-            <TabsTrigger value="sales" className="gap-1">
+          <TabsList className="grid grid-cols-6 w-full">
+            <TabsTrigger value="sales" className="gap-1 text-xs">
               <Receipt className="h-3 w-3" />
               Sales ({salesHistory?.length || 0})
             </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-1">
+            <TabsTrigger value="legacy" className="gap-1 text-xs">
+              <History className="h-3 w-3" />
+              Legacy ({legacyInvoices?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-1 text-xs">
               <IndianRupee className="h-3 w-3" />
               Payments ({paymentHistory?.length || 0})
             </TabsTrigger>
-            <TabsTrigger value="returns" className="gap-1">
+            <TabsTrigger value="returns" className="gap-1 text-xs">
               <RotateCcw className="h-3 w-3" />
               Returns ({saleReturns?.length || 0})
             </TabsTrigger>
-            <TabsTrigger value="credit-notes" className="gap-1">
+            <TabsTrigger value="credit-notes" className="gap-1 text-xs">
               <FileText className="h-3 w-3" />
               C/Notes ({creditNotes?.length || 0})
             </TabsTrigger>
-            <TabsTrigger value="refunds" className="gap-1">
+            <TabsTrigger value="refunds" className="gap-1 text-xs">
               <CreditCard className="h-3 w-3" />
               Refunds ({refunds.length})
             </TabsTrigger>
@@ -303,6 +347,50 @@ export function CustomerHistoryDialog({
                 </Table>
               ) : (
                 <p className="text-center text-muted-foreground py-8">No sales found</p>
+              )}
+            </TabsContent>
+
+            {/* Legacy Invoices Tab (Historical Data) */}
+            <TabsContent value="legacy" className="mt-0">
+              {legacyLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : legacyInvoices && legacyInvoices.length > 0 ? (
+                <>
+                  <div className="mb-2 p-2 bg-muted/50 rounded-md">
+                    <p className="text-xs text-muted-foreground">
+                      Legacy data from: <span className="font-medium">{legacyInvoices[0]?.source || 'External System'}</span>
+                      {' | '}Total: <span className="font-medium">₹{legacyInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0).toFixed(2)}</span>
+                    </p>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Invoice #</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {legacyInvoices.map((inv) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-mono text-sm">{inv.invoice_number}</TableCell>
+                          <TableCell>{format(new Date(inv.invoice_date), 'dd/MM/yyyy')}</TableCell>
+                          <TableCell className="text-right font-semibold">₹{(inv.amount || 0).toFixed(2)}</TableCell>
+                          <TableCell>
+                            <Badge variant={inv.payment_status === 'Paid' ? 'default' : 'secondary'}>
+                              {inv.payment_status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No legacy invoices found</p>
               )}
             </TabsContent>
 
