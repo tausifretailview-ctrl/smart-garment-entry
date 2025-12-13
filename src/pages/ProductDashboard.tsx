@@ -284,15 +284,61 @@ const ProductDashboard = () => {
     setSelectedProducts(newSelected);
   };
 
+  // Check if product has any transaction history (sales, purchases, returns, etc.)
+  const checkProductHasTransactions = async (productId: string): Promise<{ hasTransactions: boolean; productName: string }> => {
+    const product = productRows.find(p => p.product_id === productId);
+    const productName = product?.product_name || 'Unknown Product';
+
+    // Check all transaction tables in parallel
+    const [saleItems, purchaseItems, saleReturns, purchaseReturns, quotations, saleOrders] = await Promise.all([
+      supabase.from("sale_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("purchase_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("sale_return_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("purchase_return_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("quotation_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("sale_order_items").select("id").eq("product_id", productId).limit(1),
+    ]);
+
+    const hasTransactions = 
+      (saleItems.data?.length ?? 0) > 0 ||
+      (purchaseItems.data?.length ?? 0) > 0 ||
+      (saleReturns.data?.length ?? 0) > 0 ||
+      (purchaseReturns.data?.length ?? 0) > 0 ||
+      (quotations.data?.length ?? 0) > 0 ||
+      (saleOrders.data?.length ?? 0) > 0;
+
+    return { hasTransactions, productName };
+  };
+
   const handleBulkDelete = async () => {
     setIsDeleting(true);
     try {
       const productsToDelete = Array.from(selectedProducts);
       
+      // First, check all products for transaction history
+      const productsWithTransactions: string[] = [];
+      
       for (const productId of productsToDelete) {
-        // Delete related records first
-        
-        // 1. Delete batch_stock records
+        const { hasTransactions, productName } = await checkProductHasTransactions(productId);
+        if (hasTransactions) {
+          productsWithTransactions.push(productName);
+        }
+      }
+
+      // If any product has transactions, block deletion
+      if (productsWithTransactions.length > 0) {
+        toast({
+          title: "Cannot Delete Product(s)",
+          description: `The following product(s) have been used in sales, purchases, or other transactions and cannot be deleted: ${productsWithTransactions.join(", ")}. Please mark them as inactive instead.`,
+          variant: "destructive",
+        });
+        setIsDeleting(false);
+        return;
+      }
+
+      // Only delete products without transaction history
+      for (const productId of productsToDelete) {
+        // Get variant IDs first
         const { data: variants } = await supabase
           .from("product_variants")
           .select("id")
@@ -301,32 +347,20 @@ const ProductDashboard = () => {
         if (variants && variants.length > 0) {
           const variantIds = variants.map(v => v.id);
           
-          // Delete batch stock for these variants
+          // Delete batch stock for these variants (only if no transactions)
           await supabase
             .from("batch_stock")
             .delete()
             .in("variant_id", variantIds);
 
-          // Delete stock movements for these variants
+          // Delete stock movements for these variants (only if no transactions)
           await supabase
             .from("stock_movements")
             .delete()
             .in("variant_id", variantIds);
         }
 
-        // 2. Delete purchase items
-        await supabase
-          .from("purchase_items")
-          .delete()
-          .eq("product_id", productId);
-
-        // 3. Delete sale items
-        await supabase
-          .from("sale_items")
-          .delete()
-          .eq("product_id", productId);
-
-        // 4. Delete variants
+        // Delete variants
         const { error: variantsError } = await supabase
           .from("product_variants")
           .delete()
@@ -334,7 +368,7 @@ const ProductDashboard = () => {
 
         if (variantsError) throw variantsError;
 
-        // 5. Finally delete product
+        // Finally delete product
         const { error: productError } = await supabase
           .from("products")
           .delete()
