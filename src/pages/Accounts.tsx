@@ -505,14 +505,14 @@ export default function Accounts() {
           const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
                            newPaidAmount > 0 ? 'partial' : 'pending';
 
-          // Update sales invoice
+          // Update sales invoice - do NOT update payment_method as it has check constraint
+          // The original payment method from the sale should be preserved
           const { error: updateError } = await supabase
             .from('sales')
             .update({
               paid_amount: newPaidAmount,
               payment_status: newStatus,
               payment_date: format(voucherDate, 'yyyy-MM-dd'),
-              payment_method: paymentMethod,
             })
             .eq('id', invoiceId);
 
