@@ -56,8 +56,8 @@ const DailyCashierReport = () => {
   const { startDate, endDate } = getDateRange();
 
   // Fetch sales for selected period
-  const { data: salesData, isLoading } = useQuery({
-    queryKey: ["cashier-report", currentOrganization?.id, selectedDate, period],
+  const { data: salesData, isLoading: salesLoading } = useQuery({
+    queryKey: ["cashier-report-sales", currentOrganization?.id, selectedDate, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
@@ -75,6 +75,33 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch payment receipts (RCP) for selected period - includes opening balance collections
+  const { data: receiptData, isLoading: receiptsLoading } = useQuery({
+    queryKey: ["cashier-report-receipts", currentOrganization?.id, selectedDate, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+
+      const startDateStr = format(startDate, 'yyyy-MM-dd');
+      const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("organization_id", currentOrganization.id)
+        .eq("voucher_type", "receipt")
+        .gte("voucher_date", startDateStr)
+        .lte("voucher_date", endDateStr)
+        .is("deleted_at", null)
+        .order("voucher_date", { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const isLoading = salesLoading || receiptsLoading;
+
   // Fetch settings for business name
   const { data: settings } = useQuery({
     queryKey: ["settings", currentOrganization?.id],
@@ -91,9 +118,11 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Calculate totals
+  // Calculate totals including payment receipts
   const calculateTotals = () => {
-    if (!salesData || salesData.length === 0) {
+    const hasNoData = (!salesData || salesData.length === 0) && (!receiptData || receiptData.length === 0);
+    
+    if (hasNoData) {
       return {
         grossSale: 0,
         totalDiscount: 0,
@@ -113,6 +142,13 @@ const DailyCashierReport = () => {
         upiBills: 0,
         creditBills: 0,
         mixBills: 0,
+        // Receipt collections
+        rcpCashCollection: 0,
+        rcpUpiCollection: 0,
+        rcpCardCollection: 0,
+        rcpOtherCollection: 0,
+        rcpTotalCollection: 0,
+        rcpCount: 0,
       };
     }
 
@@ -133,52 +169,82 @@ const DailyCashierReport = () => {
     let creditBills = 0;
     let mixBills = 0;
 
-    salesData.forEach((sale) => {
-      grossSale += Number(sale.gross_amount) || 0;
-      totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
-      totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
-      totalSale += Number(sale.net_amount) || 0;
+    // Process sales data
+    if (salesData) {
+      salesData.forEach((sale) => {
+        grossSale += Number(sale.gross_amount) || 0;
+        totalDiscount += (Number(sale.discount_amount) || 0) + (Number(sale.flat_discount_amount) || 0);
+        totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
+        totalSale += Number(sale.net_amount) || 0;
 
-      const netAmount = Number(sale.net_amount) || 0;
-      const paidAmount = Number(sale.paid_amount) || 0;
-      const refundAmt = Number(sale.refund_amount) || 0;
-      const balance = netAmount - paidAmount;
-      
-      totalPaid += paidAmount;
-      totalBalance += balance;
-      totalRefund += refundAmt;
-      
-      // For mixed payments, add individual amounts
-      if (sale.payment_method === "multiple") {
-        cashSale += Number(sale.cash_amount) || 0;
-        cardSale += Number(sale.card_amount) || 0;
-        upiSale += Number(sale.upi_amount) || 0;
-        mixBills++;
-      } else {
-        // For single payment methods
-        switch (sale.payment_method) {
-          case "cash":
-            cashSale += Number(sale.cash_amount) || netAmount;
-            cashBills++;
-            break;
-          case "card":
-            cardSale += Number(sale.card_amount) || netAmount;
-            cardBills++;
-            break;
-          case "upi":
-            upiSale += Number(sale.upi_amount) || netAmount;
-            upiBills++;
-            break;
-          case "pay_later":
-            creditSale += netAmount;
-            creditBills++;
-            break;
-          default:
-            cashSale += netAmount;
-            cashBills++;
+        const netAmount = Number(sale.net_amount) || 0;
+        const paidAmount = Number(sale.paid_amount) || 0;
+        const refundAmt = Number(sale.refund_amount) || 0;
+        const balance = netAmount - paidAmount;
+        
+        totalPaid += paidAmount;
+        totalBalance += balance;
+        totalRefund += refundAmt;
+        
+        // For mixed payments, add individual amounts
+        if (sale.payment_method === "multiple") {
+          cashSale += Number(sale.cash_amount) || 0;
+          cardSale += Number(sale.card_amount) || 0;
+          upiSale += Number(sale.upi_amount) || 0;
+          mixBills++;
+        } else {
+          // For single payment methods
+          switch (sale.payment_method) {
+            case "cash":
+              cashSale += Number(sale.cash_amount) || netAmount;
+              cashBills++;
+              break;
+            case "card":
+              cardSale += Number(sale.card_amount) || netAmount;
+              cardBills++;
+              break;
+            case "upi":
+              upiSale += Number(sale.upi_amount) || netAmount;
+              upiBills++;
+              break;
+            case "pay_later":
+              creditSale += netAmount;
+              creditBills++;
+              break;
+            default:
+              cashSale += netAmount;
+              cashBills++;
+          }
         }
-      }
-    });
+      });
+    }
+
+    // Process receipt data (RCP) - extract payment method from description
+    let rcpCashCollection = 0;
+    let rcpUpiCollection = 0;
+    let rcpCardCollection = 0;
+    let rcpOtherCollection = 0;
+    
+    if (receiptData) {
+      receiptData.forEach((receipt) => {
+        const amount = Number(receipt.total_amount) || 0;
+        const desc = (receipt.description || '').toLowerCase();
+        
+        // Parse payment method from description or default to cash
+        if (desc.includes('upi')) {
+          rcpUpiCollection += amount;
+        } else if (desc.includes('card')) {
+          rcpCardCollection += amount;
+        } else if (desc.includes('cheque') || desc.includes('bank') || desc.includes('transfer')) {
+          rcpOtherCollection += amount;
+        } else {
+          // Default to cash for receipts without specific method
+          rcpCashCollection += amount;
+        }
+      });
+    }
+
+    const rcpTotalCollection = rcpCashCollection + rcpUpiCollection + rcpCardCollection + rcpOtherCollection;
 
     // Net Receivable = Net Sale - S/R Adjusted (actual amount to collect from customers)
     const netReceivable = totalSale - totalSRAdjusted;
@@ -196,12 +262,19 @@ const DailyCashierReport = () => {
       totalPaid,
       totalBalance,
       totalRefund,
-      totalBills: salesData.length,
+      totalBills: salesData?.length || 0,
       cashBills,
       cardBills,
       upiBills,
       creditBills,
       mixBills,
+      // Receipt collections
+      rcpCashCollection,
+      rcpUpiCollection,
+      rcpCardCollection,
+      rcpOtherCollection,
+      rcpTotalCollection,
+      rcpCount: receiptData?.length || 0,
     };
   };
 
@@ -212,18 +285,24 @@ const DailyCashierReport = () => {
   };
 
   const handleExportExcel = () => {
+    // Calculate grand totals with RCP
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection;
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection;
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection;
+    const grandTotalCollection = totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection;
+    
     const data = [
       ["Cashier Report - " + getPeriodLabel()],
       [settings?.business_name || "Business Name"],
       [],
-      ["Summary"],
+      ["Sales Summary"],
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
       ["Net Sale", totals.totalSale],
       ["Less: S/R Adjusted", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
       [],
-      ["Payment Method Breakdown"],
+      ["Sales Payment Breakdown"],
       ["Payment Method", "Bills", "Amount"],
       ["Cash", totals.cashBills, totals.cashSale],
       ["Card", totals.cardBills, totals.cardSale],
@@ -232,14 +311,22 @@ const DailyCashierReport = () => {
       ["Credit (Pay Later)", totals.creditBills, totals.creditSale],
       ["Total", totals.totalBills, totals.totalSale],
       [],
-      ["Collection Summary"],
-      ["Cash Collection", totals.cashSale],
-      ["Card Collection", totals.cardSale],
-      ["UPI Collection", totals.upiSale],
+      ["Receipt Collections (RCP) - Opening Balance / Invoice Payments"],
+      ["Type", "Receipts", "Amount"],
+      ["RCP Cash", totals.rcpCount > 0 ? "-" : 0, totals.rcpCashCollection],
+      ["RCP UPI", "-", totals.rcpUpiCollection],
+      ["RCP Card", "-", totals.rcpCardCollection],
+      ["RCP Other (Cheque/Bank)", "-", totals.rcpOtherCollection],
+      ["Total RCP", totals.rcpCount, totals.rcpTotalCollection],
+      [],
+      ["TOTAL COLLECTION SUMMARY"],
+      ["Cash (Sales + RCP)", grandCashCollection],
+      ["Card (Sales + RCP)", grandCardCollection],
+      ["UPI (Sales + RCP)", grandUpiCollection],
       ["S/R Adjusted", totals.totalSRAdjusted],
-      ["Total Collection", totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted],
+      ["Total Collection", grandTotalCollection],
       ["Less: Refund", totals.totalRefund],
-      ["Net Cash Collection", totals.cashSale - totals.totalRefund],
+      ["Net Cash Collection", grandCashCollection - totals.totalRefund],
       [],
       ["Outstanding"],
       ["Credit (Pay Later)", totals.creditSale],
@@ -256,6 +343,11 @@ const DailyCashierReport = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
+    // Calculate grand totals with RCP
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection;
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection;
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection;
+    
     // Header
     doc.setFontSize(16);
     doc.text(settings?.business_name || "Business Name", pageWidth / 2, 20, { align: "center" });
@@ -268,7 +360,7 @@ const DailyCashierReport = () => {
     
     // Summary
     doc.setFont("helvetica", "bold");
-    doc.text("Summary", 20, y);
+    doc.text("Sales Summary", 20, y);
     doc.setFont("helvetica", "normal");
     y += 10;
     doc.text(`Gross Sale: ${formatCurrency(totals.grossSale)}`, 20, y);
@@ -285,25 +377,52 @@ const DailyCashierReport = () => {
     doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
     doc.setFont("helvetica", "normal");
 
-    // Payment Breakdown
+    // Sales Collection Breakdown
     y += 15;
     doc.setFont("helvetica", "bold");
-    doc.text("Payment Collection Breakdown", 20, y);
+    doc.text("Sales Collection", 20, y);
     doc.setFont("helvetica", "normal");
     y += 10;
     
-    doc.text("Cash Collection: " + formatCurrency(totals.cashSale), 20, y);
+    doc.text("Cash: " + formatCurrency(totals.cashSale), 20, y);
     y += 7;
-    doc.text("Card Collection: " + formatCurrency(totals.cardSale), 20, y);
+    doc.text("Card: " + formatCurrency(totals.cardSale), 20, y);
     y += 7;
-    doc.text("UPI Collection: " + formatCurrency(totals.upiSale), 20, y);
+    doc.text("UPI: " + formatCurrency(totals.upiSale), 20, y);
+
+    // Receipt Collections (RCP)
+    if (totals.rcpTotalCollection > 0) {
+      y += 15;
+      doc.setFont("helvetica", "bold");
+      doc.text(`Receipt Collections (RCP) - ${totals.rcpCount} receipts`, 20, y);
+      doc.setFont("helvetica", "normal");
+      y += 10;
+      
+      doc.text("RCP Cash: " + formatCurrency(totals.rcpCashCollection), 20, y);
+      y += 7;
+      doc.text("RCP UPI: " + formatCurrency(totals.rcpUpiCollection), 20, y);
+      y += 7;
+      doc.text("RCP Card: " + formatCurrency(totals.rcpCardCollection), 20, y);
+      y += 7;
+      doc.text("RCP Other: " + formatCurrency(totals.rcpOtherCollection), 20, y);
+    }
+
+    // Grand Total Collection
+    y += 15;
+    doc.setFont("helvetica", "bold");
+    doc.text("TOTAL COLLECTION", 20, y);
+    doc.setFont("helvetica", "normal");
+    y += 10;
+    doc.text("Cash (Sales + RCP): " + formatCurrency(grandCashCollection), 20, y);
     y += 7;
-    doc.text("S/R Adjusted: " + formatCurrency(totals.totalSRAdjusted), 20, y);
+    doc.text("Card (Sales + RCP): " + formatCurrency(grandCardCollection), 20, y);
+    y += 7;
+    doc.text("UPI (Sales + RCP): " + formatCurrency(grandUpiCollection), 20, y);
     y += 7;
     doc.text("Less: Refund: " + formatCurrency(totals.totalRefund), 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
-    doc.text("Net Cash Collection: " + formatCurrency(totals.cashSale - totals.totalRefund), 20, y);
+    doc.text("Net Cash Collection: " + formatCurrency(grandCashCollection - totals.totalRefund), 20, y);
     y += 10;
     doc.setFont("helvetica", "normal");
     doc.text("Credit Outstanding: " + formatCurrency(totals.creditSale), 20, y);
@@ -565,6 +684,42 @@ const DailyCashierReport = () => {
                     </TableCell>
                     <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.totalRefund)}</TableCell>
                   </TableRow>
+                  {/* RCP Collections Section */}
+                  {totals.rcpTotalCollection > 0 && (
+                    <>
+                      <TableRow className="bg-violet-50 dark:bg-violet-950">
+                        <TableCell colSpan={2} className="font-semibold text-violet-700 dark:text-violet-300">
+                          Receipt Collections (RCP) - {totals.rcpCount} receipts
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">RCP Cash</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.rcpCashCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">RCP UPI</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.rcpUpiCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">RCP Card</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.rcpCardCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell className="pl-8">RCP Other (Cheque/Bank)</TableCell>
+                        <TableCell className="text-right">{formatCurrency(totals.rcpOtherCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-violet-100 dark:bg-violet-900">
+                        <TableCell className="font-bold">Total RCP Collection</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(totals.rcpTotalCollection)}</TableCell>
+                      </TableRow>
+                      <TableRow className="bg-primary/10">
+                        <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP)</TableCell>
+                        <TableCell className="text-right font-bold text-lg text-primary">
+                          {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection - totals.totalRefund)}
+                        </TableCell>
+                      </TableRow>
+                    </>
+                  )}
                   <TableRow>
                     <TableCell>
                       <div className="flex items-center gap-2">
