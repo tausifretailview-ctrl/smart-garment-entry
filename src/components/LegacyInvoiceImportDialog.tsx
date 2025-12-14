@@ -22,6 +22,7 @@ interface LegacyInvoiceImportDialogProps {
 interface ParsedInvoice {
   invoice_number: string;
   customer_name: string;
+  phone: string;
   invoice_date: string;
   amount: number;
   payment_status: string;
@@ -108,9 +109,19 @@ export function LegacyInvoiceImportDialog({
             parsedDate = new Date();
           }
 
+          // Parse phone number (handle various column names)
+          let phone = row['Phone'] || row['phone'] || row['Mobile'] || row['mobile'] || 
+                      row['Mobile Number'] || row['Phone Number'] || row['Contact'] || 
+                      row['Partner Phone'] || row['Customer Phone'] || '';
+          if (typeof phone === 'number') {
+            phone = String(phone);
+          }
+          phone = String(phone).replace(/[^\d+]/g, '').trim();
+
           return {
             invoice_number: String(row['Number'] || row['Invoice Number'] || row['number'] || '').trim(),
             customer_name: String(row['Invoice Partner Display Name'] || row['Partner Name'] || row['Customer Name'] || row['customer_name'] || row['Customer'] || '').trim(),
+            phone: phone,
             invoice_date: parsedDate.toISOString().split('T')[0],
             amount: Math.abs(amount),
             payment_status: String(row['Status In Payment'] || row['Status'] || row['Payment Status'] || 'Paid').toLowerCase().includes('paid') ? 'Paid' : 'Unpaid',
@@ -164,6 +175,7 @@ export function LegacyInvoiceImportDialog({
         organization_id: organizationId,
         customer_id: customerMap.get(invoice.customer_name.toLowerCase().trim()) || null,
         customer_name: invoice.customer_name,
+        phone: invoice.phone || null,
         invoice_number: invoice.invoice_number,
         invoice_date: invoice.invoice_date,
         amount: invoice.amount,
@@ -256,7 +268,7 @@ export function LegacyInvoiceImportDialog({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Expected columns: Number (Invoice #), Partner Name (Customer), Date, Total in Currency (Amount), Status
+              Expected columns: Number (Invoice #), Partner Name (Customer), Phone/Mobile, Date, Total in Currency (Amount), Status
             </p>
           </div>
 
@@ -292,6 +304,7 @@ export function LegacyInvoiceImportDialog({
                     <TableRow>
                       <TableHead>Invoice #</TableHead>
                       <TableHead>Customer Name</TableHead>
+                      <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
@@ -302,6 +315,7 @@ export function LegacyInvoiceImportDialog({
                       <TableRow key={idx}>
                         <TableCell className="font-mono text-sm">{invoice.invoice_number}</TableCell>
                         <TableCell>{invoice.customer_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{invoice.phone || '-'}</TableCell>
                         <TableCell>{invoice.invoice_date}</TableCell>
                         <TableCell className="text-right">₹{invoice.amount.toFixed(2)}</TableCell>
                         <TableCell>
@@ -313,7 +327,7 @@ export function LegacyInvoiceImportDialog({
                     ))}
                     {parsedData.length > 100 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="text-center text-muted-foreground">
                           ... and {parsedData.length - 100} more records
                         </TableCell>
                       </TableRow>

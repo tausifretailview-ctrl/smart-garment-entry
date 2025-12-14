@@ -627,6 +627,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           payment_status: string
+          phone: string | null
           source: string | null
           updated_at: string | null
         }
@@ -641,6 +642,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           payment_status?: string
+          phone?: string | null
           source?: string | null
           updated_at?: string | null
         }
@@ -655,6 +657,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           payment_status?: string
+          phone?: string | null
           source?: string | null
           updated_at?: string | null
         }
