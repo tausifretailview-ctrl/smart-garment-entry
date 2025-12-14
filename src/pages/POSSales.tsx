@@ -104,7 +104,8 @@ export default function POSSales() {
     currentOrganization?.id || null
   );
   const [items, setItems] = useState<CartItem[]>([]);
-  const [flatDiscountPercent, setFlatDiscountPercent] = useState(0);
+  const [flatDiscountValue, setFlatDiscountValue] = useState(0);
+  const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
@@ -227,7 +228,8 @@ export default function POSSales() {
       setCustomerId(sale.customer_id || "");
       setCustomerName(sale.customer_name);
       setCustomerPhone(sale.customer_phone || "");
-      setFlatDiscountPercent(sale.flat_discount_percent);
+      setFlatDiscountValue(sale.flat_discount_percent);
+      setFlatDiscountMode('percent');
       setSaleReturnAdjust(sale.sale_return_adjust || 0);
       setRoundOff(sale.round_off);
       setPaymentMethod(sale.payment_method as any);
@@ -239,7 +241,8 @@ export default function POSSales() {
           if (holdData.items && Array.isArray(holdData.items)) {
             setItems(holdData.items);
             if (holdData.flatDiscountPercent !== undefined) {
-              setFlatDiscountPercent(holdData.flatDiscountPercent);
+              setFlatDiscountValue(holdData.flatDiscountPercent);
+              setFlatDiscountMode('percent');
             }
             if (holdData.saleReturnAdjust !== undefined) {
               setSaleReturnAdjust(holdData.saleReturnAdjust);
@@ -363,14 +366,15 @@ export default function POSSales() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountPercent, roundOff, paymentMethod, savedInvoiceData]);
+  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData]);
 
   // Apply defaults when settings are loaded
   useEffect(() => {
     if (settingsData && (settingsData as any).sale_settings) {
       const saleSettings = (settingsData as any).sale_settings;
       if (saleSettings.default_discount) {
-        setFlatDiscountPercent(saleSettings.default_discount);
+        setFlatDiscountValue(saleSettings.default_discount);
+        setFlatDiscountMode('percent');
       }
       if (saleSettings.default_payment_method) {
         setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
@@ -393,7 +397,8 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerId("");
       setCustomerPhone("");
-      setFlatDiscountPercent(0);
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
       setSaleReturnAdjust(0);
       setRoundOff(0);
       setRefundAmount(0);
@@ -834,7 +839,12 @@ export default function POSSales() {
     }, 0),
   };
 
-  const flatDiscountAmount = (totals.subtotal * flatDiscountPercent) / 100;
+  const flatDiscountAmount = flatDiscountMode === 'percent' 
+    ? (totals.subtotal * flatDiscountValue) / 100 
+    : flatDiscountValue;
+  const flatDiscountPercent = flatDiscountMode === 'percent' 
+    ? flatDiscountValue 
+    : totals.subtotal > 0 ? (flatDiscountValue / totals.subtotal) * 100 : 0;
   
   // Calculate amount before round-off (without roundOff in calculation)
   const amountBeforeRoundOff = totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
@@ -948,7 +958,8 @@ export default function POSSales() {
       setCustomerId("");
       setCustomerName("");
       setCustomerPhone("");
-      setFlatDiscountPercent(0);
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
       setSaleReturnAdjust(0);
       setRoundOff(0);
       setCreditApplied(0);
@@ -1295,7 +1306,8 @@ export default function POSSales() {
     setCustomerId("");
     setCustomerName("");
     setCustomerPhone("");
-    setFlatDiscountPercent(0);
+    setFlatDiscountValue(0);
+    setFlatDiscountMode('percent');
     setSaleReturnAdjust(0);
     setRoundOff(0);
     setSearchInput("");
@@ -1393,7 +1405,8 @@ export default function POSSales() {
     }));
 
     setItems(loadedItems);
-    setFlatDiscountPercent(Number(sale.flat_discount_percent) || 0);
+    setFlatDiscountValue(Number(sale.flat_discount_percent) || 0);
+    setFlatDiscountMode('percent');
     setSaleReturnAdjust(Number(sale.sale_return_adjust) || 0);
     setRoundOff(Number(sale.round_off) || 0);
     setCurrentSaleId(sale.id);
@@ -1591,7 +1604,8 @@ export default function POSSales() {
     setCustomerName("");
     setCustomerId("");
     setCustomerPhone("");
-    setFlatDiscountPercent(0);
+    setFlatDiscountValue(0);
+    setFlatDiscountMode('percent');
     setSaleReturnAdjust(0);
     setRoundOff(0);
     setRefundAmount(0);
@@ -1610,7 +1624,8 @@ export default function POSSales() {
     setCustomerName("");
     setCustomerId("");
     setCustomerPhone("");
-    setFlatDiscountPercent(0);
+    setFlatDiscountValue(0);
+    setFlatDiscountMode('percent');
     setSaleReturnAdjust(0);
     setRoundOff(0);
     setRefundAmount(0);
@@ -1666,7 +1681,8 @@ export default function POSSales() {
       setCustomerId("");
       setCustomerName("");
       setCustomerPhone("");
-      setFlatDiscountPercent(0);
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
       setSaleReturnAdjust(0);
       setRoundOff(0);
       setSearchInput("");
@@ -2446,13 +2462,20 @@ export default function POSSales() {
               <div className="text-xs md:text-sm mt-1">Discount</div>
             </div>
             <div className="text-center">
-              <div className="flex items-center justify-center gap-2">
-                <span className="bg-black text-white px-2 py-1 text-sm rounded">%</span>
+              <div className="flex items-center justify-center gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="bg-black text-white px-2 py-1 text-sm rounded h-8 hover:bg-gray-800"
+                  onClick={() => setFlatDiscountMode(flatDiscountMode === 'percent' ? 'amount' : 'percent')}
+                >
+                  {flatDiscountMode === 'percent' ? '%' : '₹'}
+                </Button>
                 <Input 
                   type="number"
                   className="w-16 h-8 bg-white text-black text-center text-base font-semibold" 
-                  value={flatDiscountPercent}
-                  onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+                  value={flatDiscountValue}
+                  onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
                 />
               </div>
               <div className="text-xs md:text-sm mt-1">Flat Discount</div>
@@ -2840,7 +2863,8 @@ export default function POSSales() {
                   setCustomerId("");
                   setCustomerName("");
                   setCustomerPhone("");
-                  setFlatDiscountPercent(0);
+                  setFlatDiscountValue(0);
+                  setFlatDiscountMode('percent');
                   setSaleReturnAdjust(0);
                   setRoundOff(0);
                   setSearchInput("");
