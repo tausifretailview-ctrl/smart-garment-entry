@@ -134,6 +134,9 @@ export default function POSSales() {
   const [creditNoteData, setCreditNoteData] = useState<any>(null);
   const [showCreditNoteDialog, setShowCreditNoteDialog] = useState(false);
   const creditNotePrintRef = useRef<HTMLDivElement>(null);
+  const [openSalesmanSearch, setOpenSalesmanSearch] = useState(false);
+  const [selectedSalesman, setSelectedSalesman] = useState("");
+  const [salesmanSearchInput, setSalesmanSearchInput] = useState("");
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -400,6 +403,7 @@ export default function POSSales() {
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(null);
       setCurrentInvoiceNumber("");
+      setSelectedSalesman("");
       toast({
         title: "New Invoice",
         description: "Cart cleared. Ready for new sale.",
@@ -476,7 +480,30 @@ export default function POSSales() {
     refetchInterval: 30000, // Auto-refetch every 30 seconds
   });
 
-  // Keyboard shortcuts for invoice navigation (needs todaysSales to be defined)
+  // Fetch employees for salesman dropdown
+  const { data: employees } = useQuery({
+    queryKey: ['pos-employees', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, employee_name, designation')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .eq('status', 'active')
+        .order('employee_name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Filter employees based on search
+  const filteredEmployees = (employees || []).filter((emp: any) =>
+    emp.employee_name.toLowerCase().includes(salesmanSearchInput.toLowerCase())
+  );
+
   useEffect(() => {
     const handleNavigationKeyPress = (e: KeyboardEvent) => {
       // Page Up - Previous Invoice (older)
@@ -887,6 +914,7 @@ export default function POSSales() {
       roundOff,
       netAmount: finalAmount,
       creditApplied,
+      salesman: selectedSalesman || null,
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -977,6 +1005,7 @@ export default function POSSales() {
       roundOff,
       netAmount: finalAmount,
       creditApplied,
+      salesman: selectedSalesman || null,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -1101,6 +1130,7 @@ export default function POSSales() {
       netAmount: finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
       creditApplied,
+      salesman: selectedSalesman || null,
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
@@ -1270,6 +1300,7 @@ export default function POSSales() {
     setRoundOff(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
+    setSelectedSalesman("");
     
     setSavedInvoiceData(null);
   };
@@ -1835,10 +1866,10 @@ export default function POSSales() {
         {/* Sticky Header Section - Barcode scanning bar stays fixed */}
         <div className="sticky top-0 z-20 bg-background border-b shadow-sm px-2 md:px-4 py-2">
           <div className="max-w-[1800px] w-full">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="flex flex-wrap items-end gap-2">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <div className="relative">
+              <div className="relative w-56">
                 <Label className="text-sm font-medium mb-1 block">Barcode</Label>
                 <Input
                   ref={barcodeInputRef}
@@ -1927,7 +1958,7 @@ export default function POSSales() {
           
           <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
             <PopoverTrigger asChild>
-              <div className="relative">
+              <div className="relative w-52">
                 <div className="flex items-center justify-between mb-1">
                   <Label className="text-sm font-medium">Customer Name</Label>
                   {/* Customer Balance Display - on top of label */}
@@ -2073,22 +2104,87 @@ export default function POSSales() {
           </Popover>
           
           {/* Invoice Number Display */}
-          <div className="relative">
+          <div className="relative w-32">
             <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
-              className="h-12 text-lg font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
+              className="h-12 text-sm font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
               placeholder="Invoice #"
             />
           </div>
           
+          {/* Salesperson Search */}
+          <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
+            <PopoverTrigger asChild>
+              <div className="relative w-36">
+                <Label className="text-sm font-medium mb-1 block">Salesperson</Label>
+                <Input
+                  value={selectedSalesman}
+                  onChange={(e) => {
+                    setSelectedSalesman(e.target.value);
+                    setOpenSalesmanSearch(true);
+                  }}
+                  className="h-12 text-sm pr-8"
+                  placeholder="Select..."
+                />
+                {selectedSalesman && (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="absolute right-1 top-1/2 translate-y-0.5 h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedSalesman("");
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-[250px] p-0 z-50" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput 
+                  placeholder="Search employee..." 
+                  value={salesmanSearchInput}
+                  onValueChange={setSalesmanSearchInput}
+                />
+                <CommandList>
+                  <CommandEmpty>No employees found.</CommandEmpty>
+                  <CommandGroup heading="Employees">
+                    {filteredEmployees.map((emp: any) => (
+                      <CommandItem
+                        key={emp.id}
+                        value={emp.employee_name}
+                        onSelect={() => {
+                          setSelectedSalesman(emp.employee_name);
+                          setOpenSalesmanSearch(false);
+                          setSalesmanSearchInput("");
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Check className={`mr-2 h-4 w-4 ${selectedSalesman === emp.employee_name ? 'opacity-100' : 'opacity-0'}`} />
+                        <div className="flex flex-col">
+                          <span className="font-medium">{emp.employee_name}</span>
+                          {emp.designation && (
+                            <span className="text-xs text-muted-foreground">{emp.designation}</span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+          
           {/* Invoice Search */}
-          <div className="relative">
+          <div className="relative w-36">
             <Label className="text-sm font-medium mb-1 block">Search Invoice</Label>
-            <div className="flex gap-2">
+            <div className="flex gap-1">
               <Input
-                placeholder="Enter bill number..."
+                placeholder="Bill no..."
                 value={invoiceSearchInput}
                 onChange={(e) => setInvoiceSearchInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -2097,11 +2193,11 @@ export default function POSSales() {
                     handleInvoiceSearch();
                   }
                 }}
-                className="h-12"
+                className="h-12 text-sm"
               />
               <Button 
                 onClick={handleInvoiceSearch}
-                className="h-12 px-4"
+                className="h-12 px-3"
                 size="sm"
               >
                 Go

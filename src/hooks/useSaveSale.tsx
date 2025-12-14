@@ -35,6 +35,7 @@ interface SaleData {
   roundOff: number;
   netAmount: number;
   refundAmount?: number;
+  salesman?: string | null;
 }
 
 export const useSaveSale = () => {
@@ -270,6 +271,7 @@ export const useSaveSale = () => {
           card_amount: cardAmt,
           upi_amount: upiAmt,
           refund_amount: refundAmt,
+          salesman: saleData.salesman || null,
           created_by: user.id,
           organization_id: currentOrganization.id,
         })
@@ -459,6 +461,7 @@ export const useSaveSale = () => {
           card_amount: cardAmt,
           upi_amount: upiAmt,
           refund_amount: refundAmt,
+          salesman: saleData.salesman || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', saleId)
@@ -567,6 +570,7 @@ export const useSaveSale = () => {
           card_amount: 0,
           upi_amount: 0,
           refund_amount: 0,
+          salesman: saleData.salesman || null,
           notes: JSON.stringify(holdData),
           created_by: user.id,
           organization_id: currentOrganization.id,
@@ -706,6 +710,7 @@ export const useSaveSale = () => {
           card_amount: cardAmt,
           upi_amount: upiAmt,
           refund_amount: refundAmt,
+          salesman: saleData.salesman || null,
           notes: null, // Clear the held items data
           updated_at: new Date().toISOString(),
         })
