@@ -235,6 +235,12 @@ const PurchaseEntry = () => {
         setBillDate(new Date(parsed.billDate));
         setLineItems(parsed.lineItems);
         setRoundOff(parsed.roundOff || 0);
+        // Restore edit mode state if it was saved
+        if (parsed.isEditMode) {
+          setIsEditMode(true);
+          setEditingBillId(parsed.editingBillId);
+          setOriginalLineItems(parsed.originalLineItems || []);
+        }
         sessionStorage.removeItem('purchaseEntryState');
         // Draft feature temporarily disabled
         // deleteDraft();
@@ -247,6 +253,11 @@ const PurchaseEntry = () => {
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
     const loadOrGenerateBill = async () => {
+      // Skip if we already restored edit mode from sessionStorage
+      if (isEditMode && editingBillId && !location.state?.editBillId) {
+        return; // Edit mode was restored from sessionStorage, don't reload
+      }
+      
       const billId = location.state?.editBillId;
       
       if (billId) {
@@ -320,14 +331,14 @@ const PurchaseEntry = () => {
         } finally {
           setLoading(false);
         }
-      } else {
+      } else if (!isEditMode) {
         // New bill mode - bill number will be auto-generated on save
         setSoftwareBillNo("");
       }
     };
     
     loadOrGenerateBill();
-  }, [location.state?.editBillId, toast, navigate]);
+  }, [location.state?.editBillId, toast, navigate, isEditMode, editingBillId]);
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -454,13 +465,16 @@ const PurchaseEntry = () => {
   const handleAddNewProductFromInline = () => {
     // Mark that we're navigating to product entry to skip draft save on unmount
     isNavigatingForProductRef.current = true;
-    // Save current state before navigating
+    // Save current state before navigating - include edit mode state to prevent duplicate bills
     const stateToSave = {
       billData,
       softwareBillNo,
       billDate: billDate.toISOString(),
       lineItems,
       roundOff,
+      isEditMode,
+      editingBillId,
+      originalLineItems,
     };
     sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
     // Draft feature temporarily disabled
