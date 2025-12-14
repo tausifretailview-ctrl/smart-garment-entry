@@ -278,31 +278,42 @@ const SalesmanOrderEntry = () => {
   }, [currentOrganization?.id]);
 
   const addItem = (product: Product, variant: Variant, qty: number = 1) => {
-    const existingIndex = orderItems.findIndex(item => item.variant.id === variant.id);
-    
-    if (existingIndex >= 0) {
-      const updated = [...orderItems];
-      const newQty = updated[existingIndex].quantity + qty;
-      if (newQty <= variant.stock_qty) {
-        updated[existingIndex].quantity = newQty;
-        updated[existingIndex].line_total = newQty * updated[existingIndex].unit_price;
-        setOrderItems(updated);
-      } else {
-        toast.error(`Insufficient stock for ${variant.size}`);
+    setOrderItems((prevItems) => {
+      const existingIndex = prevItems.findIndex(item => item.variant.id === variant.id);
+
+      if (existingIndex >= 0) {
+        const updated = [...prevItems];
+        const currentItem = updated[existingIndex];
+        const newQty = currentItem.quantity + qty;
+
+        if (newQty > variant.stock_qty) {
+          toast.error(`Insufficient stock for ${variant.size}`);
+          return prevItems;
+        }
+
+        updated[existingIndex] = {
+          ...currentItem,
+          quantity: newQty,
+          line_total: newQty * currentItem.unit_price,
+        };
+
+        return updated;
       }
-    } else {
+
+      const unitPrice = variant.sale_price || variant.mrp || 0;
       const newItem: OrderItem = {
         id: crypto.randomUUID(),
         product,
         variant,
         quantity: qty,
-        unit_price: variant.sale_price || variant.mrp || 0,
+        unit_price: unitPrice,
         discount_percent: 0,
         gst_percent: product.gst_per || 0,
-        line_total: (variant.sale_price || variant.mrp || 0) * qty,
+        line_total: unitPrice * qty,
       };
-      setOrderItems([...orderItems, newItem]);
-    }
+
+      return [...prevItems, newItem];
+    });
   };
 
   const openSizeGrid = (product: Product, variants: Variant[]) => {
