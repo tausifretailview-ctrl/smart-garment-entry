@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import {
   Package,
   ShoppingCart,
@@ -13,8 +14,13 @@ import {
   Calendar,
   RotateCcw,
   AlertCircle,
+  Smartphone,
+  MapPin,
+  ClipboardList,
+  IndianRupee,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import {
@@ -114,6 +120,7 @@ const getDateRange = (type: DateRangeType) => {
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
+  const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
@@ -569,6 +576,69 @@ const DashboardContent = () => {
           />
         </div>
       </div>
+
+      {/* Field Sales App Section - Only visible for users with field sales access */}
+      {hasFieldSalesAccess && (
+        <div className="animate-fade-in" style={{ animationDelay: "0.5s" }}>
+          <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
+            <div className="h-1 w-12 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
+            Field Sales App
+          </h2>
+          <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 border-orange-200 dark:border-orange-800">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg">
+                  <Smartphone className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Field Sales Mobile App</CardTitle>
+                  <CardDescription className="text-base">
+                    Welcome, {employeeName || "Salesman"}
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                Access your mobile sales tools to manage customers, create orders, and track outstanding payments on the go.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button 
+                  onClick={() => navigate("/salesman")}
+                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                >
+                  <Smartphone className="mr-2 h-4 w-4" />
+                  Open Field Sales App
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate("/salesman/order/new")}
+                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                >
+                  <ClipboardList className="mr-2 h-4 w-4" />
+                  New Order
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate("/salesman/customers")}
+                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Customers
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate("/salesman/outstanding")}
+                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                >
+                  <IndianRupee className="mr-2 h-4 w-4" />
+                  Outstanding
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Charts Section */}
       <StatsChartsSection />
