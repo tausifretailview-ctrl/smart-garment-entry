@@ -36,14 +36,21 @@ serve(async (req) => {
       );
     }
 
-    // Check if user has admin or platform_admin role
+    // Check if user has admin, platform_admin, or manager role
     const { data: roleCheck } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["admin", "platform_admin"]);
+      .in("role", ["admin", "platform_admin", "manager"]);
 
-    if (!roleCheck || roleCheck.length === 0) {
+    // Also check organization_members for admin role
+    const { data: orgAdminCheck } = await supabaseAdmin
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin");
+
+    if ((!roleCheck || roleCheck.length === 0) && (!orgAdminCheck || orgAdminCheck.length === 0)) {
       return new Response(
         JSON.stringify({ error: "Forbidden - Admin access required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
