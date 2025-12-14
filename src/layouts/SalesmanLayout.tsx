@@ -1,14 +1,17 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Users, ShoppingCart, ListOrdered, LogOut } from "lucide-react";
+import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import { useInstallPrompt } from "@/hooks/useInstallPrompt";
+import { toast } from "sonner";
 
 const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
   const location = useLocation();
   const { signOut } = useAuth();
+  const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
 
   const navItems = [
     { icon: Home, label: "Home", path: "/salesman" },
@@ -22,6 +25,26 @@ const SalesmanLayout = () => {
     return location.pathname === fullPath || location.pathname.startsWith(fullPath + "/");
   };
 
+  const handleInstall = async () => {
+    if (isInstalled) {
+      toast.info("App is already installed!");
+      return;
+    }
+    
+    if (isInstallable) {
+      const installed = await promptInstall();
+      if (installed) {
+        toast.success("App installed successfully!");
+      }
+    } else {
+      // Show manual installation instructions
+      toast.info(
+        "To install: Open browser menu → 'Add to Home Screen' or 'Install App'",
+        { duration: 5000 }
+      );
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -30,14 +53,28 @@ const SalesmanLayout = () => {
           <ShoppingCart className="h-6 w-6" />
           <span className="font-semibold text-lg">Field Sales</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => signOut()}
-          className="text-primary-foreground hover:bg-primary-foreground/20"
-        >
-          <LogOut className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {!isInstalled && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleInstall}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+              title="Install App"
+            >
+              <Download className="h-5 w-5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => signOut()}
+            className="text-primary-foreground hover:bg-primary-foreground/20"
+            title="Logout"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
