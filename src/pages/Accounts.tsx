@@ -479,15 +479,17 @@ export default function Accounts() {
     mutationFn: async (voucherData: any) => {
       const invoicesToProcess = selectedInvoiceIds.length > 0 ? selectedInvoiceIds : (selectedInvoiceId ? [selectedInvoiceId] : []);
       
-      if (voucherType === "receipt" && invoicesToProcess.length === 0) {
-        throw new Error("Please select at least one invoice to record payment against");
+      // Allow opening balance payments without invoice - just need a customer selected
+      if (voucherType === "receipt" && !referenceId) {
+        throw new Error("Please select a customer to record payment");
       }
 
       const paymentAmount = parseFloat(amount);
       let remainingAmount = paymentAmount;
       const processedInvoices: any[] = [];
+      const isOpeningBalancePayment = voucherType === "receipt" && invoicesToProcess.length === 0;
 
-      // For customer payments, update the sales invoices (distribute payment across selected invoices)
+      // For customer payments with invoices, update the sales invoices (distribute payment across selected invoices)
       if (voucherType === "receipt" && invoicesToProcess.length > 0) {
         for (const invoiceId of invoicesToProcess) {
           if (remainingAmount <= 0) break;
@@ -548,9 +550,21 @@ export default function Accounts() {
       } else if (paymentMethod === 'other' && transactionId) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
       }
-      const finalDescription = description ? `${description}${paymentDetails}` : `Payment for: ${invoiceNumbers}${paymentDetails}`;
+      
+      // For opening balance payments, use different description
+      let finalDescription: string;
+      if (isOpeningBalancePayment) {
+        const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
+        finalDescription = description 
+          ? `${description}${paymentDetails}` 
+          : `Opening Balance Payment from ${customerName}${paymentDetails}`;
+      } else {
+        finalDescription = description 
+          ? `${description}${paymentDetails}` 
+          : `Payment for: ${invoiceNumbers}${paymentDetails}`;
+      }
 
-      // Create voucher entry - use first invoice as reference_id for compatibility
+      // Create voucher entry - use first invoice as reference_id, or customer_id for opening balance
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher_entries")
         .insert({
@@ -558,8 +572,8 @@ export default function Accounts() {
           voucher_number: voucherNumber,
           voucher_type: voucherType,
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: referenceType,
-          reference_id: invoicesToProcess[0] || referenceId || null,
+          reference_type: isOpeningBalancePayment ? "customer" : referenceType,
+          reference_id: isOpeningBalancePayment ? referenceId : (invoicesToProcess[0] || referenceId || null),
           description: finalDescription,
           total_amount: paymentAmount,
         })
@@ -568,7 +582,7 @@ export default function Accounts() {
 
       if (voucherError) throw voucherError;
 
-      return { voucher, voucherNumber, processedInvoices };
+      return { voucher, voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };
     },
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
@@ -579,28 +593,50 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       
       // Generate receipt for customer payments
-      if (voucherType === "receipt" && data.processedInvoices.length > 0) {
-        const firstInvoice = data.processedInvoices[0].invoice;
+      if (voucherType === "receipt") {
         const totalPaid = parseFloat(amount);
-        const totalPreviousBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.previousBalance, 0);
-        const totalCurrentBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.currentBalance, 0);
         
-        setReceiptData({
-          voucherNumber: data.voucherNumber,
-          voucherDate: format(voucherDate, 'yyyy-MM-dd'),
-          customerName: firstInvoice.customer_name,
-          customerPhone: firstInvoice.customer_phone,
-          customerAddress: firstInvoice.customer_address,
-          invoiceNumber: data.processedInvoices.map((p: any) => p.invoice.sale_number).join(', '),
-          invoiceDate: firstInvoice.sale_date,
-          invoiceAmount: data.processedInvoices.reduce((sum: number, p: any) => sum + p.invoice.net_amount, 0),
-          paidAmount: totalPaid,
-          previousBalance: totalPreviousBalance,
-          currentBalance: totalCurrentBalance,
-          paymentMethod: paymentMethod,
-          multipleInvoices: data.processedInvoices,
-        });
-        setShowReceiptDialog(true);
+        if (data.isOpeningBalancePayment) {
+          // Opening balance payment - no invoice
+          const customer = customersWithBalance?.find(c => c.id === referenceId);
+          setReceiptData({
+            voucherNumber: data.voucherNumber,
+            voucherDate: format(voucherDate, 'yyyy-MM-dd'),
+            customerName: customer?.customer_name || 'Customer',
+            customerPhone: customer?.phone || '',
+            customerAddress: customer?.address || '',
+            invoiceNumber: 'Opening Balance',
+            invoiceDate: format(voucherDate, 'yyyy-MM-dd'),
+            invoiceAmount: customerBalance || 0,
+            paidAmount: totalPaid,
+            previousBalance: customerBalance || 0,
+            currentBalance: (customerBalance || 0) - totalPaid,
+            paymentMethod: paymentMethod,
+            multipleInvoices: [],
+          });
+          setShowReceiptDialog(true);
+        } else if (data.processedInvoices.length > 0) {
+          const firstInvoice = data.processedInvoices[0].invoice;
+          const totalPreviousBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.previousBalance, 0);
+          const totalCurrentBalance = data.processedInvoices.reduce((sum: number, p: any) => sum + p.currentBalance, 0);
+          
+          setReceiptData({
+            voucherNumber: data.voucherNumber,
+            voucherDate: format(voucherDate, 'yyyy-MM-dd'),
+            customerName: firstInvoice.customer_name,
+            customerPhone: firstInvoice.customer_phone,
+            customerAddress: firstInvoice.customer_address,
+            invoiceNumber: data.processedInvoices.map((p: any) => p.invoice.sale_number).join(', '),
+            invoiceDate: firstInvoice.sale_date,
+            invoiceAmount: data.processedInvoices.reduce((sum: number, p: any) => sum + p.invoice.net_amount, 0),
+            paidAmount: totalPaid,
+            previousBalance: totalPreviousBalance,
+            currentBalance: totalCurrentBalance,
+            paymentMethod: paymentMethod,
+            multipleInvoices: data.processedInvoices,
+          });
+          setShowReceiptDialog(true);
+        }
       }
       
       resetForm();
@@ -732,8 +768,9 @@ export default function Accounts() {
       toast.error("Please enter a valid amount");
       return;
     }
-    if (voucherType === "receipt" && selectedInvoiceIds.length === 0 && !selectedInvoiceId) {
-      toast.error("Please select at least one invoice");
+    // For receipts, we need either selected invoices OR just a customer (for opening balance)
+    if (voucherType === "receipt" && !referenceId) {
+      toast.error("Please select a customer");
       return;
     }
     createVoucher.mutate({});
@@ -1053,50 +1090,59 @@ export default function Accounts() {
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
-                      <Label>Select Invoices (Multiple)</Label>
+                      <Label>Select Invoices (Optional - Leave empty for Opening Balance)</Label>
                       {!referenceId ? (
                         <p className="text-xs text-muted-foreground">Select a customer first</p>
                       ) : customerInvoices?.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No pending invoices for this customer</p>
-                      ) : (
-                        <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
-                          {customerInvoices?.map((invoice) => {
-                            const balance = invoice.net_amount - (invoice.paid_amount || 0);
-                            const isSelected = selectedInvoiceIds.includes(invoice.id);
-                            return (
-                              <div 
-                                key={invoice.id} 
-                                className={cn(
-                                  "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
-                                  isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
-                                )}
-                                onClick={() => {
-                                  setSelectedInvoiceIds(prev => 
-                                    prev.includes(invoice.id) 
-                                      ? prev.filter(id => id !== invoice.id)
-                                      : [...prev, invoice.id]
-                                  );
-                                }}
-                              >
-                                <input 
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  readOnly
-                                  className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none"
-                                />
-                                <div className="flex-1 flex justify-between items-center">
-                                  <span className="font-medium">{invoice.sale_number}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {format(new Date(invoice.sale_date), 'dd/MM/yy')}
-                                  </span>
-                                  <Badge variant={balance > 0 ? "destructive" : "secondary"}>
-                                    ₹{balance.toFixed(2)}
-                                  </Badge>
-                                </div>
-                              </div>
-                            );
-                          })}
+                        <div className="p-3 bg-muted/30 border rounded-md">
+                          <p className="text-xs text-muted-foreground">No pending invoices - Payment will be applied to Opening Balance</p>
                         </div>
+                      ) : (
+                        <>
+                          <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
+                            {customerInvoices?.map((invoice) => {
+                              const balance = invoice.net_amount - (invoice.paid_amount || 0);
+                              const isSelected = selectedInvoiceIds.includes(invoice.id);
+                              return (
+                                <div 
+                                  key={invoice.id} 
+                                  className={cn(
+                                    "flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors",
+                                    isSelected ? "bg-primary/10 border border-primary/30" : "hover:bg-muted"
+                                  )}
+                                  onClick={() => {
+                                    setSelectedInvoiceIds(prev => 
+                                      prev.includes(invoice.id) 
+                                        ? prev.filter(id => id !== invoice.id)
+                                        : [...prev, invoice.id]
+                                    );
+                                  }}
+                                >
+                                  <input 
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    readOnly
+                                    className="h-4 w-4 rounded border-primary text-primary focus:ring-primary pointer-events-none"
+                                  />
+                                  <div className="flex-1 flex justify-between items-center">
+                                    <span className="font-medium">{invoice.sale_number}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {format(new Date(invoice.sale_date), 'dd/MM/yy')}
+                                    </span>
+                                    <Badge variant={balance > 0 ? "destructive" : "secondary"}>
+                                      ₹{balance.toFixed(2)}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {selectedInvoiceIds.length === 0 && referenceId && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              ℹ No invoices selected - Payment will be recorded as Opening Balance collection
+                            </p>
+                          )}
+                        </>
                       )}
                       {selectedInvoiceIds.length > 0 && (
                         <div className="flex items-center gap-2 mt-2">
