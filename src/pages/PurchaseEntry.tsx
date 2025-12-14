@@ -116,6 +116,7 @@ const PurchaseEntry = () => {
   const lastQtyInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const inlineSearchInputRef = useRef<HTMLInputElement>(null);
+  const isNavigatingForProductRef = useRef(false); // Track navigation to product entry
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -188,8 +189,8 @@ const PurchaseEntry = () => {
       startAutoSave();
     }
     return () => {
-      // Save draft immediately when component unmounts (tab switch, navigation)
-      if (!isEditMode && lineItems.length > 0) {
+      // Don't save draft if navigating to product entry (sessionStorage handles this)
+      if (!isEditMode && lineItems.length > 0 && !isNavigatingForProductRef.current) {
         saveDraft({
           billData,
           softwareBillNo,
@@ -446,6 +447,8 @@ const PurchaseEntry = () => {
   };
 
   const handleAddNewProductFromInline = () => {
+    // Mark that we're navigating to product entry to skip draft save on unmount
+    isNavigatingForProductRef.current = true;
     // Save current state before navigating
     const stateToSave = {
       billData,
@@ -455,7 +458,7 @@ const PurchaseEntry = () => {
       roundOff,
     };
     sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
-    // Clear current data ref to prevent draft save on unmount (sessionStorage handles this)
+    // Clear current data ref to prevent useDraftSave hook's cleanup from saving
     updateCurrentData(null);
     navigate('/product-entry', { state: { returnToPurchase: true } });
   };
