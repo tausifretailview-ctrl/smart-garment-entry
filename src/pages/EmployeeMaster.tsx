@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -29,7 +30,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,8 @@ interface Employee {
   joining_date: string | null;
   status: string;
   created_at: string;
+  field_sales_access: boolean;
+  user_id: string | null;
 }
 
 const EmployeeMaster = () => {
@@ -58,6 +61,7 @@ const EmployeeMaster = () => {
     designation: "",
     joining_date: "",
     status: "active",
+    field_sales_access: false,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -159,6 +163,7 @@ const EmployeeMaster = () => {
       designation: "",
       joining_date: "",
       status: "active",
+      field_sales_access: false,
     });
     setEditingEmployee(null);
   };
@@ -182,6 +187,7 @@ const EmployeeMaster = () => {
       designation: employee.designation || "",
       joining_date: employee.joining_date || "",
       status: employee.status,
+      field_sales_access: employee.field_sales_access || false,
     });
     setIsDialogOpen(true);
   };
@@ -285,6 +291,22 @@ const EmployeeMaster = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                <div className="space-y-0.5">
+                  <Label htmlFor="field_sales_access" className="text-base font-medium flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Field Sales App Access
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Allow this employee to use the Field Sales mobile app
+                  </p>
+                </div>
+                <Switch
+                  id="field_sales_access"
+                  checked={formData.field_sales_access}
+                  onCheckedChange={(checked) => setFormData({ ...formData, field_sales_access: checked })}
+                />
+              </div>
               <Button type="submit" className="w-full">
                 {editingEmployee ? "Update" : "Create"} Employee
               </Button>
@@ -313,17 +335,18 @@ const EmployeeMaster = () => {
               <TableHead>Email</TableHead>
               <TableHead>Joining Date</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Field Sales</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredEmployees.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center">No employees found</TableCell>
+                <TableCell colSpan={9} className="text-center">No employees found</TableCell>
               </TableRow>
             ) : (
               filteredEmployees.map((employee) => (
@@ -337,6 +360,18 @@ const EmployeeMaster = () => {
                     <Badge variant={employee.status === "active" ? "default" : "secondary"}>
                       {employee.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {employee.field_sales_access ? (
+                      <Badge variant="default" className="bg-green-600">
+                        <Smartphone className="h-3 w-3 mr-1" />
+                        Enabled
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-muted-foreground">
+                        Disabled
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
