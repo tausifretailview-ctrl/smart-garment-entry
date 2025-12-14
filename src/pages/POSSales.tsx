@@ -2233,24 +2233,24 @@ export default function POSSales() {
                       <p>Page Up</p>
                     </TooltipContent>
                   </Tooltip>
-                  {/* Position Indicator */}
-                  {todaysSales && todaysSales.length > 0 && currentSaleId && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
-                          <span className="text-sm font-semibold text-foreground">
-                            {todaysSales.length - currentInvoiceIndex}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            of {todaysSales.length}
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>End - Go to Latest</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
+                  {/* Position Indicator - Always visible */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="h-12 px-3 bg-muted rounded-md flex flex-col items-center justify-center min-w-[60px] cursor-pointer" onClick={handleLastInvoice}>
+                        <span className="text-sm font-semibold text-foreground">
+                          {todaysSales && todaysSales.length > 0 && currentSaleId 
+                            ? todaysSales.length - currentInvoiceIndex 
+                            : 1}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          of {todaysSales && todaysSales.length > 0 ? todaysSales.length : 1}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>End - Go to Latest</p>
+                    </TooltipContent>
+                  </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
