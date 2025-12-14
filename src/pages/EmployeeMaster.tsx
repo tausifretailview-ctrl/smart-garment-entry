@@ -49,6 +49,12 @@ interface Employee {
   user_id: string | null;
 }
 
+interface OrgUser {
+  id: string;
+  email: string;
+  role: string;
+}
+
 const EmployeeMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -62,10 +68,51 @@ const EmployeeMaster = () => {
     joining_date: "",
     status: "active",
     field_sales_access: false,
+    user_id: "" as string,
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+
+  // Fetch organization users for dropdown
+  const { data: orgUsers = [] } = useQuery({
+    queryKey: ["org-users", currentOrganization?.id],
+    queryFn: async (): Promise<OrgUser[]> => {
+      if (!currentOrganization?.id) return [];
+      
+      // Get organization members
+      const { data: members, error: membersError } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("organization_id", currentOrganization.id);
+      
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return [];
+
+      // Get session for edge function call
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return [];
+
+      // Fetch user emails from edge function
+      const response = await supabase.functions.invoke("get-users", {
+        headers: { Authorization: `Bearer ${session.session.access_token}` },
+      });
+
+      if (response.error) throw response.error;
+
+      const allUsers = response.data?.users || [];
+      const memberUserIds = members.map(m => m.user_id);
+      
+      return allUsers
+        .filter((u: any) => memberUserIds.includes(u.id))
+        .map((u: any) => ({
+          id: u.id,
+          email: u.email,
+          role: members.find(m => m.user_id === u.id)?.role || 'user'
+        }));
+    },
+    enabled: !!currentOrganization?.id,
+  });
 
   // Fetch ALL employees using pagination to bypass 1000 row limit
   const { data: employees = [], isLoading } = useQuery({
@@ -107,6 +154,7 @@ const EmployeeMaster = () => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       const { error } = await supabase.from("employees").insert([{
         ...data,
+        user_id: data.user_id || null,
         organization_id: currentOrganization.id
       }]);
       if (error) throw error;
@@ -124,7 +172,10 @@ const EmployeeMaster = () => {
 
   const updateEmployee = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
-      const { error } = await supabase.from("employees").update(data).eq("id", id);
+      const { error } = await supabase.from("employees").update({
+        ...data,
+        user_id: data.user_id || null
+      }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -164,6 +215,7 @@ const EmployeeMaster = () => {
       joining_date: "",
       status: "active",
       field_sales_access: false,
+      user_id: "",
     });
     setEditingEmployee(null);
   };
@@ -188,6 +240,7 @@ const EmployeeMaster = () => {
       joining_date: employee.joining_date || "",
       status: employee.status,
       field_sales_access: employee.field_sales_access || false,
+      user_id: employee.user_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -307,6 +360,30 @@ const EmployeeMaster = () => {
                   onCheckedChange={(checked) => setFormData({ ...formData, field_sales_access: checked })}
                 />
               </div>
+              {formData.field_sales_access && (
+                <div>
+                  <Label htmlFor="user_id">Link User Account</Label>
+                  <Select
+                    value={formData.user_id}
+                    onValueChange={(value) => setFormData({ ...formData, user_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select user account..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No account linked</SelectItem>
+                      {orgUsers.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.email} ({user.role})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Link this employee to a user account for Field Sales app login
+                  </p>
+                </div>
+              )}
               <Button type="submit" className="w-full">
                 {editingEmployee ? "Update" : "Create"} Employee
               </Button>
