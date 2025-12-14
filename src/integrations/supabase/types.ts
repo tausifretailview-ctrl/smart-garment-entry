@@ -568,12 +568,14 @@ export type Database = {
           designation: string | null
           email: string | null
           employee_name: string
+          field_sales_access: boolean | null
           id: string
           joining_date: string | null
           organization_id: string | null
           phone: string | null
           status: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           address?: string | null
@@ -583,12 +585,14 @@ export type Database = {
           designation?: string | null
           email?: string | null
           employee_name: string
+          field_sales_access?: boolean | null
           id?: string
           joining_date?: string | null
           organization_id?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           address?: string | null
@@ -598,12 +602,14 @@ export type Database = {
           designation?: string | null
           email?: string | null
           employee_name?: string
+          field_sales_access?: boolean | null
           id?: string
           joining_date?: string | null
           organization_id?: string | null
           phone?: string | null
           status?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
