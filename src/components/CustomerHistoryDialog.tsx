@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -41,6 +41,7 @@ export function CustomerHistoryDialog({
   const [activeTab, setActiveTab] = useState("sales");
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
+  const legacyRowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
 
   // Get customer balance
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
@@ -171,10 +172,18 @@ export function CustomerHistoryDialog({
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedLegacyIndex(prev => Math.min(prev + 1, legacyInvoices.length - 1));
+      setSelectedLegacyIndex(prev => {
+        const newIndex = Math.min(prev + 1, legacyInvoices.length - 1);
+        legacyRowRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return newIndex;
+      });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedLegacyIndex(prev => Math.max(prev - 1, 0));
+      setSelectedLegacyIndex(prev => {
+        const newIndex = Math.max(prev - 1, 0);
+        legacyRowRefs.current[newIndex]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return newIndex;
+      });
     }
   }, [activeTab, legacyInvoices]);
 
@@ -385,6 +394,7 @@ export function CustomerHistoryDialog({
                       {legacyInvoices.map((inv, index) => (
                         <TableRow 
                           key={inv.id}
+                          ref={(el) => { legacyRowRefs.current[index] = el; }}
                           className={`cursor-pointer ${selectedLegacyIndex === index ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
                           onClick={() => setSelectedLegacyIndex(index)}
                         >
