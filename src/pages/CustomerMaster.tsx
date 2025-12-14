@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -31,6 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDialog";
+import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
 
 interface Customer {
   id: string;
@@ -67,6 +68,7 @@ const CustomerMaster = () => {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
   const [showRelinkDialog, setShowRelinkDialog] = useState(false);
+  const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
 
   // Fetch ALL customers using pagination to bypass 1000 row limit
   const { data: customers = [], isLoading } = useQuery({
@@ -386,6 +388,10 @@ const CustomerMaster = () => {
             <History className="h-4 w-4 mr-2" />
             Import Legacy Invoices
           </Button>
+          <Button variant="outline" onClick={() => setShowUpdatePhonesDialog(true)}>
+            <Phone className="h-4 w-4 mr-2" />
+            Update Legacy Phones
+          </Button>
           <Button variant="outline" onClick={() => setShowRelinkDialog(true)}>
             <Link2 className="h-4 w-4 mr-2" />
             Re-link Legacy
@@ -640,6 +646,12 @@ const CustomerMaster = () => {
       <RelinkLegacyInvoicesDialog
         open={showRelinkDialog}
         onOpenChange={setShowRelinkDialog}
+      />
+
+      {/* Update Legacy Phones Dialog */}
+      <UpdateLegacyPhonesDialog
+        open={showUpdatePhonesDialog}
+        onOpenChange={setShowUpdatePhonesDialog}
       />
     </div>
   );
