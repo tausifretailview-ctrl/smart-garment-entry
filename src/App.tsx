@@ -59,6 +59,13 @@ import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import RecycleBin from "./pages/RecycleBin";
+import SalesmanLayout from "./layouts/SalesmanLayout";
+import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
+import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
+import SalesmanOrderEntry from "./pages/salesman/SalesmanOrderEntry";
+import SalesmanCustomerAccount from "./pages/salesman/SalesmanCustomerAccount";
+import SalesmanOrders from "./pages/salesman/SalesmanOrders";
+import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -573,6 +580,17 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 />
+
+                {/* Field Salesman Mobile App */}
+                <Route path="salesman" element={<ProtectedRoute><SalesmanLayout /></ProtectedRoute>}>
+                  <Route index element={<SalesmanDashboard />} />
+                  <Route path="customers" element={<SalesmanCustomers />} />
+                  <Route path="customer/:customerId" element={<SalesmanCustomerAccount />} />
+                  <Route path="order/new" element={<SalesmanOrderEntry />} />
+                  <Route path="order/:orderId" element={<SalesmanOrderEntry />} />
+                  <Route path="orders" element={<SalesmanOrders />} />
+                  <Route path="outstanding" element={<SalesmanOutstanding />} />
+                </Route>
               </Route>
 
               {/* Catch-all for 404 */}
