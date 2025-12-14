@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const BackupSettings = () => {
-  const { backupLogs, isLoadingLogs, isBackingUp, startBackup, formatFileSize } = useBackup();
+  const { backupLogs, isLoadingLogs, isBackingUp, isDownloading, startBackup, downloadBackup, formatFileSize } = useBackup();
   
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -73,6 +73,65 @@ const BackupSettings = () => {
 
   return (
     <div className="space-y-6">
+      {/* Local Download Backup */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5" />
+            Local Backup
+          </CardTitle>
+          <CardDescription>
+            Download your organization data as a JSON file to your local machine.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div>
+              <h4 className="font-medium">Download Backup</h4>
+              <p className="text-sm text-muted-foreground">
+                Export all organization data to a JSON file
+              </p>
+            </div>
+            <Button 
+              onClick={downloadBackup} 
+              disabled={isDownloading}
+              className="gap-2"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Download Backup
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="text-sm text-muted-foreground">
+            <p className="font-medium mb-2">Data included in backup:</p>
+            <ul className="grid grid-cols-2 md:grid-cols-4 gap-1">
+              <li>• Customers</li>
+              <li>• Suppliers</li>
+              <li>• Products & Variants</li>
+              <li>• Sales & Returns</li>
+              <li>• Purchases & Returns</li>
+              <li>• Quotations</li>
+              <li>• Sale Orders</li>
+              <li>• Credit Notes</li>
+              <li>• Voucher Entries</li>
+              <li>• Account Ledgers</li>
+              <li>• Employees</li>
+              <li>• Settings</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Google Drive Backup */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
