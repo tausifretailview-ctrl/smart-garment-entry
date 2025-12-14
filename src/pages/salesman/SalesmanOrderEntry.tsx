@@ -506,36 +506,53 @@ const SalesmanOrderEntry = () => {
 
         {/* Product Search Results */}
         {showProductSearch && products.length > 0 && (
-          <Card className="mt-2 max-h-64 overflow-auto">
-            {products.map(({ product, variants }) => {
-              const totalStock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
-              const sizeCount = variants.length;
-              const firstVariant = variants[0];
-              
-              return (
-                <div
-                  key={product.id}
-                  className="p-3 border-b last:border-0 cursor-pointer hover:bg-muted/50"
-                  onClick={() => openSizeGrid(product, variants)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{product.product_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {sizeCount} sizes available
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="font-semibold">₹{firstVariant?.sale_price || firstVariant?.mrp || 0}</p>
-                        <p className="text-xs text-muted-foreground">Stock: {totalStock}</p>
-                      </div>
-                      <Grid3X3 className="h-5 w-5 text-primary" />
+          <Card className="mt-2 max-h-72 overflow-auto bg-background shadow-lg border z-50">
+            {products.map(({ product, variants }) => (
+              <div
+                key={product.id}
+                className="border-b last:border-0 cursor-pointer hover:bg-primary/5"
+                onClick={() => openSizeGrid(product, variants)}
+              >
+                <div className="p-3 flex justify-between items-center">
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{product.product_name}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {product.brand && (
+                        <Badge variant="outline" className="text-xs px-1.5 py-0">{product.brand}</Badge>
+                      )}
+                      {product.category && (
+                        <Badge variant="outline" className="text-xs px-1.5 py-0">{product.category}</Badge>
+                      )}
+                      <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-blue-100 text-blue-700">
+                        {variants.length} sizes
+                      </Badge>
                     </div>
                   </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      {variants[0]?.mrp && variants[0]?.mrp !== variants[0]?.sale_price && (
+                        <p className="text-xs text-muted-foreground line-through">
+                          MRP: ₹{variants[0].mrp}
+                        </p>
+                      )}
+                      <p className="font-semibold text-primary">
+                        ₹{variants[0]?.sale_price || variants[0]?.mrp || 0}
+                      </p>
+                    </div>
+                    <Badge 
+                      className={cn(
+                        "min-w-[60px] justify-center",
+                        variants.reduce((s, v) => s + v.stock_qty, 0) > 0 
+                          ? "bg-cyan-500 hover:bg-cyan-600" 
+                          : "bg-red-500 hover:bg-red-600"
+                      )}
+                    >
+                      Stock: {variants.reduce((s, v) => s + v.stock_qty, 0)}
+                    </Badge>
+                  </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </Card>
         )}
       </div>
