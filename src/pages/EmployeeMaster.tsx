@@ -362,16 +362,16 @@ const EmployeeMaster = () => {
               </div>
               {formData.field_sales_access && (
                 <div>
-                  <Label htmlFor="user_id">Link User Account</Label>
+                  <Label htmlFor="user_id">Link User Account *</Label>
                   <Select
-                    value={formData.user_id}
-                    onValueChange={(value) => setFormData({ ...formData, user_id: value })}
+                    value={formData.user_id || "none"}
+                    onValueChange={(value) => setFormData({ ...formData, user_id: value === "none" ? "" : value })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select user account..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No account linked</SelectItem>
+                      <SelectItem value="none">No account linked</SelectItem>
                       {orgUsers.map((user) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.email} ({user.role})
