@@ -271,6 +271,14 @@ export const useBackup = () => {
       const orgId = currentOrganization.id;
       const backupData: Record<string, any[]> = {};
 
+      // Helper to add status column based on deleted_at
+      const addStatusColumn = (records: any[]) => {
+        return records.map(record => ({
+          ...record,
+          status: record.deleted_at ? 'DELETED' : 'Active'
+        }));
+      };
+
       // Organization-scoped tables
       const orgScopedTables = [
         'customers', 'suppliers', 'products', 'product_variants', 
@@ -342,9 +350,87 @@ export const useBackup = () => {
       // Create Excel workbook
       const wb = XLSX.utils.book_new();
 
+      // === CREATE MERGED SALES ANALYSIS SHEET ===
+      if (backupData.sales?.length && backupData.sale_items?.length) {
+        const salesMap = new Map(backupData.sales.map((s: any) => [s.id, s]));
+        const mergedSales = backupData.sale_items.map((item: any) => {
+          const sale = salesMap.get(item.sale_id) || {};
+          return {
+            invoice_number: sale.sale_number || '',
+            sale_type: sale.sale_type || '',
+            sale_date: sale.sale_date || '',
+            customer_name: sale.customer_name || '',
+            customer_phone: sale.customer_phone || '',
+            product_name: item.product_name || '',
+            barcode: item.barcode || '',
+            size: item.size || '',
+            color: item.color || '',
+            hsn_code: item.hsn_code || '',
+            quantity: item.quantity || 0,
+            mrp: item.mrp || 0,
+            unit_price: item.unit_price || 0,
+            discount_percent: item.discount_percent || 0,
+            gst_percent: item.gst_percent || 0,
+            line_total: item.line_total || 0,
+            payment_method: sale.payment_method || '',
+            payment_status: sale.payment_status || '',
+            net_amount: sale.net_amount || 0,
+            paid_amount: sale.paid_amount || 0,
+            status: sale.deleted_at ? 'DELETED' : 'Active'
+          };
+        });
+        const salesWs = XLSX.utils.json_to_sheet(mergedSales);
+        XLSX.utils.book_append_sheet(wb, salesWs, 'Sales Analysis');
+      }
+
+      // === CREATE MERGED PURCHASES ANALYSIS SHEET ===
+      if (backupData.purchase_bills?.length && backupData.purchase_items?.length) {
+        const purchaseMap = new Map(backupData.purchase_bills.map((p: any) => [p.id, p]));
+        const mergedPurchases = backupData.purchase_items.map((item: any) => {
+          const bill = purchaseMap.get(item.bill_id) || {};
+          return {
+            bill_number: bill.software_bill_no || '',
+            supplier_invoice: bill.supplier_invoice_no || '',
+            bill_date: bill.bill_date || '',
+            supplier_name: bill.supplier_name || '',
+            product_name: item.product_name || '',
+            barcode: item.barcode || '',
+            brand: item.brand || '',
+            category: item.category || '',
+            style: item.style || '',
+            color: item.color || '',
+            size: item.size || '',
+            hsn_code: item.hsn_code || '',
+            quantity: item.qty || 0,
+            purchase_price: item.pur_price || 0,
+            sale_price: item.sale_price || 0,
+            gst_percent: item.gst_per || 0,
+            line_total: item.line_total || 0,
+            net_amount: bill.net_amount || 0,
+            payment_status: bill.payment_status || '',
+            status: bill.deleted_at ? 'DELETED' : 'Active'
+          };
+        });
+        const purchaseWs = XLSX.utils.json_to_sheet(mergedPurchases);
+        XLSX.utils.book_append_sheet(wb, purchaseWs, 'Purchases Analysis');
+      }
+
+      // === ADD STATUS COLUMN TO ALL OTHER TABLES ===
+      const tablesWithStatus = [
+        'customers', 'suppliers', 'products', 'product_variants',
+        'sales', 'sale_returns', 'purchase_bills', 'purchase_returns',
+        'quotations', 'sale_orders', 'credit_notes', 'voucher_entries',
+        'employees'
+      ];
+
       for (const [table, data] of Object.entries(backupData)) {
         if (data.length > 0) {
-          const ws = XLSX.utils.json_to_sheet(data);
+          // Add status column for tables that have deleted_at
+          const processedData = tablesWithStatus.includes(table) 
+            ? addStatusColumn(data)
+            : data;
+          
+          const ws = XLSX.utils.json_to_sheet(processedData);
           const sheetName = table.replace(/_/g, ' ').slice(0, 31);
           XLSX.utils.book_append_sheet(wb, ws, sheetName);
         }
@@ -355,6 +441,8 @@ export const useBackup = () => {
         organization_name: currentOrganization.name,
         backup_date: new Date().toISOString(),
         backup_type: 'excel_download',
+        total_records: Object.values(backupData).reduce((sum, arr) => sum + arr.length, 0),
+        sheets_included: Object.keys(backupData).filter(k => backupData[k]?.length > 0).join(', ')
       }];
       const metaWs = XLSX.utils.json_to_sheet(metadata);
       XLSX.utils.book_append_sheet(wb, metaWs, 'Metadata');
@@ -364,7 +452,7 @@ export const useBackup = () => {
 
       const totalRecords = Object.values(backupData).reduce((sum, arr) => sum + arr.length, 0);
       toast.success("Excel backup downloaded!", {
-        description: `${totalRecords} records across ${Object.keys(backupData).filter(k => backupData[k]?.length > 0).length} sheets`,
+        description: `${totalRecords} records across ${Object.keys(backupData).filter(k => backupData[k]?.length > 0).length + 2} sheets`,
       });
     } catch (error: any) {
       console.error('Excel backup error:', error);
