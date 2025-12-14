@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const BackupSettings = () => {
-  const { backupLogs, isLoadingLogs, isBackingUp, isDownloading, startBackup, downloadBackup, formatFileSize } = useBackup();
+  const { backupLogs, isLoadingLogs, isBackingUp, isDownloading, startBackup, downloadBackup, downloadBackupAsExcel, formatFileSize } = useBackup();
   
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -106,6 +106,33 @@ const BackupSettings = () => {
                 <>
                   <Download className="h-4 w-4" />
                   Download Backup
+                </>
+              )}
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div>
+              <h4 className="font-medium">Download as Excel</h4>
+              <p className="text-sm text-muted-foreground">
+                Export all data to Excel for analysis in spreadsheet software
+              </p>
+            </div>
+            <Button 
+              onClick={downloadBackupAsExcel} 
+              disabled={isDownloading}
+              variant="outline"
+              className="gap-2"
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Download Excel
                 </>
               )}
             </Button>
