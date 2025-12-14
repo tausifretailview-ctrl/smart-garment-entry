@@ -182,17 +182,26 @@ const SalesmanOrderEntry = () => {
       return;
     }
 
-    const { data: variants } = await supabase
+    if (!currentOrganization?.id) return;
+
+    const { data: variants, error } = await supabase
       .from("product_variants")
       .select(`
         id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-        products!inner(id, product_name, brand, category, gst_per, organization_id)
+        products!inner(id, product_name, brand, category, gst_per, organization_id, style, color)
       `)
-      .eq("products.organization_id", currentOrganization!.id)
+      .eq("products.organization_id", currentOrganization.id)
+      .eq("products.status", "active")
+      .is("products.deleted_at", null)
       .is("deleted_at", null)
-      .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%`)
+      .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%,products.style.ilike.%${term}%`)
       .gt("stock_qty", 0)
       .limit(30);
+
+    if (error) {
+      console.error("Product search error:", error);
+      return;
+    }
 
     if (variants) {
       const results = variants.map((v: any) => ({
