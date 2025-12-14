@@ -268,7 +268,6 @@ export const useBackup = () => {
 
     setIsDownloading(true);
     try {
-      const { default: XLSX } = await import('xlsx');
       const orgId = currentOrganization.id;
       const backupData: Record<string, any[]> = {};
 
