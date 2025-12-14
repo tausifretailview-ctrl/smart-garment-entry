@@ -2103,18 +2103,7 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
-          {/* Invoice Number Display */}
-          <div className="relative w-32">
-            <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
-            <Input
-              value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
-              readOnly
-              className="h-12 text-sm font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
-              placeholder="Invoice #"
-            />
-          </div>
-          
-          {/* Salesperson Search */}
+          {/* Salesperson Search - After Customer Name */}
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
             <PopoverTrigger asChild>
               <div className="relative w-36">
@@ -2179,30 +2168,15 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
-          {/* Invoice Search */}
-          <div className="relative w-36">
-            <Label className="text-sm font-medium mb-1 block">Search Invoice</Label>
-            <div className="flex gap-1">
-              <Input
-                placeholder="Bill no..."
-                value={invoiceSearchInput}
-                onChange={(e) => setInvoiceSearchInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleInvoiceSearch();
-                  }
-                }}
-                className="h-12 text-sm"
-              />
-              <Button 
-                onClick={handleInvoiceSearch}
-                className="h-12 px-3"
-                size="sm"
-              >
-                Go
-              </Button>
-            </div>
+          {/* Invoice Number Display */}
+          <div className="relative w-32">
+            <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
+            <Input
+              value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
+              readOnly
+              className="h-12 text-sm font-semibold text-center bg-gradient-to-r from-primary/10 to-secondary/10"
+              placeholder="Invoice #"
+            />
           </div>
           
           {/* Running Total Display */}
