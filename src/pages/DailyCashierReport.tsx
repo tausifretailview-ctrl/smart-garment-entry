@@ -67,6 +67,7 @@ const DailyCashierReport = () => {
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startDate.toISOString())
         .lte("sale_date", endDate.toISOString())
+        .is("deleted_at", null)
         .order("sale_date", { ascending: true });
 
       if (error) throw error;
