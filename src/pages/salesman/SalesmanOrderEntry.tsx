@@ -22,10 +22,12 @@ import {
   Save,
   Share2,
   ArrowLeft,
-  Package
+  Package,
+  Grid3X3
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
+import { SizeGridDialog } from "@/components/SizeGridDialog";
 
 interface Customer {
   id: string;
@@ -78,13 +80,18 @@ const SalesmanOrderEntry = () => {
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
 
   const [productSearch, setProductSearch] = useState("");
-  const [products, setProducts] = useState<{ product: Product; variant: Variant }[]>([]);
+  const [products, setProducts] = useState<{ product: Product; variants: Variant[] }[]>([]);
   const [showProductSearch, setShowProductSearch] = useState(false);
 
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Size Grid state
+  const [showSizeGrid, setShowSizeGrid] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProductVariants, setSelectedProductVariants] = useState<Variant[]>([]);
 
   // Calculate totals
   const grossAmount = orderItems.reduce((sum, item) => sum + item.line_total, 0);
@@ -241,9 +248,17 @@ const SalesmanOrderEntry = () => {
         arr.findIndex(x => x.id === v.id) === i
       );
 
-      const results = uniqueVariants.map((v: any) => ({
-        product: v.products as Product,
-        variant: {
+      // Group variants by product
+      const productMap = new Map<string, { product: Product; variants: Variant[] }>();
+      uniqueVariants.forEach((v: any) => {
+        const productId = v.products.id;
+        if (!productMap.has(productId)) {
+          productMap.set(productId, {
+            product: v.products as Product,
+            variants: [],
+          });
+        }
+        productMap.get(productId)!.variants.push({
           id: v.id,
           product_id: v.product_id,
           size: v.size,
@@ -252,44 +267,71 @@ const SalesmanOrderEntry = () => {
           mrp: v.mrp,
           sale_price: v.sale_price,
           stock_qty: v.stock_qty,
-        } as Variant,
-      }));
-      setProducts(results);
+        } as Variant);
+      });
+
+      setProducts(Array.from(productMap.values()));
     } catch (error) {
       console.error("Product search error:", error);
       setProducts([]);
     }
   }, [currentOrganization?.id]);
 
-  const addItem = (product: Product, variant: Variant) => {
+  const addItem = (product: Product, variant: Variant, qty: number = 1) => {
     const existingIndex = orderItems.findIndex(item => item.variant.id === variant.id);
     
     if (existingIndex >= 0) {
       const updated = [...orderItems];
-      if (updated[existingIndex].quantity < variant.stock_qty) {
-        updated[existingIndex].quantity += 1;
-        updated[existingIndex].line_total = updated[existingIndex].quantity * updated[existingIndex].unit_price;
+      const newQty = updated[existingIndex].quantity + qty;
+      if (newQty <= variant.stock_qty) {
+        updated[existingIndex].quantity = newQty;
+        updated[existingIndex].line_total = newQty * updated[existingIndex].unit_price;
         setOrderItems(updated);
       } else {
-        toast.error("Insufficient stock");
+        toast.error(`Insufficient stock for ${variant.size}`);
       }
     } else {
       const newItem: OrderItem = {
         id: crypto.randomUUID(),
         product,
         variant,
-        quantity: 1,
+        quantity: qty,
         unit_price: variant.sale_price || variant.mrp || 0,
         discount_percent: 0,
         gst_percent: product.gst_per || 0,
-        line_total: variant.sale_price || variant.mrp || 0,
+        line_total: (variant.sale_price || variant.mrp || 0) * qty,
       };
       setOrderItems([...orderItems, newItem]);
     }
-    
+  };
+
+  const openSizeGrid = (product: Product, variants: Variant[]) => {
+    setSelectedProduct(product);
+    setSelectedProductVariants(variants);
+    setShowSizeGrid(true);
     setProductSearch("");
     setProducts([]);
     setShowProductSearch(false);
+  };
+
+  const handleSizeGridConfirm = (items: Array<{ variant: Variant; qty: number }>) => {
+    if (!selectedProduct) return;
+    
+    items.forEach(({ variant, qty }) => {
+      // Cast variant to include required fields
+      const fullVariant: Variant = {
+        ...variant,
+        product_id: selectedProduct.id,
+        mrp: variant.mrp || variant.sale_price || 0,
+        sale_price: variant.sale_price || 0,
+        stock_qty: variant.stock_qty || 0,
+      };
+      addItem(selectedProduct, fullVariant, qty);
+    });
+    
+    setShowSizeGrid(false);
+    setSelectedProduct(null);
+    setSelectedProductVariants([]);
   };
 
   const updateQuantity = (itemId: string, delta: number) => {
@@ -454,26 +496,35 @@ const SalesmanOrderEntry = () => {
         {/* Product Search Results */}
         {showProductSearch && products.length > 0 && (
           <Card className="mt-2 max-h-64 overflow-auto">
-            {products.map(({ product, variant }) => (
-              <div
-                key={variant.id}
-                className="p-3 border-b last:border-0 cursor-pointer hover:bg-muted/50"
-                onClick={() => addItem(product, variant)}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="font-medium text-sm">{product.product_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {variant.size} {variant.color && `| ${variant.color}`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">₹{variant.sale_price || variant.mrp}</p>
-                    <p className="text-xs text-muted-foreground">Stock: {variant.stock_qty}</p>
+            {products.map(({ product, variants }) => {
+              const totalStock = variants.reduce((sum, v) => sum + v.stock_qty, 0);
+              const sizeCount = variants.length;
+              const firstVariant = variants[0];
+              
+              return (
+                <div
+                  key={product.id}
+                  className="p-3 border-b last:border-0 cursor-pointer hover:bg-muted/50"
+                  onClick={() => openSizeGrid(product, variants)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">{product.product_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sizeCount} sizes available
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <p className="font-semibold">₹{firstVariant?.sale_price || firstVariant?.mrp || 0}</p>
+                        <p className="text-xs text-muted-foreground">Stock: {totalStock}</p>
+                      </div>
+                      <Grid3X3 className="h-5 w-5 text-primary" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </Card>
         )}
       </div>
@@ -623,6 +674,22 @@ const SalesmanOrderEntry = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Size Grid Dialog */}
+      <SizeGridDialog
+        open={showSizeGrid}
+        onClose={() => {
+          setShowSizeGrid(false);
+          setSelectedProduct(null);
+          setSelectedProductVariants([]);
+        }}
+        product={selectedProduct}
+        variants={selectedProductVariants}
+        onConfirm={handleSizeGridConfirm}
+        showStock={true}
+        validateStock={true}
+        title="Enter Size-wise Quantity"
+      />
     </div>
   );
 };
