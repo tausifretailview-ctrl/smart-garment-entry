@@ -184,27 +184,64 @@ const SalesmanOrderEntry = () => {
 
     if (!currentOrganization?.id) return;
 
-    const { data: variants, error } = await supabase
-      .from("product_variants")
-      .select(`
-        id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-        products!inner(id, product_name, brand, category, gst_per, organization_id, style, color)
-      `)
-      .eq("products.organization_id", currentOrganization.id)
-      .eq("products.status", "active")
-      .is("products.deleted_at", null)
-      .is("deleted_at", null)
-      .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%,products.style.ilike.%${term}%`)
-      .gt("stock_qty", 0)
-      .limit(30);
+    try {
+      // First, search products by name/style in the organization
+      const { data: matchingProducts, error: productsError } = await supabase
+        .from("products")
+        .select("id, product_name, brand, category, gst_per, style")
+        .eq("organization_id", currentOrganization.id)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .or(`product_name.ilike.%${term}%,style.ilike.%${term}%`)
+        .limit(20);
 
-    if (error) {
-      console.error("Product search error:", error);
-      return;
-    }
+      if (productsError) {
+        console.error("Product search error:", productsError);
+        return;
+      }
 
-    if (variants) {
-      const results = variants.map((v: any) => ({
+      const productIds = matchingProducts?.map(p => p.id) || [];
+
+      // Also search by barcode
+      const { data: barcodeVariants, error: barcodeError } = await supabase
+        .from("product_variants")
+        .select(`
+          id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
+          products!inner(id, product_name, brand, category, gst_per, organization_id)
+        `)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .ilike("barcode", `%${term}%`)
+        .gt("stock_qty", 0)
+        .limit(20);
+
+      // Fetch variants for matching products
+      let productVariants: any[] = [];
+      if (productIds.length > 0) {
+        const { data: variants, error: variantsError } = await supabase
+          .from("product_variants")
+          .select(`
+            id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
+            products!inner(id, product_name, brand, category, gst_per, organization_id)
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .in("product_id", productIds)
+          .gt("stock_qty", 0)
+          .limit(30);
+
+        if (!variantsError && variants) {
+          productVariants = variants;
+        }
+      }
+
+      // Combine and dedupe results
+      const allVariants = [...(barcodeVariants || []), ...productVariants];
+      const uniqueVariants = allVariants.filter((v, i, arr) => 
+        arr.findIndex(x => x.id === v.id) === i
+      );
+
+      const results = uniqueVariants.map((v: any) => ({
         product: v.products as Product,
         variant: {
           id: v.id,
@@ -218,6 +255,9 @@ const SalesmanOrderEntry = () => {
         } as Variant,
       }));
       setProducts(results);
+    } catch (error) {
+      console.error("Product search error:", error);
+      setProducts([]);
     }
   }, [currentOrganization?.id]);
 
