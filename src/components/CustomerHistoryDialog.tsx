@@ -138,43 +138,25 @@ export function CustomerHistoryDialog({
 
   // Fetch legacy invoices (historical data from Odoo/other systems)
   const { data: legacyInvoices, isLoading: legacyLoading } = useQuery({
-    queryKey: ['customer-legacy-invoices', customerId, customerName, organizationId],
+    queryKey: ['customer-legacy-invoices', customerId, organizationId],
     queryFn: async () => {
-      if (!organizationId) return [];
+      if (!organizationId || !customerId) return [];
       
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token;
+      const { data, error } = await supabase
+        .from('legacy_invoices')
+        .select('id, invoice_number, customer_name, invoice_date, amount, payment_status, source')
+        .eq('organization_id', organizationId)
+        .eq('customer_id', customerId)
+        .order('invoice_date', { ascending: false });
       
-      if (!accessToken) return [];
+      if (error) {
+        console.error('Error fetching legacy invoices:', error);
+        return [];
+      }
       
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/legacy_invoices?organization_id=eq.${organizationId}&order=invoice_date.desc&limit=100`,
-        {
-          headers: {
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${accessToken}`,
-          }
-        }
-      );
-      
-      if (!response.ok) return [];
-      const invoices = await response.json();
-      
-      // Filter by customer name
-      return invoices.filter((inv: any) => 
-        (customerId && inv.customer_id === customerId) || 
-        inv.customer_name?.toLowerCase().includes(customerName.toLowerCase())
-      ) as Array<{
-        id: string;
-        invoice_number: string;
-        customer_name: string;
-        invoice_date: string;
-        amount: number;
-        payment_status: string;
-        source: string | null;
-      }>;
+      return data || [];
     },
-    enabled: open && !!organizationId && !!customerName,
+    enabled: open && !!organizationId && !!customerId,
   });
 
   // Calculate refunds from sales
