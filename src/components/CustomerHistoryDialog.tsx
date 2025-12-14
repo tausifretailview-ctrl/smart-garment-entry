@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +40,7 @@ export function CustomerHistoryDialog({
 }: CustomerHistoryDialogProps) {
   const [activeTab, setActiveTab] = useState("sales");
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
+  const [selectedLegacyIndex, setSelectedLegacyIndex] = useState<number>(0);
 
   // Get customer balance
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
@@ -163,6 +164,31 @@ export function CustomerHistoryDialog({
   const refunds = salesHistory?.filter(s => (s.refund_amount || 0) > 0) || [];
 
   const isLoading = balanceLoading || salesLoading;
+
+  // Keyboard navigation for Legacy tab
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (activeTab !== 'legacy' || !legacyInvoices || legacyInvoices.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedLegacyIndex(prev => Math.min(prev + 1, legacyInvoices.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedLegacyIndex(prev => Math.max(prev - 1, 0));
+    }
+  }, [activeTab, legacyInvoices]);
+
+  useEffect(() => {
+    if (open && activeTab === 'legacy') {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [open, activeTab, handleKeyDown]);
+
+  // Reset selected index when legacy invoices change
+  useEffect(() => {
+    setSelectedLegacyIndex(0);
+  }, [legacyInvoices]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -356,8 +382,12 @@ export function CustomerHistoryDialog({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {legacyInvoices.map((inv) => (
-                        <TableRow key={inv.id}>
+                      {legacyInvoices.map((inv, index) => (
+                        <TableRow 
+                          key={inv.id}
+                          className={`cursor-pointer ${selectedLegacyIndex === index ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+                          onClick={() => setSelectedLegacyIndex(index)}
+                        >
                           <TableCell className="font-mono text-sm">{inv.invoice_number}</TableCell>
                           <TableCell>{format(new Date(inv.invoice_date), 'dd/MM/yyyy')}</TableCell>
                           <TableCell className="text-right font-semibold">₹{(inv.amount || 0).toFixed(2)}</TableCell>
