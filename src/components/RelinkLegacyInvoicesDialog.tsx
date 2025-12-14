@@ -64,20 +64,35 @@ export function RelinkLegacyInvoicesDialog({ open, onOpenChange }: RelinkLegacyI
         };
       }
 
-      // Get unlinked legacy invoices
-      const { data: unlinkedInvoices, error: invError } = await supabase
-        .from("legacy_invoices")
-        .select("customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("customer_id", null);
+      // Batch fetch ALL unlinked legacy invoices (remove 1000 row limit)
+      const unlinkedInvoices: { customer_name: string; phone: string | null }[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (invError) throw invError;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("legacy_invoices")
+          .select("customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("customer_id", null)
+          .range(from, from + batchSize - 1);
 
-      const totalUnlinked = unlinkedInvoices?.length || 0;
+        if (error) throw error;
+        if (data && data.length > 0) {
+          unlinkedInvoices.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const totalUnlinked = unlinkedInvoices.length;
       
       // Group invoices by customer name
       const invoicesByName = new Map<string, { count: number; phones: Set<string> }>();
-      unlinkedInvoices?.forEach(i => {
+      unlinkedInvoices.forEach(i => {
         const key = i.customer_name.toLowerCase().trim();
         if (!invoicesByName.has(key)) {
           invoicesByName.set(key, { count: 0, phones: new Set() });
@@ -87,14 +102,28 @@ export function RelinkLegacyInvoicesDialog({ open, onOpenChange }: RelinkLegacyI
         if (i.phone) entry.phones.add(i.phone);
       });
 
-      // Get all customers for matching
-      const { data: customers, error: custError } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      // Batch fetch ALL customers for matching (remove 1000 row limit)
+      const customers: { id: string; customer_name: string; phone: string | null }[] = [];
+      from = 0;
+      hasMore = true;
 
-      if (custError) throw custError;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          customers.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
 
       // Build customer maps
       const customerByName = new Map<string, { id: string; phone: string | null }[]>();
@@ -187,20 +216,35 @@ export function RelinkLegacyInvoicesDialog({ open, onOpenChange }: RelinkLegacyI
       setProgress(0);
       setResult(null);
 
-      // Get all customers for matching
-      const { data: customers, error: custError } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      // Batch fetch ALL customers for matching (remove 1000 row limit)
+      const customers: { id: string; customer_name: string; phone: string | null }[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (custError) throw custError;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id, customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          customers.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
 
       // Build customer maps
       const customerByName = new Map<string, { id: string; phone: string | null }[]>();
       const customerByPhone = new Map<string, string>();
       
-      customers?.forEach(c => {
+      customers.forEach(c => {
         const nameKey = c.customer_name.toLowerCase().trim();
         if (!customerByName.has(nameKey)) {
           customerByName.set(nameKey, []);
@@ -215,14 +259,28 @@ export function RelinkLegacyInvoicesDialog({ open, onOpenChange }: RelinkLegacyI
         }
       });
 
-      // Get unlinked legacy invoices
-      const { data: unlinkedInvoices, error: invError } = await supabase
-        .from("legacy_invoices")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("customer_id", null);
+      // Batch fetch ALL unlinked legacy invoices (remove 1000 row limit)
+      const unlinkedInvoices: { id: string; customer_name: string; phone: string | null }[] = [];
+      from = 0;
+      hasMore = true;
 
-      if (invError) throw invError;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("legacy_invoices")
+          .select("id, customer_name, phone")
+          .eq("organization_id", currentOrganization.id)
+          .is("customer_id", null)
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+        if (data && data.length > 0) {
+          unlinkedInvoices.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
+      }
 
       let linkedByName = 0;
       let linkedByPhone = 0;
