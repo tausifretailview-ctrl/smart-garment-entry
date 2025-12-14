@@ -230,11 +230,13 @@ const PurchaseEntry = () => {
         setLineItems(parsed.lineItems);
         setRoundOff(parsed.roundOff || 0);
         sessionStorage.removeItem('purchaseEntryState');
+        // Delete any database draft since we're restoring from sessionStorage
+        deleteDraft();
       } catch (error) {
         console.error('Error restoring purchase state:', error);
       }
     }
-  }, []);
+  }, [deleteDraft]);
 
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
@@ -453,6 +455,8 @@ const PurchaseEntry = () => {
       roundOff,
     };
     sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
+    // Clear current data ref to prevent draft save on unmount (sessionStorage handles this)
+    updateCurrentData(null);
     navigate('/product-entry', { state: { returnToPurchase: true } });
   };
 
