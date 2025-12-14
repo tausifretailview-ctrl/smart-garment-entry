@@ -75,41 +75,52 @@ const EmployeeMaster = () => {
   const { currentOrganization } = useOrganization();
 
   // Fetch organization users for dropdown
-  const { data: orgUsers = [] } = useQuery({
+  const { data: orgUsers = [], isLoading: isLoadingUsers } = useQuery({
     queryKey: ["org-users", currentOrganization?.id],
     queryFn: async (): Promise<OrgUser[]> => {
       if (!currentOrganization?.id) return [];
       
-      // Get organization members
-      const { data: members, error: membersError } = await supabase
-        .from("organization_members")
-        .select("user_id, role")
-        .eq("organization_id", currentOrganization.id);
-      
-      if (membersError) throw membersError;
-      if (!members || members.length === 0) return [];
+      try {
+        // Get organization members
+        const { data: members, error: membersError } = await supabase
+          .from("organization_members")
+          .select("user_id, role")
+          .eq("organization_id", currentOrganization.id);
+        
+        if (membersError) {
+          console.error("Error fetching members:", membersError);
+          return [];
+        }
+        if (!members || members.length === 0) return [];
 
-      // Get session for edge function call
-      const { data: session } = await supabase.auth.getSession();
-      if (!session?.session?.access_token) return [];
+        // Get session for edge function call
+        const { data: session } = await supabase.auth.getSession();
+        if (!session?.session?.access_token) return [];
 
-      // Fetch user emails from edge function
-      const response = await supabase.functions.invoke("get-users", {
-        headers: { Authorization: `Bearer ${session.session.access_token}` },
-      });
+        // Fetch user emails from edge function
+        const response = await supabase.functions.invoke("get-users", {
+          headers: { Authorization: `Bearer ${session.session.access_token}` },
+        });
 
-      if (response.error) throw response.error;
+        if (response.error) {
+          console.error("Error fetching users:", response.error);
+          return [];
+        }
 
-      const allUsers = response.data?.users || [];
-      const memberUserIds = members.map(m => m.user_id);
-      
-      return allUsers
-        .filter((u: any) => memberUserIds.includes(u.id))
-        .map((u: any) => ({
-          id: u.id,
-          email: u.email,
-          role: members.find(m => m.user_id === u.id)?.role || 'user'
-        }));
+        const allUsers = response.data?.users || [];
+        const memberUserIds = members.map(m => m.user_id);
+        
+        return allUsers
+          .filter((u: any) => memberUserIds.includes(u.id))
+          .map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            role: members.find(m => m.user_id === u.id)?.role || 'user'
+          }));
+      } catch (error) {
+        console.error("Error in orgUsers query:", error);
+        return [];
+      }
     },
     enabled: !!currentOrganization?.id,
   });

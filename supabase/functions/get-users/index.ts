@@ -27,14 +27,27 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+    console.log("Verifying token...");
+    
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
 
-    if (authError || !user) {
+    if (authError) {
+      console.error("Auth error:", authError.message);
+      return new Response(
+        JSON.stringify({ error: "Unauthorized", details: authError.message }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    if (!user) {
+      console.error("No user found for token");
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    console.log("User verified:", user.id);
 
     // Check if user has admin, platform_admin, or manager role
     const { data: roleCheck } = await supabaseAdmin
