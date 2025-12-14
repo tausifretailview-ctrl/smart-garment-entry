@@ -799,6 +799,11 @@ const POSDashboard = () => {
     refundAmount: filteredSales.reduce((sum, sale) => sum + (sale.refund_amount || 0), 0),
     creditNoteCount: filteredSales.filter(sale => sale.credit_note_id).length,
     creditNoteAmount: filteredSales.reduce((sum, sale) => sum + (sale.credit_note_amount || 0), 0),
+    // Payment method totals
+    totalCash: filteredSales.reduce((sum, sale) => sum + (sale.cash_amount || 0), 0),
+    totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
+    totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
+    totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
   }), [filteredSales, saleItems]);
 
   // Memoize pagination calculations
@@ -983,6 +988,61 @@ const POSDashboard = () => {
             <CardContent>
               <div className="text-2xl font-bold text-violet-600">{summaryStats.creditNoteCount}</div>
               <p className="text-xs text-muted-foreground">₹{summaryStats.creditNoteAmount.toFixed(0)}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Payment Method Totals */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-emerald-500 hover:scale-[1.02] bg-gradient-to-br from-emerald-50 to-emerald-100/50 dark:from-emerald-950/30 dark:to-emerald-900/20"
+            onClick={() => setPaymentMethodFilter("cash")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Cash</CardDescription>
+              <IndianRupee className="h-4 w-4 text-emerald-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-600">₹{summaryStats.totalCash.toFixed(0)}</div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-cyan-500 hover:scale-[1.02] bg-gradient-to-br from-cyan-50 to-cyan-100/50 dark:from-cyan-950/30 dark:to-cyan-900/20"
+            onClick={() => setPaymentMethodFilter("card")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Card</CardDescription>
+              <IndianRupee className="h-4 w-4 text-cyan-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-cyan-600">₹{summaryStats.totalCard.toFixed(0)}</div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-indigo-500 hover:scale-[1.02] bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/30 dark:to-indigo-900/20"
+            onClick={() => setPaymentMethodFilter("upi")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total UPI</CardDescription>
+              <IndianRupee className="h-4 w-4 text-indigo-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-indigo-600">₹{summaryStats.totalUpi.toFixed(0)}</div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-red-500 hover:scale-[1.02] bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
+            onClick={() => setPaymentStatusFilter("pending")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium">Total Balance</CardDescription>
+              <IndianRupee className="h-4 w-4 text-red-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">₹{summaryStats.totalBalance.toFixed(0)}</div>
             </CardContent>
           </Card>
         </div>
