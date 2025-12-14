@@ -2169,7 +2169,7 @@ export default function POSSales() {
           </Popover>
           
           {/* Invoice Number Display */}
-          <div className="relative w-32">
+          <div className="relative w-40">
             <Label className="text-sm font-medium mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
@@ -2280,7 +2280,7 @@ export default function POSSales() {
           <div className="max-w-[1800px] w-full flex-1 flex flex-col overflow-hidden">
           <Card className="flex-1 overflow-hidden flex flex-col">
             <div className="bg-black text-white overflow-x-auto">
-              <div className="min-w-[1200px] grid gap-2 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
+              <div className="min-w-[1200px] grid gap-3 p-4 text-base font-medium" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                 <div>Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
@@ -2325,7 +2325,7 @@ export default function POSSales() {
                 {items.length === 0 ? (
                   // Show 6 blank rows with serial numbers
                   Array.from({ length: 6 }).map((_, index) => (
-                    <div key={index} className="min-w-[1200px] grid gap-2 p-4 border-b text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
+                    <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                       <div className="flex items-center text-muted-foreground">{index + 1}</div>
                       <div className="flex items-center text-muted-foreground">-</div>
                       <div className="flex items-center text-muted-foreground">-</div>
@@ -2341,7 +2341,7 @@ export default function POSSales() {
                   ))
                 ) : (
                   items.map((item, index) => (
-                    <div key={index} className="min-w-[1200px] grid gap-2 p-4 border-b hover:bg-muted/50 text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
+                    <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b hover:bg-muted/50 text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                       <div className="flex items-center font-semibold">{index + 1}</div>
                       <div className="flex items-center text-sm">{item.barcode}</div>
                       <div className="flex items-center font-medium truncate">{item.productName}</div>
