@@ -10,12 +10,17 @@ export function useFieldSalesAccess() {
   const { data, isLoading } = useQuery({
     queryKey: ["field-sales-access", user?.id, currentOrganization?.id],
     queryFn: async () => {
-      if (!user?.id || !currentOrganization?.id) return null;
+      if (!user?.id || !currentOrganization?.id) {
+        console.log("Field sales access check: Missing user or org", { userId: user?.id, orgId: currentOrganization?.id });
+        return null;
+      }
+
+      console.log("Checking field sales access for user:", user.id, "org:", currentOrganization.id);
 
       // Check if user has an employee record with field_sales_access enabled
       const { data: employee, error } = await supabase
         .from("employees")
-        .select("id, employee_name, field_sales_access")
+        .select("id, employee_name, field_sales_access, user_id")
         .eq("organization_id", currentOrganization.id)
         .eq("user_id", user.id)
         .eq("field_sales_access", true)
@@ -27,6 +32,7 @@ export function useFieldSalesAccess() {
         return null;
       }
 
+      console.log("Field sales access result:", employee);
       return employee;
     },
     enabled: !!user?.id && !!currentOrganization?.id,
