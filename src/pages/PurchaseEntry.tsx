@@ -26,8 +26,9 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
-import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+// Draft feature temporarily disabled
+// import { useDraftSave } from "@/hooks/useDraftSave";
+// import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface ProductVariant {
   id: string;
@@ -127,7 +128,8 @@ const PurchaseEntry = () => {
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  // Draft feature temporarily disabled
+  // const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -137,72 +139,75 @@ const PurchaseEntry = () => {
   const [softwareBillNo, setSoftwareBillNo] = useState<string>("");
 
   // Draft save hook
-  const {
-    hasDraft,
-    draftData,
-    saveDraft,
-    deleteDraft,
-    updateCurrentData,
-    startAutoSave,
-    stopAutoSave,
-  } = useDraftSave('purchase');
+  // Draft feature temporarily disabled
+  // const {
+  //   hasDraft,
+  //   draftData,
+  //   saveDraft,
+  //   deleteDraft,
+  //   updateCurrentData,
+  //   startAutoSave,
+  //   stopAutoSave,
+  // } = useDraftSave('purchase');
 
   // Load draft data
-  const loadDraftData = useCallback((data: any) => {
-    if (!data) return;
-    setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
-    setSoftwareBillNo(data.softwareBillNo || "");
-    setBillDate(data.billDate ? new Date(data.billDate) : new Date());
-    setLineItems(data.lineItems || []);
-    setRoundOff(data.roundOff || 0);
-    setEntryMode(data.entryMode || "grid");
-    toast({
-      title: "Draft Loaded",
-      description: "Your previous work has been restored",
-    });
-  }, [toast]);
+  // Draft feature temporarily disabled
+  // const loadDraftData = useCallback((data: any) => {
+  //   if (!data) return;
+  //   setBillData(data.billData || { supplier_id: "", supplier_name: "", supplier_invoice_no: "" });
+  //   setSoftwareBillNo(data.softwareBillNo || "");
+  //   setBillDate(data.billDate ? new Date(data.billDate) : new Date());
+  //   setLineItems(data.lineItems || []);
+  //   setRoundOff(data.roundOff || 0);
+  //   setEntryMode(data.entryMode || "grid");
+  //   toast({
+  //     title: "Draft Loaded",
+  //     description: "Your previous work has been restored",
+  //   });
+  // }, [toast]);
 
-  // Check for draft on mount (only if not in edit mode)
-  useEffect(() => {
-    if (!location.state?.editBillId && hasDraft && draftData) {
-      setShowDraftDialog(true);
-    }
-  }, [hasDraft, draftData, location.state?.editBillId]);
+  // // Check for draft on mount (only if not in edit mode)
+  // useEffect(() => {
+  //   if (!location.state?.editBillId && hasDraft && draftData) {
+  //     setShowDraftDialog(true);
+  //   }
+  // }, [hasDraft, draftData, location.state?.editBillId]);
 
-  // Update current data for auto-save whenever form data changes
-  useEffect(() => {
-    if (!isEditMode && lineItems.length > 0) {
-      updateCurrentData({
-        billData,
-        softwareBillNo,
-        billDate: billDate.toISOString(),
-        lineItems,
-        roundOff,
-        entryMode,
-      });
-    }
-  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, updateCurrentData]);
+  // // Update current data for auto-save whenever form data changes
+  // useEffect(() => {
+  //   if (!isEditMode && lineItems.length > 0) {
+  //     updateCurrentData({
+  //       billData,
+  //       softwareBillNo,
+  //       billDate: billDate.toISOString(),
+  //       lineItems,
+  //       roundOff,
+  //       entryMode,
+  //     });
+  //   }
+  // }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, updateCurrentData]);
 
   // Start auto-save when not in edit mode
-  useEffect(() => {
-    if (!isEditMode && !location.state?.editBillId) {
-      startAutoSave();
-    }
-    return () => {
-      // Don't save draft if navigating to product entry (sessionStorage handles this)
-      if (!isEditMode && lineItems.length > 0 && !isNavigatingForProductRef.current) {
-        saveDraft({
-          billData,
-          softwareBillNo,
-          billDate: billDate.toISOString(),
-          lineItems,
-          roundOff,
-          entryMode,
-        }, false);
-      }
-      stopAutoSave();
-    };
-  }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, saveDraft]);
+  // Draft feature temporarily disabled
+  // useEffect(() => {
+  //   if (!isEditMode && !location.state?.editBillId) {
+  //     startAutoSave();
+  //   }
+  //   return () => {
+  //     // Don't save draft if navigating to product entry (sessionStorage handles this)
+  //     if (!isEditMode && lineItems.length > 0 && !isNavigatingForProductRef.current) {
+  //       saveDraft({
+  //         billData,
+  //         softwareBillNo,
+  //         billDate: billDate.toISOString(),
+  //         lineItems,
+  //         roundOff,
+  //         entryMode,
+  //       }, false);
+  //     }
+  //     stopAutoSave();
+  //   };
+  // }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, saveDraft]);
 
   // Fetch suppliers
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
@@ -231,13 +236,13 @@ const PurchaseEntry = () => {
         setLineItems(parsed.lineItems);
         setRoundOff(parsed.roundOff || 0);
         sessionStorage.removeItem('purchaseEntryState');
-        // Delete any database draft since we're restoring from sessionStorage
-        deleteDraft();
+        // Draft feature temporarily disabled
+        // deleteDraft();
       } catch (error) {
         console.error('Error restoring purchase state:', error);
       }
     }
-  }, [deleteDraft]);
+  }, []);
 
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
@@ -458,8 +463,8 @@ const PurchaseEntry = () => {
       roundOff,
     };
     sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
-    // Clear current data ref to prevent useDraftSave hook's cleanup from saving
-    updateCurrentData(null);
+    // Draft feature temporarily disabled
+    // updateCurrentData(null);
     navigate('/product-entry', { state: { returnToPurchase: true } });
   };
 
@@ -1133,8 +1138,8 @@ const PurchaseEntry = () => {
         setSavedPurchaseItems(itemsWithDetails);
         setShowPrintDialog(true);
 
-        // Delete draft after successful save
-        await deleteDraft();
+        // Draft feature temporarily disabled
+        // await deleteDraft();
 
         // Reset form and generate new bill number
         setBillData({
@@ -2105,8 +2110,8 @@ const PurchaseEntry = () => {
           sampleFileName="Purchase_Bill_Sample.xlsx"
         />
 
-        {/* Draft Resume Dialog */}
-        <DraftResumeDialog
+        {/* Draft Resume Dialog - temporarily disabled */}
+        {/* <DraftResumeDialog
           open={showDraftDialog}
           onOpenChange={setShowDraftDialog}
           draftType="purchase"
@@ -2118,7 +2123,7 @@ const PurchaseEntry = () => {
             await deleteDraft();
             setShowDraftDialog(false);
           }}
-        />
+        /> */}
       </div>
     </div>
   );
