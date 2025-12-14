@@ -2021,7 +2021,7 @@ export default function POSSales() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="absolute right-20 top-1/2 translate-y-0.5 h-9 w-9"
+                    className="absolute right-10 top-1/2 translate-y-0.5 h-9 w-9"
                     onClick={() => {
                       setCustomerName("");
                       setCustomerId("");
@@ -2034,13 +2034,12 @@ export default function POSSales() {
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="absolute right-10 top-1/2 translate-y-0.5 h-9 w-9"
+                  className="absolute right-2 top-1/2 translate-y-0.5 h-9 w-9"
                   onClick={() => setShowAddCustomerDialog(true)}
                   title="Add New Customer"
                 >
                   <UserPlus className="h-5 w-5" />
                 </Button>
-                <Plus className="absolute right-3 top-1/2 translate-y-0.5 h-6 w-6 text-muted-foreground" />
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-[400px] p-0 z-50" align="start">
