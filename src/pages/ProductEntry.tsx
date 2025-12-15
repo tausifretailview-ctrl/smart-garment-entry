@@ -771,23 +771,9 @@ const ProductEntry = () => {
         if (variants.length > 0) {
           for (const v of variants) {
             if (v.id) {
-              // Update existing variant by ID
-              const { data: existingVariant } = await supabase
-                .from("product_variants")
-                .select("id, opening_qty, stock_qty")
-                .eq("id", v.id)
-                .single();
-
-              let newStockQty = v.opening_qty;
-
-              if (existingVariant) {
-                // Calculate stock adjustment based on opening qty change
-                const openingQtyDiff = v.opening_qty - (existingVariant.opening_qty || 0);
-                newStockQty = (existingVariant.stock_qty || 0) + openingQtyDiff;
-                
-                // Ensure stock doesn't go negative
-                if (newStockQty < 0) newStockQty = 0;
-              }
+              // Update existing variant by ID - use opening_qty directly as actual stock
+              // User enters the actual current quantity, not a difference
+              const newStockQty = v.opening_qty;
 
               // Update the variant by ID
               const { error: variantError } = await supabase
