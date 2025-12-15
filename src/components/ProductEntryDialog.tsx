@@ -714,6 +714,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                     placeholder="0"
                   />
                 </div>
+
+                {showMrp && (
+                  <div className="space-y-2">
+                    <Label htmlFor="default_mrp">MRP</Label>
+                    <Input
+                      id="default_mrp"
+                      type="number"
+                      value={formData.default_mrp ?? ""}
+                      onChange={(e) => setFormData({ ...formData, default_mrp: e.target.value ? Number(e.target.value) : undefined })}
+                      placeholder="MRP"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Colors Section */}
