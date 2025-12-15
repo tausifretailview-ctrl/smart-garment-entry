@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Plus, Edit, Trash2 } from "lucide-react";
+import { Loader2, Package, Barcode, Plus, Edit, Trash2, ImagePlus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -94,6 +94,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const [showCreateSizeGroup, setShowCreateSizeGroup] = useState(false);
   const [newSizeGroup, setNewSizeGroup] = useState({ group_name: "", sizes: "" });
+  const [productImage, setProductImage] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   
   const [formData, setFormData] = useState<ProductForm>({
@@ -143,6 +145,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
     setColorInput("");
     setVariants([]);
     setShowVariants(false);
+    setProductImage(null);
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProductImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setProductImage(null);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = "";
+    }
   };
 
   const fetchFieldSettings = async () => {
@@ -536,22 +557,62 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
           <ScrollArea className="max-h-[calc(90vh-140px)] px-6">
             <div className="space-y-6 py-4">
               {/* Product Type */}
-              <div className="space-y-2">
-                <Label>Product Type</Label>
-                <RadioGroup
-                  value={formData.product_type}
-                  onValueChange={(value: ProductType) => setFormData({ ...formData, product_type: value })}
-                  className="flex gap-4"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="goods" id="goods" />
-                    <Label htmlFor="goods">Goods</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="service" id="service" />
-                    <Label htmlFor="service">Service</Label>
-                  </div>
-                </RadioGroup>
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <Label>Product Type</Label>
+                  <RadioGroup
+                    value={formData.product_type}
+                    onValueChange={(value: ProductType) => setFormData({ ...formData, product_type: value })}
+                    className="flex gap-4"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="goods" id="goods" />
+                      <Label htmlFor="goods">Goods</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="service" id="service" />
+                      <Label htmlFor="service">Service</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Image Import */}
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  {productImage ? (
+                    <div className="relative">
+                      <img
+                        src={productImage}
+                        alt="Product"
+                        className="h-12 w-12 object-cover rounded border"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRemoveImage}
+                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 hover:bg-destructive/90"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => imageInputRef.current?.click()}
+                      className="gap-1"
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      Image
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Basic Info Grid */}
