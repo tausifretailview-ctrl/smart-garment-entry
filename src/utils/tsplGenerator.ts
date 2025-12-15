@@ -83,21 +83,35 @@ const mmToDots = (mm: number, dpi: number = 203): number => {
   return Math.round(mm * (dpi / 25.4));
 };
 
-// Map font size (7-14px) to TSPL font (1-5)
-const mapFontSize = (fontSize: number): { font: string; xMul: number; yMul: number } => {
-  if (fontSize <= 7) return { font: '1', xMul: 1, yMul: 1 };
-  if (fontSize <= 8) return { font: '2', xMul: 1, yMul: 1 };
+// Map font size (7-14px) to TSPL font parameters
+// For TSC printers: Font 1 = 8x12, Font 2 = 12x20, Font 3 = 16x24, Font 4 = 24x32, Font 5 = 32x48
+const mapFontSize = (fontSize: number, bold: boolean = false): { font: string; xMul: number; yMul: number } => {
+  // More accurate font mapping for visual consistency
+  if (fontSize <= 6) return { font: '1', xMul: 1, yMul: 1 };
+  if (fontSize <= 7) return { font: '2', xMul: 1, yMul: 1 };
+  if (fontSize <= 8) return { font: bold ? '3' : '2', xMul: 1, yMul: 1 };
   if (fontSize <= 9) return { font: '3', xMul: 1, yMul: 1 };
-  if (fontSize <= 10) return { font: '2', xMul: 2, yMul: 2 };
-  if (fontSize <= 11) return { font: '3', xMul: 2, yMul: 2 };
-  if (fontSize <= 12) return { font: '4', xMul: 2, yMul: 2 };
-  return { font: '5', xMul: 2, yMul: 2 };
+  if (fontSize <= 10) return { font: bold ? '4' : '3', xMul: 1, yMul: 1 };
+  if (fontSize <= 12) return { font: '4', xMul: 1, yMul: 1 };
+  return { font: '5', xMul: 1, yMul: 1 };
+};
+
+// Get approximate text width in dots
+const getTextWidthDots = (text: string, fontSize: number): number => {
+  // Approximate character widths based on font size
+  const charWidth = fontSize <= 7 ? 6 : fontSize <= 8 ? 8 : fontSize <= 10 ? 10 : 12;
+  return text.length * charWidth;
 };
 
 // Get line height in dots based on font size
 const getLineHeight = (fontSize: number): number => {
-  const baseHeight = fontSize <= 8 ? 16 : fontSize <= 10 ? 20 : fontSize <= 12 ? 24 : 28;
-  return baseHeight;
+  if (fontSize <= 6) return 12;
+  if (fontSize <= 7) return 14;
+  if (fontSize <= 8) return 18;
+  if (fontSize <= 9) return 20;
+  if (fontSize <= 10) return 22;
+  if (fontSize <= 12) return 26;
+  return 32;
 };
 
 // Generate TSPL SIZE command
@@ -130,7 +144,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
   switch (fieldKey) {
     case 'brand': return data.brand || '';
     case 'productName': return data.productName || '';
-    case 'color': return data.color ? `Color: ${data.color}` : '';
+    case 'color': return data.color || '';
     case 'style': return data.style || '';
     case 'size': return data.size || '';
     case 'price': return data.salePrice ? `Rs.${data.salePrice}` : '';
@@ -142,7 +156,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
   }
 };
 
-// Generate template-aware TSPL label
+// Generate template-aware TSPL label with exact positioning matching preview
 export const generateTSPLLabelFromTemplate = (
   labelConfig: TSPLLabelConfig,
   templateConfig: TSPLTemplateConfig,
@@ -160,124 +174,93 @@ export const generateTSPLLabelFromTemplate = (
   const labelWidthDots = mmToDots(labelConfig.width);
   const labelHeightDots = mmToDots(labelConfig.height);
   
-  // Track Y position and row groupings
-  let yPos = 8;
+  // Margins in dots (2mm = ~16 dots)
   const xMargin = 8;
+  const topMargin = 4;
   
-  // Group fields by row for horizontal layout
-  const rowGroups = new Map<number, { fieldKey: string; config: TSPLFieldConfig }[]>();
+  // Calculate visible fields and their positions
+  const visibleFields = templateConfig.fieldOrder.filter(fieldKey => {
+    if (fieldKey === 'barcode') return templateConfig.barcode?.show;
+    const config = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
+    return config?.show;
+  });
   
-  // Process fields in order
-  for (const fieldKey of templateConfig.fieldOrder) {
-    if (fieldKey === 'barcode') continue; // Handle barcode separately
+  // Track Y position based on field order (matching preview's flow layout)
+  let currentY = topMargin;
+  
+  // Process each field in order
+  for (const fieldKey of visibleFields) {
+    if (fieldKey === 'barcode') {
+      // Handle barcode specially
+      const barcodeConfig = templateConfig.barcode;
+      if (barcodeConfig?.show && data.barcode) {
+        const paddingTop = (barcodeConfig.paddingTop ?? 0);
+        const paddingBottom = (barcodeConfig.paddingBottom ?? 0);
+        
+        currentY += paddingTop;
+        
+        const barcodeHeight = templateConfig.barcodeHeight || 30;
+        const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
+        
+        // Calculate barcode width (CODE128: 11 modules per character + start/stop)
+        const barcodeModules = (data.barcode.length + 4) * 11;
+        const barcodeWidthDots = barcodeModules * barcodeNarrow;
+        
+        // Center barcode horizontally
+        const barcodeX = Math.max(xMargin, Math.round((labelWidthDots - barcodeWidthDots) / 2));
+        
+        commands.push(generateBarcodeCommand({
+          x: barcodeX,
+          y: currentY,
+          type: '128',
+          height: barcodeHeight,
+          data: data.barcode,
+          readable: 0, // No built-in text, we add barcodeText separately
+          narrow: barcodeNarrow,
+          wide: barcodeNarrow,
+        }));
+        
+        currentY += barcodeHeight + paddingBottom + 2;
+      }
+      continue;
+    }
     
     const fieldConfig = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
     if (!fieldConfig || !fieldConfig.show) continue;
     
-    const row = fieldConfig.row ?? -1;
-    if (row >= 0) {
-      if (!rowGroups.has(row)) {
-        rowGroups.set(row, []);
-      }
-      rowGroups.get(row)!.push({ fieldKey, config: fieldConfig });
-    } else {
-      // Single field row - use y position if specified
-      const content = getFieldContent(fieldKey, data);
-      if (!content) continue;
-      
-      const fontInfo = mapFontSize(fieldConfig.fontSize);
-      const textY = fieldConfig.y !== undefined ? mmToDots(fieldConfig.y) : yPos;
-      
-      // Calculate X position based on alignment and width
-      let textX = xMargin;
-      const fieldWidth = fieldConfig.width !== undefined ? (labelWidthDots * fieldConfig.width / 100) : labelWidthDots - (xMargin * 2);
-      const textWidth = content.length * (fieldConfig.fontSize * 0.6);
-      
-      if (fieldConfig.textAlign === 'center') {
-        textX = Math.max(xMargin, (labelWidthDots - mmToDots(textWidth)) / 2);
-      } else if (fieldConfig.textAlign === 'right') {
-        textX = Math.max(xMargin, labelWidthDots - xMargin - mmToDots(textWidth));
-      } else if (fieldConfig.x !== undefined) {
-        textX = mmToDots(fieldConfig.x);
-      }
-      
-      commands.push(`TEXT ${textX},${textY},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${content.substring(0, 30)}"`);
-      
-      if (fieldConfig.y === undefined) {
-        yPos += getLineHeight(fieldConfig.fontSize) + (fieldConfig.paddingBottom || 0);
-      }
-    }
-  }
-  
-  // Process row-grouped fields (fields on same horizontal line)
-  for (const [rowNum, fields] of rowGroups) {
-    // Sort by x position
-    fields.sort((a, b) => (a.config.x || 0) - (b.config.x || 0));
+    const content = getFieldContent(fieldKey, data);
+    if (!content) continue;
     
-    const rowY = fields[0].config.y !== undefined ? mmToDots(fields[0].config.y) : yPos;
+    // Apply padding
+    const paddingTop = (fieldConfig.paddingTop ?? 0);
+    const paddingLeft = (fieldConfig.paddingLeft ?? 0);
+    const paddingBottom = (fieldConfig.paddingBottom ?? 0);
     
-    for (const { fieldKey, config } of fields) {
-      const content = getFieldContent(fieldKey, data);
-      if (!content) continue;
-      
-      const fontInfo = mapFontSize(config.fontSize);
-      const fieldX = config.x !== undefined ? mmToDots(config.x) : xMargin;
-      const fieldWidth = config.width !== undefined ? (labelWidthDots * config.width / 100) : (labelWidthDots / 2);
-      
-      let textX = fieldX;
-      if (config.textAlign === 'center') {
-        textX = fieldX + (fieldWidth / 2) - (content.length * 3);
-      } else if (config.textAlign === 'right') {
-        textX = fieldX + fieldWidth - (content.length * 6);
-      }
-      
-      commands.push(`TEXT ${Math.max(4, textX)},${rowY},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${content.substring(0, 20)}"`);
+    currentY += paddingTop;
+    
+    const fontInfo = mapFontSize(fieldConfig.fontSize, fieldConfig.bold);
+    const lineHeight = getLineHeight(fieldConfig.fontSize);
+    
+    // Calculate text width for alignment
+    const textWidthDots = getTextWidthDots(content, fieldConfig.fontSize);
+    
+    // Calculate X position based on alignment
+    let textX = xMargin + paddingLeft;
+    const availableWidth = labelWidthDots - (xMargin * 2);
+    
+    if (fieldConfig.textAlign === 'center') {
+      textX = Math.max(xMargin, Math.round((labelWidthDots - textWidthDots) / 2));
+    } else if (fieldConfig.textAlign === 'right') {
+      textX = Math.max(xMargin, labelWidthDots - xMargin - textWidthDots);
     }
     
-    if (fields[0].config.y === undefined) {
-      yPos += getLineHeight(fields[0].config.fontSize) + 4;
-    }
-  }
-  
-  // Handle barcode based on template settings
-  const barcodeConfig = templateConfig.barcode;
-  if (barcodeConfig?.show && data.barcode) {
-    const barcodeY = barcodeConfig.y !== undefined ? mmToDots(barcodeConfig.y) : yPos;
-    const barcodeHeight = templateConfig.barcodeHeight || 30;
-    const barcodeNarrow = Math.max(1, Math.round((templateConfig.barcodeWidth || 1.5)));
+    // Truncate text to fit label
+    const maxChars = Math.floor(availableWidth / (fieldConfig.fontSize <= 8 ? 6 : 8));
+    const truncatedContent = content.substring(0, Math.min(maxChars, 30));
     
-    // Calculate X position for barcode
-    let barcodeX = xMargin;
-    if (barcodeConfig.textAlign === 'center') {
-      barcodeX = Math.max(xMargin, (labelWidthDots - (data.barcode.length * barcodeNarrow * 11)) / 2);
-    }
+    commands.push(`TEXT ${textX},${currentY},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
     
-    commands.push(generateBarcodeCommand({
-      x: barcodeX,
-      y: barcodeY,
-      type: '128',
-      height: barcodeHeight,
-      data: data.barcode,
-      readable: 0, // No built-in text
-      narrow: barcodeNarrow,
-      wide: barcodeNarrow,
-    }));
-    
-    yPos = barcodeY + barcodeHeight + 4;
-  }
-  
-  // Handle barcode text if separate from barcode
-  const barcodeTextConfig = templateConfig.barcodeText;
-  if (barcodeTextConfig?.show && data.barcode) {
-    const textY = barcodeTextConfig.y !== undefined ? mmToDots(barcodeTextConfig.y) : yPos;
-    const fontInfo = mapFontSize(barcodeTextConfig.fontSize);
-    
-    let textX = xMargin;
-    if (barcodeTextConfig.textAlign === 'center') {
-      textX = Math.max(xMargin, (labelWidthDots - (data.barcode.length * 6)) / 2);
-    }
-    
-    commands.push(`TEXT ${textX},${textY},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${data.barcode}"`);
+    currentY += lineHeight + paddingBottom;
   }
   
   // Print command
