@@ -26,6 +26,7 @@ import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialo
 import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { ProductEntryDialog } from "@/components/ProductEntryDialog";
 // Draft feature temporarily disabled
 // import { useDraftSave } from "@/hooks/useDraftSave";
 // import { DraftResumeDialog } from "@/components/DraftResumeDialog";
@@ -123,13 +124,14 @@ const PurchaseEntry = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showProductDialog, setShowProductDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   // Draft feature temporarily disabled
-  // const [showDraftDialog, setShowDraftDialog] = useState(false);
+  // const [showDraftDialog, setShowDraftDialog] = useState(false)
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -463,23 +465,57 @@ const PurchaseEntry = () => {
   };
 
   const handleAddNewProductFromInline = () => {
-    // Mark that we're navigating to product entry to skip draft save on unmount
-    isNavigatingForProductRef.current = true;
-    // Save current state before navigating - include edit mode state to prevent duplicate bills
-    const stateToSave = {
-      billData,
-      softwareBillNo,
-      billDate: billDate.toISOString(),
-      lineItems,
-      roundOff,
-      isEditMode,
-      editingBillId,
-      originalLineItems,
-    };
-    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
-    // Draft feature temporarily disabled
-    // updateCurrentData(null);
-    navigate('/product-entry', { state: { returnToPurchase: true } });
+    // Open the floating product entry dialog instead of navigating
+    setShowProductDialog(true);
+  };
+
+  // Handle product created from dialog - auto open size grid
+  const handleProductCreated = async (product: {
+    id: string;
+    product_name: string;
+    brand: string | null;
+    category: string | null;
+    gst_per: number;
+    hsn_code: string | null;
+    color: string | null;
+    variants: any[];
+  }) => {
+    if (product.variants && product.variants.length > 0) {
+      // Map variants for SizeGridDialog
+      const mappedVariants = product.variants.map((v: any) => ({
+        id: v.id,
+        size: v.size,
+        sale_price: v.sale_price,
+        pur_price: v.pur_price,
+        barcode: v.barcode,
+        color: v.color || product.color || "",
+        stock_qty: v.stock_qty || 0,
+      }));
+
+      // Set up and open the size grid
+      setSelectedProduct({
+        id: product.id,
+        product_name: product.product_name,
+        brand: product.brand,
+        category: product.category,
+        gst_per: product.gst_per,
+        hsn_code: product.hsn_code,
+        color: product.color,
+      });
+      setSizeGridVariants(mappedVariants);
+      setSizeQty({});
+      setShowSizeGrid(true);
+
+      toast({
+        title: "Product Created",
+        description: `${product.product_name} created. Enter quantities in the size grid.`,
+      });
+    } else {
+      toast({
+        title: "Product Created",
+        description: `${product.product_name} created successfully.`,
+      });
+    }
   };
 
   // Check if returning from product creation with new product data
@@ -1627,18 +1663,7 @@ const PurchaseEntry = () => {
                   Import Excel
                 </Button>
                 <Button
-                  onClick={() => {
-                    // Save current state before navigating
-                    const stateToSave = {
-                      billData,
-                      softwareBillNo,
-                      billDate: billDate.toISOString(),
-                      lineItems,
-                      roundOff,
-                    };
-                    sessionStorage.setItem('purchaseEntryState', JSON.stringify(stateToSave));
-                    navigate('/product-entry', { state: { returnToPurchase: true } });
-                  }}
+                  onClick={() => setShowProductDialog(true)}
                   variant="outline"
                   className="gap-2"
                 >
@@ -2138,6 +2163,13 @@ const PurchaseEntry = () => {
             setShowDraftDialog(false);
           }}
         /> */}
+
+        {/* Product Entry Dialog */}
+        <ProductEntryDialog
+          open={showProductDialog}
+          onOpenChange={setShowProductDialog}
+          onProductCreated={handleProductCreated}
+        />
       </div>
     </div>
   );
