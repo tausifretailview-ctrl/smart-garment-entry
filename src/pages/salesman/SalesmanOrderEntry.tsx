@@ -557,56 +557,57 @@ const SalesmanOrderEntry = () => {
         )}
       </div>
 
-      {/* Order Items */}
-      <div className="flex-1 overflow-auto p-4 space-y-3">
+      {/* Order Items - Compact Layout */}
+      <div className="flex-1 overflow-auto px-3 py-2">
         {orderItems.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No items added yet</p>
-            <p className="text-sm">Search products above to add</p>
+          <div className="text-center py-8 text-muted-foreground">
+            <Package className="h-10 w-10 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No items added yet</p>
+            <p className="text-xs">Search products above</p>
           </div>
         ) : (
-          orderItems.map((item, index) => (
-            <Card key={item.id} className="border-0 shadow-sm">
-              <CardContent className="p-3">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{item.product.product_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {item.variant.size} {item.variant.color && `| ${item.variant.color}`} | ₹{item.unit_price}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeItem(item.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
+          <div className="divide-y">
+            {orderItems.map((item) => (
+              <div key={item.id} className="py-2 flex items-center gap-2">
+                {/* Product Info - Compact */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate leading-tight">{item.product.product_name}</p>
+                  <p className="text-xs text-muted-foreground leading-tight">
+                    {item.variant.size} {item.variant.color && `| ${item.variant.color}`} | ₹{item.unit_price}
+                  </p>
+                </div>
+                
+                {/* Quantity Controls - Compact */}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => updateQuantity(item.id, -1)}
+                    disabled={item.quantity <= 1}
+                  >
+                    <Minus className="h-3 w-3" />
+                  </Button>
+                  <span className="w-8 text-center font-semibold text-sm">{item.quantity}</span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => updateQuantity(item.id, 1)}
+                    disabled={item.quantity >= item.variant.stock_qty}
+                  >
+                    <Plus className="h-3 w-3" />
                   </Button>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10"
-                      onClick={() => updateQuantity(item.id, -1)}
-                      disabled={item.quantity <= 1}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-12 text-center font-semibold text-lg">{item.quantity}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-10 w-10"
-                      onClick={() => updateQuantity(item.id, 1)}
-                      disabled={item.quantity >= item.variant.stock_qty}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="font-semibold">₹{item.line_total.toLocaleString("en-IN")}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                
+                {/* Total & Delete */}
+                <p className="font-semibold text-sm w-16 text-right">₹{item.line_total.toLocaleString("en-IN")}</p>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeItem(item.id)}>
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
