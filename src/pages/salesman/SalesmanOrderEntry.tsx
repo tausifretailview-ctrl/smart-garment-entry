@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
-import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 
 interface Customer {
   id: string;
@@ -54,6 +54,7 @@ interface Variant {
   mrp: number;
   sale_price: number;
   stock_qty: number;
+  isCustomSize?: boolean;
 }
 
 interface OrderItem {
@@ -65,6 +66,7 @@ interface OrderItem {
   discount_percent: number;
   gst_percent: number;
   line_total: number;
+  isCustomSize?: boolean;
 }
 
 const SalesmanOrderEntry = () => {
@@ -286,7 +288,8 @@ const SalesmanOrderEntry = () => {
         const currentItem = updated[existingIndex];
         const newQty = currentItem.quantity + qty;
 
-        if (newQty > variant.stock_qty) {
+        // Skip stock validation for custom sizes
+        if (!variant.isCustomSize && newQty > variant.stock_qty) {
           toast.error(`Insufficient stock for ${variant.size}`);
           return prevItems;
         }
@@ -310,6 +313,7 @@ const SalesmanOrderEntry = () => {
         discount_percent: 0,
         gst_percent: product.gst_per || 0,
         line_total: unitPrice * qty,
+        isCustomSize: variant.isCustomSize || false,
       };
 
       return [...prevItems, newItem];
@@ -329,13 +333,14 @@ const SalesmanOrderEntry = () => {
     if (!selectedProduct) return;
     
     items.forEach(({ variant, qty }) => {
-      // Cast variant to include required fields
+      // For custom sizes, variant already has isCustomSize flag
       const fullVariant: Variant = {
         ...variant,
         product_id: selectedProduct.id,
         mrp: variant.mrp || variant.sale_price || 0,
         sale_price: variant.sale_price || 0,
         stock_qty: variant.stock_qty || 0,
+        isCustomSize: variant.isCustomSize || false,
       };
       addItem(selectedProduct, fullVariant, qty);
     });
@@ -348,7 +353,9 @@ const SalesmanOrderEntry = () => {
   const updateQuantity = (itemId: string, delta: number) => {
     const updated = orderItems.map(item => {
       if (item.id === itemId) {
-        const newQty = Math.max(1, Math.min(item.variant.stock_qty, item.quantity + delta));
+        // For custom sizes, no stock limit
+        const maxQty = item.isCustomSize ? Infinity : item.variant.stock_qty;
+        const newQty = Math.max(1, Math.min(maxQty, item.quantity + delta));
         return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
       }
       return item;
@@ -401,19 +408,20 @@ const SalesmanOrderEntry = () => {
       const items = orderItems.map(item => ({
         order_id: order.id,
         product_id: item.product.id,
-        variant_id: item.variant.id,
+        variant_id: item.isCustomSize ? null : item.variant.id,
         product_name: item.product.product_name,
         size: item.variant.size,
         color: item.variant.color,
-        barcode: item.variant.barcode,
+        barcode: item.isCustomSize ? null : item.variant.barcode,
         order_qty: item.quantity,
         pending_qty: item.quantity,
         fulfilled_qty: 0,
         unit_price: item.unit_price,
-        mrp: item.variant.mrp,
+        mrp: item.variant.mrp || item.unit_price,
         discount_percent: item.discount_percent,
         gst_percent: item.gst_percent,
         line_total: item.line_total,
+        hsn_code: null,
       }));
 
       const { error: itemsError } = await supabase
@@ -571,7 +579,12 @@ const SalesmanOrderEntry = () => {
               <div key={item.id} className="py-2 flex items-center gap-2">
                 {/* Product Info - Compact */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate leading-tight">{item.product.product_name}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="font-medium text-sm truncate leading-tight">{item.product.product_name}</p>
+                    {item.isCustomSize && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-200 text-amber-800 shrink-0">New</Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground leading-tight">
                     {item.variant.size} {item.variant.color && `| ${item.variant.color}`} | ₹{item.unit_price}
                   </p>
@@ -594,7 +607,7 @@ const SalesmanOrderEntry = () => {
                     size="icon"
                     className="h-7 w-7"
                     onClick={() => updateQuantity(item.id, 1)}
-                    disabled={item.quantity >= item.variant.stock_qty}
+                    disabled={!item.isCustomSize && item.quantity >= item.variant.stock_qty}
                   >
                     <Plus className="h-3 w-3" />
                   </Button>
@@ -705,7 +718,7 @@ const SalesmanOrderEntry = () => {
       </Dialog>
 
       {/* Size Grid Dialog */}
-      <SizeGridDialog
+      <SalesmanSizeGridDialog
         open={showSizeGrid}
         onClose={() => {
           setShowSizeGrid(false);
@@ -716,7 +729,7 @@ const SalesmanOrderEntry = () => {
         variants={selectedProductVariants}
         onConfirm={handleSizeGridConfirm}
         showStock={true}
-        validateStock={true}
+        validateStock={false}
         title="Enter Size-wise Quantity"
       />
     </div>
