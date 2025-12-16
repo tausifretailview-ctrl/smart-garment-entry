@@ -82,7 +82,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       items,
       netAmount,
       format = 'a5-vertical',
-      showMRP = false,
+      showMRP = true,
       showColor = true,
     } = props;
 
