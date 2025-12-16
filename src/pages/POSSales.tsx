@@ -868,22 +868,16 @@ export default function POSSales() {
     }
   }, [amountBeforeRoundOff, items.length, isManualRoundOff]);
   
-  // Maximum round-off limit (±10 rupees for small adjustments only)
-  const MAX_ROUND_OFF = 10;
-  
-  // Handle manual round-off change - limited to ±10
+  // Handle manual round-off change - no limit for full flexibility
   const handleRoundOffChange = (value: number) => {
-    const clampedValue = Math.max(-MAX_ROUND_OFF, Math.min(MAX_ROUND_OFF, value));
-    setRoundOff(clampedValue);
+    setRoundOff(parseFloat(value.toFixed(2)));
     setIsManualRoundOff(true);
   };
   
-  // Handle final amount change - reverse calculate round-off (limited to ±10)
+  // Handle final amount change - reverse calculate round-off (no limit)
   const handleFinalAmountChange = (enteredAmount: number) => {
     const newRoundOff = enteredAmount - amountBeforeRoundOff;
-    // Limit round-off to ±10
-    const clampedRoundOff = Math.max(-MAX_ROUND_OFF, Math.min(MAX_ROUND_OFF, newRoundOff));
-    setRoundOff(parseFloat(clampedRoundOff.toFixed(2)));
+    setRoundOff(parseFloat(newRoundOff.toFixed(2)));
     setIsManualRoundOff(true);
   };
   
@@ -2569,12 +2563,10 @@ export default function POSSales() {
                   value={roundOff}
                   onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
                   step="1"
-                  min={-MAX_ROUND_OFF}
-                  max={MAX_ROUND_OFF}
                 />
               </div>
               <div className="text-xs md:text-sm mt-1">
-                Round OFF <span className="text-cyan-200">(±{MAX_ROUND_OFF})</span>
+                Round OFF {isManualRoundOff && <span className="text-yellow-300">(Manual)</span>}
               </div>
             </div>
             <div className="text-center">
@@ -2587,7 +2579,7 @@ export default function POSSales() {
               />
               <div className="text-xs md:text-sm mt-1">
                 {finalAmount < 0 ? "Refund" : "Amount"}
-                {isManualRoundOff && effectiveDiscountPercent > 0 && (
+                {effectiveDiscountPercent > 0 && (
                   <span className="block text-yellow-200 font-semibold">
                     ({effectiveDiscountPercent.toFixed(1)}% off)
                   </span>
