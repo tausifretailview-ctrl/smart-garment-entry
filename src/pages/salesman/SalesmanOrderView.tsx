@@ -20,6 +20,8 @@ interface OrderItem {
   order_qty: number;
   unit_price: number;
   line_total: number;
+  brand?: string | null;
+  style?: string | null;
 }
 
 interface Order {
@@ -86,12 +88,37 @@ const SalesmanOrderView = () => {
 
       const { data: itemsData, error: itemsError } = await supabase
         .from("sale_order_items")
-        .select("id, product_name, size, color, order_qty, unit_price, line_total")
+        .select("id, product_id, product_name, size, color, order_qty, unit_price, line_total")
         .eq("order_id", orderId)
         .is("deleted_at", null);
 
       if (itemsError) throw itemsError;
-      setItems(itemsData || []);
+
+      // Fetch product details (brand, style) for each item
+      const productIds = [...new Set(itemsData?.map(i => i.product_id).filter(Boolean) || [])];
+      let productDetails: Record<string, { brand: string | null; style: string | null }> = {};
+      
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, brand, style")
+          .in("id", productIds);
+        
+        if (products) {
+          productDetails = products.reduce((acc, p) => {
+            acc[p.id] = { brand: p.brand, style: p.style };
+            return acc;
+          }, {} as Record<string, { brand: string | null; style: string | null }>);
+        }
+      }
+
+      const enrichedItems = (itemsData || []).map(item => ({
+        ...item,
+        brand: item.product_id ? productDetails[item.product_id]?.brand : null,
+        style: item.product_id ? productDetails[item.product_id]?.style : null,
+      }));
+
+      setItems(enrichedItems);
     } catch (error) {
       console.error("Error fetching order:", error);
     } finally {
@@ -211,19 +238,22 @@ const SalesmanOrderView = () => {
               </tr>
             </thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={item.id}>
-                  <td className="border border-gray-300 px-1 py-0.5 text-center">{idx + 1}</td>
-                  <td className="border border-gray-300 px-1 py-0.5">
-                    {item.product_name}
-                    {item.color && <span className="text-gray-500"> ({item.color})</span>}
-                  </td>
-                  <td className="border border-gray-300 px-1 py-0.5 text-center font-semibold">{item.size}</td>
-                  <td className="border border-gray-300 px-1 py-0.5 text-center">{item.order_qty}</td>
-                  <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.unit_price}</td>
-                  <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.line_total.toLocaleString("en-IN")}</td>
-                </tr>
-              ))}
+              {items.map((item, idx) => {
+                const details = [item.brand, item.style, item.color].filter(Boolean).join(' | ');
+                return (
+                  <tr key={item.id}>
+                    <td className="border border-gray-300 px-1 py-0.5 text-center">{idx + 1}</td>
+                    <td className="border border-gray-300 px-1 py-0.5">
+                      {item.product_name}
+                      {details && <span className="text-gray-500 text-[9px]"> ({details})</span>}
+                    </td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-center font-semibold">{item.size}</td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-center">{item.order_qty}</td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.unit_price}</td>
+                    <td className="border border-gray-300 px-1 py-0.5 text-right">₹{item.line_total.toLocaleString("en-IN")}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
