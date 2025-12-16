@@ -43,6 +43,7 @@ interface Product {
   brand: string | null;
   category: string | null;
   gst_per: number;
+  size_group_id?: string | null;
 }
 
 interface Variant {
@@ -209,7 +210,7 @@ const SalesmanOrderEntry = () => {
       // First, search products by name/style in the organization
       const { data: matchingProducts, error: productsError } = await supabase
         .from("products")
-        .select("id, product_name, brand, category, gst_per, style")
+        .select("id, product_name, brand, category, gst_per, style, size_group_id")
         .eq("organization_id", currentOrganization.id)
         .eq("status", "active")
         .is("deleted_at", null)
@@ -228,7 +229,7 @@ const SalesmanOrderEntry = () => {
         .from("product_variants")
         .select(`
           id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-          products!inner(id, product_name, brand, category, gst_per, organization_id)
+          products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
@@ -243,7 +244,7 @@ const SalesmanOrderEntry = () => {
           .from("product_variants")
           .select(`
             id, size, color, barcode, mrp, sale_price, stock_qty, product_id,
-            products!inner(id, product_name, brand, category, gst_per, organization_id)
+            products!inner(id, product_name, brand, category, gst_per, organization_id, size_group_id)
           `)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
