@@ -108,6 +108,7 @@ export default function POSSales() {
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
+  const [isManualRoundOff, setIsManualRoundOff] = useState(false);
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
@@ -401,6 +402,7 @@ export default function POSSales() {
       setFlatDiscountMode('percent');
       setSaleReturnAdjust(0);
       setRoundOff(0);
+      setIsManualRoundOff(false);
       setRefundAmount(0);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
@@ -852,17 +854,38 @@ export default function POSSales() {
   // Auto-calculate round-off to make final amount a whole number
   const calculatedRoundOff = Math.round(amountBeforeRoundOff) - amountBeforeRoundOff;
   
-  // Auto-update roundOff state when calculation changes
+  // Auto-update roundOff state when calculation changes (only if not manual)
   useEffect(() => {
-    if (items.length > 0) {
-      const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
-      if (Math.abs(newRoundOff - roundOff) > 0.001) {
-        setRoundOff(newRoundOff);
+    if (!isManualRoundOff) {
+      if (items.length > 0) {
+        const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
+        if (Math.abs(newRoundOff - roundOff) > 0.001) {
+          setRoundOff(newRoundOff);
+        }
+      } else if (roundOff !== 0) {
+        setRoundOff(0);
       }
-    } else if (roundOff !== 0) {
-      setRoundOff(0);
     }
-  }, [amountBeforeRoundOff, items.length]);
+  }, [amountBeforeRoundOff, items.length, isManualRoundOff]);
+  
+  // Handle manual round-off change
+  const handleRoundOffChange = (value: number) => {
+    setRoundOff(value);
+    setIsManualRoundOff(true);
+  };
+  
+  // Handle final amount change - reverse calculate round-off
+  const handleFinalAmountChange = (enteredAmount: number) => {
+    const newRoundOff = enteredAmount - amountBeforeRoundOff;
+    setRoundOff(parseFloat(newRoundOff.toFixed(2)));
+    setIsManualRoundOff(true);
+  };
+  
+  // Reset to auto-calculated round-off
+  const handleResetRoundOff = () => {
+    setIsManualRoundOff(false);
+    setRoundOff(parseFloat(calculatedRoundOff.toFixed(2)));
+  };
   
   const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
   const finalAmount = amountBeforeCredit - creditApplied;
@@ -962,6 +985,7 @@ export default function POSSales() {
       setFlatDiscountMode('percent');
       setSaleReturnAdjust(0);
       setRoundOff(0);
+      setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
       setSearchInput("");
@@ -1310,6 +1334,7 @@ export default function POSSales() {
     setFlatDiscountMode('percent');
     setSaleReturnAdjust(0);
     setRoundOff(0);
+    setIsManualRoundOff(false);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setSelectedSalesman("");
@@ -2509,15 +2534,46 @@ export default function POSSales() {
               </div>
             )}
             <div className="text-center">
-              <div className={`w-20 h-8 flex items-center justify-center mx-auto rounded border ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'} text-base font-semibold`}>
-                {roundOff >= 0 ? '+' : ''}{roundOff.toFixed(2)}
+              <div className="flex items-center justify-center gap-1">
+                {isManualRoundOff && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="bg-white text-cyan-600 px-1 py-0.5 text-xs rounded h-6 hover:bg-cyan-50"
+                          onClick={handleResetRoundOff}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Reset to auto round-off</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+                <Input 
+                  type="number"
+                  className={`w-20 h-8 text-center text-base font-semibold ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}
+                  value={roundOff}
+                  onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
+                  step="0.01"
+                />
               </div>
-              <div className="text-xs md:text-sm mt-1">Round OFF</div>
+              <div className="text-xs md:text-sm mt-1">
+                Round OFF {isManualRoundOff && <span className="text-yellow-300">(Manual)</span>}
+              </div>
             </div>
             <div className="text-center">
-              <div className={`text-2xl md:text-3xl font-bold ${finalAmount < 0 ? 'text-orange-300' : ''}`}>
-                ₹{Math.round(finalAmount)}
-              </div>
+              <Input 
+                type="number"
+                className={`w-28 h-10 text-center text-xl md:text-2xl font-bold bg-white text-cyan-700 border-white mx-auto ${finalAmount < 0 ? 'text-orange-600' : ''}`}
+                value={Math.round(finalAmount)}
+                onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
+                step="1"
+              />
               <div className="text-xs md:text-sm mt-1">
                 {finalAmount < 0 ? "Refund" : "Amount"}
               </div>
