@@ -1511,6 +1511,7 @@ Thank you for choosing us!`;
                 <TableHead>Barcode</TableHead>
                 <TableHead>HSN</TableHead>
                 <TableHead className="w-20">Qty</TableHead>
+                <TableHead className="w-20">MRP</TableHead>
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Disc %</TableHead>
                 <TableHead className="w-20">GST %</TableHead>
@@ -1538,6 +1539,7 @@ Thank you for choosing us!`;
                       />
                     )}
                   </TableCell>
+                  <TableCell>{item.mrp > 0 ? `₹${item.mrp.toFixed(2)}` : '-'}</TableCell>
                   <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
                   <TableCell>
                     {item.productId && (
@@ -1793,11 +1795,12 @@ Thank you for choosing us!`;
               particulars: item.productName,
               size: item.size,
               barcode: item.barcode || "",
-              hsn: "",
+              hsn: item.hsnCode || "",
               sp: item.mrp,
               qty: item.quantity,
               rate: item.salePrice,
               total: item.lineTotal,
+              color: item.color || "",
             }))}
             subTotal={grossAmount}
             discount={totalDiscount}

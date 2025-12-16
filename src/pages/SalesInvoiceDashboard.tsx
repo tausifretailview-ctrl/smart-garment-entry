@@ -176,7 +176,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*)`)
+        .select(`*, sale_items (*, products:product_id (brand, style, color))`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -1140,7 +1140,7 @@ export default function SalesInvoiceDashboard() {
                                           <TableRow key={item.id}>
                                             <TableCell>{item.product_name}</TableCell>
                                             {showItemBrand && <TableCell>{item.products?.brand || '-'}</TableCell>}
-                                            {showItemColor && <TableCell>{item.products?.color || '-'}</TableCell>}
+                                            {showItemColor && <TableCell>{item.color || item.products?.color || '-'}</TableCell>}
                                             {showItemStyle && <TableCell>{item.products?.style || '-'}</TableCell>}
                                             <TableCell>{item.size}</TableCell>
                                             {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
@@ -1570,6 +1570,9 @@ export default function SalesInvoiceDashboard() {
                   qty: item.quantity,
                   rate: item.unit_price,
                   total: item.line_total,
+                  color: item.color || item.products?.color || "",
+                  brand: item.products?.brand || "",
+                  style: item.products?.style || "",
                 })) || []}
                 subTotal={invoiceToPrint.gross_amount}
                 discount={invoiceToPrint.discount_amount}
@@ -1625,6 +1628,9 @@ export default function SalesInvoiceDashboard() {
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
               })) || []}
               subTotal={invoiceToPrint.gross_amount}
               discount={invoiceToPrint.discount_amount}
