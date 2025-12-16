@@ -61,6 +61,8 @@ interface SaleOrderPrintProps {
   shippingAddress?: string;
   showHSN?: boolean;
   showBarcode?: boolean;
+  showMRP?: boolean;
+  showColor?: boolean;
   showFulfillmentStatus?: boolean;
   taxType?: string;
   format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
@@ -80,6 +82,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       items,
       netAmount,
       format = 'a5-vertical',
+      showMRP = false,
+      showColor = true,
     } = props;
 
     const formatDate = (date: Date) => {
@@ -209,15 +213,21 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               <tr style={{ backgroundColor: '#e8e8e8' }}>
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '5%', fontWeight: 'bold' }}>Sr</th>
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                {showColor && (
+                  <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '10%', fontWeight: 'bold' }}>Color</th>
+                )}
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '10%', fontWeight: 'bold' }}>Size</th>
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '7%', fontWeight: 'bold' }}>Qty</th>
+                {showMRP && (
+                  <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '10%', fontWeight: 'bold', textAlign: 'right' }}>MRP</th>
+                )}
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '12%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
                 <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '13%', fontWeight: 'bold', textAlign: 'right' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((item) => {
-                const details = [item.brand, item.style, item.color].filter(Boolean).join(' | ');
+                const details = [item.brand, item.style].filter(Boolean).join(' | ');
                 return (
                   <tr key={item.sr}>
                     <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.sr}</td>
@@ -225,8 +235,14 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                       {item.particulars}
                       {details && <span style={{ color: '#555', marginLeft: '3px', fontSize: '90%' }}>({details})</span>}
                     </td>
+                    {showColor && (
+                      <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.color || '-'}</td>
+                    )}
                     <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center', fontWeight: 'bold' }}>{item.size}</td>
                     <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.orderQty}</td>
+                    {showMRP && (
+                      <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.mrp)}</td>
+                    )}
                     <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
                     <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
                   </tr>

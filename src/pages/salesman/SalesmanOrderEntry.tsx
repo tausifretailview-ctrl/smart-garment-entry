@@ -598,9 +598,16 @@ const SalesmanOrderEntry = () => {
                       <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-200 text-amber-800 shrink-0">New</Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground leading-tight">
-                    {item.variant.size} {item.variant.color && `| ${item.variant.color}`} | ₹{item.unit_price}
-                  </p>
+                  <div className="flex flex-wrap gap-1 text-xs text-muted-foreground leading-tight">
+                    <span className="bg-primary/10 text-primary px-1 rounded font-medium">{item.variant.size}</span>
+                    {item.variant.color && (
+                      <span className="bg-muted px-1 rounded">{item.variant.color}</span>
+                    )}
+                    {item.variant.mrp && item.variant.mrp !== item.unit_price && (
+                      <span className="line-through">MRP: ₹{item.variant.mrp}</span>
+                    )}
+                    <span>₹{item.unit_price}</span>
+                  </div>
                 </div>
                 
                 {/* Quantity Controls - Compact */}

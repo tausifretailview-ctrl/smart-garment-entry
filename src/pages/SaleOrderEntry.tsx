@@ -774,12 +774,15 @@ export default function SaleOrderEntry() {
         particulars: item.productName,
         size: item.size,
         barcode: item.barcode,
-        hsn: '',
-        qty: item.orderQty,
+        hsn: item.hsnCode || '',
+        orderQty: item.orderQty,
+        fulfilledQty: 0,
+        pendingQty: item.orderQty,
         rate: item.salePrice,
         mrp: item.mrp,
         discountPercent: item.discountPercent,
         total: item.lineTotal,
+        color: item.color || '',
       }));
 
       setPrintData({
@@ -1005,6 +1008,9 @@ export default function SaleOrderEntry() {
                 <TableHead className="w-20">Order Qty</TableHead>
                 <TableHead className="w-20">Stock</TableHead>
                 <TableHead className="w-28">Difference</TableHead>
+                {(settings?.sale_settings as any)?.showMRP !== false && (
+                  <TableHead className="w-20">MRP</TableHead>
+                )}
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Disc %</TableHead>
                 <TableHead className="w-24 text-right">Total</TableHead>
@@ -1042,6 +1048,9 @@ export default function SaleOrderEntry() {
                         </div>
                       )}
                     </TableCell>
+                    {(settings?.sale_settings as any)?.showMRP !== false && (
+                      <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
+                    )}
                     <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
                     <TableCell>
                       {item.productId && (
@@ -1185,6 +1194,8 @@ export default function SaleOrderEntry() {
           notes={notes}
           taxType={taxType}
           salesman={salesman}
+          showMRP={(settings?.sale_settings as any)?.showMRP !== false}
+          showColor={true}
         />
       </div>
 
