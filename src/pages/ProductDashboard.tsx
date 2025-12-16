@@ -1112,6 +1112,7 @@ const ProductDashboard = () => {
                                       <TableRow className="bg-muted/30">
                                         <TableHead>Size</TableHead>
                                         <TableHead>Barcode</TableHead>
+                                        <TableHead>Color</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
                                         <TableHead className="text-right">Stock Qty</TableHead>
@@ -1124,6 +1125,7 @@ const ProductDashboard = () => {
                                           <TableCell className="font-mono text-xs">
                                             {variant.barcode || "—"}
                                           </TableCell>
+                                          <TableCell>{variant.color || "—"}</TableCell>
                                           <TableCell className="text-right">
                                             ₹{variant.pur_price.toFixed(2)}
                                           </TableCell>
