@@ -14,6 +14,8 @@ interface SaleOrderItem {
   discountPercent: number;
   total: number;
   color?: string;
+  brand?: string;
+  style?: string;
 }
 
 interface SaleOrderPrintProps {
@@ -214,19 +216,22 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((item) => (
-                <tr key={item.sr}>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.sr}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'left' }}>
-                    {item.particulars}
-                    {item.color && <span style={{ color: '#555', marginLeft: '3px' }}>({item.color})</span>}
-                  </td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center', fontWeight: 'bold' }}>{item.size}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.orderQty}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
-                </tr>
-              ))}
+              {pageItems.map((item) => {
+                const details = [item.brand, item.style, item.color].filter(Boolean).join(' | ');
+                return (
+                  <tr key={item.sr}>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.sr}</td>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'left' }}>
+                      {item.particulars}
+                      {details && <span style={{ color: '#555', marginLeft: '3px', fontSize: '90%' }}>({details})</span>}
+                    </td>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center', fontWeight: 'bold' }}>{item.size}</td>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.orderQty}</td>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
+                    <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
