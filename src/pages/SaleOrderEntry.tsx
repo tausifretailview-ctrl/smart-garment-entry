@@ -124,6 +124,7 @@ export default function SaleOrderEntry() {
   const tableEndRef = useRef<HTMLDivElement>(null);
   const skipDraftSaveOnUnmountRef = useRef(false);
   const [salesman, setSalesman] = useState<string>("");
+  const [invoiceFormat, setInvoiceFormat] = useState<"standard" | "wholesale-size-grouping">("standard");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
@@ -941,6 +942,19 @@ export default function SaleOrderEntry() {
               </SelectContent>
             </Select>
           </div>
+
+          <div>
+            <Label>Invoice Format</Label>
+            <Select value={invoiceFormat} onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceFormat(v)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="standard">Standard</SelectItem>
+                <SelectItem value="wholesale-size-grouping">Modern Wholesale Size Grouping</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Entry Mode Toggle & Product Search */}
@@ -1217,8 +1231,10 @@ export default function SaleOrderEntry() {
           notes={notes}
           taxType={taxType}
           salesman={salesman}
-          showMRP={(settings?.sale_settings as any)?.showMRP !== false}
+          showMRP={true}
           showColor={true}
+          showHSN={false}
+          invoiceFormat={invoiceFormat}
         />
       </div>
 
