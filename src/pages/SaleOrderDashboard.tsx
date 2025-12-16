@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -836,26 +836,58 @@ export default function SaleOrderDashboard() {
 // Print Dialog Component
 function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settings: any; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [printItems, setPrintItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `SaleOrder-${order.order_number}`,
   });
 
-  const printItems = (order.sale_order_items || []).map((item: any, index: number) => ({
-    sr: index + 1,
-    particulars: item.product_name,
-    size: item.size,
-    barcode: item.barcode || '',
-    hsn: '',
-    orderQty: item.order_qty,
-    fulfilledQty: item.fulfilled_qty,
-    pendingQty: item.pending_qty,
-    rate: item.unit_price,
-    mrp: item.mrp,
-    discountPercent: item.discount_percent,
-    total: item.line_total,
-  }));
+  // Fetch brand/style from products
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      const productIds = [...new Set((order.sale_order_items || []).map((item: any) => item.product_id).filter(Boolean))] as string[];
+      let productDetails: Record<string, { brand: string | null; style: string | null }> = {};
+      
+      if (productIds.length > 0) {
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, brand, style")
+          .in("id", productIds);
+        
+        if (products) {
+          productDetails = products.reduce((acc, p) => {
+            acc[p.id] = { brand: p.brand, style: p.style };
+            return acc;
+          }, {} as Record<string, { brand: string | null; style: string | null }>);
+        }
+      }
+
+      const items = (order.sale_order_items || []).map((item: any, index: number) => ({
+        sr: index + 1,
+        particulars: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        hsn: '',
+        orderQty: item.order_qty,
+        fulfilledQty: item.fulfilled_qty,
+        pendingQty: item.pending_qty,
+        rate: item.unit_price,
+        mrp: item.mrp,
+        discountPercent: item.discount_percent,
+        total: item.line_total,
+        color: item.color || '',
+        brand: item.product_id ? productDetails[item.product_id]?.brand : null,
+        style: item.product_id ? productDetails[item.product_id]?.style : null,
+      }));
+      
+      setPrintItems(items);
+      setLoading(false);
+    };
+
+    fetchProductDetails();
+  }, [order]);
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
