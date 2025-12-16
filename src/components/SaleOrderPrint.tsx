@@ -93,11 +93,11 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     const isA4 = format === 'a4';
     const isHorizontal = format === 'a5-horizontal';
 
-    // Calculate items per page based on format
+    // Calculate items per page based on format - maximized for more rows
     const getItemsPerPage = () => {
-      if (isA4) return 25;
-      if (isHorizontal) return 12;
-      return 18;
+      if (isA4) return 35;
+      if (isHorizontal) return 18;
+      return 28; // A5 vertical - increased from 18
     };
 
     const itemsPerPage = getItemsPerPage();
@@ -124,36 +124,34 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
           style={{
             width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
             minHeight: isA4 ? '297mm' : isHorizontal ? '148mm' : '210mm',
-            padding: isA4 ? '8mm' : isHorizontal ? '6mm' : '4mm',
+            padding: isA4 ? '6mm' : isHorizontal ? '5mm' : '3mm',
             fontFamily: 'Arial, sans-serif',
-            fontSize: isA4 ? '10pt' : isHorizontal ? '9pt' : '8pt',
+            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
             backgroundColor: 'white',
             color: 'black',
             boxSizing: 'border-box',
             pageBreakAfter: isLastPage ? 'auto' : 'always',
-            display: 'flex',
-            flexDirection: 'column',
           }}
         >
           {/* Compact Header */}
           <div style={{
             textAlign: 'center',
-            marginBottom: isA4 ? '8px' : '6px',
-            borderBottom: '2px solid #000',
-            paddingBottom: isA4 ? '6px' : '4px',
+            marginBottom: isA4 ? '5px' : '4px',
+            borderBottom: '1.5px solid #000',
+            paddingBottom: isA4 ? '4px' : '3px',
           }}>
             <h1 style={{
-              fontSize: isA4 ? '16pt' : isHorizontal ? '14pt' : '12pt',
+              fontSize: isA4 ? '14pt' : isHorizontal ? '12pt' : '11pt',
               fontWeight: 'bold',
-              margin: '0 0 2px 0',
+              margin: '0',
               textTransform: 'uppercase',
             }}>
               {businessName}
             </h1>
             <p style={{ 
-              fontSize: isA4 ? '8pt' : '7pt', 
-              margin: '2px 0',
-              lineHeight: 1.3 
+              fontSize: isA4 ? '7pt' : '6pt', 
+              margin: '1px 0 0 0',
+              lineHeight: 1.2 
             }}>
               {address}
             </p>
@@ -163,24 +161,23 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
-            marginBottom: isA4 ? '8px' : '6px',
-            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
-            borderBottom: '1px solid #ccc',
-            paddingBottom: isA4 ? '6px' : '4px',
+            marginBottom: isA4 ? '5px' : '4px',
+            fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '6.5pt',
+            borderBottom: '1px solid #999',
+            paddingBottom: isA4 ? '4px' : '3px',
           }}>
             {/* Left - Customer */}
             <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', gap: '4px' }}>
-                <strong>Customer:</strong>
-                <span>{customerName}</span>
+              <div>
+                <strong>Customer:</strong> {customerName}
               </div>
               {customerAddress && (
                 <div style={{ 
-                  fontSize: isA4 ? '8pt' : '6.5pt',
+                  fontSize: isA4 ? '7pt' : '6pt',
                   color: '#333',
-                  marginTop: '2px',
-                  maxWidth: '60%',
-                  lineHeight: 1.2
+                  marginTop: '1px',
+                  maxWidth: '65%',
+                  lineHeight: 1.1
                 }}>
                   {customerAddress}
                 </div>
@@ -188,47 +185,46 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             </div>
             
             {/* Right - Order Info */}
-            <div style={{ textAlign: 'right' }}>
+            <div style={{ textAlign: 'right', fontSize: isA4 ? '8pt' : '6.5pt' }}>
               <div><strong>Date:</strong> {formatDate(orderDate)}</div>
               <div><strong>Order No:</strong> {orderNumber}</div>
               {salesman && <div><strong>Salesman:</strong> {salesman}</div>}
               {totalPages > 1 && (
-                <div style={{ fontSize: isA4 ? '8pt' : '6.5pt', color: '#666' }}>
-                  Page {pageIndex + 1} of {totalPages}
+                <div style={{ fontSize: isA4 ? '7pt' : '6pt', color: '#666' }}>
+                  Page {pageIndex + 1}/{totalPages}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Items Table */}
+          {/* Items Table - Compact */}
           <table style={{
             width: '100%',
             borderCollapse: 'collapse',
-            fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7pt',
-            flex: 1,
+            fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '6.5pt',
           }}>
             <thead>
-              <tr style={{ backgroundColor: '#f0f0f0' }}>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', width: '6%', fontWeight: 'bold' }}>Sr</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', width: '12%', fontWeight: 'bold' }}>Size</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', width: '8%', fontWeight: 'bold' }}>Qty</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', width: '12%', fontWeight: 'bold' }}>Rate</th>
-                <th style={{ border: '1px solid #000', padding: isA4 ? '5px 3px' : '3px 2px', width: '14%', fontWeight: 'bold' }}>Amount</th>
+              <tr style={{ backgroundColor: '#e8e8e8' }}>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '5%', fontWeight: 'bold' }}>Sr</th>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '10%', fontWeight: 'bold' }}>Size</th>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '7%', fontWeight: 'bold' }}>Qty</th>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '12%', fontWeight: 'bold', textAlign: 'right' }}>Rate</th>
+                <th style={{ border: '1px solid #000', padding: isA4 ? '3px 2px' : '2px 1px', width: '13%', fontWeight: 'bold', textAlign: 'right' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((item) => (
                 <tr key={item.sr}>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'center' }}>{item.sr}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'left' }}>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.sr}</td>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'left' }}>
                     {item.particulars}
-                    {item.color && <span style={{ color: '#666', marginLeft: '4px' }}>({item.color})</span>}
+                    {item.color && <span style={{ color: '#555', marginLeft: '3px' }}>({item.color})</span>}
                   </td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'center', fontWeight: 'bold' }}>{item.size}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'center' }}>{item.orderQty}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
-                  <td style={{ border: '1px solid #000', padding: isA4 ? '4px 3px' : '2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center', fontWeight: 'bold' }}>{item.size}</td>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.orderQty}</td>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
+                  <td style={{ border: '1px solid #000', padding: isA4 ? '2px 3px' : '1px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -237,22 +233,20 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
           {/* Simple Footer - Only on last page */}
           {isLastPage && (
             <div style={{
-              marginTop: isA4 ? '10px' : '6px',
-              paddingTop: isA4 ? '8px' : '4px',
-              borderTop: '2px solid #000',
+              marginTop: isA4 ? '6px' : '4px',
+              paddingTop: isA4 ? '5px' : '3px',
+              borderTop: '1.5px solid #000',
               display: 'flex',
               justifyContent: 'flex-end',
-              gap: isA4 ? '40px' : '20px',
-              fontSize: isA4 ? '11pt' : isHorizontal ? '10pt' : '9pt',
+              gap: isA4 ? '30px' : '15px',
+              fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt',
               fontWeight: 'bold',
             }}>
               <div>
-                <span>Total Qty: </span>
-                <span style={{ minWidth: '50px', display: 'inline-block', textAlign: 'right' }}>{totalOrderQty}</span>
+                Total Qty: <span style={{ minWidth: '40px', display: 'inline-block', textAlign: 'right' }}>{totalOrderQty}</span>
               </div>
               <div>
-                <span>Total Amount: </span>
-                <span style={{ minWidth: '80px', display: 'inline-block', textAlign: 'right' }}>{formatCurrency(netAmount)}</span>
+                Total Amount: <span style={{ minWidth: '70px', display: 'inline-block', textAlign: 'right' }}>{formatCurrency(netAmount)}</span>
               </div>
             </div>
           )}
