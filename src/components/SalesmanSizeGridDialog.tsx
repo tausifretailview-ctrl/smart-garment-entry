@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Variant {
   id: string;
@@ -25,6 +26,7 @@ interface Product {
   color?: string;
   product_type?: string;
   default_sale_price?: number;
+  size_group_id?: string | null;
 }
 
 interface CustomSizeEntry {
@@ -53,7 +55,7 @@ export function SalesmanSizeGridDialog({
   onConfirm,
   showStock = false,
   validateStock = false,
-  title = "Enter Size-wise Qty",
+  title = "Enter Size-wise Quantity",
 }: SalesmanSizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
@@ -63,8 +65,36 @@ export function SalesmanSizeGridDialog({
   const [newSize, setNewSize] = useState("");
   const [newQty, setNewQty] = useState("");
   const [newRate, setNewRate] = useState("");
+  const [sizeOrder, setSizeOrder] = useState<string[]>([]);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const customSizeInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch size group order when product changes
+  useEffect(() => {
+    const fetchSizeOrder = async () => {
+      if (product?.size_group_id) {
+        const { data } = await supabase
+          .from("size_groups")
+          .select("sizes")
+          .eq("id", product.size_group_id)
+          .single();
+        
+        if (data?.sizes) {
+          // sizes can be an array of strings or objects with 'size' property
+          const sizes = Array.isArray(data.sizes) 
+            ? data.sizes.map((s: any) => typeof s === 'string' ? s : s.size || s.name || String(s))
+            : [];
+          setSizeOrder(sizes);
+        }
+      } else {
+        setSizeOrder([]);
+      }
+    };
+    
+    if (open && product) {
+      fetchSizeOrder();
+    }
+  }, [open, product?.id, product?.size_group_id]);
 
   // Get unique colors from variants
   const uniqueColors = useMemo(() => {
@@ -78,13 +108,29 @@ export function SalesmanSizeGridDialog({
   // Check if product has multiple colors
   const hasMultipleColors = uniqueColors.length > 1;
 
-  // Filter variants by selected color
+  // Filter and sort variants by selected color and size group order
   const filteredVariants = useMemo(() => {
-    if (!hasMultipleColors || !selectedColor) {
-      return hasMultipleColors ? [] : variants;
+    let filtered = variants;
+    if (hasMultipleColors) {
+      if (!selectedColor) return [];
+      filtered = variants.filter((v) => v.color === selectedColor);
     }
-    return variants.filter((v) => v.color === selectedColor);
-  }, [variants, selectedColor, hasMultipleColors]);
+    
+    // Sort by size group order if available
+    if (sizeOrder.length > 0) {
+      filtered = [...filtered].sort((a, b) => {
+        const aIndex = sizeOrder.indexOf(a.size);
+        const bIndex = sizeOrder.indexOf(b.size);
+        // Put sizes not in order at the end
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
+        return aIndex - bIndex;
+      });
+    }
+    
+    return filtered;
+  }, [variants, selectedColor, hasMultipleColors, sizeOrder]);
 
   // Reset state when dialog opens
   useEffect(() => {
