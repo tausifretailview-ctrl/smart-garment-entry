@@ -1512,7 +1512,7 @@ export type Database = {
           product_name: string
           size: string
           unit_price: number
-          variant_id: string
+          variant_id: string | null
         }
         Insert: {
           barcode?: string | null
@@ -1534,7 +1534,7 @@ export type Database = {
           product_name: string
           size: string
           unit_price: number
-          variant_id: string
+          variant_id?: string | null
         }
         Update: {
           barcode?: string | null
@@ -1556,7 +1556,7 @@ export type Database = {
           product_name?: string
           size?: string
           unit_price?: number
-          variant_id?: string
+          variant_id?: string | null
         }
         Relationships: [
           {
