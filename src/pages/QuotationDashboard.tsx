@@ -43,7 +43,7 @@ export default function QuotationDashboard() {
   const [quotationToDelete, setQuotationToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50);
   const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const { formatQuotationMessage } = useWhatsAppTemplates();

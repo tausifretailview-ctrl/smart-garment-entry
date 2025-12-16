@@ -78,7 +78,7 @@ const PurchaseBillDashboard = () => {
   // Selection and pagination states
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isFixing, setIsFixing] = useState(false);

@@ -77,7 +77,7 @@ export default function PaymentsDashboard() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   
   // Payment recording dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
