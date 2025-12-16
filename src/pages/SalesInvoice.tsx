@@ -146,6 +146,7 @@ export default function SalesInvoice() {
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+  const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
   
   // Size grid entry mode
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
@@ -350,6 +351,47 @@ export default function SalesInvoice() {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // Generate next invoice number preview
+  useEffect(() => {
+    const previewNextInvoice = async () => {
+      if (!currentOrganization?.id || editingInvoiceId) return;
+      
+      try {
+        const settings = settingsData?.sale_settings as any;
+        if (settings?.invoice_numbering_format) {
+          // Use custom format from settings
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const fyStart = now.getMonth() >= 3 ? year : year - 1;
+          const fyEnd = fyStart + 1;
+          const fyShort = `${String(fyStart).slice(-2)}-${String(fyEnd).slice(-2)}`;
+          
+          let preview = settings.invoice_numbering_format
+            .replace('{FY}', fyShort)
+            .replace('{YYYY}', String(year))
+            .replace('{MM}', month)
+            .replace('{N}', '?');
+          
+          setNextInvoicePreview(preview);
+        } else {
+          // Use database function for default format
+          const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
+            p_organization_id: currentOrganization.id
+          });
+          
+          if (error) throw error;
+          setNextInvoicePreview(nextNumber || 'INV/25-26/1');
+        }
+      } catch (error) {
+        console.error('Error previewing next invoice:', error);
+        setNextInvoicePreview('INV/??-??/?');
+      }
+    };
+    
+    previewNextInvoice();
+  }, [currentOrganization?.id, editingInvoiceId, settingsData?.sale_settings]);
 
   // Pre-populate form if editing existing invoice
   useState(() => {
@@ -1225,7 +1267,7 @@ Thank you for choosing us!`;
         </div>
 
         {/* Simplified Form - matching Quotation/Sale Order layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           {/* Customer Selection */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -1338,6 +1380,17 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Invoice No */}
+          <div>
+            <Label>Invoice No</Label>
+            <Input 
+              value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
+              readOnly 
+              className="bg-muted font-mono"
+              placeholder="Auto-generated"
+            />
           </div>
 
           {/* Invoice Date */}
