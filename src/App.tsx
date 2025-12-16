@@ -63,6 +63,7 @@ import SalesmanLayout from "./layouts/SalesmanLayout";
 import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
 import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
 import SalesmanOrderEntry from "./pages/salesman/SalesmanOrderEntry";
+import SalesmanOrderView from "./pages/salesman/SalesmanOrderView";
 import SalesmanCustomerAccount from "./pages/salesman/SalesmanCustomerAccount";
 import SalesmanOrders from "./pages/salesman/SalesmanOrders";
 import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
@@ -587,7 +588,7 @@ const App = () => {
                   <Route path="customers" element={<SalesmanCustomers />} />
                   <Route path="customer/:customerId" element={<SalesmanCustomerAccount />} />
                   <Route path="order/new" element={<SalesmanOrderEntry />} />
-                  <Route path="order/:orderId" element={<SalesmanOrderEntry />} />
+                  <Route path="order/:orderId" element={<SalesmanOrderView />} />
                   <Route path="orders" element={<SalesmanOrders />} />
                   <Route path="outstanding" element={<SalesmanOutstanding />} />
                 </Route>
