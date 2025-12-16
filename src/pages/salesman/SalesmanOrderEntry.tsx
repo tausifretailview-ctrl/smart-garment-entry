@@ -117,15 +117,27 @@ const SalesmanOrderEntry = () => {
     const now = new Date();
     const year = now.getMonth() >= 3 ? now.getFullYear() % 100 : (now.getFullYear() - 1) % 100;
     const nextYear = year + 1;
+    const prefix = `SO/${year}-${nextYear}/`;
 
-    const { count } = await supabase
+    // Find max sequence number by querying existing order numbers
+    const { data: orders } = await supabase
       .from("sale_orders")
-      .select("*", { count: "exact", head: true })
+      .select("order_number")
       .eq("organization_id", currentOrganization!.id)
-      .gte("order_date", `${now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1}-04-01`);
+      .ilike("order_number", `${prefix}%`);
 
-    const seq = (count || 0) + 1;
-    setOrderNumber(`SO/${year}-${nextYear}/${seq}`);
+    let maxSeq = 0;
+    if (orders) {
+      orders.forEach(order => {
+        const match = order.order_number?.match(/\/(\d+)$/);
+        if (match) {
+          const seq = parseInt(match[1], 10);
+          if (seq > maxSeq) maxSeq = seq;
+        }
+      });
+    }
+
+    setOrderNumber(`${prefix}${maxSeq + 1}`);
   };
 
   const fetchCustomerById = async (customerId: string) => {
