@@ -76,7 +76,7 @@ export default function SalesInvoiceDashboard() {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);

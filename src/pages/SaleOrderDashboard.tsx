@@ -71,7 +71,7 @@ export default function SaleOrderDashboard() {
   const [orderToDelete, setOrderToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(50);
   
   // Conversion dialog state
   const [showConversionDialog, setShowConversionDialog] = useState(false);

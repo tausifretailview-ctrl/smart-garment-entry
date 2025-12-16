@@ -110,7 +110,7 @@ const POSDashboard = () => {
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
   const [printData, setPrintData] = useState<any>(null);
   const invoicePrintRef = useRef<HTMLDivElement>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);

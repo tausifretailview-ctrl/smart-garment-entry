@@ -69,7 +69,7 @@ const PurchaseReturnDashboard = () => {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(50);
 
   useEffect(() => {
     if (currentOrganization?.id) {
