@@ -95,6 +95,7 @@ interface SaleSettings {
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // Sales bill format
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
+  defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   sales_tax_rate?: number;
   invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice';
   invoice_color_scheme?: string;
@@ -1373,6 +1374,33 @@ export default function Settings() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Minimum number of rows to display in the item table
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Default Entry Mode (Sale Order / Quotation)</Label>
+                  <Select
+                    value={(settings.sale_settings as any)?.defaultEntryMode || "inline"}
+                    onValueChange={(value: "grid" | "inline") =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          defaultEntryMode: value,
+                        } as any,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grid">Size Grid (Multi-size entry)</SelectItem>
+                      <SelectItem value="inline">Inline (Single item entry)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Size Grid allows entering multiple sizes at once, Inline adds one variant at a time
                   </p>
                 </div>
 

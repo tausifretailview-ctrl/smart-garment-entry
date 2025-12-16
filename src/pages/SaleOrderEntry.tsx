@@ -127,8 +127,9 @@ export default function SaleOrderEntry() {
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
 
-  // Size grid entry mode
+  // Size grid entry mode - will be set from settings
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
+  const [entryModeInitialized, setEntryModeInitialized] = useState(false);
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
@@ -296,12 +297,24 @@ export default function SaleOrderEntry() {
         .from('products')
         .select(`*, product_variants (*)`)
         .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .is('deleted_at', null);
       if (error) throw error;
       return data || [];
     },
     enabled: !!currentOrganization?.id,
   });
+
+  // Initialize entry mode from settings
+  useEffect(() => {
+    if (settings && !entryModeInitialized) {
+      const saleSettings = settings.sale_settings as any;
+      if (saleSettings?.defaultEntryMode) {
+        setEntryMode(saleSettings.defaultEntryMode);
+      }
+      setEntryModeInitialized(true);
+    }
+  }, [settings, entryModeInitialized]);
 
   // Fetch employees for Salesman dropdown
   const { data: employeesData } = useQuery({
@@ -947,7 +960,7 @@ export default function SaleOrderEntry() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[650px] p-0" align="start">
-              <Command>
+              <Command shouldFilter={false}>
                 <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
