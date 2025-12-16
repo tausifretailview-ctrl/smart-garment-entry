@@ -1586,6 +1586,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          invoice_format: string | null
           net_amount: number
           notes: string | null
           order_date: string
@@ -1617,6 +1618,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          invoice_format?: string | null
           net_amount?: number
           notes?: string | null
           order_date?: string
@@ -1648,6 +1650,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          invoice_format?: string | null
           net_amount?: number
           notes?: string | null
           order_date?: string

@@ -726,6 +726,7 @@ export default function SaleOrderEntry() {
         terms_conditions: termsConditions,
         shipping_address: shippingAddress,
         salesman: salesman || null,
+        invoice_format: invoiceFormat,
       };
 
       let orderId = editingOrderId;

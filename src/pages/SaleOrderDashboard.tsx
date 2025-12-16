@@ -840,6 +840,9 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
   const printRef = useRef<HTMLDivElement>(null);
   const [printItems, setPrintItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFormat, setSelectedFormat] = useState<"standard" | "wholesale-size-grouping">(
+    order.invoice_format || "standard"
+  );
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -896,6 +899,20 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
       <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Print Sale Order</AlertDialogTitle>
+          <AlertDialogDescription>
+            <div className="flex items-center gap-4 mt-2">
+              <Label className="text-foreground">Invoice Format:</Label>
+              <Select value={selectedFormat} onValueChange={(v: "standard" | "wholesale-size-grouping") => setSelectedFormat(v)}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="standard">Standard</SelectItem>
+                  <SelectItem value="wholesale-size-grouping">Modern Wholesale Size Grouping</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </AlertDialogDescription>
         </AlertDialogHeader>
         
         <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
@@ -929,6 +946,7 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
             taxType={order.tax_type}
             format={settings?.sale_settings?.bill_format === 'a5-horizontal' ? 'a5-horizontal' : settings?.sale_settings?.bill_format === 'a5' ? 'a5-vertical' : settings?.sale_settings?.bill_format || 'a4'}
             colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
+            invoiceFormat={selectedFormat}
           />
         </div>
 
