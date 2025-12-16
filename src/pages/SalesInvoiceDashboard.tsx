@@ -180,7 +180,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*, products:product_id (brand, style, color))`)
+        .select(`*, sale_items (*)`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -202,6 +202,37 @@ export default function SalesInvoiceDashboard() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+  });
+
+  const productIdsForLookup = useMemo(() => {
+    const ids = new Set<string>();
+    (invoicesData || []).forEach((inv: any) => {
+      inv.sale_items?.forEach((it: any) => {
+        if (it.product_id) ids.add(it.product_id);
+      });
+    });
+    return Array.from(ids);
+  }, [invoicesData]);
+
+  const { data: productsById } = useQuery({
+    queryKey: ['products_by_id', currentOrganization?.id, productIdsForLookup.join(',')],
+    queryFn: async () => {
+      if (!currentOrganization?.id || productIdsForLookup.length === 0) return {} as Record<string, any>;
+
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, brand, style, color')
+        .in('id', productIdsForLookup);
+
+      if (error) throw error;
+
+      const map: Record<string, any> = {};
+      (data || []).forEach((p: any) => {
+        map[p.id] = p;
+      });
+      return map;
+    },
+    enabled: !!currentOrganization?.id && productIdsForLookup.length > 0,
   });
 
   // Get item display settings from settings
@@ -1239,9 +1270,9 @@ export default function SalesInvoiceDashboard() {
                                         {invoice.sale_items?.map((item: any) => (
                                           <TableRow key={item.id}>
                                             <TableCell>{item.product_name}</TableCell>
-                                            {showItemBrand && <TableCell>{item.products?.brand || '-'}</TableCell>}
-                                            {showItemColor && <TableCell>{item.color || item.products?.color || '-'}</TableCell>}
-                                            {showItemStyle && <TableCell>{item.products?.style || '-'}</TableCell>}
+                                            {showItemBrand && <TableCell>{productsById?.[item.product_id]?.brand || '-'}</TableCell>}
+                                            {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
+                                            {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
                                             <TableCell>{item.size}</TableCell>
                                             {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
                                             {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}

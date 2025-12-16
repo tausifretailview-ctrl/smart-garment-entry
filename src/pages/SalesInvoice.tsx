@@ -202,7 +202,7 @@ export default function SalesInvoice() {
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
     const filledItems = lineItems.filter(item => item.productId !== '');
-    if (!editingInvoiceId && filledItems.length > 0) {
+    if (!editingInvoiceId && !savedInvoiceData && filledItems.length > 0) {
       updateCurrentData({
         invoiceDate: invoiceDate.toISOString(),
         dueDate: dueDate.toISOString(),
@@ -220,17 +220,17 @@ export default function SalesInvoice() {
         roundOff,
       });
     }
-  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, editingInvoiceId, updateCurrentData]);
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
 
   // Start auto-save when not in edit mode
   useEffect(() => {
-    if (!editingInvoiceId && !location.state?.editInvoiceId) {
+    if (!editingInvoiceId && !savedInvoiceData && !location.state?.editInvoiceId) {
       startAutoSave();
     }
     return () => {
       // Save draft immediately when component unmounts (tab switch, navigation)
       const filledItems = lineItems.filter(item => item.productId !== '');
-      if (!editingInvoiceId && filledItems.length > 0) {
+      if (!editingInvoiceId && !savedInvoiceData && filledItems.length > 0) {
         saveDraft({
           invoiceDate: invoiceDate.toISOString(),
           dueDate: dueDate.toISOString(),
@@ -250,7 +250,7 @@ export default function SalesInvoice() {
       }
       stopAutoSave();
     };
-  }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, saveDraft]);
+  }, [editingInvoiceId, savedInvoiceData, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, saveDraft]);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -1059,6 +1059,11 @@ Thank you for choosing us!`;
           description: "Invoice has been updated successfully",
         });
 
+        // Clear any existing draft after successful save
+        await deleteDraft();
+        stopAutoSave();
+        updateCurrentData(null);
+
         // Fetch the updated invoice number
         const { data: invoiceData } = await supabase
           .from('sales')
@@ -1141,6 +1146,11 @@ Thank you for choosing us!`;
           title: "Invoice Saved",
           description: `Invoice ${saleNumber} has been created successfully`,
         });
+
+        // Clear any existing draft after successful save
+        await deleteDraft();
+        stopAutoSave();
+        updateCurrentData(null);
 
         // Store invoice data and show print dialog
         setSavedInvoiceData({
