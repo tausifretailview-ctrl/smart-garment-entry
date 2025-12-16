@@ -33,6 +33,10 @@ interface ClassicTemplateProps {
   totalSavings?: number;
   showMRP?: boolean;
   paymentMethod?: string;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  paidAmount?: number;
   termsConditions?: string[];
   productDetailsSettings?: {
     show_brand?: boolean;
@@ -87,6 +91,10 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   totalSavings = 0,
   showMRP = false,
   paymentMethod,
+  cashAmount = 0,
+  cardAmount = 0,
+  upiAmount = 0,
+  paidAmount = 0,
   termsConditions,
   productDetailsSettings,
   fontFamily = 'inter',
@@ -380,7 +388,22 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
         {/* Payment Method */}
         {paymentMethod && (
           <div style={{ marginBottom: '20px', padding: '10px', backgroundColor: colors.accent, borderLeft: `4px solid ${colors.primary}` }}>
-            <strong>Payment Method:</strong> {paymentMethod}
+            <strong>Payment Mode:</strong> {paymentMethod}
+            {paymentMethod === 'multiple' && (
+              <div style={{ marginTop: '8px', fontSize: '9pt' }}>
+                {cashAmount > 0 && <div>Cash: ₹{cashAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>}
+                {cardAmount > 0 && <div>Card: ₹{cardAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>}
+                {upiAmount > 0 && <div>UPI: ₹{upiAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>}
+                <div style={{ marginTop: '5px', fontWeight: 'bold' }}>
+                  Total Paid: ₹{paidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                {grandTotal > paidAmount && (
+                  <div style={{ color: '#c0392b', fontWeight: 'bold' }}>
+                    Balance: ₹{(grandTotal - paidAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
