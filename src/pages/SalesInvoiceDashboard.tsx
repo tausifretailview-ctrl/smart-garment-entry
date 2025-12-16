@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock } from "lucide-react";
-import { format } from "date-fns";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon } from "lucide-react";
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
@@ -70,6 +70,10 @@ export default function SalesInvoiceDashboard() {
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const [searchQuery, setSearchQuery] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
+  const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
@@ -303,28 +307,65 @@ export default function SalesInvoiceDashboard() {
     });
   }, [currentOrganization?.id]);
 
+  // Get date range based on period filter
+  const getDateRange = useCallback(() => {
+    const today = new Date();
+    switch (periodFilter) {
+      case 'daily':
+        return { start: startOfDay(today), end: endOfDay(today) };
+      case 'monthly':
+        return { start: startOfMonth(today), end: endOfMonth(today) };
+      case 'yearly':
+        return { start: startOfYear(today), end: endOfYear(today) };
+      case 'custom':
+        return { 
+          start: startDate ? startOfDay(startDate) : null, 
+          end: endDate ? endOfDay(endDate) : null 
+        };
+      default:
+        return { start: null, end: null };
+    }
+  }, [periodFilter, startDate, endDate]);
+
   // Memoize filtered invoices to avoid recomputing on every render
   const filteredInvoices = useMemo(() => {
+    const dateRange = getDateRange();
+    
     return (invoicesData || []).filter((invoice: any) => {
-      if (!searchQuery) return true;
+      // Date filtering
+      if (dateRange.start || dateRange.end) {
+        const invoiceDate = new Date(invoice.sale_date);
+        if (dateRange.start && invoiceDate < dateRange.start) return false;
+        if (dateRange.end && invoiceDate > dateRange.end) return false;
+      }
       
-      const searchLower = searchQuery.toLowerCase();
+      // Payment status filtering
+      if (paymentStatusFilter !== 'all' && invoice.payment_status !== paymentStatusFilter) {
+        return false;
+      }
       
-      // Check basic invoice fields
-      const matchesBasicSearch = 
-        invoice.sale_number?.toLowerCase().includes(searchLower) ||
-        invoice.customer_name?.toLowerCase().includes(searchLower) ||
-        invoice.customer_phone?.toLowerCase().includes(searchLower);
+      // Search query filtering
+      if (searchQuery) {
+        const searchLower = searchQuery.toLowerCase();
+        
+        // Check basic invoice fields
+        const matchesBasicSearch = 
+          invoice.sale_number?.toLowerCase().includes(searchLower) ||
+          invoice.customer_name?.toLowerCase().includes(searchLower) ||
+          invoice.customer_phone?.toLowerCase().includes(searchLower);
+        
+        // Check barcode in sale items
+        const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
+          item.barcode?.toLowerCase().includes(searchLower) ||
+          item.product_name?.toLowerCase().includes(searchLower)
+        );
+        
+        if (!matchesBasicSearch && !matchesBarcodeSearch) return false;
+      }
       
-      // Check barcode in sale items
-      const matchesBarcodeSearch = invoice.sale_items?.some((item: any) => 
-        item.barcode?.toLowerCase().includes(searchLower) ||
-        item.product_name?.toLowerCase().includes(searchLower)
-      );
-      
-      return matchesBasicSearch || matchesBarcodeSearch;
+      return true;
     });
-  }, [invoicesData, searchQuery]);
+  }, [invoicesData, searchQuery, paymentStatusFilter, getDateRange]);
 
   // Memoize summary statistics
   const summaryStats = useMemo(() => ({
@@ -382,7 +423,7 @@ export default function SalesInvoiceDashboard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
+  }, [searchQuery, itemsPerPage, periodFilter, paymentStatusFilter, startDate, endDate]);
 
   const handlePageSizeChange = (value: string) => {
     setItemsPerPage(Number(value));
@@ -860,8 +901,8 @@ export default function SalesInvoiceDashboard() {
 
         <Card className="p-6">
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by invoice, customer, barcode..."
@@ -870,12 +911,71 @@ export default function SalesInvoiceDashboard() {
                   className="pl-10"
                 />
               </div>
-              <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue placeholder="Period" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                  <SelectItem value="daily">Today</SelectItem>
+                  <SelectItem value="monthly">This Month</SelectItem>
+                  <SelectItem value="yearly">This Year</SelectItem>
+                  <SelectItem value="custom">Custom</SelectItem>
+                </SelectContent>
+              </Select>
+              {periodFilter === 'custom' && (
+                <>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, 'dd/MM/yyyy') : 'From'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={startDate}
+                        onSelect={setStartDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-[130px] justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, 'dd/MM/yyyy') : 'To'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={endDate}
+                        onSelect={setEndDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
+              <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Payment Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="partial">Partial</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={deliveryFilter} onValueChange={setDeliveryFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Delivery Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Delivery</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="in_process">In Process</SelectItem>
                   <SelectItem value="undelivered">Undelivered</SelectItem>
