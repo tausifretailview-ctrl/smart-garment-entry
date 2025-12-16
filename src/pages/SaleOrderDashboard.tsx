@@ -656,6 +656,7 @@ export default function SaleOrderDashboard() {
                                 <TableRow>
                                   <TableHead>Product</TableHead>
                                   <TableHead>Size</TableHead>
+                                  <TableHead>Color</TableHead>
                                   <TableHead>Order Qty</TableHead>
                                   <TableHead>Fulfilled</TableHead>
                                   <TableHead>Pending</TableHead>
@@ -668,6 +669,7 @@ export default function SaleOrderDashboard() {
                                   <TableRow key={item.id}>
                                     <TableCell>{item.product_name}</TableCell>
                                     <TableCell>{item.size}</TableCell>
+                                    <TableCell>{item.color || "—"}</TableCell>
                                     <TableCell>{item.order_qty}</TableCell>
                                     <TableCell className="text-green-600">{item.fulfilled_qty}</TableCell>
                                     <TableCell className={item.pending_qty > 0 ? "text-orange-600" : ""}>{item.pending_qty}</TableCell>

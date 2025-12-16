@@ -122,6 +122,7 @@ export default function SaleOrderEntry() {
   const [printData, setPrintData] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const tableEndRef = useRef<HTMLDivElement>(null);
+  const skipDraftSaveOnUnmountRef = useRef(false);
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
@@ -208,7 +209,7 @@ export default function SaleOrderEntry() {
     return () => {
       // Save draft immediately when component unmounts (tab switch, navigation)
       const filledItems = lineItems.filter(item => item.productId !== '');
-      if (!editingOrderId && filledItems.length > 0) {
+      if (!skipDraftSaveOnUnmountRef.current && !editingOrderId && filledItems.length > 0) {
         saveDraft({
           orderDate: orderDate.toISOString(),
           expectedDelivery: expectedDelivery.toISOString(),
@@ -363,23 +364,24 @@ export default function SaleOrderEntry() {
           const product = productsData?.find(p => p.id === item.product_id);
           const variant = product?.product_variants?.find((v: any) => v.id === item.variant_id);
           
-          return {
-            id: `row-${i}`,
-            productId: item.product_id,
-            variantId: item.variant_id,
-            productName: item.product_name,
-            size: item.size,
-            barcode: item.barcode || '',
-            orderQty: item.quantity,
-            stockQty: variant?.stock_qty || 0,
-            mrp: item.mrp,
-            salePrice: item.unit_price,
-            discountPercent: item.discount_percent,
-            discountAmount: 0,
-            gstPercent: item.gst_percent,
-            lineTotal: item.line_total,
-            hsnCode: item.hsn_code || '',
-          };
+           return {
+             id: `row-${i}`,
+             productId: item.product_id,
+             variantId: item.variant_id,
+             productName: item.product_name,
+             size: item.size,
+             barcode: item.barcode || '',
+             orderQty: item.quantity,
+             stockQty: variant?.stock_qty || 0,
+             mrp: item.mrp,
+             salePrice: item.unit_price,
+             discountPercent: item.discount_percent,
+             discountAmount: 0,
+             gstPercent: item.gst_percent,
+             lineTotal: item.line_total,
+             hsnCode: item.hsn_code || '',
+             color: item.color || variant?.color || product?.color || '',
+           };
         });
         while (items.length < 5) {
           items.push({
@@ -422,23 +424,24 @@ export default function SaleOrderEntry() {
           const product = productsData?.find(p => p.id === item.product_id);
           const variant = product?.product_variants?.find((v: any) => v.id === item.variant_id);
           
-          return {
-            id: `row-${i}`,
-            productId: item.product_id,
-            variantId: item.variant_id,
-            productName: item.product_name,
-            size: item.size,
-            barcode: item.barcode || '',
-            orderQty: item.order_qty,
-            stockQty: variant?.stock_qty || 0,
-            mrp: item.mrp,
-            salePrice: item.unit_price,
-            discountPercent: item.discount_percent,
-            discountAmount: 0,
-            gstPercent: item.gst_percent,
-            lineTotal: item.line_total,
-            hsnCode: item.hsn_code || '',
-          };
+           return {
+             id: `row-${i}`,
+             productId: item.product_id,
+             variantId: item.variant_id,
+             productName: item.product_name,
+             size: item.size,
+             barcode: item.barcode || '',
+             orderQty: item.order_qty,
+             stockQty: variant?.stock_qty || 0,
+             mrp: item.mrp,
+             salePrice: item.unit_price,
+             discountPercent: item.discount_percent,
+             discountAmount: 0,
+             gstPercent: item.gst_percent,
+             lineTotal: item.line_total,
+             hsnCode: item.hsn_code || '',
+             color: item.color || variant?.color || product?.color || '',
+           };
         });
         while (items.length < 5) {
           items.push({
@@ -767,6 +770,13 @@ export default function SaleOrderEntry() {
         .from('sale_order_items')
         .insert(orderItems);
       if (itemsError) throw itemsError;
+
+      // Prevent auto-save cleanup from re-creating a draft after successful save
+      skipDraftSaveOnUnmountRef.current = true;
+      updateCurrentData(null);
+      stopAutoSave();
+      await deleteDraft();
+      setShowDraftDialog(false);
 
       toast({ title: "Success", description: `Sale Order ${orderNumber} saved` });
       return { success: true, orderId };
