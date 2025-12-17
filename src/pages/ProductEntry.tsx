@@ -767,30 +767,56 @@ const ProductEntry = () => {
         if (productError) throw productError;
         productData = data;
 
-        // For updates, use upsert to handle both existing and new variants
-        // This prevents duplicate variants when user regenerates variants
+        // For updates, separate existing variants (with ID) from new variants
         if (variants.length > 0) {
-          const variantsToUpsert = variants.map((v) => ({
-            product_id: editingProductId,
-            organization_id: currentOrganization.id,
-            color: v.color || null,
-            size: v.size,
-            pur_price: v.pur_price,
-            sale_price: v.sale_price,
-            mrp: v.mrp,
-            barcode: v.barcode,
-            active: v.active,
-            opening_qty: v.opening_qty,
-            stock_qty: v.opening_qty, // Use opening_qty as actual stock
-          }));
+          const existingVariants = variants.filter(v => v.id);
+          const newVariants = variants.filter(v => !v.id);
 
-          const { error: variantsError } = await supabase
-            .from("product_variants")
-            .upsert(variantsToUpsert, {
-              onConflict: "product_id,color,size",
-            });
+          // Update existing variants by ID (don't overwrite stock_qty with opening_qty)
+          for (const v of existingVariants) {
+            const { error: updateError } = await supabase
+              .from("product_variants")
+              .update({
+                color: v.color || null,
+                size: v.size,
+                pur_price: v.pur_price,
+                sale_price: v.sale_price,
+                mrp: v.mrp,
+                barcode: v.barcode,
+                active: v.active,
+                opening_qty: v.opening_qty,
+                // Only update stock_qty if opening_qty was explicitly changed
+                // The actual stock is managed by purchase/sale transactions
+              })
+              .eq("id", v.id);
 
-          if (variantsError) throw variantsError;
+            if (updateError) throw updateError;
+          }
+
+          // Insert new variants (for newly generated ones without IDs)
+          if (newVariants.length > 0) {
+            const variantsToInsert = newVariants.map((v) => ({
+              product_id: editingProductId,
+              organization_id: currentOrganization.id,
+              color: v.color || null,
+              size: v.size,
+              pur_price: v.pur_price,
+              sale_price: v.sale_price,
+              mrp: v.mrp,
+              barcode: v.barcode,
+              active: v.active,
+              opening_qty: v.opening_qty,
+              stock_qty: v.opening_qty,
+            }));
+
+            const { error: insertError } = await supabase
+              .from("product_variants")
+              .upsert(variantsToInsert, {
+                onConflict: "product_id,color,size",
+              });
+
+            if (insertError) throw insertError;
+          }
         }
 
         toast({
