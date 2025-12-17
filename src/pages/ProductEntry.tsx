@@ -406,7 +406,7 @@ const ProductEntry = () => {
           colors: variantColors.length > 0 ? variantColors : (product.color ? [product.color] : []),
           size_group_id: product.size_group_id || "",
           hsn_code: product.hsn_code || "",
-          gst_per: product.gst_per || 18,
+          gst_per: product.gst_per ?? 18,
           default_pur_price: product.default_pur_price || 0,
           default_sale_price: product.default_sale_price || 0,
           default_mrp: undefined,
