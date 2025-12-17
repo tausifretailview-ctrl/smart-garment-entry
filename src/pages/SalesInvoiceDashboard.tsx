@@ -1123,6 +1123,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead>Customer</TableHead>
                       <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
+                      <TableHead className="text-center">Qty</TableHead>
                       <TableHead>Amount</TableHead>
                       {columnSettings.status && <TableHead>Pay Status</TableHead>}
                       {columnSettings.delivery && <TableHead>Delivery</TableHead>}
@@ -1132,7 +1133,7 @@ export default function SalesInvoiceDashboard() {
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -1174,6 +1175,9 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
+                            </TableCell>
+                            <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              {invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
