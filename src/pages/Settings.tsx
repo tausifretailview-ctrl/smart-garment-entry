@@ -1183,13 +1183,13 @@ export default function Settings() {
                     min="0"
                     max="100"
                     step="0.01"
-                    value={settings.purchase_settings?.default_tax_rate || ""}
+                    value={settings.purchase_settings?.default_tax_rate ?? ""}
                     onChange={(e) =>
                       setSettings({
                         ...settings,
                         purchase_settings: {
                           ...settings.purchase_settings,
-                          default_tax_rate: parseFloat(e.target.value) || 0,
+                          default_tax_rate: parseFloat(e.target.value) ?? 0,
                         },
                       })
                     }
