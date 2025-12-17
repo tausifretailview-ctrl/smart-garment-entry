@@ -269,33 +269,48 @@ export function BarTenderLabelDesigner({
       let needsUpdate = false;
       const updates: Partial<LabelDesignConfig> = {};
       
-      // Default layout - arrange fields vertically with some side-by-side examples
+      // Default layout - arrange fields vertically, scaling positions based on label height
+      // For small labels (25mm), compress the layout; for larger labels, spread out more
+      const isSmallLabel = labelHeight <= 30;
+      const yScale = isSmallLabel ? labelHeight / 40 : 1; // Scale factor for small labels
+      
       const defaultPositions: Partial<Record<FieldKey, { x: number; y: number; width: number }>> = {
         brand: { x: 0, y: 0, width: 100 },
-        productName: { x: 0, y: 4, width: 100 },
-        size: { x: 0, y: 8, width: 50 }, // Left half
-        color: { x: labelWidth / 2, y: 8, width: 50 }, // Right half
-        style: { x: 0, y: 12, width: 50 },
-        price: { x: labelWidth / 2, y: 12, width: 50 },
-        mrp: { x: 0, y: 16, width: 50 },
-        customText: { x: labelWidth / 2, y: 16, width: 50 },
-        barcode: { x: 0, y: 20, width: 100 },
-        barcodeText: { x: 0, y: 28, width: 100 },
-        billNumber: { x: 0, y: 31, width: 50 },
-        supplierCode: { x: labelWidth / 2, y: 31, width: 50 },
-        purchaseCode: { x: 0, y: 34, width: 100 },
+        productName: { x: 0, y: Math.min(4 * yScale, labelHeight - 3), width: 100 },
+        size: { x: 0, y: Math.min(7 * yScale, labelHeight - 3), width: 50 },
+        color: { x: labelWidth / 2, y: Math.min(7 * yScale, labelHeight - 3), width: 50 },
+        style: { x: 0, y: Math.min(10 * yScale, labelHeight - 3), width: 50 },
+        price: { x: labelWidth / 2, y: Math.min(10 * yScale, labelHeight - 3), width: 50 },
+        mrp: { x: 0, y: Math.min(13 * yScale, labelHeight - 3), width: 50 },
+        customText: { x: labelWidth / 2, y: Math.min(13 * yScale, labelHeight - 3), width: 50 },
+        barcode: { x: 0, y: Math.min(16 * yScale, labelHeight - 10), width: 100 },
+        barcodeText: { x: 0, y: Math.min(22 * yScale, labelHeight - 3), width: 100 },
+        billNumber: { x: 0, y: Math.min(25 * yScale, labelHeight - 2), width: 50 },
+        supplierCode: { x: labelWidth / 2, y: Math.min(25 * yScale, labelHeight - 2), width: 50 },
+        purchaseCode: { x: 0, y: Math.min(28 * yScale, labelHeight - 2), width: 100 },
       };
 
       labelConfig.fieldOrder.forEach((fieldKey) => {
         const field = labelConfig[fieldKey] as LabelFieldConfig;
+        const defaultPos = defaultPositions[fieldKey];
+        
+        // Initialize if positions are undefined
         if (field.x === undefined || field.y === undefined || field.width === undefined) {
           needsUpdate = true;
-          const defaultPos = defaultPositions[fieldKey];
           updates[fieldKey] = {
             ...field,
             x: defaultPos?.x ?? 0,
             y: defaultPos?.y ?? 0,
             width: defaultPos?.width ?? 100,
+          } as LabelFieldConfig;
+        } 
+        // Also clamp existing positions that are out of bounds
+        else if (field.y !== undefined && field.y > labelHeight - 2) {
+          needsUpdate = true;
+          // Recalculate position using scaled defaults for small labels
+          updates[fieldKey] = {
+            ...field,
+            y: defaultPos?.y ?? Math.min(field.y, labelHeight - 3),
           } as LabelFieldConfig;
         }
       });
