@@ -72,6 +72,7 @@ interface SearchResult {
   barcode: string;
   stock_qty: number;
   supplier_code?: string;
+  pur_price?: number;
 }
 
 interface RecentBill {
@@ -1340,19 +1341,23 @@ export default function BarcodePrinting() {
   // Search for products as user types
   useEffect(() => {
     const searchProducts = async () => {
-      if (!searchQuery.trim()) {
+      if (!searchQuery.trim() || !currentOrganization?.id) {
         setSearchResults([]);
         return;
       }
 
       try {
+        // First search products table for name/brand/style matches
         const { data: matchingProducts } = await supabase
           .from("products")
           .select("id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .or(`product_name.ilike.%${searchQuery}%,brand.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,style.ilike.%${searchQuery}%`);
 
         const productIds = matchingProducts?.map((p) => p.id) || [];
 
+        // Build variants query with organization filter
         let variantsQuery = supabase
           .from("product_variants")
           .select(
@@ -1362,6 +1367,8 @@ export default function BarcodePrinting() {
             sale_price,
             barcode,
             stock_qty,
+            color,
+            pur_price,
             product_id,
             products (
               product_name,
@@ -1372,14 +1379,17 @@ export default function BarcodePrinting() {
             )
           `
           )
-          .eq("active", true);
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null);
 
+        // Search by barcode (exact or partial), size, or matching product IDs
         if (productIds.length > 0) {
           variantsQuery = variantsQuery.or(
-            `barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
+            `barcode.ilike.%${searchQuery}%,barcode.eq.${searchQuery},size.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%,product_id.in.(${productIds.join(",")})`
           );
         } else {
-          variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,size.ilike.%${searchQuery}%`);
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${searchQuery}%,barcode.eq.${searchQuery},size.ilike.%${searchQuery}%,color.ilike.%${searchQuery}%`);
         }
 
         const { data, error } = await variantsQuery.limit(50);
@@ -1449,13 +1459,14 @@ export default function BarcodePrinting() {
           product_name: v.products?.product_name || "",
           brand: v.products?.brand || "",
           category: v.products?.category || "",
-          color: v.products?.color || "",
+          color: v.color || v.products?.color || "",
           style: v.products?.style || "",
           size: v.size,
           sale_price: v.sale_price || 0,
           barcode: v.barcode || "",
           stock_qty: v.stock_qty || 0,
           supplier_code: supplierCodeMap.get(v.id) || "",
+          pur_price: v.pur_price || 0,
         }));
 
         setSearchResults(results);
@@ -1466,7 +1477,7 @@ export default function BarcodePrinting() {
 
     const debounce = setTimeout(searchProducts, 300);
     return () => clearTimeout(debounce);
-  }, [searchQuery]);
+  }, [searchQuery, currentOrganization?.id]);
 
   // Auto-fill quantities when switching to lastPurchase mode or when items change
   useEffect(() => {
@@ -1483,14 +1494,8 @@ export default function BarcodePrinting() {
       return;
     }
 
-    // Fetch pur_price from product_variants
-    const { data: variantData } = await supabase
-      .from("product_variants")
-      .select("pur_price")
-      .eq("id", result.id)
-      .maybeSingle();
-
-    const purPrice = variantData?.pur_price || 0;
+    // Use pur_price from search result (already fetched)
+    const purPrice = result.pur_price || 0;
 
     const newItem: LabelItem = {
       sku_id: result.id,
