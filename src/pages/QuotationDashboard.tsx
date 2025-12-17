@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from "react-to-print";
 import { QuotationPrint } from "@/components/QuotationPrint";
@@ -33,7 +33,7 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 
 export default function QuotationDashboard() {
   const { toast } = useToast();
-  const navigate = useNavigate();
+  const { navigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
