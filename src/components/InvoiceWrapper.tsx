@@ -19,6 +19,7 @@ interface InvoiceItem {
   barcode: string;
   hsn: string;
   sp: number;
+  mrp?: number;
   qty: number;
   rate: number;
   total: number;

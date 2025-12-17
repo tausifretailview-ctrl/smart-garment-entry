@@ -93,7 +93,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     pageStyle: `
       @page {
         size: ${getPageSize()};
-        margin: ${selectedFormat === 'thermal' ? '2mm 4mm' : selectedFormat === 'a4' ? '5mm' : '4mm'};
+        margin: ${selectedFormat === 'thermal' ? '2mm 4mm' : selectedFormat === 'a4' ? '10mm' : '4mm'};
       }
       @media print {
         /* Hide all non-print elements */

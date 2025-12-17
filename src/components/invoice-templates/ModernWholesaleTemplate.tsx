@@ -257,7 +257,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         width: '210mm',
         maxHeight: '297mm',
         margin: '0 auto',
-        padding: '6mm',
+        padding: '10mm',
         fontFamily: font,
         fontSize: '9pt',
         backgroundColor: '#fff',
