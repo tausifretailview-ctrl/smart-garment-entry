@@ -720,6 +720,20 @@ export default function SalesInvoice() {
     setLineItems(updatedItems);
   };
 
+  const updateMRP = (id: string, mrp: number) => {
+    const updatedItems = lineItems.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, mrp }) : item
+    );
+    setLineItems(updatedItems);
+  };
+
+  const updateSalePrice = (id: string, salePrice: number) => {
+    const updatedItems = lineItems.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
+    );
+    setLineItems(updatedItems);
+  };
+
   const removeItem = (id: string) => {
     // Clear the row instead of removing it
     const updatedItems = lineItems.map(item => 
@@ -1602,8 +1616,28 @@ Thank you for choosing us!`;
                       />
                     )}
                   </TableCell>
-                  <TableCell>{item.mrp > 0 ? `₹${item.mrp.toFixed(2)}` : '-'}</TableCell>
-                  <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {item.productId ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        value={item.mrp}
+                        onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
+                        className="w-20 h-8"
+                      />
+                    ) : '-'}
+                  </TableCell>
+                  <TableCell>
+                    {item.productId ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        value={item.salePrice}
+                        onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                        className="w-20 h-8"
+                      />
+                    ) : '-'}
+                  </TableCell>
                   <TableCell>
                     {item.productId && (
                       <Input
@@ -1616,7 +1650,18 @@ Thank you for choosing us!`;
                       />
                     )}
                   </TableCell>
-                  <TableCell>{item.gstPercent}%</TableCell>
+                  <TableCell>
+                    {item.productId ? (
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={item.gstPercent}
+                        onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
+                        className="w-16 h-8"
+                      />
+                    ) : `${item.gstPercent}%`}
+                  </TableCell>
                   <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
                   <TableCell>
                     {item.productId && (
