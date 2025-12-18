@@ -36,6 +36,7 @@ const GSTSalePurchaseRegister = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [stats, setStats] = useState<{
     salesCount: number;
+    posSalesCount: number;
     saleReturnCount: number;
     purchaseCount: number;
     purchaseReturnCount: number;
@@ -124,7 +125,7 @@ const GSTSalePurchaseRegister = () => {
       const toDateObj = new Date(toDate);
       toDateObj.setHours(23, 59, 59, 999);
 
-      // ===== Fetch Sales Data =====
+      // ===== Fetch Invoice Sales Data (sale_type = 'invoice') =====
       const { data: salesData } = await supabase
         .from("sales")
         .select(`
@@ -132,16 +133,39 @@ const GSTSalePurchaseRegister = () => {
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
+        .eq("sale_type", "invoice")
+        .is("deleted_at", null)
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
 
-      // Fetch sale items for GST breakup
+      // ===== Fetch POS Sales Data (sale_type = 'pos') =====
+      const { data: posSalesData } = await supabase
+        .from("sales")
+        .select(`
+          id, sale_number, sale_date, customer_name, net_amount,
+          customer_id, customers(gst_number)
+        `)
+        .eq("organization_id", currentOrganization.id)
+        .eq("sale_type", "pos")
+        .is("deleted_at", null)
+        .gte("sale_date", fromDateObj.toISOString())
+        .lte("sale_date", toDateObj.toISOString())
+        .order("sale_date", { ascending: true });
+
+      // Fetch sale items for GST breakup (invoice sales)
       const saleIds = salesData?.map(s => s.id) || [];
       const { data: saleItems } = saleIds.length > 0 ? await supabase
         .from("sale_items")
         .select("sale_id, gst_percent, line_total")
         .in("sale_id", saleIds) : { data: [] };
+
+      // Fetch POS sale items for GST breakup
+      const posSaleIds = posSalesData?.map(s => s.id) || [];
+      const { data: posSaleItems } = posSaleIds.length > 0 ? await supabase
+        .from("sale_items")
+        .select("sale_id, gst_percent, line_total")
+        .in("sale_id", posSaleIds) : { data: [] };
 
       // Group items by sale_id
       const saleItemsMap = new Map<string, typeof saleItems>();
@@ -151,9 +175,47 @@ const GSTSalePurchaseRegister = () => {
         saleItemsMap.set(item.sale_id, existing);
       });
 
-      // Process sales register
+      // Group POS items by sale_id
+      const posSaleItemsMap = new Map<string, typeof posSaleItems>();
+      posSaleItems?.forEach(item => {
+        const existing = posSaleItemsMap.get(item.sale_id) || [];
+        existing.push(item);
+        posSaleItemsMap.set(item.sale_id, existing);
+      });
+
+      // Process sales register (invoice sales)
       const salesRegister: SalesRegisterRow[] = (salesData || []).map((sale, index) => {
         const items = saleItemsMap.get(sale.id) || [];
+        const customerGSTIN = (sale.customers as any)?.gst_number || "";
+        const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
+        const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
+
+        return {
+          sno: index + 1,
+          invoiceNo: sale.sale_number,
+          invoiceDate: format(new Date(sale.sale_date), "dd-MM-yyyy"),
+          partyName: sale.customer_name,
+          gstin: customerGSTIN,
+          taxable_0: breakup.taxable_0,
+          taxable_5: breakup.taxable_5,
+          cgst_2_5: breakup.cgst_2_5,
+          sgst_2_5: breakup.sgst_2_5,
+          taxable_12: breakup.taxable_12,
+          cgst_6: breakup.cgst_6,
+          sgst_6: breakup.sgst_6,
+          taxable_18: breakup.taxable_18,
+          cgst_9: breakup.cgst_9,
+          sgst_9: breakup.sgst_9,
+          taxable_28: breakup.taxable_28,
+          cgst_14: breakup.cgst_14,
+          sgst_14: breakup.sgst_14,
+          invoiceValue: sale.net_amount,
+        };
+      });
+
+      // Process POS sales register
+      const posSalesRegister: SalesRegisterRow[] = (posSalesData || []).map((sale, index) => {
+        const items = posSaleItemsMap.get(sale.id) || [];
         const customerGSTIN = (sale.customers as any)?.gst_number || "";
         const isInterStateTx = isInterState(businessGSTIN, customerGSTIN);
         const breakup = calculateGSTBreakup(items, "inclusive", isInterStateTx);
@@ -350,6 +412,7 @@ const GSTSalePurchaseRegister = () => {
       // Update stats
       setStats({
         salesCount: salesRegister.length,
+        posSalesCount: posSalesRegister.length,
         saleReturnCount: saleReturnRegister.length,
         purchaseCount: purchaseRegister.length,
         purchaseReturnCount: purchaseReturnRegister.length,
@@ -364,14 +427,15 @@ const GSTSalePurchaseRegister = () => {
         businessName,
         businessGSTIN,
         fromDateObj,
-        toDateObj
+        toDateObj,
+        posSalesRegister
       );
 
       downloadGSTRegisterExcel(workbook, businessGSTIN || "GSTIN", fromDateObj, toDateObj);
 
       toast({
         title: "Export Successful",
-        description: `GST Register exported with ${salesRegister.length} sales, ${saleReturnRegister.length} sale returns, ${purchaseRegister.length} purchases, ${purchaseReturnRegister.length} purchase returns.`,
+        description: `GST Register exported with ${salesRegister.length} invoice sales, ${posSalesRegister.length} POS sales, ${saleReturnRegister.length} sale returns, ${purchaseRegister.length} purchases, ${purchaseReturnRegister.length} purchase returns.`,
       });
     } catch (error) {
       console.error("Export error:", error);
@@ -466,10 +530,11 @@ const GSTSalePurchaseRegister = () => {
             <Building2 className="h-4 w-4" />
             <AlertTitle>Export Information</AlertTitle>
             <AlertDescription>
-              The Excel file will contain 4 sheets: <Badge variant="outline">Sales Register</Badge>{" "}
+              The Excel file will contain 5 sheets: <Badge variant="outline">Sales Register</Badge>{" "}
               <Badge variant="outline">Sale Return Register</Badge>{" "}
               <Badge variant="outline">Purchase Register</Badge>{" "}
-              <Badge variant="outline">Purchase Return Register</Badge>
+              <Badge variant="outline">Purchase Return Register</Badge>{" "}
+              <Badge variant="outline">POS Sales Register</Badge>
             </AlertDescription>
           </Alert>
 
@@ -486,8 +551,9 @@ const GSTSalePurchaseRegister = () => {
             </Button>
 
             {stats && (
-              <div className="flex gap-4 text-sm text-muted-foreground">
-                <span>Sales: <strong className="text-foreground">{stats.salesCount}</strong></span>
+              <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                <span>Invoice Sales: <strong className="text-foreground">{stats.salesCount}</strong></span>
+                <span>POS Sales: <strong className="text-foreground">{stats.posSalesCount}</strong></span>
                 <span>Sale Returns: <strong className="text-foreground">{stats.saleReturnCount}</strong></span>
                 <span>Purchases: <strong className="text-foreground">{stats.purchaseCount}</strong></span>
                 <span>Purchase Returns: <strong className="text-foreground">{stats.purchaseReturnCount}</strong></span>
