@@ -145,6 +145,33 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
   }
 };
 
+// Clamp position within label boundaries with margin
+const clampPosition = (
+  pos: number, 
+  max: number, 
+  fieldName: string, 
+  axis: 'x' | 'y'
+): number => {
+  const margin = axis === 'y' ? 2 : 3; // mm margin from edge
+  const clamped = Math.max(0, Math.min(pos, max - margin));
+  if (pos !== clamped) {
+    console.warn(`TSPL: ${fieldName} ${axis} position clamped: ${pos}mm -> ${clamped}mm (label ${axis === 'x' ? 'width' : 'height'}: ${max}mm)`);
+  }
+  return clamped;
+};
+
+// Auto-scale font size for smaller labels
+const getScaledFontSize = (fontSize: number, labelHeight: number): number => {
+  if (labelHeight <= 20) {
+    // Very small labels - reduce font size
+    return Math.max(6, fontSize - 2);
+  } else if (labelHeight <= 25) {
+    // Small labels - slightly reduce font size
+    return Math.max(6, fontSize - 1);
+  }
+  return fontSize;
+};
+
 // Generate template-aware TSPL label with ABSOLUTE x/y positioning matching preview exactly
 export const generateTSPLLabelFromTemplate = (
   labelConfig: TSPLLabelConfig,
@@ -169,9 +196,12 @@ export const generateTSPLLabelFromTemplate = (
       // Handle barcode with absolute positioning
       const barcodeConfig = templateConfig.barcode;
       if (barcodeConfig?.show && data.barcode) {
-        // Use absolute x/y from config, convert mm to dots
-        const barcodeX = mmToDots(barcodeConfig.x ?? 0);
-        const barcodeY = mmToDots(barcodeConfig.y ?? 0);
+        // Clamp barcode position within label bounds
+        const clampedX = clampPosition(barcodeConfig.x ?? 0, labelConfig.width, 'barcode', 'x');
+        const clampedY = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
+        
+        const barcodeX = mmToDots(clampedX);
+        const barcodeY = mmToDots(clampedY);
         
         // Scale barcode height properly to match preview
         // Designer slider range is 15-60, we need to convert to mm then dots
@@ -179,7 +209,10 @@ export const generateTSPLLabelFromTemplate = (
         // For a 50x25mm label with slider=25: target height = 25% of 25mm = 6.25mm = ~50 dots
         const sliderValue = templateConfig.barcodeHeight || 30;
         const barcodeHeightMm = (sliderValue / 100) * labelConfig.height * 1.5; // Scale factor to match preview
-        const barcodeHeightDots = Math.max(30, Math.round(mmToDots(barcodeHeightMm))); // Minimum 30 dots for scannability
+        
+        // For smaller labels, reduce minimum barcode height
+        const minBarcodeHeight = labelConfig.height <= 20 ? 20 : labelConfig.height <= 25 ? 25 : 30;
+        const barcodeHeightDots = Math.max(minBarcodeHeight, Math.round(mmToDots(barcodeHeightMm)));
         
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
@@ -222,13 +255,25 @@ export const generateTSPLLabelFromTemplate = (
     const content = getFieldContent(fieldKey, data);
     if (!content) continue;
     
+    // Clamp field positions within label bounds
+    const clampedX = clampPosition(fieldConfig.x ?? 0, labelConfig.width, fieldKey, 'x');
+    const clampedY = clampPosition(fieldConfig.y ?? 0, labelConfig.height, fieldKey, 'y');
+    
+    // Skip fields that would be completely off-label (y position too close to bottom)
+    if (clampedY >= labelConfig.height - 1) {
+      console.warn(`TSPL: Skipping ${fieldKey} - position off label`);
+      continue;
+    }
+    
     // Use ABSOLUTE x/y coordinates from the field config (convert mm to dots)
-    const fieldX = mmToDots(fieldConfig.x ?? 0);
-    const fieldY = mmToDots(fieldConfig.y ?? 0);
+    const fieldX = mmToDots(clampedX);
+    const fieldY = mmToDots(clampedY);
     const fieldWidth = fieldConfig.width ? mmToDots(fieldConfig.width) : labelWidthDots;
     
-    const fontInfo = mapFontSize(fieldConfig.fontSize, fieldConfig.bold);
-    const textWidthDots = getTextWidthDots(content, fieldConfig.fontSize);
+    // Auto-scale font size for smaller labels
+    const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height);
+    const fontInfo = mapFontSize(scaledFontSize, fieldConfig.bold);
+    const textWidthDots = getTextWidthDots(content, scaledFontSize);
     
     // Calculate final X position based on text alignment within field
     let textX = fieldX;

@@ -57,6 +57,8 @@ export interface LabelItem {
 export interface LabelTemplate {
   name: string;
   config: LabelDesignConfig;
+  labelWidth?: number;  // Label dimensions the template was designed for
+  labelHeight?: number; // Used for auto-scaling when loading on different sizes
 }
 
 export type FieldKey = keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
