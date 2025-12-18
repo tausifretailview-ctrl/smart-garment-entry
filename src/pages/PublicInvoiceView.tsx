@@ -10,17 +10,19 @@ import { useReactToPrint } from "react-to-print";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
 
 // Update document meta tags for link previews
-const updateMetaTags = (businessName: string, invoiceNumber: string, logoUrl?: string) => {
+const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
   
   // Update OG meta tags
   const ogTitle = document.querySelector('meta[property="og:title"]');
   const ogDesc = document.querySelector('meta[property="og:description"]');
+  const ogUrl = document.querySelector('meta[property="og:url"]');
   const ogImage = document.querySelector('meta[property="og:image"]');
   const twitterImage = document.querySelector('meta[name="twitter:image"]');
   
   if (ogTitle) ogTitle.setAttribute('content', businessName);
   if (ogDesc) ogDesc.setAttribute('content', `Invoice ${invoiceNumber} - ${businessName}`);
+  if (ogUrl && orgSlug) ogUrl.setAttribute('content', `https://app.inventoryshop.in/${orgSlug}/`);
   if (logoUrl && ogImage) ogImage.setAttribute('content', logoUrl);
   if (logoUrl && twitterImage) twitterImage.setAttribute('content', logoUrl);
 };
@@ -63,13 +65,30 @@ export default function PublicInvoiceView() {
     enabled: !!sale?.organization_id,
   });
 
+  // Fetch organization for slug
+  const { data: organization } = useQuery({
+    queryKey: ['public-organization', sale?.organization_id],
+    queryFn: async () => {
+      if (!sale?.organization_id) return null;
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('slug, name')
+        .eq('id', sale.organization_id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!sale?.organization_id,
+  });
+
   // Update meta tags when settings load
   useEffect(() => {
     if (settings?.business_name && sale?.sale_number) {
       const logoUrl = (settings?.sale_settings as any)?.invoiceLogo || '';
-      updateMetaTags(settings.business_name, sale.sale_number, logoUrl);
+      updateMetaTags(settings.business_name, sale.sale_number, organization?.slug, logoUrl);
     }
-  }, [settings, sale]);
+  }, [settings, sale, organization]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
