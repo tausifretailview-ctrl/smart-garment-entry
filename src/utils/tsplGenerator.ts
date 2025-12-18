@@ -96,22 +96,11 @@ const mapFontSize = (fontSize: number, bold: boolean = false): { font: string; x
   return { font: '5', xMul: 1, yMul: 1 };
 };
 
-// Get approximate text width in dots
+// Get approximate text width in dots based on font
 const getTextWidthDots = (text: string, fontSize: number): number => {
-  // Approximate character widths based on font size
-  const charWidth = fontSize <= 7 ? 6 : fontSize <= 8 ? 8 : fontSize <= 10 ? 10 : 12;
+  // Character widths for each TSPL font (approximate)
+  const charWidth = fontSize <= 6 ? 8 : fontSize <= 7 ? 10 : fontSize <= 8 ? 12 : fontSize <= 10 ? 14 : 16;
   return text.length * charWidth;
-};
-
-// Get line height in dots based on font size
-const getLineHeight = (fontSize: number): number => {
-  if (fontSize <= 6) return 12;
-  if (fontSize <= 7) return 14;
-  if (fontSize <= 8) return 18;
-  if (fontSize <= 9) return 20;
-  if (fontSize <= 10) return 22;
-  if (fontSize <= 12) return 26;
-  return 32;
 };
 
 // Generate TSPL SIZE command
@@ -156,7 +145,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
   }
 };
 
-// Generate template-aware TSPL label with exact positioning matching preview
+// Generate template-aware TSPL label with ABSOLUTE x/y positioning matching preview exactly
 export const generateTSPLLabelFromTemplate = (
   labelConfig: TSPLLabelConfig,
   templateConfig: TSPLTemplateConfig,
@@ -174,44 +163,40 @@ export const generateTSPLLabelFromTemplate = (
   const labelWidthDots = mmToDots(labelConfig.width);
   const labelHeightDots = mmToDots(labelConfig.height);
   
-  // Margins in dots (2mm = ~16 dots)
-  const xMargin = 8;
-  const topMargin = 4;
-  
-  // Calculate visible fields and their positions
-  const visibleFields = templateConfig.fieldOrder.filter(fieldKey => {
-    if (fieldKey === 'barcode') return templateConfig.barcode?.show;
-    const config = templateConfig[fieldKey as keyof TSPLTemplateConfig] as TSPLFieldConfig;
-    return config?.show;
-  });
-  
-  // Track Y position based on field order (matching preview's flow layout)
-  let currentY = topMargin;
-  
-  // Process each field in order
-  for (const fieldKey of visibleFields) {
+  // Process each field using its ABSOLUTE x/y coordinates from the template
+  for (const fieldKey of templateConfig.fieldOrder) {
     if (fieldKey === 'barcode') {
-      // Handle barcode specially
+      // Handle barcode with absolute positioning
       const barcodeConfig = templateConfig.barcode;
       if (barcodeConfig?.show && data.barcode) {
-        const paddingTop = (barcodeConfig.paddingTop ?? 0);
-        const paddingBottom = (barcodeConfig.paddingBottom ?? 0);
-        
-        currentY += paddingTop;
-        
+        // Use absolute x/y from config, convert mm to dots
+        const barcodeX = mmToDots(barcodeConfig.x ?? 0);
+        const barcodeY = mmToDots(barcodeConfig.y ?? 0);
         const barcodeHeight = templateConfig.barcodeHeight || 30;
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
-        // Calculate barcode width (CODE128: 11 modules per character + start/stop)
+        // Calculate barcode width for centering within field width if specified
         const barcodeModules = (data.barcode.length + 4) * 11;
         const barcodeWidthDots = barcodeModules * barcodeNarrow;
         
-        // Center barcode horizontally
-        const barcodeX = Math.max(xMargin, Math.round((labelWidthDots - barcodeWidthDots) / 2));
+        let finalBarcodeX = barcodeX;
+        
+        // If field width is specified, center barcode within it
+        if (barcodeConfig.width) {
+          const fieldWidthDots = mmToDots(barcodeConfig.width);
+          if (barcodeConfig.textAlign === 'center') {
+            finalBarcodeX = barcodeX + Math.max(0, (fieldWidthDots - barcodeWidthDots) / 2);
+          } else if (barcodeConfig.textAlign === 'right') {
+            finalBarcodeX = barcodeX + fieldWidthDots - barcodeWidthDots;
+          }
+        } else {
+          // If no width specified, center on label
+          finalBarcodeX = Math.max(0, (labelWidthDots - barcodeWidthDots) / 2);
+        }
         
         commands.push(generateBarcodeCommand({
-          x: barcodeX,
-          y: currentY,
+          x: Math.round(finalBarcodeX),
+          y: barcodeY,
           type: '128',
           height: barcodeHeight,
           data: data.barcode,
@@ -219,8 +204,6 @@ export const generateTSPLLabelFromTemplate = (
           narrow: barcodeNarrow,
           wide: barcodeNarrow,
         }));
-        
-        currentY += barcodeHeight + paddingBottom + 2;
       }
       continue;
     }
@@ -231,36 +214,31 @@ export const generateTSPLLabelFromTemplate = (
     const content = getFieldContent(fieldKey, data);
     if (!content) continue;
     
-    // Apply padding
-    const paddingTop = (fieldConfig.paddingTop ?? 0);
-    const paddingLeft = (fieldConfig.paddingLeft ?? 0);
-    const paddingBottom = (fieldConfig.paddingBottom ?? 0);
-    
-    currentY += paddingTop;
+    // Use ABSOLUTE x/y coordinates from the field config (convert mm to dots)
+    const fieldX = mmToDots(fieldConfig.x ?? 0);
+    const fieldY = mmToDots(fieldConfig.y ?? 0);
+    const fieldWidth = fieldConfig.width ? mmToDots(fieldConfig.width) : labelWidthDots;
     
     const fontInfo = mapFontSize(fieldConfig.fontSize, fieldConfig.bold);
-    const lineHeight = getLineHeight(fieldConfig.fontSize);
-    
-    // Calculate text width for alignment
     const textWidthDots = getTextWidthDots(content, fieldConfig.fontSize);
     
-    // Calculate X position based on alignment
-    let textX = xMargin + paddingLeft;
-    const availableWidth = labelWidthDots - (xMargin * 2);
+    // Calculate final X position based on text alignment within field
+    let textX = fieldX;
     
     if (fieldConfig.textAlign === 'center') {
-      textX = Math.max(xMargin, Math.round((labelWidthDots - textWidthDots) / 2));
+      textX = fieldX + Math.max(0, (fieldWidth - textWidthDots) / 2);
     } else if (fieldConfig.textAlign === 'right') {
-      textX = Math.max(xMargin, labelWidthDots - xMargin - textWidthDots);
+      textX = fieldX + Math.max(0, fieldWidth - textWidthDots);
     }
     
-    // Truncate text to fit label
-    const maxChars = Math.floor(availableWidth / (fieldConfig.fontSize <= 8 ? 6 : 8));
-    const truncatedContent = content.substring(0, Math.min(maxChars, 30));
+    // Ensure text doesn't go outside label bounds
+    textX = Math.max(0, Math.min(textX, labelWidthDots - textWidthDots));
     
-    commands.push(`TEXT ${textX},${currentY},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
+    // Truncate text to fit within field width
+    const maxChars = Math.floor(fieldWidth / (fieldConfig.fontSize <= 8 ? 8 : 10));
+    const truncatedContent = content.substring(0, Math.min(maxChars, 40));
     
-    currentY += lineHeight + paddingBottom;
+    commands.push(`TEXT ${Math.round(textX)},${Math.round(fieldY)},"${fontInfo.font}",0,${fontInfo.xMul},${fontInfo.yMul},"${truncatedContent}"`);
   }
   
   // Print command
