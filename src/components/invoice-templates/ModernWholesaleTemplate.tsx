@@ -765,9 +765,11 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               color: colors.primary,
               marginBottom: '2px',
             }}>TERMS & CONDITIONS:</div>
-            <div style={{ fontSize: '6pt', color: '#4b5563' }}>
+            <div style={{ fontSize: '7pt', color: '#4b5563' }}>
               {termsConditions.map((term, index) => (
-                <span key={index}>{index + 1}. {term} &nbsp;&nbsp;</span>
+                <div key={index} style={{ marginBottom: '1px' }}>
+                  {index + 1}. {term}
+                </div>
               ))}
             </div>
           </div>
