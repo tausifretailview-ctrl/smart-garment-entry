@@ -172,7 +172,15 @@ export const generateTSPLLabelFromTemplate = (
         // Use absolute x/y from config, convert mm to dots
         const barcodeX = mmToDots(barcodeConfig.x ?? 0);
         const barcodeY = mmToDots(barcodeConfig.y ?? 0);
-        const barcodeHeight = templateConfig.barcodeHeight || 30;
+        
+        // Scale barcode height properly to match preview
+        // Designer slider range is 15-60, we need to convert to mm then dots
+        // The slider value represents percentage of label height (roughly)
+        // For a 50x25mm label with slider=25: target height = 25% of 25mm = 6.25mm = ~50 dots
+        const sliderValue = templateConfig.barcodeHeight || 30;
+        const barcodeHeightMm = (sliderValue / 100) * labelConfig.height * 1.5; // Scale factor to match preview
+        const barcodeHeightDots = Math.max(30, Math.round(mmToDots(barcodeHeightMm))); // Minimum 30 dots for scannability
+        
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
         // Calculate barcode width for centering within field width if specified
@@ -198,7 +206,7 @@ export const generateTSPLLabelFromTemplate = (
           x: Math.round(finalBarcodeX),
           y: barcodeY,
           type: '128',
-          height: barcodeHeight,
+          height: barcodeHeightDots,
           data: data.barcode,
           readable: 0, // No built-in text, we add barcodeText separately
           narrow: barcodeNarrow,
