@@ -5,9 +5,25 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, Download, FileX } from "lucide-react";
 import { format } from "date-fns";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import { useReactToPrint } from "react-to-print";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
+
+// Update document meta tags for link previews
+const updateMetaTags = (businessName: string, invoiceNumber: string, logoUrl?: string) => {
+  document.title = `Invoice ${invoiceNumber} - ${businessName}`;
+  
+  // Update OG meta tags
+  const ogTitle = document.querySelector('meta[property="og:title"]');
+  const ogDesc = document.querySelector('meta[property="og:description"]');
+  const ogImage = document.querySelector('meta[property="og:image"]');
+  const twitterImage = document.querySelector('meta[name="twitter:image"]');
+  
+  if (ogTitle) ogTitle.setAttribute('content', businessName);
+  if (ogDesc) ogDesc.setAttribute('content', `Invoice ${invoiceNumber} - ${businessName}`);
+  if (logoUrl && ogImage) ogImage.setAttribute('content', logoUrl);
+  if (logoUrl && twitterImage) twitterImage.setAttribute('content', logoUrl);
+};
 
 export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
@@ -46,6 +62,14 @@ export default function PublicInvoiceView() {
     },
     enabled: !!sale?.organization_id,
   });
+
+  // Update meta tags when settings load
+  useEffect(() => {
+    if (settings?.business_name && sale?.sale_number) {
+      const logoUrl = (settings?.sale_settings as any)?.invoiceLogo || '';
+      updateMetaTags(settings.business_name, sale.sale_number, logoUrl);
+    }
+  }, [settings, sale]);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
