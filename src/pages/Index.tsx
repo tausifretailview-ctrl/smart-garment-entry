@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Select,
   SelectContent,
@@ -392,20 +393,23 @@ const DashboardContent = () => {
           </p>
         </div>
         
-        {/* Date Range Selector */}
-        <div className="flex items-center gap-3 bg-card border rounded-lg p-2 shadow-sm">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
-          <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-            <SelectTrigger className="w-[140px] border-0 shadow-none">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-              <SelectItem value="yearly">Yearly</SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="text-sm font-medium text-primary">{dateLabel}</span>
+        {/* Date Range Selector & Theme Toggle */}
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <div className="flex items-center gap-3 bg-card border rounded-lg p-2 shadow-sm">
+            <Calendar className="h-5 w-5 text-muted-foreground" />
+            <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
+              <SelectTrigger className="w-[140px] border-0 shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+                <SelectItem value="yearly">Yearly</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm font-medium text-primary">{dateLabel}</span>
+          </div>
         </div>
       </div>
 
