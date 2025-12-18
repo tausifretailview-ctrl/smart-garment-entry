@@ -1350,17 +1350,24 @@ Thank you for choosing us!`;
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label>Customer<span className="text-destructive">*</span></Label>
-              {selectedCustomerId && (
-                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                  customerBalance > 0 
-                    ? 'bg-destructive/10 text-destructive' 
-                    : customerBalance < 0 
-                      ? 'bg-green-500/10 text-green-600' 
-                      : 'bg-muted text-muted-foreground'
-                }`}>
-                  {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {selectedCustomer?.discount_percent > 0 && (
+                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600">
+                    {selectedCustomer.discount_percent}% Disc
+                  </span>
+                )}
+                {selectedCustomerId && (
+                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    customerBalance > 0 
+                      ? 'bg-destructive/10 text-destructive' 
+                      : customerBalance < 0 
+                        ? 'bg-green-500/10 text-green-600' 
+                        : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="flex gap-2">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
