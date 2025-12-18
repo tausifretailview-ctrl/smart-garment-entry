@@ -11,6 +11,7 @@ interface Customer {
   address: string | null;
   gst_number: string | null;
   opening_balance: number | null;
+  discount_percent: number | null;
   organization_id: string | null;
 }
 
