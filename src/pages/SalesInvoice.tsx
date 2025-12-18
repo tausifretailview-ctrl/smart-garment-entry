@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -108,6 +108,7 @@ export default function SalesInvoice() {
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -543,6 +544,56 @@ export default function SalesInvoice() {
     }, 100);
   };
 
+  // Handle barcode/product search on Enter (like POS)
+  const handleBarcodeSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchInput.trim()) {
+      searchAndAddProduct(searchInput.trim());
+    }
+  };
+
+  const searchAndAddProduct = async (searchTerm: string) => {
+    if (!productsData) return;
+
+    // Search by barcode first (exact match)
+    let foundVariant: any = null;
+    let foundProduct: any = null;
+
+    for (const product of productsData) {
+      const variantMatch = product.product_variants?.find((v: any) => 
+        v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
+      );
+      
+      if (variantMatch) {
+        foundVariant = variantMatch;
+        foundProduct = product;
+        break;
+      }
+    }
+
+    if (foundVariant && foundProduct) {
+      // If in grid mode, open size grid dialog
+      if (entryMode === "grid") {
+        openSizeGridForProduct(foundProduct);
+        setSearchInput("");
+        barcodeInputRef.current?.focus();
+        return;
+      }
+      
+      await addProductToInvoice(foundProduct, foundVariant);
+      setSearchInput("");
+      // Keep focus on barcode input for continuous scanning
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+    } else {
+      toast({
+        title: "Product not found",
+        description: "No product matches the scanned barcode.",
+        variant: "destructive",
+      });
+      setSearchInput("");
+      barcodeInputRef.current?.focus();
+    }
+  };
+
   const addProductToInvoice = async (product: any, variant: any) => {
     // If in grid mode, open size grid dialog
     if (entryMode === "grid") {
@@ -642,6 +693,9 @@ export default function SalesInvoice() {
     setTimeout(() => {
       tableContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
+    
+    // Return focus to barcode input for continuous scanning
+    setTimeout(() => barcodeInputRef.current?.focus(), 50);
     
     toast({
       title: "Product Added",
@@ -1482,7 +1536,7 @@ Thank you for choosing us!`;
           </div>
         </div>
 
-        {/* Product Search */}
+        {/* Product Search with Barcode Scan */}
         <div className="mb-4 flex items-center gap-4 flex-wrap">
           {/* Entry Mode Toggle */}
           <div className="flex items-center gap-2">
@@ -1501,11 +1555,25 @@ Thank you for choosing us!`;
             </div>
           </div>
 
+          {/* Barcode Scan Input - Direct scan like POS */}
+          <div className="relative flex-1 min-w-[300px]">
+            <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              ref={barcodeInputRef}
+              placeholder="Scan barcode or type & press Enter..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleBarcodeSearch}
+              className="pl-10 pr-4"
+              autoFocus
+            />
+          </div>
+
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="flex-1 justify-start min-w-[300px]">
+              <Button variant="outline" className="justify-start">
                 <Search className="mr-2 h-4 w-4" />
-                Search Products (Stock Restricted)
+                Browse Products
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[600px] p-0" align="start">
