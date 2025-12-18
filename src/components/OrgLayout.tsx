@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, useParams, Navigate } from "react-router-dom";
+import { Outlet, useParams, Navigate, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
@@ -10,6 +10,10 @@ export const OrgLayout = () => {
   const { user, loading: authLoading } = useAuth();
   const { currentOrganization, organizations, loading: orgLoading, switchOrganization } = useOrganization();
   const [isOrgSynced, setIsOrgSynced] = useState(false);
+  const location = useLocation();
+
+  // Check if this is a public invoice view route (no auth required)
+  const isPublicInvoiceRoute = location.pathname.includes('/invoice/view/');
 
   useEffect(() => {
     if (orgSlug && user && !orgLoading && organizations.length > 0) {
@@ -37,6 +41,15 @@ export const OrgLayout = () => {
       setIsOrgSynced(true);
     }
   }, [currentOrganization, orgSlug]);
+
+  // For public invoice routes, allow access without authentication
+  if (isPublicInvoiceRoute) {
+    // Store org slug for context even for public views
+    if (orgSlug) {
+      localStorage.setItem("selectedOrgSlug", orgSlug);
+    }
+    return <Outlet />;
+  }
 
   // Show loading while auth or org data is being fetched
   if (authLoading || orgLoading) {

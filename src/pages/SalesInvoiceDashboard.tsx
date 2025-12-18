@@ -541,8 +541,9 @@ export default function SalesInvoiceDashboard() {
       `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
     ).join('\n') || '';
 
-    // Generate invoice URL
-    const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
+    // Generate invoice URL - include org slug for branding
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
     
     // Use template for message
     const templateMessage = formatMessage('sales_invoice', {
@@ -558,7 +559,8 @@ export default function SalesInvoiceDashboard() {
   };
 
   const handleCopyLink = async (invoice: any) => {
-    const invoiceUrl = `${window.location.origin}/invoice/view/${invoice.id}`;
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
     copyInvoiceLink(invoiceUrl);
   };
 

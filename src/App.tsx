@@ -112,6 +112,8 @@ const App = () => {
 
               {/* Organization-scoped routes */}
               <Route path="/:orgSlug" element={<OrgLayout />}>
+                {/* Public invoice view - org-scoped (no auth required) */}
+                <Route path="invoice/view/:saleId" element={<PublicInvoiceView />} />
                 {/* Dashboard - index route */}
                 <Route
                   index
