@@ -1417,10 +1417,14 @@ Thank you for choosing us!`;
                                 <CommandItem
                                   key={customer.id}
                                   value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
-                                  onSelect={() => {
+                                onSelect={() => {
                                     setSelectedCustomerId(customer.id);
                                     setSelectedCustomer(customer);
                                     setCustomerSearchInput("");
+                                    // Auto-apply customer discount
+                                    if (customer.discount_percent && customer.discount_percent > 0) {
+                                      setFlatDiscountPercent(customer.discount_percent);
+                                    }
                                     setOpenCustomerSearch(false);
                                   }}
                                   className="cursor-pointer"

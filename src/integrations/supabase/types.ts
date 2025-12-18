@@ -427,6 +427,7 @@ export type Database = {
           customer_name: string
           deleted_at: string | null
           deleted_by: string | null
+          discount_percent: number | null
           email: string | null
           gst_number: string | null
           id: string
@@ -441,6 +442,7 @@ export type Database = {
           customer_name: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_percent?: number | null
           email?: string | null
           gst_number?: string | null
           id?: string
@@ -455,6 +457,7 @@ export type Database = {
           customer_name?: string
           deleted_at?: string | null
           deleted_by?: string | null
+          discount_percent?: number | null
           email?: string | null
           gst_number?: string | null
           id?: string

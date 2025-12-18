@@ -2108,10 +2108,15 @@ export default function POSSales() {
                             <CommandItem
                               key={customer.id}
                               value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
-                              onSelect={() => {
+                            onSelect={() => {
                                 setCustomerId(customer.id);
                                 setCustomerName(customer.customer_name);
                                 setCustomerPhone(customer.phone || "");
+                                // Auto-apply customer discount
+                                if (customer.discount_percent && customer.discount_percent > 0) {
+                                  setFlatDiscountValue(customer.discount_percent);
+                                  setFlatDiscountMode('percent');
+                                }
                                 setOpenCustomerSearch(false);
                               }}
                               className="cursor-pointer"

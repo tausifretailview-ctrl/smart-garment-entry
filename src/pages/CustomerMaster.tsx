@@ -41,6 +41,7 @@ interface Customer {
   address: string | null;
   gst_number: string | null;
   opening_balance: number | null;
+  discount_percent: number | null;
   created_at: string;
 }
 
@@ -57,6 +58,7 @@ const CustomerMaster = () => {
     address: "",
     gst_number: "",
     opening_balance: "",
+    discount_percent: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -117,6 +119,7 @@ const CustomerMaster = () => {
         address: data.address,
         gst_number: data.gst_number,
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
+        discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         organization_id: currentOrganization.id
       };
       const { error } = await supabase.from("customers").insert([customerData]);
@@ -144,6 +147,7 @@ const CustomerMaster = () => {
         address: data.address,
         gst_number: data.gst_number,
         opening_balance: data.opening_balance ? parseFloat(data.opening_balance) : 0,
+        discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
       };
       const { error } = await supabase.from("customers").update(customerData).eq("id", id);
       if (error) throw error;
@@ -199,6 +203,7 @@ const CustomerMaster = () => {
       address: "",
       gst_number: "",
       opening_balance: "",
+      discount_percent: "",
     });
     setEditingCustomer(null);
   };
@@ -221,6 +226,7 @@ const CustomerMaster = () => {
       address: customer.address || "",
       gst_number: customer.gst_number || "",
       opening_balance: customer.opening_balance?.toString() || "",
+      discount_percent: customer.discount_percent?.toString() || "",
     });
     setIsDialogOpen(true);
   };
@@ -474,6 +480,22 @@ const CustomerMaster = () => {
                   Positive = Receivable from customer
                 </p>
               </div>
+              <div>
+                <Label htmlFor="discount_percent">Discount %</Label>
+                <Input
+                  id="discount_percent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={formData.discount_percent}
+                  onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })}
+                  placeholder="Fixed discount for this customer"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Auto-applied on POS & invoices
+                </p>
+              </div>
               <Button type="submit" className="w-full">
                 {editingCustomer ? "Update" : "Create"} Customer
               </Button>
@@ -521,17 +543,18 @@ const CustomerMaster = () => {
               <TableHead>Email</TableHead>
               <TableHead>GST Number</TableHead>
               <TableHead className="text-right">Opening Bal.</TableHead>
+              <TableHead className="text-right">Discount %</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center">No customers found</TableCell>
+                <TableCell colSpan={9} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
               paginatedCustomers.map((customer, index) => (
@@ -561,6 +584,9 @@ const CustomerMaster = () => {
                   <TableCell>{customer.gst_number || "-"}</TableCell>
                   <TableCell className="text-right">
                     {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString()}` : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
