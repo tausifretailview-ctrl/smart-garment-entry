@@ -96,10 +96,10 @@ export const Header = () => {
               </div>
             </div>
             <div className="hidden sm:flex flex-col items-start">
-              <span className="font-display text-lg font-bold text-white leading-tight">
+              <span className="font-display text-lg font-bold text-primary dark:text-white leading-tight">
                 Smart Inventory
               </span>
-              <span className="text-[10px] text-white/70 -mt-0.5">Business Management</span>
+              <span className="text-[10px] text-primary/70 dark:text-white/70 -mt-0.5">Business Management</span>
             </div>
           </button>
         </div>
