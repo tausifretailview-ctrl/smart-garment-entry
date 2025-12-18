@@ -567,8 +567,9 @@ const POSDashboard = () => {
       `${index + 1}. ${item.product_name} (${item.size}) - Qty: ${item.quantity} - ₹${item.line_total.toFixed(2)}`
     ).join('\n');
 
-    // Generate invoice URL
-    const invoiceUrl = `${window.location.origin}/invoice/view/${sale.id}`;
+    // Generate invoice URL - include org slug for branding
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}`;
     
     // Use template for message
     const templateMessage = formatMessage('sales_invoice', {
@@ -585,7 +586,8 @@ const POSDashboard = () => {
 
   const handleCopyLink = async (sale: Sale, event: React.MouseEvent) => {
     event.stopPropagation();
-    const invoiceUrl = `${window.location.origin}/invoice/view/${sale.id}`;
+    const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
+    const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}`;
     copyInvoiceLink(invoiceUrl);
   };
 
