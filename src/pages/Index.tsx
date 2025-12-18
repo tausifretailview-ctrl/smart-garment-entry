@@ -59,25 +59,25 @@ const MetricCard = ({
       <div className="group relative animate-fade-in" onClick={onClick}>
         <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
         
-        <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-white/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
+        <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 dark:group-hover:border-white/20 transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-elevated cursor-pointer`}>
           <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
           
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-display font-semibold tracking-wide text-white/90 group-hover:text-white transition-colors duration-300">
+            <CardTitle className="text-sm font-display font-semibold tracking-wide text-foreground/80 dark:text-white/90 group-hover:text-primary dark:group-hover:text-white transition-colors duration-300">
               {title}
             </CardTitle>
-            <div className="relative p-2.5 rounded-xl bg-white/10 group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
-              <div className="absolute inset-0 rounded-xl bg-white/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <Icon className="h-5 w-5 text-white relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
+            <div className="relative p-2.5 rounded-xl bg-primary/10 dark:bg-white/10 group-hover:bg-primary/20 dark:group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <div className="absolute inset-0 rounded-xl bg-primary/20 dark:bg-white/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <Icon className="h-5 w-5 text-primary dark:text-white relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
             </div>
           </CardHeader>
           
           <CardContent>
-            <div className="text-3xl font-display font-bold text-white group-hover:text-white transition-all duration-500">
+            <div className="text-3xl font-display font-bold text-foreground dark:text-white group-hover:text-primary dark:group-hover:text-white transition-all duration-500">
               {value}
             </div>
             
-            <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-white/50 via-white/70 to-white/50 rounded-full transition-all duration-500 shadow-glow" />
+            <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary/50 via-primary/70 to-primary/50 dark:from-white/50 dark:via-white/70 dark:to-white/50 rounded-full transition-all duration-500 shadow-glow" />
           </CardContent>
           
           <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
