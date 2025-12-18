@@ -9,15 +9,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-gradient-to-r from-primary to-secondary text-primary-foreground hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]",
-        destructive: "bg-gradient-to-r from-destructive to-destructive/90 text-destructive-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        default: "bg-gradient-to-r from-primary to-secondary text-primary-foreground dark:hover:shadow-glow hover:scale-[1.02] active:scale-[0.98]",
+        destructive: "bg-gradient-to-r from-destructive to-destructive/90 text-destructive-foreground dark:hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
         outline: "border-2 border-primary bg-background text-primary hover:bg-primary hover:text-primary-foreground hover:scale-[1.02] active:scale-[0.98]",
-        secondary: "bg-gradient-to-r from-secondary to-secondary/80 text-secondary-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        secondary: "bg-gradient-to-r from-secondary to-secondary/80 text-secondary-foreground dark:hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
         ghost: "hover:bg-accent hover:text-accent-foreground hover:scale-[1.02] active:scale-[0.98]",
         link: "text-primary underline-offset-4 hover:underline",
-        success: "bg-gradient-to-r from-success to-success/90 text-success-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
-        accent: "bg-gradient-to-r from-accent to-accent/90 text-accent-foreground hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
-        brand: "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        success: "bg-gradient-to-r from-success to-success/90 text-success-foreground dark:hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        accent: "bg-gradient-to-r from-accent to-accent/90 text-accent-foreground dark:hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
+        brand: "bg-primary text-primary-foreground hover:bg-primary/90 dark:hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]",
         "brand-outline": "border-2 border-primary bg-transparent text-primary hover:bg-primary/10 hover:scale-[1.02] active:scale-[0.98]",
       },
       size: {
