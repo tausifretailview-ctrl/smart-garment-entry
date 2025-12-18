@@ -1567,11 +1567,11 @@ Thank you for choosing us!`;
           </div>
 
           {/* Barcode Scan Input - Direct scan like POS */}
-          <div className="relative flex-1 min-w-[300px]">
+          <div className="relative w-[200px]">
             <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               ref={barcodeInputRef}
-              placeholder="Scan barcode or type & press Enter..."
+              placeholder="Scan barcode..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onKeyDown={handleBarcodeSearch}
@@ -1580,19 +1580,18 @@ Thank you for choosing us!`;
             />
           </div>
 
-          {/* Live Total Qty Badge */}
-          <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
-            <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
-            <span className="text-xl font-bold text-primary">
-              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
-            </span>
-          </div>
+          {/* Browse Products Search Bar */}
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="justify-start">
-                <Search className="mr-2 h-4 w-4" />
-                Browse Products
-              </Button>
+              <div className="relative flex-1 min-w-[250px] cursor-pointer">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Browse Products..."
+                  className="pl-10 pr-4 cursor-pointer"
+                  readOnly
+                  onClick={() => setOpenProductSearch(true)}
+                />
+              </div>
             </PopoverTrigger>
             <PopoverContent className="w-[600px] p-0" align="start">
               <Command>
@@ -1653,6 +1652,14 @@ Thank you for choosing us!`;
               </Command>
             </PopoverContent>
           </Popover>
+
+          {/* Live Total Qty Badge */}
+          <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
+            <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
+            <span className="text-xl font-bold text-primary">
+              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+            </span>
+          </div>
         </div>
 
         {/* Line Items Table */}
