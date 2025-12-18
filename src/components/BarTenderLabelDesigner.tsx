@@ -251,6 +251,9 @@ export function BarTenderLabelDesigner({
   const previewRef = useRef<HTMLDivElement>(null);
   const barcodeValue = sampleItem?.barcode || '12345678';
   
+  // Track previous label dimensions for auto-scaling
+  const prevDimensionsRef = useRef<{ width: number; height: number }>({ width: labelWidth, height: labelHeight });
+  
   // Template management state
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
@@ -262,6 +265,49 @@ export function BarTenderLabelDesigner({
   
   const labelWidthPx = labelWidth * scale;
   const labelHeightPx = labelHeight * scale;
+
+  // Auto-scale positions when label dimensions change
+  useEffect(() => {
+    const prevWidth = prevDimensionsRef.current.width;
+    const prevHeight = prevDimensionsRef.current.height;
+    
+    // Only scale if dimensions actually changed (not on first render with same values)
+    if (prevWidth !== labelWidth || prevHeight !== labelHeight) {
+      const scaleX = labelWidth / prevWidth;
+      const scaleY = labelHeight / prevHeight;
+      
+      // Don't scale if ratio is too extreme (likely first init or template load)
+      const isReasonableScale = scaleX > 0.3 && scaleX < 3 && scaleY > 0.3 && scaleY < 3;
+      
+      if (isReasonableScale && (scaleX !== 1 || scaleY !== 1)) {
+        console.log(`Auto-scaling positions: ${prevWidth}x${prevHeight} -> ${labelWidth}x${labelHeight}`);
+        
+        const updates: Partial<LabelDesignConfig> = {};
+        
+        labelConfig.fieldOrder.forEach((fieldKey) => {
+          const field = labelConfig[fieldKey] as LabelFieldConfig;
+          if (field.x !== undefined && field.y !== undefined) {
+            // Scale positions proportionally and clamp within bounds
+            const newX = Math.max(0, Math.min((field.x || 0) * scaleX, labelWidth - 5));
+            const newY = Math.max(0, Math.min((field.y || 0) * scaleY, labelHeight - 3));
+            
+            updates[fieldKey] = {
+              ...field,
+              x: newX,
+              y: newY,
+            } as LabelFieldConfig;
+          }
+        });
+        
+        if (Object.keys(updates).length > 0) {
+          setLabelConfig(prev => ({ ...prev, ...updates }));
+        }
+      }
+      
+      // Update ref to current dimensions
+      prevDimensionsRef.current = { width: labelWidth, height: labelHeight };
+    }
+  }, [labelWidth, labelHeight]);
 
   // Initialize field positions if not set
   useEffect(() => {
@@ -321,7 +367,7 @@ export function BarTenderLabelDesigner({
     };
 
     initializePositions();
-  }, [labelConfig.fieldOrder, labelWidth]);
+  }, [labelConfig.fieldOrder]);
 
   // Render barcodes
   useEffect(() => {
@@ -503,6 +549,8 @@ export function BarTenderLabelDesigner({
     const success = await onSaveTemplate({
       name: templateName.trim(),
       config: labelConfig,
+      labelWidth,  // Save current dimensions with template
+      labelHeight,
     });
     setIsSaving(false);
     
@@ -514,8 +562,35 @@ export function BarTenderLabelDesigner({
   };
 
   const handleLoadTemplate = (template: LabelTemplate) => {
-    setLabelConfig(template.config);
-    toast.success(`Template "${template.name}" loaded`);
+    // If template has stored dimensions and they differ from current, scale positions
+    const templateWidth = template.labelWidth || labelWidth;
+    const templateHeight = template.labelHeight || labelHeight;
+    
+    if (templateWidth !== labelWidth || templateHeight !== labelHeight) {
+      const scaleX = labelWidth / templateWidth;
+      const scaleY = labelHeight / templateHeight;
+      
+      console.log(`Scaling template from ${templateWidth}x${templateHeight} to ${labelWidth}x${labelHeight}`);
+      
+      // Scale all field positions
+      const scaledConfig = { ...template.config };
+      template.config.fieldOrder.forEach((fieldKey) => {
+        const field = template.config[fieldKey] as LabelFieldConfig;
+        if (field && field.x !== undefined && field.y !== undefined) {
+          (scaledConfig[fieldKey] as LabelFieldConfig) = {
+            ...field,
+            x: Math.max(0, Math.min((field.x || 0) * scaleX, labelWidth - 5)),
+            y: Math.max(0, Math.min((field.y || 0) * scaleY, labelHeight - 3)),
+          };
+        }
+      });
+      
+      setLabelConfig(scaledConfig);
+      toast.success(`Template "${template.name}" loaded and scaled to ${labelWidth}x${labelHeight}mm`);
+    } else {
+      setLabelConfig(template.config);
+      toast.success(`Template "${template.name}" loaded`);
+    }
   };
 
   const handleDeleteTemplate = async (name: string) => {
