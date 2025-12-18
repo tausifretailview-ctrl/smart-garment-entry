@@ -81,6 +81,7 @@ interface Sale {
   refund_amount?: number;
   credit_note_id?: string | null;
   credit_note_amount?: number;
+  salesman?: string | null;
   created_at: string;
 }
 
@@ -1651,6 +1652,7 @@ const POSDashboard = () => {
               cardAmount={previewSale.card_amount}
               upiAmount={previewSale.upi_amount}
               paidAmount={previewSale.paid_amount}
+              salesman={previewSale.salesman || ''}
             />
           )}
         />
