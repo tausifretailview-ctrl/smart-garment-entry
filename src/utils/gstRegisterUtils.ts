@@ -209,7 +209,7 @@ export const calculateInvoiceValue = (breakup: GSTBreakup): number => {
   return Math.round((taxable + cgst + sgst + igst) * 100) / 100;
 };
 
-// Generate Excel workbook with 4 sheets
+// Generate Excel workbook with 5 sheets (including POS Sales)
 export const generateGSTRegisterExcel = (
   salesData: SalesRegisterRow[],
   saleReturnData: SaleReturnRegisterRow[],
@@ -218,7 +218,8 @@ export const generateGSTRegisterExcel = (
   businessName: string,
   businessGSTIN: string,
   fromDate: Date,
-  toDate: Date
+  toDate: Date,
+  posSalesData?: SalesRegisterRow[]
 ): XLSX.WorkBook => {
   const workbook = XLSX.utils.book_new();
   const dateRange = `${format(fromDate, 'dd-MMMM-yyyy')} TO ${format(toDate, 'dd-MMMM-yyyy')}`;
@@ -348,6 +349,33 @@ export const generateGSTRegisterExcel = (
   const purchaseReturnSheet = XLSX.utils.aoa_to_sheet(purchaseReturnSheetData);
   setColumnWidths(purchaseReturnSheet, [5, 15, 12, 25, 18, 14, 12, 12, 12, 14]);
   XLSX.utils.book_append_sheet(workbook, purchaseReturnSheet, 'Purchase Return Register');
+
+  // ===== POS Sales Register Sheet =====
+  if (posSalesData && posSalesData.length > 0) {
+    const posSalesRows = posSalesData.map(row => [
+      row.sno, row.invoiceNo, row.invoiceDate, row.partyName, row.gstin,
+      row.taxable_0, row.taxable_5, row.cgst_2_5, row.sgst_2_5,
+      row.taxable_12, row.cgst_6, row.sgst_6,
+      row.taxable_18, row.cgst_9, row.sgst_9,
+      row.taxable_28, row.cgst_14, row.sgst_14,
+      row.invoiceValue
+    ]);
+
+    const posSalesTotals = calculateSalesTotals(posSalesData);
+    posSalesRows.push([
+      '', 'TOTAL', '', '', '',
+      posSalesTotals.taxable_0, posSalesTotals.taxable_5, posSalesTotals.cgst_2_5, posSalesTotals.sgst_2_5,
+      posSalesTotals.taxable_12, posSalesTotals.cgst_6, posSalesTotals.sgst_6,
+      posSalesTotals.taxable_18, posSalesTotals.cgst_9, posSalesTotals.sgst_9,
+      posSalesTotals.taxable_28, posSalesTotals.cgst_14, posSalesTotals.sgst_14,
+      posSalesTotals.invoiceValue
+    ]);
+
+    const posSalesSheetData = [...createHeader('POS SALES REGISTER'), salesHeaders, ...posSalesRows];
+    const posSalesSheet = XLSX.utils.aoa_to_sheet(posSalesSheetData);
+    setColumnWidths(posSalesSheet, [5, 15, 12, 25, 18, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 14]);
+    XLSX.utils.book_append_sheet(workbook, posSalesSheet, 'POS Sales Register');
+  }
 
   return workbook;
 };
