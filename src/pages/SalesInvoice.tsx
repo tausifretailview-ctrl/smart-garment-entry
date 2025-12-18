@@ -1580,6 +1580,13 @@ Thank you for choosing us!`;
             />
           </div>
 
+          {/* Live Total Qty Badge */}
+          <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
+            <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
+            <span className="text-xl font-bold text-primary">
+              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+            </span>
+          </div>
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="justify-start">
@@ -1650,13 +1657,6 @@ Thank you for choosing us!`;
 
         {/* Line Items Table */}
         <div ref={tableContainerRef}>
-          {/* Live Qty Total */}
-          <div className="mb-2 text-right">
-            <span className="text-sm font-medium">Total Qty: </span>
-            <span className="text-lg font-bold text-primary">
-              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
-            </span>
-          </div>
           <Table>
             <TableHeader>
               <TableRow>
