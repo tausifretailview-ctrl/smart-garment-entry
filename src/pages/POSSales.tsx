@@ -1776,7 +1776,7 @@ export default function POSSales() {
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
-      <div className="w-20 bg-gradient-to-b from-primary/10 to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
+      <div className="w-20 bg-muted/50 dark:bg-gradient-to-b dark:from-primary/10 dark:to-secondary/10 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         <div className="space-y-2">
           {/* 1. Cash */}
