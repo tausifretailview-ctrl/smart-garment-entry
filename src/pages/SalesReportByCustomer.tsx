@@ -54,6 +54,7 @@ const SalesReportByCustomer = () => {
       let query = supabase
         .from("sales")
         .select("*")
+        .is("deleted_at", null)
         .order("sale_date", { ascending: false });
 
       if (selectedCustomerId !== "all") {

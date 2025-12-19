@@ -136,6 +136,7 @@ const DashboardContent = () => {
         .from("sales")
         .select("net_amount, id")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", startDate)
         .lte("sale_date", endDate);
       if (error) throw error;
@@ -217,6 +218,7 @@ const DashboardContent = () => {
         .from("purchase_bills")
         .select("net_amount, id")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("bill_date", startDate)
         .lte("bill_date", endDate);
       if (error) throw error;
@@ -289,6 +291,7 @@ const DashboardContent = () => {
         .from("sales")
         .select("net_amount")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", startDate)
         .lte("sale_date", endDate);
       
@@ -299,6 +302,7 @@ const DashboardContent = () => {
         .from("purchase_bills")
         .select("net_amount")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("bill_date", startDate)
         .lte("bill_date", endDate);
       
@@ -319,6 +323,7 @@ const DashboardContent = () => {
         .from("sales")
         .select("paid_amount, cash_amount")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", startDate)
         .lte("sale_date", endDate);
       
@@ -337,6 +342,7 @@ const DashboardContent = () => {
         .from("sales")
         .select("sale_return_adjust")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", startDate)
         .lte("sale_date", endDate)
         .gt("sale_return_adjust", 0);
@@ -359,6 +365,7 @@ const DashboardContent = () => {
         .from("sales")
         .select("net_amount, paid_amount")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .in("payment_status", ["pending", "partial"]);
       
       const total = data?.reduce((sum, item) => {

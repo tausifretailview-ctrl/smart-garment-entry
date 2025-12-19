@@ -25,6 +25,7 @@ export const StatsChartsSection = () => {
         .from("sales")
         .select("net_amount, sale_date")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", format(last7Days[0].date, "yyyy-MM-dd"))
         .order("sale_date", { ascending: true });
 
@@ -64,6 +65,7 @@ export const StatsChartsSection = () => {
         .from("purchase_bills")
         .select("net_amount, bill_date")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("bill_date", format(last7Days[0].date, "yyyy-MM-dd"))
         .order("bill_date", { ascending: true });
 

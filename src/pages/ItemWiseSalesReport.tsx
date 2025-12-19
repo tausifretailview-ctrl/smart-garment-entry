@@ -86,6 +86,7 @@ export default function ItemWiseSalesReport() {
         .from("sales")
         .select("id")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", dateRange.from.toISOString())
         .lte("sale_date", dateRange.to.toISOString());
 
