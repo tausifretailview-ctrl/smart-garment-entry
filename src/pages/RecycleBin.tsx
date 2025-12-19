@@ -18,19 +18,170 @@ interface DeletedRecord {
   [key: string]: any;
 }
 
-const entityConfig: Record<SoftDeleteEntity, { label: string; icon: any; displayField: string; secondaryField?: string }> = {
-  customers: { label: "Customers", icon: Users, displayField: "customer_name", secondaryField: "phone" },
-  suppliers: { label: "Suppliers", icon: Truck, displayField: "supplier_name", secondaryField: "phone" },
-  employees: { label: "Employees", icon: Users, displayField: "employee_name", secondaryField: "designation" },
-  products: { label: "Products", icon: Package, displayField: "product_name", secondaryField: "category" },
-  purchase_bills: { label: "Purchase Bills", icon: FileText, displayField: "software_bill_no", secondaryField: "supplier_name" },
-  sales: { label: "Sales/POS", icon: ShoppingCart, displayField: "sale_number", secondaryField: "customer_name" },
-  sale_returns: { label: "Sale Returns", icon: RotateCcw, displayField: "return_number", secondaryField: "customer_name" },
-  purchase_returns: { label: "Purchase Returns", icon: RotateCcw, displayField: "return_number", secondaryField: "supplier_name" },
-  sale_orders: { label: "Sale Orders", icon: FileText, displayField: "order_number", secondaryField: "customer_name" },
-  quotations: { label: "Quotations", icon: FileText, displayField: "quotation_number", secondaryField: "customer_name" },
-  voucher_entries: { label: "Vouchers", icon: Receipt, displayField: "voucher_number", secondaryField: "voucher_type" },
-  credit_notes: { label: "Credit Notes", icon: Receipt, displayField: "credit_note_number", secondaryField: "customer_name" },
+interface EntityConfigItem {
+  label: string;
+  icon: any;
+  displayField: string;
+  secondaryField?: string;
+  detailFields?: { key: string; label: string; isAmount?: boolean; isDate?: boolean }[];
+}
+
+const entityConfig: Record<SoftDeleteEntity, EntityConfigItem> = {
+  customers: { 
+    label: "Customers", 
+    icon: Users, 
+    displayField: "customer_name", 
+    secondaryField: "phone",
+    detailFields: [
+      { key: "email", label: "Email" },
+      { key: "gst_number", label: "GST" },
+      { key: "address", label: "Address" },
+    ]
+  },
+  suppliers: { 
+    label: "Suppliers", 
+    icon: Truck, 
+    displayField: "supplier_name", 
+    secondaryField: "phone",
+    detailFields: [
+      { key: "contact_person", label: "Contact" },
+      { key: "email", label: "Email" },
+      { key: "gst_number", label: "GST" },
+    ]
+  },
+  employees: { 
+    label: "Employees", 
+    icon: Users, 
+    displayField: "employee_name", 
+    secondaryField: "designation",
+    detailFields: [
+      { key: "phone", label: "Phone" },
+      { key: "email", label: "Email" },
+      { key: "status", label: "Status" },
+    ]
+  },
+  products: { 
+    label: "Products", 
+    icon: Package, 
+    displayField: "product_name", 
+    secondaryField: "category",
+    detailFields: [
+      { key: "brand", label: "Brand" },
+      { key: "style", label: "Style" },
+      { key: "hsn_code", label: "HSN" },
+      { key: "default_sale_price", label: "Sale Price", isAmount: true },
+    ]
+  },
+  purchase_bills: { 
+    label: "Purchase Bills", 
+    icon: FileText, 
+    displayField: "software_bill_no", 
+    secondaryField: "supplier_name",
+    detailFields: [
+      { key: "supplier_invoice_no", label: "Supplier Inv" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "bill_date", label: "Date", isDate: true },
+      { key: "payment_status", label: "Status" },
+    ]
+  },
+  sales: { 
+    label: "Sales/POS", 
+    icon: ShoppingCart, 
+    displayField: "sale_number", 
+    secondaryField: "customer_name",
+    detailFields: [
+      { key: "customer_phone", label: "Phone" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "sale_date", label: "Date", isDate: true },
+      { key: "payment_status", label: "Payment" },
+    ]
+  },
+  sale_returns: { 
+    label: "Sale Returns", 
+    icon: RotateCcw, 
+    displayField: "return_number", 
+    secondaryField: "customer_name",
+    detailFields: [
+      { key: "original_sale_number", label: "Original Sale" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "return_date", label: "Date", isDate: true },
+    ]
+  },
+  purchase_returns: { 
+    label: "Purchase Returns", 
+    icon: RotateCcw, 
+    displayField: "return_number", 
+    secondaryField: "supplier_name",
+    detailFields: [
+      { key: "original_bill_number", label: "Original Bill" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "return_date", label: "Date", isDate: true },
+    ]
+  },
+  sale_orders: { 
+    label: "Sale Orders", 
+    icon: FileText, 
+    displayField: "order_number", 
+    secondaryField: "customer_name",
+    detailFields: [
+      { key: "customer_phone", label: "Phone" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "order_date", label: "Date", isDate: true },
+      { key: "status", label: "Status" },
+    ]
+  },
+  quotations: { 
+    label: "Quotations", 
+    icon: FileText, 
+    displayField: "quotation_number", 
+    secondaryField: "customer_name",
+    detailFields: [
+      { key: "customer_phone", label: "Phone" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "quotation_date", label: "Date", isDate: true },
+      { key: "status", label: "Status" },
+    ]
+  },
+  voucher_entries: { 
+    label: "Vouchers", 
+    icon: Receipt, 
+    displayField: "voucher_number", 
+    secondaryField: "voucher_type",
+    detailFields: [
+      { key: "total_amount", label: "Amount", isAmount: true },
+      { key: "voucher_date", label: "Date", isDate: true },
+      { key: "description", label: "Description" },
+    ]
+  },
+  credit_notes: { 
+    label: "Credit Notes", 
+    icon: Receipt, 
+    displayField: "credit_note_number", 
+    secondaryField: "customer_name",
+    detailFields: [
+      { key: "customer_phone", label: "Phone" },
+      { key: "credit_amount", label: "Amount", isAmount: true },
+      { key: "status", label: "Status" },
+    ]
+  },
+};
+
+const formatValue = (value: any, field: { key: string; label: string; isAmount?: boolean; isDate?: boolean }): string => {
+  if (value === null || value === undefined || value === "") return "-";
+  
+  if (field.isDate) {
+    try {
+      return format(new Date(value), "dd/MM/yyyy");
+    } catch {
+      return String(value);
+    }
+  }
+  
+  if (field.isAmount) {
+    return `₹${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  }
+  
+  return String(value);
 };
 
 export default function RecycleBin() {
@@ -117,15 +268,21 @@ export default function RecycleBin() {
 
   const totalDeletedCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
 
+  const config = entityConfig[activeTab];
+
   const filteredRecords = deletedRecords.filter((record) => {
-    const config = entityConfig[activeTab];
     const primaryValue = record[config.displayField]?.toString().toLowerCase() || "";
     const secondaryValue = record[config.secondaryField || ""]?.toString().toLowerCase() || "";
     const search = searchQuery.toLowerCase();
-    return primaryValue.includes(search) || secondaryValue.includes(search);
+    
+    // Also search in detail fields
+    const detailMatch = config.detailFields?.some(field => {
+      const value = record[field.key]?.toString().toLowerCase() || "";
+      return value.includes(search);
+    }) || false;
+    
+    return primaryValue.includes(search) || secondaryValue.includes(search) || detailMatch;
   });
-
-  const config = entityConfig[activeTab];
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -161,66 +318,98 @@ export default function RecycleBin() {
               ))}
             </TabsList>
 
-            {Object.keys(entityConfig).map((entity) => (
-              <TabsContent key={entity} value={entity}>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex-1 max-w-md">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder={`Search deleted ${entityConfig[entity as SoftDeleteEntity].label.toLowerCase()}...`}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
+            {Object.keys(entityConfig).map((entity) => {
+              const entityConf = entityConfig[entity as SoftDeleteEntity];
+              return (
+                <TabsContent key={entity} value={entity}>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="relative flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={`Search deleted ${entityConf.label.toLowerCase()}...`}
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
                     </div>
-                  </div>
 
-                  {isLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    </div>
-                  ) : filteredRecords.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Trash2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No Deleted Records</h3>
-                      <p className="text-muted-foreground">
-                        No deleted {entityConfig[entity as SoftDeleteEntity].label.toLowerCase()} found
-                      </p>
-                    </div>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>{config.displayField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</TableHead>
-                          {config.secondaryField && (
-                            <TableHead>{config.secondaryField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</TableHead>
-                          )}
-                          <TableHead>Deleted At</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredRecords.map((record) => (
-                          <TableRow key={record.id}>
-                            <TableCell className="font-medium">
-                              {record[config.displayField] || "-"}
-                            </TableCell>
-                            {config.secondaryField && (
-                              <TableCell>{record[config.secondaryField] || "-"}</TableCell>
-                            )}
-                            <TableCell>
-                              {record.deleted_at
-                                ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
-                                : "-"}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-              </TabsContent>
-            ))}
+                    {isLoading ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      </div>
+                    ) : filteredRecords.length === 0 ? (
+                      <div className="text-center py-12">
+                        <Trash2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">No Deleted Records</h3>
+                        <p className="text-muted-foreground">
+                          No deleted {entityConf.label.toLowerCase()} found
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="border rounded-lg overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="font-semibold">
+                                {entityConf.displayField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                              </TableHead>
+                              {entityConf.secondaryField && (
+                                <TableHead className="font-semibold">
+                                  {entityConf.secondaryField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                                </TableHead>
+                              )}
+                              {entityConf.detailFields?.map((field) => (
+                                <TableHead key={field.key} className="font-semibold hidden md:table-cell">
+                                  {field.label}
+                                </TableHead>
+                              ))}
+                              <TableHead className="font-semibold">Deleted At</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredRecords.map((record) => (
+                              <TableRow key={record.id}>
+                                <TableCell>
+                                  <div className="font-medium">
+                                    {record[entityConf.displayField] || "-"}
+                                  </div>
+                                  {/* Mobile: show details inline */}
+                                  <div className="md:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
+                                    {entityConf.detailFields?.map((field) => (
+                                      record[field.key] && (
+                                        <div key={field.key}>
+                                          <span className="font-medium">{field.label}:</span>{" "}
+                                          {formatValue(record[field.key], field)}
+                                        </div>
+                                      )
+                                    ))}
+                                  </div>
+                                </TableCell>
+                                {entityConf.secondaryField && (
+                                  <TableCell>{record[entityConf.secondaryField] || "-"}</TableCell>
+                                )}
+                                {entityConf.detailFields?.map((field) => (
+                                  <TableCell key={field.key} className="hidden md:table-cell">
+                                    {formatValue(record[field.key], field)}
+                                  </TableCell>
+                                ))}
+                                <TableCell className="whitespace-nowrap">
+                                  {record.deleted_at
+                                    ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
+                                    : "-"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              );
+            })}
           </Tabs>
         </CardContent>
       </Card>
