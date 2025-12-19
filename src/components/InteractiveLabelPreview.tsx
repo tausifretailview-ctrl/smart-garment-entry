@@ -32,6 +32,7 @@ interface LabelDesignConfig {
   style: LabelFieldConfig;
   size: LabelFieldConfig;
   price: LabelFieldConfig;
+  mrp: LabelFieldConfig;
   barcode: LabelFieldConfig;
   barcodeText: LabelFieldConfig;
   billNumber: LabelFieldConfig;
@@ -50,6 +51,7 @@ interface LabelItem {
   style: string;
   size: string;
   sale_price: number;
+  mrp?: number;
   barcode: string;
   bill_number: string;
   supplier_code?: string;
@@ -71,7 +73,8 @@ const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeH
   color: 'Color',
   style: 'Style',
   size: 'Size',
-  price: 'Price (MRP)',
+  price: 'Sale Price',
+  mrp: 'MRP',
   barcode: 'Barcode Image',
   barcodeText: 'Barcode Number',
   billNumber: 'Bill Number',
@@ -298,6 +301,7 @@ export function InteractiveLabelPreview({
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
+        case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number || '';
         case 'supplierCode': return sampleItem.supplier_code || '';
@@ -312,6 +316,7 @@ export function InteractiveLabelPreview({
       case 'color': return 'Blue';
       case 'style': return 'Classic';
       case 'price': return '₹999';
+      case 'mrp': return 'MRP ₹1299';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'BILL001';
       case 'supplierCode': return 'SUP01';
