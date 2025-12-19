@@ -60,6 +60,7 @@ import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import RecycleBin from "./pages/RecycleBin";
+import StockAdjustment from "./pages/StockAdjustment";
 import SalesmanLayout from "./layouts/SalesmanLayout";
 import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
 import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
@@ -232,6 +233,18 @@ const App = () => {
                       <Layout>
                         <StockReport />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-adjustment"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin"]}>
+                        <Layout>
+                          <StockAdjustment />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
