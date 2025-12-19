@@ -2456,10 +2456,12 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
-      generate_purchase_bill_number: {
-        Args: { p_date?: string; p_organization_id?: string }
-        Returns: string
-      }
+      generate_purchase_bill_number:
+        | {
+            Args: { p_date?: string; p_organization_id?: string }
+            Returns: string
+          }
+        | { Args: { p_organization_id: string }; Returns: string }
       generate_purchase_return_number: {
         Args: { p_organization_id: string }
         Returns: string
@@ -2468,10 +2470,12 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
-      generate_sale_number: {
-        Args: { p_organization_id: string }
-        Returns: string
-      }
+      generate_sale_number:
+        | { Args: { p_organization_id: string }; Returns: string }
+        | {
+            Args: { p_organization_id: string; p_prefix?: string }
+            Returns: string
+          }
       generate_sale_order_number: {
         Args: { p_organization_id: string }
         Returns: string
