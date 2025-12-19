@@ -30,8 +30,10 @@ interface VariantWithMovements {
   returned_qty: number;
   adjusted_qty: number;
   newOpeningQty: number;
+  newStockQty: number;
   calculatedStock: number;
   selected: boolean;
+  stockQtyChanged: boolean;
 }
 
 const StockAdjustment = () => {
@@ -43,6 +45,7 @@ const StockAdjustment = () => {
   const [filter, setFilter] = useState<"all" | "with-opening" | "with-sales" | "opening-15">("with-opening");
   const [variants, setVariants] = useState<VariantWithMovements[]>([]);
   const [bulkOpeningValue, setBulkOpeningValue] = useState<string>("0");
+  const [bulkStockValue, setBulkStockValue] = useState<string>("0");
 
   // Fetch variants with stock movements
   const { data: rawVariants, isLoading, refetch } = useQuery({
@@ -112,13 +115,14 @@ const StockAdjustment = () => {
         const mvt = movementsByVariant[v.id] || { purchased: 0, sold: 0, returned: 0, adjusted: 0 };
         const product = v.products as any;
         const openingQty = v.opening_qty || 0;
+        const stockQty = v.stock_qty || 0;
         
         return {
           id: v.id,
           barcode: v.barcode,
           size: v.size,
           opening_qty: openingQty,
-          stock_qty: v.stock_qty || 0,
+          stock_qty: stockQty,
           product_id: v.product_id,
           product_name: product?.product_name || "Unknown",
           brand: product?.brand,
@@ -128,8 +132,10 @@ const StockAdjustment = () => {
           returned_qty: mvt.returned,
           adjusted_qty: mvt.adjusted,
           newOpeningQty: openingQty,
+          newStockQty: stockQty,
           calculatedStock: openingQty + mvt.purchased - mvt.sold + mvt.returned + mvt.adjusted,
           selected: false,
+          stockQtyChanged: false,
         };
       }) || [];
     },
@@ -179,7 +185,20 @@ const StockAdjustment = () => {
       prev.map((v) => {
         if (v.id === variantId) {
           const newCalculatedStock = numValue + v.purchased_qty - v.sold_qty + v.returned_qty + v.adjusted_qty;
-          return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock };
+          return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock, newStockQty: newCalculatedStock, stockQtyChanged: false };
+        }
+        return v;
+      })
+    );
+  };
+
+  // Update stock qty directly for a variant
+  const handleStockChange = (variantId: string, value: string) => {
+    const numValue = parseInt(value) || 0;
+    setVariants((prev) =>
+      prev.map((v) => {
+        if (v.id === variantId) {
+          return { ...v, newStockQty: numValue, stockQtyChanged: true };
         }
         return v;
       })
@@ -210,7 +229,7 @@ const StockAdjustment = () => {
       prev.map((v) => {
         if (v.selected) {
           const newCalculatedStock = numValue + v.purchased_qty - v.sold_qty + v.returned_qty + v.adjusted_qty;
-          return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock };
+          return { ...v, newOpeningQty: numValue, calculatedStock: newCalculatedStock, newStockQty: newCalculatedStock, stockQtyChanged: false };
         }
         return v;
       })
@@ -221,14 +240,31 @@ const StockAdjustment = () => {
     });
   };
 
+  // Bulk set stock qty for selected
+  const handleBulkSetStock = () => {
+    const numValue = parseInt(bulkStockValue) || 0;
+    setVariants((prev) =>
+      prev.map((v) => {
+        if (v.selected) {
+          return { ...v, newStockQty: numValue, stockQtyChanged: true };
+        }
+        return v;
+      })
+    );
+    toast({
+      title: "Bulk Update Applied",
+      description: `Set stock qty to ${numValue} for selected items (preview only)`,
+    });
+  };
+
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id) throw new Error("No organization");
 
-      // Get items that have changes
+      // Get items that have changes (either opening qty or stock qty)
       const changedVariants = variants.filter(
-        (v) => v.newOpeningQty !== v.opening_qty
+        (v) => v.newOpeningQty !== v.opening_qty || (v.stockQtyChanged && v.newStockQty !== v.stock_qty)
       );
 
       if (changedVariants.length === 0) {
@@ -238,13 +274,15 @@ const StockAdjustment = () => {
       // Update each variant
       for (const v of changedVariants) {
         const openingDiff = v.newOpeningQty - v.opening_qty;
+        const finalStockQty = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
+        const stockDiff = finalStockQty - v.stock_qty;
         
         // Update variant opening_qty and stock_qty
         const { error: updateError } = await supabase
           .from("product_variants")
           .update({
             opening_qty: v.newOpeningQty,
-            stock_qty: v.calculatedStock,
+            stock_qty: finalStockQty,
             updated_at: new Date().toISOString(),
           })
           .eq("id", v.id);
@@ -262,6 +300,22 @@ const StockAdjustment = () => {
               quantity: openingDiff,
               notes: `Opening qty adjusted from ${v.opening_qty} to ${v.newOpeningQty}`,
               bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
+            });
+
+          if (movementError) throw movementError;
+        }
+
+        // Create stock movement for direct stock adjustment
+        if (v.stockQtyChanged && stockDiff !== 0) {
+          const { error: movementError } = await supabase
+            .from("stock_movements")
+            .insert({
+              variant_id: v.id,
+              organization_id: currentOrganization.id,
+              movement_type: "stock_adjustment",
+              quantity: stockDiff,
+              notes: `Stock qty directly adjusted from ${v.stock_qty} to ${finalStockQty}`,
+              bill_number: `STK-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
           if (movementError) throw movementError;
@@ -288,8 +342,8 @@ const StockAdjustment = () => {
   });
 
   // Count changes
-  const changesCount = variants.filter((v) => v.newOpeningQty !== v.opening_qty).length;
-  const negativeStockCount = variants.filter((v) => v.calculatedStock < 0).length;
+  const changesCount = variants.filter((v) => v.newOpeningQty !== v.opening_qty || (v.stockQtyChanged && v.newStockQty !== v.stock_qty)).length;
+  const negativeStockCount = variants.filter((v) => (v.stockQtyChanged ? v.newStockQty : v.calculatedStock) < 0).length;
   const selectedCount = filteredVariants.filter((v) => v.selected).length;
 
   // Summary stats
@@ -393,11 +447,11 @@ const StockAdjustment = () => {
           <CardHeader className="py-3">
             <CardTitle className="text-base">Bulk Actions</CardTitle>
             <CardDescription>
-              Select items and set opening quantity in bulk
+              Select items and set opening quantity or stock quantity in bulk
             </CardDescription>
           </CardHeader>
           <CardContent className="py-3">
-            <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex flex-wrap gap-4 items-center">
               <span className="text-sm text-muted-foreground">
                 {selectedCount} item(s) selected
               </span>
@@ -414,6 +468,24 @@ const StockAdjustment = () => {
                   size="sm" 
                   variant="secondary"
                   onClick={handleBulkSetOpening}
+                  disabled={selectedCount === 0}
+                >
+                  Apply
+                </Button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <span className="text-sm">Set Stock Qty to:</span>
+                <Input
+                  type="number"
+                  min="0"
+                  value={bulkStockValue}
+                  onChange={(e) => setBulkStockValue(e.target.value)}
+                  className="w-24"
+                />
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleBulkSetStock}
                   disabled={selectedCount === 0}
                 >
                   Apply
@@ -439,6 +511,7 @@ const StockAdjustment = () => {
                   <TableHead className="hidden md:table-cell">Barcode</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead className="text-right">Current Opening</TableHead>
+                  <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Purchased</TableHead>
                   <TableHead className="text-right">Sold</TableHead>
                   <TableHead className="text-right hidden md:table-cell">Returned</TableHead>
@@ -449,16 +522,19 @@ const StockAdjustment = () => {
               <TableBody>
                 {filteredVariants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
                       <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       No items found matching your criteria
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVariants.map((v) => (
+                  filteredVariants.map((v) => {
+                    const finalStock = v.stockQtyChanged ? v.newStockQty : v.calculatedStock;
+                    const hasChanges = v.newOpeningQty !== v.opening_qty || (v.stockQtyChanged && v.newStockQty !== v.stock_qty);
+                    return (
                     <TableRow 
                       key={v.id} 
-                      className={v.calculatedStock < 0 ? "bg-destructive/5" : v.newOpeningQty !== v.opening_qty ? "bg-primary/5" : ""}
+                      className={finalStock < 0 ? "bg-destructive/5" : hasChanges ? "bg-primary/5" : ""}
                     >
                       <TableCell>
                         <Checkbox
@@ -477,6 +553,7 @@ const StockAdjustment = () => {
                         <Badge variant="outline">{v.size}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{v.opening_qty}</TableCell>
+                      <TableCell className="text-right">{v.stock_qty}</TableCell>
                       <TableCell className="text-right hidden md:table-cell text-green-600">
                         +{v.purchased_qty}
                       </TableCell>
@@ -500,15 +577,18 @@ const StockAdjustment = () => {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={v.calculatedStock < 0 ? "text-destructive font-bold" : "font-medium"}>
-                          {v.calculatedStock}
-                        </span>
-                        {v.calculatedStock < 0 && (
+                        <Input
+                          type="number"
+                          value={v.stockQtyChanged ? v.newStockQty : v.calculatedStock}
+                          onChange={(e) => handleStockChange(v.id, e.target.value)}
+                          className={`w-20 text-right h-8 ${v.stockQtyChanged ? "border-primary" : ""} ${finalStock < 0 ? "border-destructive text-destructive" : ""}`}
+                        />
+                        {finalStock < 0 && (
                           <AlertTriangle className="inline-block h-4 w-4 ml-1 text-destructive" />
                         )}
                       </TableCell>
                     </TableRow>
-                  ))
+                  )})
                 )}
               </TableBody>
             </Table>
