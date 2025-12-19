@@ -125,6 +125,7 @@ const SalesmanOrderEntry = () => {
       .from("sale_orders")
       .select("order_number")
       .eq("organization_id", currentOrganization!.id)
+      .is("deleted_at", null)
       .ilike("order_number", `${prefix}%`);
 
     let maxSeq = 0;
