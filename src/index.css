@@ -62,22 +62,58 @@ All colors MUST be HSL.
     --sidebar-muted: 0 0% 92%;
   }
 
-  /* Classic Indigo Theme */
+  /* Classic Indigo Theme - matches old Smart Inventory theme */
   .theme-indigo {
+    --background: 0 0% 98%;
+    --foreground: 230 15% 25%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 230 15% 25%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 15% 25%;
+
     --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 239 88% 72%;
+    --primary-glow: 239 88% 75%;
+
+    --secondary: 230 25% 96%;
+    --secondary-foreground: 230 15% 25%;
+
+    --muted: 230 20% 96%;
+    --muted-foreground: 230 10% 45%;
 
     --accent: 239 84% 67%;
     --accent-foreground: 0 0% 100%;
 
+    --success: 158 64% 52%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 20% 90%;
+    --input: 230 20% 90%;
     --ring: 239 84% 67%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 74% 57%));
-    --gradient-accent: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 62%));
+    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(250 80% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(239 84% 67%), hsl(260 84% 70%));
+    --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
+    --shadow-glow: 0 4px 20px hsl(239 84% 67% / 0.15);
+    --shadow-elevated: 0 8px 30px hsl(230 20% 50% / 0.1);
 
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 230 15% 25%;
     --sidebar-primary: 239 84% 67%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 239 84% 97%;
+    --sidebar-accent-foreground: 239 84% 50%;
+    --sidebar-border: 230 20% 92%;
     --sidebar-ring: 239 84% 67%;
+    --sidebar-muted: 230 20% 96%;
   }
 
   .dark {
