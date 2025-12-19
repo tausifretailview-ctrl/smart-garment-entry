@@ -11,7 +11,7 @@ interface FullScreenLayoutProps {
 export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1">
           <Header />
