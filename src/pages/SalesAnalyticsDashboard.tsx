@@ -73,6 +73,7 @@ export default function SalesAnalyticsDashboard() {
         .from("sales")
         .select("*")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
         .order("sale_date", { ascending: true });
@@ -91,7 +92,8 @@ export default function SalesAnalyticsDashboard() {
       const { data, error } = await supabase
         .from("sale_items")
         .select("*")
-        .in("sale_id", saleIds);
+        .in("sale_id", saleIds)
+        .is("deleted_at", null);
       if (error) throw error;
       return data || [];
     },
@@ -115,6 +117,7 @@ export default function SalesAnalyticsDashboard() {
         .from("sales")
         .select("net_amount, gross_amount")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", format(previousPeriodRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(previousPeriodRange.end, "yyyy-MM-dd'T'23:59:59"));
       if (error) throw error;
@@ -132,6 +135,7 @@ export default function SalesAnalyticsDashboard() {
         .from("sales")
         .select("customer_id, customer_name")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("sale_date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("sale_date", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
         .not("customer_id", "is", null);

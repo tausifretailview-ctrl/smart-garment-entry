@@ -72,6 +72,7 @@ export default function Accounts() {
         .select("*")
         .eq("customer_id", referenceId)
         .in("payment_status", ["pending", "partial"])
+        .is("deleted_at", null)
         .order("sale_date", { ascending: false });
       
       if (error) throw error;
@@ -129,7 +130,8 @@ export default function Accounts() {
         .from("sales")
         .select("net_amount, paid_amount")
         .eq("customer_id", referenceId)
-        .in("payment_status", ["pending", "partial"]);
+        .in("payment_status", ["pending", "partial"])
+        .is("deleted_at", null);
       
       if (error) throw error;
       
@@ -151,7 +153,8 @@ export default function Accounts() {
       const { data: bills, error: billsError } = await supabase
         .from("purchase_bills")
         .select("id, net_amount")
-        .eq("supplier_id", referenceId);
+        .eq("supplier_id", referenceId)
+        .is("deleted_at", null);
       
       if (billsError) throw billsError;
 
@@ -161,7 +164,8 @@ export default function Accounts() {
         .from("voucher_entries")
         .select("total_amount, reference_id")
         .eq("reference_type", "supplier")
-        .in("reference_id", billIds);
+        .in("reference_id", billIds)
+        .is("deleted_at", null);
       
       if (paymentsError) throw paymentsError;
 
@@ -182,6 +186,7 @@ export default function Accounts() {
         .from("customers")
         .select("*")
         .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
         .order("customer_name");
       if (custError) throw custError;
 
@@ -190,7 +195,8 @@ export default function Accounts() {
         .from("sales")
         .select("customer_id, net_amount, paid_amount")
         .eq("organization_id", currentOrganization?.id)
-        .in("payment_status", ["pending", "partial"]);
+        .in("payment_status", ["pending", "partial"])
+        .is("deleted_at", null);
       if (invError) throw invError;
 
       // Calculate invoice balance per customer (net_amount - paid_amount)
@@ -287,6 +293,7 @@ export default function Accounts() {
         .from("voucher_entries")
         .select("*")
         .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -305,7 +312,8 @@ export default function Accounts() {
         const { data: customerSales, error: salesError } = await supabase
           .from("sales")
           .select("id")
-          .eq("customer_id", reconCustomerFilter);
+          .eq("customer_id", reconCustomerFilter)
+          .is("deleted_at", null);
         
         if (salesError) throw salesError;
         salesIdsFilter = customerSales?.map(s => s.id) || [];
@@ -322,6 +330,7 @@ export default function Accounts() {
         .select("*")
         .eq("organization_id", currentOrganization?.id)
         .or("voucher_type.eq.receipt,voucher_type.eq.RECEIPT")
+        .is("deleted_at", null)
         .gte("voucher_date", format(reconStartDate, "yyyy-MM-dd"))
         .lte("voucher_date", format(reconEndDate, "yyyy-MM-dd"));
 
@@ -397,7 +406,8 @@ export default function Accounts() {
       const { data, error } = await supabase
         .from("sales")
         .select("*")
-        .eq("organization_id", currentOrganization?.id);
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return data;
     },

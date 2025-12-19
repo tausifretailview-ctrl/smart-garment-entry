@@ -57,6 +57,7 @@ export const SupplierHistoryDialog = ({
         .from("purchase_bills")
         .select("*")
         .eq("supplier_id", supplierId)
+        .is("deleted_at", null)
         .order("bill_date", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -73,6 +74,7 @@ export const SupplierHistoryDialog = ({
         .from("purchase_returns")
         .select("*")
         .eq("supplier_id", supplierId)
+        .is("deleted_at", null)
         .order("return_date", { ascending: false })
         .limit(50);
       if (error) throw error;
@@ -92,6 +94,7 @@ export const SupplierHistoryDialog = ({
         .select("*")
         .in("reference_id", billIds)
         .eq("voucher_type", "payment")
+        .is("deleted_at", null)
         .order("voucher_date", { ascending: false });
       if (error) throw error;
       return data || [];
