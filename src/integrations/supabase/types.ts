@@ -2405,6 +2405,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_purchase_stock_dependencies: {
+        Args: { p_bill_id: string }
+        Returns: {
+          current_stock: number
+          product_name: string
+          purchased_qty: number
+          quantity: number
+          sale_date: string
+          sale_id: string
+          sale_number: string
+          size: string
+          would_go_negative: boolean
+        }[]
+      }
       cleanup_old_login_attempts: { Args: never; Returns: undefined }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }

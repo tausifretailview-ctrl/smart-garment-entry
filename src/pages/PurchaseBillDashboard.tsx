@@ -27,7 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
-import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { useSoftDelete, StockDependency } from "@/hooks/useSoftDelete";
 
 interface PurchaseItem {
   id: string;
@@ -96,6 +96,11 @@ const PurchaseBillDashboard = () => {
   // Supplier history dialog states
   const [showSupplierHistory, setShowSupplierHistory] = useState(false);
   const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{id: string; name: string} | null>(null);
+  
+  // Stock dependency warning states
+  const [showDependencyWarning, setShowDependencyWarning] = useState(false);
+  const [stockDependencies, setStockDependencies] = useState<StockDependency[]>([]);
+  const [isCheckingDependencies, setIsCheckingDependencies] = useState(false);
   // Column visibility settings with database persistence
   const defaultPurchaseColumns = {
     status: true,
@@ -201,11 +206,23 @@ const PurchaseBillDashboard = () => {
     }
   }, [expandedBill, billItems]);
 
-  const { softDelete, bulkSoftDelete } = useSoftDelete();
+  const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
 
-  const handleDeleteClick = (bill: PurchaseBill, event: React.MouseEvent) => {
+  const handleDeleteClick = async (bill: PurchaseBill, event: React.MouseEvent) => {
     event.stopPropagation();
     setBillToDelete(bill);
+    
+    // Check for stock dependencies
+    setIsCheckingDependencies(true);
+    const dependencies = await checkPurchaseStockDependencies(bill.id);
+    setIsCheckingDependencies(false);
+    
+    if (dependencies.length > 0) {
+      setStockDependencies(dependencies);
+      setShowDependencyWarning(true);
+    } else {
+      // No dependencies, show normal delete dialog (billToDelete is already set)
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -222,6 +239,8 @@ const PurchaseBillDashboard = () => {
       });
 
       setBillToDelete(null);
+      setShowDependencyWarning(false);
+      setStockDependencies([]);
       await fetchBills();
     } catch (error: any) {
       toast({
@@ -234,11 +253,47 @@ const PurchaseBillDashboard = () => {
     }
   };
 
+  const handleCancelDelete = () => {
+    setBillToDelete(null);
+    setShowDependencyWarning(false);
+    setStockDependencies([]);
+  };
+
   // Note: Stock restoration is now handled automatically by database triggers
   // (handle_purchase_item_delete) when purchase_items are deleted.
   // This prevents double stock deduction that was occurring previously.
 
   // Note: toggleSelectAll moved after paginatedBills is defined
+
+  const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
+  const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
+
+  const handleBulkDeleteClick = async () => {
+    const billsToCheck = Array.from(selectedBills);
+    setIsDeleting(true);
+    
+    // Check each bill for dependencies
+    const allDeps: {billId: string; billNo: string; deps: StockDependency[]}[] = [];
+    for (const billId of billsToCheck) {
+      const deps = await checkPurchaseStockDependencies(billId);
+      if (deps.length > 0) {
+        const bill = bills.find(b => b.id === billId);
+        allDeps.push({
+          billId,
+          billNo: bill?.software_bill_no || bill?.supplier_invoice_no || billId,
+          deps
+        });
+      }
+    }
+    setIsDeleting(false);
+    
+    if (allDeps.length > 0) {
+      setBulkDependencies(allDeps);
+      setShowBulkDependencyWarning(true);
+    } else {
+      setShowBulkDeleteDialog(true);
+    }
+  };
 
   const handleBulkDelete = async () => {
     setIsDeleting(true);
@@ -253,6 +308,8 @@ const PurchaseBillDashboard = () => {
 
       setSelectedBills(new Set());
       setShowBulkDeleteDialog(false);
+      setShowBulkDependencyWarning(false);
+      setBulkDependencies([]);
       await fetchBills();
     } catch (error: any) {
       toast({
@@ -766,10 +823,11 @@ const PurchaseBillDashboard = () => {
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => setShowBulkDeleteDialog(true)}
+                  onClick={handleBulkDeleteClick}
+                  disabled={isDeleting}
                   className="gap-2"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                   Delete Selected
                 </Button>
               </div>
@@ -1099,8 +1157,8 @@ const PurchaseBillDashboard = () => {
         )}
       </div>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!billToDelete} onOpenChange={() => setBillToDelete(null)}>
+      {/* Delete Confirmation Dialog - Only shown when no dependencies */}
+      <AlertDialog open={!!billToDelete && !showDependencyWarning && !isCheckingDependencies} onOpenChange={handleCancelDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Purchase Bill</AlertDialogTitle>
@@ -1109,7 +1167,7 @@ const PurchaseBillDashboard = () => {
               <span className="font-semibold">
                 {billToDelete?.software_bill_no || billToDelete?.supplier_invoice_no}
               </span>
-              ? This will also delete all associated items. This action cannot be undone.
+              ? This will also delete all associated items and reverse stock. This action can be restored from recycle bin.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1119,6 +1177,74 @@ const PurchaseBillDashboard = () => {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Stock Dependency Warning Dialog */}
+      <AlertDialog open={showDependencyWarning} onOpenChange={handleCancelDelete}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <span className="text-2xl">⚠️</span>
+              Warning: Stock Dependencies Found
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              <p className="mb-4">
+                Deleting purchase bill{" "}
+                <span className="font-semibold">
+                  {billToDelete?.software_bill_no || billToDelete?.supplier_invoice_no}
+                </span>
+                {" "}will cause <strong className="text-destructive">negative stock</strong> because the following active sales have already consumed items from this purchase:
+              </p>
+              
+              <div className="max-h-60 overflow-y-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Sale #</TableHead>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead className="text-right">Sold Qty</TableHead>
+                      <TableHead className="text-right">Current Stock</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {stockDependencies.map((dep, index) => (
+                      <TableRow key={`${dep.sale_id}-${index}`}>
+                        <TableCell className="font-medium">{dep.sale_number}</TableCell>
+                        <TableCell>{dep.product_name}</TableCell>
+                        <TableCell>{dep.size}</TableCell>
+                        <TableCell className="text-right">{dep.quantity}</TableCell>
+                        <TableCell className="text-right text-destructive font-medium">
+                          {dep.current_stock} → {dep.current_stock - dep.purchased_qty}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              
+              <p className="mt-4 text-sm">
+                <strong>Recommendation:</strong> Delete the sales listed above first if they were trial entries, or restore from recycle bin if this purchase was accidentally deleted.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingBill ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Anyway (Negative Stock)"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1146,6 +1272,84 @@ const PurchaseBillDashboard = () => {
                 </>
               ) : (
                 "Delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Stock Dependency Warning Dialog */}
+      <AlertDialog open={showBulkDependencyWarning} onOpenChange={(open) => {
+        if (!open) {
+          setShowBulkDependencyWarning(false);
+          setBulkDependencies([]);
+        }
+      }}>
+        <AlertDialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <span className="text-2xl">⚠️</span>
+              Warning: Stock Dependencies Found for {bulkDependencies.length} Bill(s)
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left">
+              <p className="mb-4">
+                The following purchase bills have active sales consuming their stock. Deleting them will cause <strong className="text-destructive">negative stock</strong>:
+              </p>
+              
+              {bulkDependencies.map((billDep) => (
+                <div key={billDep.billId} className="mb-4 border rounded-md p-3">
+                  <h4 className="font-semibold mb-2">Bill: {billDep.billNo}</h4>
+                  <div className="max-h-32 overflow-y-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Sale #</TableHead>
+                          <TableHead className="text-xs">Product</TableHead>
+                          <TableHead className="text-xs">Size</TableHead>
+                          <TableHead className="text-right text-xs">Qty</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {billDep.deps.slice(0, 5).map((dep, index) => (
+                          <TableRow key={`${dep.sale_id}-${index}`}>
+                            <TableCell className="text-xs">{dep.sale_number}</TableCell>
+                            <TableCell className="text-xs">{dep.product_name}</TableCell>
+                            <TableCell className="text-xs">{dep.size}</TableCell>
+                            <TableCell className="text-right text-xs">{dep.quantity}</TableCell>
+                          </TableRow>
+                        ))}
+                        {billDep.deps.length > 5 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-xs text-muted-foreground">
+                              ...and {billDep.deps.length - 5} more items
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ))}
+              
+              <p className="text-sm">
+                <strong>Recommendation:</strong> Delete the dependent sales first if they were trial entries.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={isDeleting}
+              className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete All ${selectedBills.size} Bills (Negative Stock)`
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
