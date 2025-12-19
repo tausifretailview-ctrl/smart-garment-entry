@@ -24,12 +24,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, BookOpen } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { supplierMasterFields, supplierMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
+import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 
 interface Supplier {
   id: string;
@@ -69,6 +70,7 @@ const SupplierMaster = () => {
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
+  const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
 
   // Fetch ALL suppliers using pagination to bypass 1000 row limit
   const { data: suppliers = [], isLoading } = useQuery({
@@ -559,7 +561,12 @@ const SupplierMaster = () => {
                     />
                   </TableCell>
                   <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
-                  <TableCell className="font-medium">{supplier.supplier_name}</TableCell>
+                  <TableCell 
+                    className="font-medium text-primary cursor-pointer hover:underline"
+                    onClick={() => setHistorySupplier(supplier)}
+                  >
+                    {supplier.supplier_name}
+                  </TableCell>
                   <TableCell>{supplier.contact_person || "-"}</TableCell>
                   <TableCell>{supplier.phone || "-"}</TableCell>
                   <TableCell>{supplier.email || "-"}</TableCell>
@@ -575,6 +582,14 @@ const SupplierMaster = () => {
                     {supplier.opening_balance ? `₹${supplier.opening_balance.toLocaleString()}` : "-"}
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setHistorySupplier(supplier)}
+                      title="View Ledger"
+                    >
+                      <BookOpen className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -636,6 +651,17 @@ const SupplierMaster = () => {
         sampleFileName="Supplier_Master_Sample.xlsx"
         title="Import Suppliers"
       />
+
+      {/* Supplier History Dialog */}
+      {historySupplier && currentOrganization && (
+        <SupplierHistoryDialog
+          isOpen={!!historySupplier}
+          onClose={() => setHistorySupplier(null)}
+          supplierId={historySupplier.id}
+          supplierName={historySupplier.supplier_name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };
