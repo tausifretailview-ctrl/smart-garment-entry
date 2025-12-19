@@ -82,7 +82,8 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
         .select("customer_id, net_amount, paid_amount")
-        .eq("organization_id", organizationId);
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
 
       if (salesError) throw salesError;
 
@@ -120,7 +121,8 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       const { data: allCustomerSales, error: allSalesError } = await supabase
         .from("sales")
         .select("id")
-        .eq("customer_id", selectedCustomer.id);
+        .eq("customer_id", selectedCustomer.id)
+        .is("deleted_at", null);
 
       if (allSalesError) throw allSalesError;
 
@@ -130,7 +132,8 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       let salesQuery = supabase
         .from("sales")
         .select("*")
-        .eq("customer_id", selectedCustomer.id);
+        .eq("customer_id", selectedCustomer.id)
+        .is("deleted_at", null);
 
       // Apply date filters - normalize dates to yyyy-MM-dd format for accurate comparison
       if (startDate) {
@@ -151,6 +154,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         .from("voucher_entries")
         .select("*")
         .eq("voucher_type", "receipt")
+        .is("deleted_at", null)
         .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
 
       // Apply date filters to vouchers
@@ -293,7 +297,8 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       const { data: customerSales, error: salesError } = await supabase
         .from("sales")
         .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status")
-        .eq("customer_id", selectedCustomer.id);
+        .eq("customer_id", selectedCustomer.id)
+        .is("deleted_at", null);
 
       if (salesError) throw salesError;
 
@@ -305,6 +310,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         .from("voucher_entries")
         .select("*")
         .eq("voucher_type", "receipt")
+        .is("deleted_at", null)
         .in("reference_id", saleIds.length > 0 ? saleIds : ['00000000-0000-0000-0000-000000000000']);
 
       if (startDate) {

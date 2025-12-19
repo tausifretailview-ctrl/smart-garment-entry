@@ -221,6 +221,7 @@ const TallyExport = () => {
             customers (gst_number)
           `)
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .gte("sale_date", fromDate)
           .lte("sale_date", toDate + "T23:59:59");
         
@@ -243,6 +244,7 @@ const TallyExport = () => {
             supplier:suppliers (gst_number)
           `)
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .gte("bill_date", fromDate)
           .lte("bill_date", toDate);
         
@@ -260,6 +262,7 @@ const TallyExport = () => {
             sale_return_items (*)
           `)
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .gte("return_date", fromDate)
           .lte("return_date", toDate);
         
@@ -291,6 +294,7 @@ const TallyExport = () => {
             supplier:suppliers (gst_number)
           `)
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .gte("return_date", fromDate)
           .lte("return_date", toDate);
         
@@ -305,6 +309,7 @@ const TallyExport = () => {
           .from("voucher_entries")
           .select("*")
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .gte("voucher_date", fromDate)
           .lte("voucher_date", toDate);
         
