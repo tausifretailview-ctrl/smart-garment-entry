@@ -63,24 +63,25 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 15% 13%;
-    --foreground: 0 0% 95%;
+    /* Dark mode: keep navigation chrome dark, but content area white (as per reference screenshot) */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 15%;
 
-    --card: 220 15% 16%;
-    --card-foreground: 0 0% 95%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 15%;
 
-    --popover: 220 15% 16%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 15%;
 
     --primary: 0 85% 55%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 0 90% 65%;
 
-    --secondary: 0 70% 45%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 15%;
 
-    --muted: 220 15% 20%;
-    --muted-foreground: 0 0% 70%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
     --accent: 0 85% 55%;
     --accent-foreground: 0 0% 100%;
@@ -94,16 +95,17 @@ All colors MUST be HSL.
     --destructive: 0 85% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 22%;
-    --input: 220 15% 22%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
     --ring: 0 85% 55%;
 
     --gradient-primary: linear-gradient(135deg, hsl(0 85% 55%), hsl(0 70% 40%));
     --gradient-accent: linear-gradient(135deg, hsl(0 85% 55%), hsl(0 85% 50%));
     --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
-    --shadow-glow: 0 0 30px hsl(0 85% 55% / 0.3);
-    --shadow-elevated: 0 10px 40px -10px hsl(0 0% 0% / 0.3);
+    --shadow-glow: none;
+    --shadow-elevated: none;
 
+    /* Navigation chrome stays “light black” */
     --sidebar-background: 220 15% 10%;
     --sidebar-foreground: 0 0% 95%;
     --sidebar-primary: 0 85% 55%;
