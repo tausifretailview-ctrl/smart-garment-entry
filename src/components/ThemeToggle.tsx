@@ -13,9 +13,11 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [customTheme, setCustomTheme] = useState<string | null>(null);
 
-  // Check for indigo theme class on mount
+  // Check for indigo theme class on mount and restore from localStorage
   useEffect(() => {
-    if (document.documentElement.classList.contains('theme-indigo')) {
+    const savedCustomTheme = localStorage.getItem('custom-theme');
+    if (savedCustomTheme === 'indigo') {
+      document.documentElement.classList.add('theme-indigo');
       setCustomTheme('indigo');
     }
   }, []);
@@ -23,11 +25,13 @@ export function ThemeToggle() {
   const handleThemeChange = (newTheme: string) => {
     // Remove indigo class first
     document.documentElement.classList.remove('theme-indigo');
+    localStorage.removeItem('custom-theme');
     setCustomTheme(null);
 
     if (newTheme === 'indigo') {
       setTheme('light');
       document.documentElement.classList.add('theme-indigo');
+      localStorage.setItem('custom-theme', 'indigo');
       setCustomTheme('indigo');
     } else {
       setTheme(newTheme);
