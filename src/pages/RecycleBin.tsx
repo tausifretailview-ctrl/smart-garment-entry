@@ -1,26 +1,14 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useToast } from "@/hooks/use-toast";
-import { useSoftDelete, SoftDeleteEntity } from "@/hooks/useSoftDelete";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SoftDeleteEntity } from "@/hooks/useSoftDelete";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Trash2, RotateCcw, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2 } from "lucide-react";
+import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 
 interface DeletedRecord {
@@ -46,18 +34,12 @@ const entityConfig: Record<SoftDeleteEntity, { label: string; icon: any; display
 };
 
 export default function RecycleBin() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
-  const { restore } = useSoftDelete();
   const [activeTab, setActiveTab] = useState<SoftDeleteEntity>("customers");
   const [searchQuery, setSearchQuery] = useState("");
-  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
-  const [itemToRestore, setItemToRestore] = useState<DeletedRecord | null>(null);
-  const [isRestoring, setIsRestoring] = useState(false);
 
   // Fetch deleted records for the active tab
-  const { data: deletedRecords = [], isLoading, refetch } = useQuery({
+  const { data: deletedRecords = [], isLoading } = useQuery({
     queryKey: ["deleted-records", activeTab, currentOrganization?.id],
     queryFn: async (): Promise<DeletedRecord[]> => {
       if (!currentOrganization?.id) return [];
@@ -143,27 +125,6 @@ export default function RecycleBin() {
     return primaryValue.includes(search) || secondaryValue.includes(search);
   });
 
-  const handleRestore = async () => {
-    if (!itemToRestore) return;
-
-    setIsRestoring(true);
-    const success = await restore(activeTab, itemToRestore.id);
-
-    if (success) {
-      toast({
-        title: "Restored",
-        description: `Record has been restored successfully`,
-      });
-      refetch();
-      queryClient.invalidateQueries({ queryKey: ["deleted-counts"] });
-      queryClient.invalidateQueries({ queryKey: [activeTab] });
-    }
-
-    setIsRestoring(false);
-    setRestoreDialogOpen(false);
-    setItemToRestore(null);
-  };
-
   const config = entityConfig[activeTab];
 
   return (
@@ -175,7 +136,7 @@ export default function RecycleBin() {
             Recycle Bin
           </h1>
           <p className="text-muted-foreground mt-1">
-            View and restore deleted records. Only admins can access this page.
+            View deleted records for audit purposes. Records shown here are permanently deleted.
           </p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
@@ -236,7 +197,6 @@ export default function RecycleBin() {
                             <TableHead>{config.secondaryField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</TableHead>
                           )}
                           <TableHead>Deleted At</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -253,19 +213,6 @@ export default function RecycleBin() {
                                 ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
                                 : "-"}
                             </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setItemToRestore(record);
-                                  setRestoreDialogOpen(true);
-                                }}
-                              >
-                                <RotateCcw className="h-4 w-4 mr-2" />
-                                Restore
-                              </Button>
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -277,34 +224,6 @@ export default function RecycleBin() {
           </Tabs>
         </CardContent>
       </Card>
-
-      {/* Restore Confirmation Dialog */}
-      <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Restore Record?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will restore the record and make it active again. The record will reappear in its original location.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRestoring}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRestore} disabled={isRestoring}>
-              {isRestoring ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Restoring...
-                </>
-              ) : (
-                <>
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Restore
-                </>
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
