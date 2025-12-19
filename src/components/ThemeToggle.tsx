@@ -1,5 +1,5 @@
 import { useTheme } from "next-themes";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -7,9 +7,59 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const [customTheme, setCustomTheme] = useState<string | null>(null);
+
+  // Check for indigo theme class on mount
+  useEffect(() => {
+    if (document.documentElement.classList.contains('theme-indigo')) {
+      setCustomTheme('indigo');
+    }
+  }, []);
+
+  const handleThemeChange = (newTheme: string) => {
+    // Remove indigo class first
+    document.documentElement.classList.remove('theme-indigo');
+    setCustomTheme(null);
+
+    if (newTheme === 'indigo') {
+      setTheme('light');
+      document.documentElement.classList.add('theme-indigo');
+      setCustomTheme('indigo');
+    } else {
+      setTheme(newTheme);
+    }
+  };
+
+  const currentTheme = customTheme === 'indigo' ? 'indigo' : theme;
+
+  const getThemeDisplay = () => {
+    if (currentTheme === 'indigo') {
+      return (
+        <>
+          <Sparkles className="h-4 w-4 text-indigo-500" />
+          <span className="hidden sm:inline">Classic Theme</span>
+        </>
+      );
+    }
+    if (currentTheme === 'dark') {
+      return (
+        <>
+          <Moon className="h-4 w-4 text-primary" />
+          <span className="hidden sm:inline">Dark Theme</span>
+        </>
+      );
+    }
+    return (
+      <>
+        <Sun className="h-4 w-4 text-primary" />
+        <span className="hidden sm:inline">Light Theme</span>
+      </>
+    );
+  };
 
   return (
     <DropdownMenu>
@@ -19,35 +69,33 @@ export function ThemeToggle() {
           size="sm" 
           className="gap-2 bg-card border-border hover:bg-accent"
         >
-          {theme === "dark" ? (
-            <>
-              <Moon className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Dark Theme</span>
-            </>
-          ) : (
-            <>
-              <Sun className="h-4 w-4 text-amber-500" />
-              <span className="hidden sm:inline">Light Theme</span>
-            </>
-          )}
+          {getThemeDisplay()}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem 
-          onClick={() => setTheme("dark")}
+          onClick={() => handleThemeChange("dark")}
           className="gap-2 cursor-pointer"
         >
-          <Moon className="h-4 w-4 text-primary" />
+          <Moon className="h-4 w-4 text-red-500" />
           <span>Dark Theme (Red & Black)</span>
-          {theme === "dark" && <span className="ml-auto text-primary">✓</span>}
+          {currentTheme === "dark" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
         <DropdownMenuItem 
-          onClick={() => setTheme("light")}
+          onClick={() => handleThemeChange("light")}
           className="gap-2 cursor-pointer"
         >
-          <Sun className="h-4 w-4 text-amber-500" />
-          <span>Light Theme</span>
-          {theme === "light" && <span className="ml-auto text-primary">✓</span>}
+          <Sun className="h-4 w-4 text-sky-500" />
+          <span>Light Theme (Blue)</span>
+          {currentTheme === "light" && <span className="ml-auto text-primary">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => handleThemeChange("indigo")}
+          className="gap-2 cursor-pointer"
+        >
+          <Sparkles className="h-4 w-4 text-indigo-500" />
+          <span>Classic Theme (Indigo)</span>
+          {currentTheme === "indigo" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

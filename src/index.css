@@ -62,6 +62,24 @@ All colors MUST be HSL.
     --sidebar-muted: 0 0% 92%;
   }
 
+  /* Classic Indigo Theme */
+  .theme-indigo {
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 239 88% 72%;
+
+    --accent: 239 84% 67%;
+    --accent-foreground: 0 0% 100%;
+
+    --ring: 239 84% 67%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 74% 57%));
+    --gradient-accent: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 62%));
+
+    --sidebar-primary: 239 84% 67%;
+    --sidebar-ring: 239 84% 67%;
+  }
+
   .dark {
     /* Dark mode: keep navigation chrome dark, but content area white (as per reference screenshot) */
     --background: 0 0% 98%;
