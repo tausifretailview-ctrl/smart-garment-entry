@@ -3058,6 +3058,25 @@ export default function Settings() {
               </CardContent>
             </Card>
 
+            {/* Stock Adjustment Tool */}
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle>Stock Adjustment Tool</CardTitle>
+                <CardDescription>
+                  Correct opening quantities while accounting for purchases and sales
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Use this tool to adjust opening stock quantities when test data needs to be corrected. 
+                  It automatically calculates the correct stock based on: New Stock = New Opening + Purchases - Sales + Returns
+                </p>
+                <Button onClick={() => navigate("/stock-adjustment")}>
+                  Open Stock Adjustment Tool
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Stock Reconciliation Tool */}
             <div className="mt-6">
               <StockReconciliation />
