@@ -16,6 +16,18 @@ export type SoftDeleteEntity =
   | "voucher_entries"
   | "credit_notes";
 
+export interface StockDependency {
+  sale_id: string;
+  sale_number: string;
+  sale_date: string;
+  product_name: string;
+  size: string;
+  quantity: number;
+  would_go_negative: boolean;
+  current_stock: number;
+  purchased_qty: number;
+}
+
 export function useSoftDelete() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -179,5 +191,23 @@ export function useSoftDelete() {
     }
   };
 
-  return { softDelete, bulkSoftDelete, restore };
+  const checkPurchaseStockDependencies = async (billId: string): Promise<StockDependency[]> => {
+    try {
+      const { data, error } = await supabase.rpc("check_purchase_stock_dependencies", {
+        p_bill_id: billId,
+      });
+
+      if (error) {
+        console.error("Error checking stock dependencies:", error);
+        return [];
+      }
+
+      return (data || []) as StockDependency[];
+    } catch (error) {
+      console.error("Error checking stock dependencies:", error);
+      return [];
+    }
+  };
+
+  return { softDelete, bulkSoftDelete, restore, checkPurchaseStockDependencies };
 }
