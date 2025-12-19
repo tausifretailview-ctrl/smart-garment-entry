@@ -1783,7 +1783,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-primary/80 hover:bg-primary text-primary-foreground disabled:opacity-50"
             title="Cash Payment - Save & Print (F1)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F1</Badge>
@@ -1795,7 +1795,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-primary/80 hover:bg-primary text-primary-foreground disabled:opacity-50"
             title="UPI Payment - Save & Print (F3)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F3</Badge>
@@ -1807,7 +1807,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('card')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-primary/80 hover:bg-primary text-primary-foreground disabled:opacity-50"
             title="Card Payment - Save & Print (F2)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F2</Badge>
@@ -1819,7 +1819,7 @@ export default function POSSales() {
           <Button
             onClick={() => handlePaymentAndPrint('pay_later')}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-primary/80 hover:bg-primary text-primary-foreground disabled:opacity-50"
             title="Credit - Pay Later"
           >
             <Clock className="h-4 w-4" />
@@ -1830,7 +1830,7 @@ export default function POSSales() {
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50"
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-primary/80 hover:bg-primary text-primary-foreground disabled:opacity-50"
             title="Mix Payment - Save & Print (F4)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F4</Badge>
@@ -1842,7 +1842,7 @@ export default function POSSales() {
           <Button
             onClick={handleHoldBill}
             disabled={items.length === 0 || isSaving || isHeldSale}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-yellow-600 hover:bg-yellow-700 text-white text-xs disabled:opacity-50 w-full relative"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs disabled:opacity-50 w-full relative"
             title="Hold Bill (F5)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">F5</Badge>
@@ -1853,7 +1853,7 @@ export default function POSSales() {
           {/* 7. New */}
           <Button
             onClick={handleNewInvoice}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs w-full"
             title="New Invoice"
           >
             <FileText className="h-4 w-4" />
@@ -1864,7 +1864,7 @@ export default function POSSales() {
           <Button
             onClick={handleLastInvoice}
             disabled={!todaysSales || todaysSales.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs disabled:opacity-50 w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs disabled:opacity-50 w-full"
             title="Last Invoice"
           >
             <RotateCcw className="h-4 w-4" />
@@ -1875,7 +1875,7 @@ export default function POSSales() {
           <Button
             onClick={handlePrint}
             disabled={items.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-gray-600 hover:bg-gray-700 text-white text-xs disabled:opacity-50 w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs disabled:opacity-50 w-full"
             title="Print"
           >
             <Printer className="h-4 w-4" />
@@ -1885,7 +1885,7 @@ export default function POSSales() {
           {/* 10. Clear */}
           <Button
             onClick={handleClearAll}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-red-600 hover:bg-red-700 text-white text-xs relative w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs relative w-full"
             title="Clear (Esc)"
           >
             <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-black/40 hover:bg-black/40">ESC</Badge>
@@ -1897,7 +1897,7 @@ export default function POSSales() {
           <Button
             onClick={() => handleWhatsAppShare(true)}
             disabled={items.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 bg-green-500 hover:bg-green-600 text-white text-xs disabled:opacity-50 w-full"
+            className="h-14 flex flex-col items-center justify-center gap-1 bg-primary/80 hover:bg-primary text-primary-foreground text-xs disabled:opacity-50 w-full"
             title="Send via WhatsApp"
           >
             <MessageCircle className="h-4 w-4" />
