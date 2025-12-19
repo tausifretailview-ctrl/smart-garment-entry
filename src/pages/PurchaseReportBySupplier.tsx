@@ -49,6 +49,7 @@ const PurchaseReportBySupplier = () => {
       let query = supabase
         .from("purchase_bills")
         .select("*")
+        .is("deleted_at", null)
         .order("bill_date", { ascending: false });
 
       if (selectedSupplierId !== "all") {

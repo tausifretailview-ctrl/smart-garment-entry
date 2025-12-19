@@ -126,6 +126,7 @@ export default function PaymentsDashboard() {
         .from('sales')
         .select('*')
         .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
         .order('sale_date', { ascending: false });
 
       // Apply status filter
