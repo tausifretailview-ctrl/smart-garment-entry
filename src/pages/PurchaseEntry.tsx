@@ -37,6 +37,7 @@ interface ProductVariant {
   size: string;
   pur_price: number;
   sale_price: number;
+  mrp?: number;
   barcode: string;
   product_name: string;
   brand: string;
@@ -56,6 +57,7 @@ interface LineItem {
   qty: number;
   pur_price: number;
   sale_price: number;
+  mrp?: number;
   gst_per: number;
   hsn_code: string;
   barcode: string;
@@ -308,6 +310,7 @@ const PurchaseEntry = () => {
             qty: item.qty,
             pur_price: Number(item.pur_price),
             sale_price: Number(item.sale_price),
+            mrp: Number(item.mrp) || 0,
             gst_per: item.gst_per,
             hsn_code: item.hsn_code || "",
             barcode: item.barcode || "",
@@ -390,6 +393,7 @@ const PurchaseEntry = () => {
           size,
           pur_price,
           sale_price,
+          mrp,
           barcode,
           active,
           color,
@@ -427,6 +431,7 @@ const PurchaseEntry = () => {
         size: v.size,
         pur_price: v.pur_price,
         sale_price: v.sale_price,
+        mrp: v.mrp || 0,
         barcode: v.barcode || "",
         product_name: v.products?.product_name || "",
         brand: v.products?.brand || "",
@@ -623,6 +628,7 @@ const PurchaseEntry = () => {
           size,
           pur_price,
           sale_price,
+          mrp,
           barcode,
           active,
           color,
@@ -659,6 +665,7 @@ const PurchaseEntry = () => {
         size: v.size,
         pur_price: v.pur_price,
         sale_price: v.sale_price,
+        mrp: v.mrp || 0,
         barcode: v.barcode || "",
         product_name: v.products?.product_name || "",
         brand: v.products?.brand || "",
@@ -707,6 +714,7 @@ const PurchaseEntry = () => {
         size,
         pur_price,
         sale_price,
+        mrp,
         barcode,
         active,
         color,
@@ -764,6 +772,7 @@ const PurchaseEntry = () => {
         qty: 1,
         pur_price: product.default_pur_price || 0,
         sale_price: product.default_sale_price || 0,
+        mrp: v.mrp || 0,
         gst_per: product.gst_per || 0,
         hsn_code: product.hsn_code || "",
         barcode: barcode,
@@ -782,6 +791,7 @@ const PurchaseEntry = () => {
       size: v.size,
       sale_price: v.sale_price || v.products?.default_sale_price,
       pur_price: v.pur_price || v.products?.default_pur_price,
+      mrp: v.mrp || 0,
       barcode: v.barcode,
       color: v.color || v.products?.color || "",
     }));
@@ -824,6 +834,7 @@ const PurchaseEntry = () => {
         qty: qty,
         pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
         sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
+        mrp: variant.mrp || 0,
         gst_per: selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
@@ -857,6 +868,7 @@ const PurchaseEntry = () => {
       qty: 1,
       pur_price: variant.pur_price,
       sale_price: variant.sale_price,
+      mrp: variant.mrp || 0,
       gst_per: variant.gst_per,
       hsn_code: variant.hsn_code,
       barcode: variant.barcode,
@@ -1033,6 +1045,7 @@ const PurchaseEntry = () => {
               qty: item.qty,
               pur_price: item.pur_price,
               sale_price: item.sale_price,
+              mrp: item.mrp || 0,
               gst_per: item.gst_per,
               line_total: item.line_total,
             })
@@ -1057,6 +1070,7 @@ const PurchaseEntry = () => {
             qty: item.qty,
             pur_price: item.pur_price,
             sale_price: item.sale_price,
+            mrp: item.mrp || 0,
             gst_per: item.gst_per,
             hsn_code: item.hsn_code || null,
             barcode: item.barcode || null,
@@ -1144,6 +1158,7 @@ const PurchaseEntry = () => {
           qty: item.qty,
           pur_price: item.pur_price,
           sale_price: item.sale_price,
+          mrp: item.mrp || 0,
           gst_per: item.gst_per,
           hsn_code: item.hsn_code,
           barcode: item.barcode,
@@ -1700,6 +1715,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-20">QTY</TableHead>
                     <TableHead className="w-28">PUR.RATE</TableHead>
                     <TableHead className="w-28">SALE.RATE</TableHead>
+                    <TableHead className="w-28">MRP</TableHead>
                     <TableHead className="w-24">SUB TOTAL</TableHead>
                     <TableHead className="w-20">DISC %</TableHead>
                     <TableHead className="w-16">GST %</TableHead>
@@ -1767,6 +1783,22 @@ const PurchaseEntry = () => {
                               updateLineItem(
                                 item.temp_id,
                                 "sale_price",
+                                parseFloat(e.target.value) || 0
+                              )
+                            }
+                            className="w-28"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.mrp || 0}
+                            onChange={(e) =>
+                              updateLineItem(
+                                item.temp_id,
+                                "mrp",
                                 parseFloat(e.target.value) || 0
                               )
                             }
