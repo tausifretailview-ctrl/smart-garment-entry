@@ -40,6 +40,38 @@ import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
+
+// Helper function to ensure all fields are in fieldOrder (for migrating old configs)
+const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
+  const allFields: FieldKey[] = [
+    'brand', 'productName', 'color', 'style', 'size', 'price', 'mrp',
+    'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'
+  ];
+  
+  const existingOrder = config.fieldOrder || [];
+  const missingFields = allFields.filter(f => !existingOrder.includes(f));
+  
+  return {
+    brand: config.brand || { show: true, fontSize: 9, bold: true },
+    productName: config.productName || { show: true, fontSize: 9, bold: true },
+    color: config.color || { show: false, fontSize: 8, bold: false },
+    style: config.style || { show: false, fontSize: 8, bold: false },
+    size: config.size || { show: true, fontSize: 9, bold: false },
+    price: config.price || { show: true, fontSize: 9, bold: true },
+    mrp: config.mrp || { show: false, fontSize: 9, bold: false },
+    customText: config.customText || { show: false, fontSize: 8, bold: false },
+    barcode: config.barcode || { show: true, fontSize: 9, bold: false },
+    barcodeText: config.barcodeText || { show: true, fontSize: 7, bold: false },
+    billNumber: config.billNumber || { show: true, fontSize: 7, bold: false },
+    supplierCode: config.supplierCode || { show: true, fontSize: 7, bold: false },
+    purchaseCode: config.purchaseCode || { show: false, fontSize: 7, bold: false },
+    fieldOrder: [...existingOrder, ...missingFields] as FieldKey[],
+    barcodeHeight: config.barcodeHeight,
+    barcodeWidth: config.barcodeWidth,
+    customTextValue: config.customTextValue || '',
+  };
+};
+
 // Helper function to pre-render barcode as image data URL
 const renderBarcodeToDataURL = (code: string, height: number = 30, width: number = 1.5): string => {
   try {
@@ -1131,29 +1163,32 @@ export default function BarcodePrinting() {
         const template = dbLabelTemplates.find((t: LabelTemplate) => t.name === defaultFormat.defaultTemplate);
         
         if (template) {
-          // Load template config
+          // Load template config with field order migration
+          const migratedConfig = ensureCompleteFieldOrder(template.config);
           const configWithBarcode = {
-            ...template.config,
-            barcode: { ...template.config.barcode, show: true },
-            barcodeText: { ...template.config.barcodeText, show: true },
+            ...migratedConfig,
+            barcode: { ...migratedConfig.barcode, show: true },
+            barcodeText: { ...migratedConfig.barcodeText, show: true },
           };
           setLabelConfig(configWithBarcode);
           setSelectedLabelTemplate(template.name);
         } else if (defaultFormat.labelConfig) {
-          // Template was deleted, fall back to inline config
+          // Template was deleted, fall back to inline config with migration
+          const migratedConfig = ensureCompleteFieldOrder(defaultFormat.labelConfig);
           const configWithBarcode = {
-            ...defaultFormat.labelConfig,
-            barcode: { ...defaultFormat.labelConfig.barcode, show: true },
-            barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+            ...migratedConfig,
+            barcode: { ...migratedConfig.barcode, show: true },
+            barcodeText: { ...migratedConfig.barcodeText, show: true },
           };
           setLabelConfig(configWithBarcode);
         }
       } else if (defaultFormat.labelConfig) {
-        // No template reference, load inline config
+        // No template reference, load inline config with migration
+        const migratedConfig = ensureCompleteFieldOrder(defaultFormat.labelConfig);
         const configWithBarcode = {
-          ...defaultFormat.labelConfig,
-          barcode: { ...defaultFormat.labelConfig.barcode, show: true },
-          barcodeText: { ...defaultFormat.labelConfig.barcodeText, show: true },
+          ...migratedConfig,
+          barcode: { ...migratedConfig.barcode, show: true },
+          barcodeText: { ...migratedConfig.barcodeText, show: true },
         };
         setLabelConfig(configWithBarcode);
       }
@@ -2181,24 +2216,8 @@ export default function BarcodePrinting() {
 
     const template = savedLabelTemplates.find(t => t.name === selectedLabelTemplate);
     if (template) {
-      // Ensure the loaded config has all required properties with defaults
-      const mergedConfig: LabelDesignConfig = {
-        brand: template.config.brand || { show: true, fontSize: 9, bold: true },
-        productName: template.config.productName || { show: true, fontSize: 9, bold: true },
-        color: template.config.color || { show: false, fontSize: 8, bold: false },
-        style: template.config.style || { show: false, fontSize: 8, bold: false },
-        size: template.config.size || { show: true, fontSize: 9, bold: false },
-        price: template.config.price || { show: true, fontSize: 9, bold: true },
-        mrp: template.config.mrp || { show: false, fontSize: 9, bold: false },
-        customText: template.config.customText || { show: false, fontSize: 8, bold: false },
-        barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
-        barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
-        billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
-        supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
-        purchaseCode: template.config.purchaseCode || { show: false, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
-        customTextValue: template.config.customTextValue || '',
-      };
+      // Ensure the loaded config has all required properties with field order migration
+      const mergedConfig = ensureCompleteFieldOrder(template.config);
       setLabelConfig(mergedConfig);
       setNewLabelTemplateName(template.name);
       setIsEditingLabelTemplate(true);
@@ -2210,24 +2229,8 @@ export default function BarcodePrinting() {
   const handleLoadLabelTemplate = (templateName: string) => {
     const template = savedLabelTemplates.find(t => t.name === templateName);
     if (template) {
-      // Ensure the loaded config has all required properties with defaults
-      const mergedConfig: LabelDesignConfig = {
-        brand: template.config.brand || { show: true, fontSize: 9, bold: true },
-        productName: template.config.productName || { show: true, fontSize: 9, bold: true },
-        color: template.config.color || { show: false, fontSize: 8, bold: false },
-        style: template.config.style || { show: false, fontSize: 8, bold: false },
-        size: template.config.size || { show: true, fontSize: 9, bold: false },
-        price: template.config.price || { show: true, fontSize: 9, bold: true },
-        mrp: template.config.mrp || { show: false, fontSize: 9, bold: false },
-        customText: template.config.customText || { show: false, fontSize: 8, bold: false },
-        barcode: template.config.barcode || { show: true, fontSize: 9, bold: false },
-        barcodeText: template.config.barcodeText || { show: true, fontSize: 7, bold: false },
-        billNumber: template.config.billNumber || { show: true, fontSize: 7, bold: false },
-        supplierCode: template.config.supplierCode || { show: true, fontSize: 7, bold: false },
-        purchaseCode: template.config.purchaseCode || { show: false, fontSize: 7, bold: false },
-        fieldOrder: template.config.fieldOrder || ['brand', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
-        customTextValue: template.config.customTextValue || '',
-      };
+      // Ensure the loaded config has all required properties with field order migration
+      const mergedConfig = ensureCompleteFieldOrder(template.config);
       setLabelConfig(mergedConfig);
       setSelectedLabelTemplate(templateName);
       toast.success(`Loaded template "${templateName}"`);
