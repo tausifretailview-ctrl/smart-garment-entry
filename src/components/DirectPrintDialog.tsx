@@ -295,6 +295,7 @@ export const DirectPrintDialog = ({
             style: templateConfig.style,
             size: templateConfig.size,
             price: templateConfig.price,
+            mrp: templateConfig.mrp,
             barcode: templateConfig.barcode,
             barcodeText: templateConfig.barcodeText,
             billNumber: templateConfig.billNumber,

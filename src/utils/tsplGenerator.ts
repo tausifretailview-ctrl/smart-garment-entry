@@ -68,6 +68,7 @@ export interface TSPLTemplateConfig {
   style: TSPLFieldConfig;
   size: TSPLFieldConfig;
   price: TSPLFieldConfig;
+  mrp: TSPLFieldConfig;
   barcode: TSPLFieldConfig;
   barcodeText: TSPLFieldConfig;
   billNumber: TSPLFieldConfig;
@@ -137,6 +138,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
     case 'style': return data.style || '';
     case 'size': return data.size || '';
     case 'price': return data.salePrice ? `Rs.${data.salePrice}` : '';
+    case 'mrp': return data.mrp ? `MRP Rs.${data.mrp}` : '';
     case 'barcodeText': return data.barcode || '';
     case 'billNumber': return data.billNumber || '';
     case 'supplierCode': return data.supplierCode || '';
