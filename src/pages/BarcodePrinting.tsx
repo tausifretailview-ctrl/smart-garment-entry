@@ -3220,6 +3220,7 @@ export default function BarcodePrinting() {
                 <TableHead>Color/Style</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>MRP</TableHead>
+                <TableHead>Sale Rate</TableHead>
                 <TableHead>Barcode</TableHead>
                 <TableHead>Supplier Code</TableHead>
                 <TableHead>Label Qty</TableHead>
@@ -3235,7 +3236,8 @@ export default function BarcodePrinting() {
                     {item.color || "-"} / {item.style || "-"}
                   </TableCell>
                   <TableCell>{item.size}</TableCell>
-                  <TableCell>₹{item.mrp || item.sale_price}</TableCell>
+                  <TableCell>₹{item.mrp || 0}</TableCell>
+                  <TableCell>₹{item.sale_price}</TableCell>
                   <TableCell className="font-mono text-xs">{item.barcode || "(auto-gen)"}</TableCell>
                   <TableCell>{item.supplier_code || "-"}</TableCell>
                   <TableCell>
