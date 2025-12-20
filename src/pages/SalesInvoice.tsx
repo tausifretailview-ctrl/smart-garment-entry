@@ -377,13 +377,15 @@ export default function SalesInvoice() {
           
           setNextInvoicePreview(preview);
         } else {
-          // Use database function for default format
+          // Use database function for default format - always fetch fresh
           const { data: nextNumber, error } = await supabase.rpc('generate_sale_number', {
             p_organization_id: currentOrganization.id
           });
           
           if (error) throw error;
-          setNextInvoicePreview(nextNumber || 'INV/25-26/1');
+          if (nextNumber) {
+            setNextInvoicePreview(nextNumber);
+          }
         }
       } catch (error) {
         console.error('Error previewing next invoice:', error);
@@ -392,7 +394,7 @@ export default function SalesInvoice() {
     };
     
     previewNextInvoice();
-  }, [currentOrganization?.id, editingInvoiceId, settingsData?.sale_settings]);
+  }, [currentOrganization?.id, editingInvoiceId, settingsData]);
 
   // Pre-populate form if editing existing invoice
   useState(() => {
