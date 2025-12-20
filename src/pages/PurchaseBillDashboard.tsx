@@ -537,6 +537,7 @@ const PurchaseBillDashboard = () => {
         style: item.style || "",
         size: item.size,
         sale_price: item.sale_price,
+        mrp: item.mrp,
         pur_price: item.pur_price, // Include purchase price for purchase code calculation
         barcode: item.barcode,
         qty: item.qty,

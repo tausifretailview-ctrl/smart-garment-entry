@@ -1272,6 +1272,7 @@ const PurchaseEntry = () => {
         style: item.style || "",
         size: item.size,
         sale_price: item.sale_price,
+        mrp: item.mrp,
         pur_price: item.pur_price,
         barcode: item.barcode,
         qty: item.qty,
