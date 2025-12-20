@@ -1031,6 +1031,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           line_total: number
+          mrp: number | null
           product_id: string
           product_name: string | null
           pur_price: number
@@ -1055,6 +1056,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           line_total?: number
+          mrp?: number | null
           product_id: string
           product_name?: string | null
           pur_price?: number
@@ -1079,6 +1081,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           line_total?: number
+          mrp?: number | null
           product_id?: string
           product_name?: string | null
           pur_price?: number

@@ -37,6 +37,7 @@ interface PurchaseItem {
   qty: number;
   pur_price: number;
   sale_price: number;
+  mrp?: number;
   gst_per: number;
   hsn_code: string;
   barcode: string;
@@ -145,7 +146,7 @@ const PurchaseBillDashboard = () => {
         const billIds = data.map(b => b.id);
         const { data: allItems, error: itemsError } = await supabase
           .from("purchase_items")
-          .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, gst_per, hsn_code, barcode, line_total")
+          .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
           .in("bill_id", billIds);
         
         if (!itemsError && allItems) {
@@ -1062,6 +1063,7 @@ const PurchaseBillDashboard = () => {
                                         <TableHead className="text-right">Quantity</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
+                                        <TableHead className="text-right">MRP</TableHead>
                                         <TableHead className="text-right">GST %</TableHead>
                                         <TableHead className="text-right">Line Total</TableHead>
                                       </TableRow>
@@ -1083,6 +1085,7 @@ const PurchaseBillDashboard = () => {
                                           <TableCell className="text-right">{item.qty}</TableCell>
                                           <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
                                           <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
+                                          <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>
                                           <TableCell className="text-right">{item.gst_per}%</TableCell>
                                           <TableCell className="text-right font-semibold">
                                             ₹{item.line_total.toFixed(2)}
