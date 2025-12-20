@@ -887,7 +887,7 @@ const ProductEntry = () => {
               .map((v) => ({
                 variant_id: v.id,
                 quantity: v.opening_qty,
-                movement_type: "opening_stock",
+                movement_type: "reconciliation",
                 notes: `Opening stock for ${formData.product_name} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
                 organization_id: currentOrganization.id,
               }));
