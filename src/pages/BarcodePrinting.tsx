@@ -101,6 +101,7 @@ interface SearchResult {
   style: string;
   size: string;
   sale_price: number;
+  mrp?: number;
   barcode: string;
   stock_qty: number;
   supplier_code?: string;
@@ -1400,6 +1401,7 @@ export default function BarcodePrinting() {
             id,
             size,
             sale_price,
+            mrp,
             barcode,
             stock_qty,
             color,
@@ -1498,6 +1500,7 @@ export default function BarcodePrinting() {
           style: v.products?.style || "",
           size: v.size,
           sale_price: v.sale_price || 0,
+          mrp: v.mrp || 0,
           barcode: v.barcode || "",
           stock_qty: v.stock_qty || 0,
           supplier_code: supplierCodeMap.get(v.id) || "",
@@ -1541,6 +1544,7 @@ export default function BarcodePrinting() {
       style: result.style,
       size: result.size,
       sale_price: result.sale_price,
+      mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
       purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) : '',
       barcode: result.barcode,
@@ -2329,6 +2333,8 @@ export default function BarcodePrinting() {
           return item.style || '';
         case 'price': 
           return `₹${item.sale_price}`;
+        case 'mrp':
+          return item.mrp ? `MRP ₹${item.mrp}` : '';
         case 'barcode':
           return barcode;
         case 'barcodeText': 
@@ -3229,7 +3235,7 @@ export default function BarcodePrinting() {
                     {item.color || "-"} / {item.style || "-"}
                   </TableCell>
                   <TableCell>{item.size}</TableCell>
-                  <TableCell>₹{item.sale_price}</TableCell>
+                  <TableCell>₹{item.mrp || item.sale_price}</TableCell>
                   <TableCell className="font-mono text-xs">{item.barcode || "(auto-gen)"}</TableCell>
                   <TableCell>{item.supplier_code || "-"}</TableCell>
                   <TableCell>
