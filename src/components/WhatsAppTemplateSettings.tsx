@@ -66,6 +66,8 @@ Invoice Details:
 
 {invoice_items}
 
+{social_links}
+
 We appreciate your business!`,
   
   payment_reminder: `Hello {customer_name},
@@ -232,8 +234,8 @@ export const WhatsAppTemplateSettings = () => {
           <MessageCircle className="h-5 w-5" />
           <CardTitle>WhatsApp Message Templates</CardTitle>
         </div>
-        <CardDescription>
-          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}
+      <CardDescription>
+          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}, {"{social_links}"}, {"{instagram_link}"}, {"{website_link}"}, {"{google_review_link}"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

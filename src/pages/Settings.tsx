@@ -163,6 +163,9 @@ interface BillBarcodeSettings {
   barcode_format?: string;
   brand_color?: string;
   login_display_name?: string;
+  instagram_link?: string;
+  website_link?: string;
+  google_review_link?: string;
 }
 
 interface ReportSettings {
@@ -2686,6 +2689,68 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     UPI ID for payment QR code on invoice
                   </p>
+                </div>
+                
+                {/* Social Media Links for WhatsApp */}
+                <div className="space-y-4 pt-4 border-t">
+                  <h4 className="text-sm font-semibold">Social Media Links (for WhatsApp Messages)</h4>
+                  <p className="text-xs text-muted-foreground">
+                    These links will be available as placeholders in WhatsApp message templates
+                  </p>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="instagram_link">Instagram Link</Label>
+                    <Input
+                      id="instagram_link"
+                      value={settings.bill_barcode_settings?.instagram_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            instagram_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://instagram.com/yourstore"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="website_link">Website Link</Label>
+                    <Input
+                      id="website_link"
+                      value={settings.bill_barcode_settings?.website_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            website_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://yourstore.com"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="google_review_link">Google Review Link</Label>
+                    <Input
+                      id="google_review_link"
+                      value={settings.bill_barcode_settings?.google_review_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            google_review_link: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="e.g., https://g.page/yourstore/review"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="header_text">Bill Header Text</Label>
