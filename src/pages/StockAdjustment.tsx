@@ -296,7 +296,7 @@ const StockAdjustment = () => {
             .insert({
               variant_id: v.id,
               organization_id: currentOrganization.id,
-              movement_type: "opening_adjustment",
+              movement_type: "reconciliation",
               quantity: openingDiff,
               notes: `Opening qty adjusted from ${v.opening_qty} to ${v.newOpeningQty}`,
               bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
@@ -312,7 +312,7 @@ const StockAdjustment = () => {
             .insert({
               variant_id: v.id,
               organization_id: currentOrganization.id,
-              movement_type: "stock_adjustment",
+              movement_type: "reconciliation",
               quantity: stockDiff,
               notes: `Stock qty directly adjusted from ${v.stock_qty} to ${finalStockQty}`,
               bill_number: `STK-${format(new Date(), "yyyyMMdd-HHmmss")}`,
