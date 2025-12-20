@@ -1695,6 +1695,7 @@ export default function BarcodePrinting() {
           barcode,
           sale_price,
           pur_price,
+          mrp,
           size
         `)
         .eq("bill_id", billData.id);
@@ -1740,6 +1741,7 @@ export default function BarcodePrinting() {
           size,
           barcode,
           sale_price,
+          mrp,
           product_id,
           products (
             product_name,
@@ -1763,7 +1765,8 @@ export default function BarcodePrinting() {
           style: variant.products?.style || "",
           size: variant.size,
           barcode: variant.barcode,
-          sale_price: variant.sale_price
+          sale_price: variant.sale_price,
+          mrp: variant.mrp
         });
       });
 
@@ -1782,6 +1785,7 @@ export default function BarcodePrinting() {
             style: variantInfo.style,
             size: item.size || variantInfo.size,
             sale_price: item.sale_price || variantInfo.sale_price,
+            mrp: item.mrp || variantInfo.mrp || 0,
             pur_price: purPrice,
             purchase_code: purPrice > 0 ? encodePurchasePrice(purPrice, purchaseCodeAlphabet) : '',
             barcode: item.barcode || variantInfo.barcode,
