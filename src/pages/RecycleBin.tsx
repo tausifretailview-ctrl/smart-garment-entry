@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { SoftDeleteEntity } from "@/hooks/useSoftDelete";
+import { SoftDeleteEntity, useSoftDelete } from "@/hooks/useSoftDelete";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 interface DeletedRecord {
   id: string;
@@ -186,8 +189,15 @@ const formatValue = (value: any, field: { key: string; label: string; isAmount?:
 
 export default function RecycleBin() {
   const { currentOrganization } = useOrganization();
+  const { hardDelete, restore } = useSoftDelete();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<SoftDeleteEntity>("customers");
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [recordToDelete, setRecordToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState<string | null>(null);
 
   // Fetch deleted records for the active tab
   const { data: deletedRecords = [], isLoading } = useQuery({
@@ -275,7 +285,6 @@ export default function RecycleBin() {
     const secondaryValue = record[config.secondaryField || ""]?.toString().toLowerCase() || "";
     const search = searchQuery.toLowerCase();
     
-    // Also search in detail fields
     const detailMatch = config.detailFields?.some(field => {
       const value = record[field.key]?.toString().toLowerCase() || "";
       return value.includes(search);
@@ -283,6 +292,49 @@ export default function RecycleBin() {
     
     return primaryValue.includes(search) || secondaryValue.includes(search) || detailMatch;
   });
+
+  const handleDeleteClick = (record: DeletedRecord) => {
+    setRecordToDelete({
+      id: record.id,
+      name: record[config.displayField] || "this record"
+    });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!recordToDelete) return;
+    
+    setIsDeleting(true);
+    const success = await hardDelete(activeTab, recordToDelete.id);
+    setIsDeleting(false);
+    
+    if (success) {
+      toast({
+        title: "Permanently Deleted",
+        description: `${recordToDelete.name} has been permanently deleted.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["deleted-records"] });
+      queryClient.invalidateQueries({ queryKey: ["deleted-counts"] });
+    }
+    
+    setDeleteDialogOpen(false);
+    setRecordToDelete(null);
+  };
+
+  const handleRestore = async (record: DeletedRecord) => {
+    setIsRestoring(record.id);
+    const success = await restore(activeTab, record.id);
+    setIsRestoring(null);
+    
+    if (success) {
+      toast({
+        title: "Restored",
+        description: `${record[config.displayField]} has been restored.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["deleted-records"] });
+      queryClient.invalidateQueries({ queryKey: ["deleted-counts"] });
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -293,7 +345,7 @@ export default function RecycleBin() {
             Recycle Bin
           </h1>
           <p className="text-muted-foreground mt-1">
-            View deleted records for audit purposes. Records shown here are permanently deleted.
+            View and manage deleted records. Restore or permanently delete items.
           </p>
         </div>
         <Badge variant="secondary" className="text-lg px-4 py-2">
@@ -366,6 +418,7 @@ export default function RecycleBin() {
                                 </TableHead>
                               ))}
                               <TableHead className="font-semibold">Deleted At</TableHead>
+                              <TableHead className="font-semibold text-right">Actions</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -375,7 +428,6 @@ export default function RecycleBin() {
                                   <div className="font-medium">
                                     {record[entityConf.displayField] || "-"}
                                   </div>
-                                  {/* Mobile: show details inline */}
                                   <div className="md:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
                                     {entityConf.detailFields?.map((field) => (
                                       record[field.key] && (
@@ -400,6 +452,31 @@ export default function RecycleBin() {
                                     ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
                                     : "-"}
                                 </TableCell>
+                                <TableCell className="text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleRestore(record)}
+                                      disabled={isRestoring === record.id}
+                                    >
+                                      {isRestoring === record.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <RotateCcw className="h-4 w-4" />
+                                      )}
+                                      <span className="ml-1 hidden sm:inline">Restore</span>
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      onClick={() => handleDeleteClick(record)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      <span className="ml-1 hidden sm:inline">Delete</span>
+                                    </Button>
+                                  </div>
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -413,6 +490,35 @@ export default function RecycleBin() {
           </Tabs>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently Delete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{recordToDelete?.name}</strong>? 
+              This action cannot be undone and the record will be completely removed from the system.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Permanently"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -39,7 +39,6 @@ export function useSoftDelete() {
     }
 
     try {
-      // Use RPC functions for entities with child items (to delete items too)
       switch (entity) {
         case "purchase_bills":
           const { error: pbError } = await supabase.rpc("soft_delete_purchase_bill", {
@@ -98,7 +97,6 @@ export function useSoftDelete() {
           break;
 
         default:
-          // Simple soft delete for single-table entities
           const { error } = await supabase
             .from(entity)
             .update({
@@ -191,6 +189,58 @@ export function useSoftDelete() {
     }
   };
 
+  const hardDelete = async (entity: SoftDeleteEntity, id: string) => {
+    if (!user?.id) {
+      toast({ title: "Error", description: "User not authenticated", variant: "destructive" });
+      return false;
+    }
+
+    try {
+      // For entities with child items, delete children first
+      switch (entity) {
+        case "purchase_bills":
+          await supabase.from("purchase_items").delete().eq("bill_id", id);
+          await supabase.from("batch_stock").delete().eq("purchase_bill_id", id);
+          break;
+        case "sales":
+          await supabase.from("sale_items").delete().eq("sale_id", id);
+          break;
+        case "sale_returns":
+          await supabase.from("sale_return_items").delete().eq("return_id", id);
+          break;
+        case "purchase_returns":
+          await supabase.from("purchase_return_items").delete().eq("return_id", id);
+          break;
+        case "sale_orders":
+          await supabase.from("sale_order_items").delete().eq("order_id", id);
+          break;
+        case "quotations":
+          await supabase.from("quotation_items").delete().eq("quotation_id", id);
+          break;
+        case "voucher_entries":
+          await supabase.from("voucher_items").delete().eq("voucher_id", id);
+          break;
+        case "products":
+          await supabase.from("product_variants").delete().eq("product_id", id);
+          break;
+      }
+
+      // Delete the main record
+      const { error } = await supabase.from(entity).delete().eq("id", id);
+      if (error) throw error;
+
+      return true;
+    } catch (error: any) {
+      console.error(`Error permanently deleting ${entity}:`, error);
+      toast({
+        title: "Error",
+        description: error.message || `Failed to permanently delete ${entity}`,
+        variant: "destructive",
+      });
+      return false;
+    }
+  };
+
   const checkPurchaseStockDependencies = async (billId: string): Promise<StockDependency[]> => {
     try {
       const { data, error } = await supabase.rpc("check_purchase_stock_dependencies", {
@@ -209,5 +259,5 @@ export function useSoftDelete() {
     }
   };
 
-  return { softDelete, bulkSoftDelete, restore, checkPurchaseStockDependencies };
+  return { softDelete, bulkSoftDelete, restore, hardDelete, checkPurchaseStockDependencies };
 }
