@@ -103,8 +103,7 @@ const StockAdjustment = () => {
           case "purchase_return":
             movementsByVariant[m.variant_id].purchased -= Math.abs(m.quantity);
             break;
-          case "stock_adjustment":
-          case "opening_adjustment":
+          case "reconciliation":
             movementsByVariant[m.variant_id].adjusted += m.quantity;
             break;
         }
@@ -302,7 +301,11 @@ const StockAdjustment = () => {
               bill_number: `ADJ-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
-          if (movementError) throw movementError;
+          if (movementError) {
+            throw new Error(
+              `Stock movement insert failed (movement_type=reconciliation, qty=${openingDiff}): ${movementError.message}`
+            );
+          }
         }
 
         // Create stock movement for direct stock adjustment
@@ -318,7 +321,11 @@ const StockAdjustment = () => {
               bill_number: `STK-${format(new Date(), "yyyyMMdd-HHmmss")}`,
             });
 
-          if (movementError) throw movementError;
+          if (movementError) {
+            throw new Error(
+              `Stock movement insert failed (movement_type=reconciliation, qty=${stockDiff}): ${movementError.message}`
+            );
+          }
         }
       }
 

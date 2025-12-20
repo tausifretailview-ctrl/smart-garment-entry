@@ -469,13 +469,13 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
         if (insertedVariants.length > 0) {
           const stockMovements = insertedVariants
             .filter((v) => v.opening_qty > 0)
-            .map((v) => ({
-              variant_id: v.id,
-              quantity: v.opening_qty,
-              movement_type: "opening_stock",
-              notes: `Opening stock for ${formData.product_name} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
-              organization_id: currentOrganization.id,
-            }));
+              .map((v) => ({
+                variant_id: v.id,
+                quantity: v.opening_qty,
+                movement_type: "reconciliation",
+                notes: `Opening stock for ${formData.product_name} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
+                organization_id: currentOrganization.id,
+              }));
 
           if (stockMovements.length > 0) {
             await supabase.from("stock_movements").insert(stockMovements);
