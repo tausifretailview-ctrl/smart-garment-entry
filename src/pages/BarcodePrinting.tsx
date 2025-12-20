@@ -4176,7 +4176,7 @@ export default function BarcodePrinting() {
           brand: item.brand,
           size: item.size,
           color: item.color,
-          mrp: undefined,
+          mrp: item.mrp,
           salePrice: item.sale_price,
           barcode: item.barcode,
           billNumber: item.bill_number,
