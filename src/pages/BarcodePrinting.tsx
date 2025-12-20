@@ -1343,6 +1343,7 @@ export default function BarcodePrinting() {
           style: item.style || "",
           size: item.size,
           sale_price: item.sale_price,
+          mrp: item.mrp || 0,
           pur_price: purPrice,
           purchase_code: purchaseCode,
           barcode: item.barcode,
