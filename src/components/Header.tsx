@@ -54,7 +54,7 @@ export const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="container flex h-16 items-center justify-between px-4">
+      <div className="container flex h-10 items-center justify-between px-3">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
@@ -90,16 +90,15 @@ export const Header = () => {
             className="flex items-center gap-2 group"
           >
             <div className="relative">
-              <div className="absolute inset-0 bg-primary rounded-lg blur-md opacity-60 group-hover:opacity-80 transition-opacity" />
-              <div className="relative bg-primary p-2 rounded-lg shadow-lg">
-                <Package className="h-5 w-5 text-primary-foreground" />
+              <div className="absolute inset-0 bg-primary rounded blur-sm opacity-60 group-hover:opacity-80 transition-opacity" />
+              <div className="relative bg-primary p-1.5 rounded shadow-lg">
+                <Package className="h-4 w-4 text-primary-foreground" />
               </div>
             </div>
             <div className="hidden sm:flex flex-col items-start">
-              <span className="font-display text-lg font-bold text-primary dark:text-white leading-tight">
+              <span className="font-display text-sm font-bold text-primary dark:text-white leading-tight">
                 Smart Inventory
               </span>
-              <span className="text-[10px] text-primary/70 dark:text-white/70 -mt-0.5">Business Management</span>
             </div>
           </button>
         </div>
@@ -167,9 +166,9 @@ export const Header = () => {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 ring-2 ring-transparent hover:ring-primary/30 transition-all">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 ring-2 ring-transparent hover:ring-primary/30 transition-all h-7 w-7">
+                <Avatar className="h-6 w-6">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
                     {initials}
                   </AvatarFallback>
                 </Avatar>

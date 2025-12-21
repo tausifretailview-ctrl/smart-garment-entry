@@ -21,10 +21,11 @@ const buttonVariants = cva(
         "brand-outline": "border-2 border-primary bg-transparent text-primary hover:bg-primary/10 hover:scale-[1.02] active:scale-[0.98]",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-9 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-md px-8 text-base",
-        icon: "h-10 w-10",
+        default: "h-8 px-3 py-1.5 text-sm",
+        sm: "h-7 rounded-md px-2 text-xs",
+        lg: "h-9 rounded-md px-6 text-sm",
+        icon: "h-8 w-8",
+        xs: "h-6 rounded px-2 text-xs",
       },
     },
     defaultVariants: {

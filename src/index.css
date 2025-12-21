@@ -172,13 +172,43 @@ All colors MUST be HSL.
   }
 }
 
+/* ERP Compact Styles */
+@layer base {
+  /* Compact form layout for ERP-style pages */
+  .erp-compact {
+    @apply text-sm;
+  }
+  
+  .erp-compact input,
+  .erp-compact select,
+  .erp-compact textarea {
+    @apply h-8 text-sm;
+  }
+  
+  .erp-compact label {
+    @apply text-xs;
+  }
+  
+  .erp-compact .card {
+    @apply p-2;
+  }
+  
+  .erp-compact table th {
+    @apply h-8 text-xs px-2 py-1;
+  }
+  
+  .erp-compact table td {
+    @apply px-2 py-1 text-sm;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-sm;
   }
 }
 
