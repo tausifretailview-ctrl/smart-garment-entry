@@ -159,16 +159,16 @@ All colors MUST be HSL.
     --shadow-glow: none;
     --shadow-elevated: none;
 
-    /* Navigation chrome - light black (neutral dark gray) for sidebar */
-    --sidebar-background: 0 0% 18%;
-    --sidebar-foreground: 0 0% 95%;
+    /* Navigation chrome - light gray for sidebar in dark mode */
+    --sidebar-background: 220 10% 85%;
+    --sidebar-foreground: 220 15% 20%;
     --sidebar-primary: 220 80% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 24%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 0 0% 24%;
+    --sidebar-accent: 220 10% 78%;
+    --sidebar-accent-foreground: 220 15% 15%;
+    --sidebar-border: 220 10% 75%;
     --sidebar-ring: 220 80% 50%;
-    --sidebar-muted: 0 0% 22%;
+    --sidebar-muted: 220 10% 80%;
   }
 }
 
