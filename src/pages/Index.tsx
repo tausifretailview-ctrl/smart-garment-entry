@@ -56,37 +56,27 @@ const MetricCard = ({
 }) => (
   <Tooltip>
     <TooltipTrigger asChild>
-      <div className="group relative animate-fade-in" onClick={onClick}>
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500 group-hover:duration-300 animate-gradient-shift" />
-        
-        <Card className={`${bgColor} relative overflow-hidden border-2 border-transparent group-hover:border-primary/20 dark:group-hover:border-white/20 transition-all duration-500 group-hover:scale-[1.02] dark:group-hover:shadow-elevated cursor-pointer`}>
-          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-display font-semibold tracking-wide text-primary dark:text-white/90 group-hover:text-primary dark:group-hover:text-white transition-colors duration-300">
+      <div className="group relative" onClick={onClick}>
+        <Card className={`${bgColor} relative overflow-hidden border group-hover:border-primary/30 dark:group-hover:border-white/30 transition-all duration-300 group-hover:scale-[1.02] cursor-pointer`}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+            <CardTitle className="text-xs font-semibold text-foreground dark:text-white/90">
               {title}
             </CardTitle>
-            <div className="relative p-2.5 rounded-xl bg-primary/10 dark:bg-white/10 group-hover:bg-primary/20 dark:group-hover:bg-white/20 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
-              <div className="absolute inset-0 rounded-xl bg-primary/20 dark:bg-white/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <Icon className="h-5 w-5 text-primary dark:text-white relative z-10 transition-all duration-300 group-hover:scale-110 group-hover:drop-shadow-glow" />
+            <div className="p-1.5 rounded-lg bg-primary/10 dark:bg-white/10">
+              <Icon className="h-3.5 w-3.5 text-primary dark:text-white" />
             </div>
           </CardHeader>
-          
-          <CardContent>
-            <div className="text-3xl font-display font-bold text-primary dark:text-white group-hover:text-primary dark:group-hover:text-white transition-all duration-500">
+          <CardContent className="p-2 pt-0">
+            <div className="text-lg font-bold text-foreground dark:text-white">
               {value}
             </div>
-            
-            <div className="mt-3 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary/50 via-primary/70 to-primary/50 dark:from-white/50 dark:via-white/70 dark:to-white/50 rounded-full transition-all duration-500 dark:shadow-glow" />
           </CardContent>
-          
-          <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         </Card>
       </div>
     </TooltipTrigger>
     {tooltip && (
       <TooltipContent side="bottom" className="max-w-[200px]">
-        <p className="text-sm">{tooltip}</p>
+        <p className="text-xs">{tooltip}</p>
       </TooltipContent>
     )}
   </Tooltip>
@@ -389,24 +379,25 @@ const DashboardContent = () => {
 
   return (
     <TooltipProvider>
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-fade-in">
+    <div className="space-y-3">
+      {/* Compact Header */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-5xl font-display font-bold text-primary dark:text-primary">
+          <h1 className="text-xl font-bold text-foreground">
             Dashboard
           </h1>
-          <p className="text-primary/70 dark:text-white/70 mt-2 text-lg font-medium">
-            Welcome to Smart Inventory Management System
+          <p className="text-muted-foreground text-xs">
+            Smart Inventory Management System
           </p>
         </div>
         
         {/* Date Range Selector & Theme Toggle */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <ThemeToggle />
-          <div className="flex items-center gap-3 bg-card border rounded-lg p-2 shadow-sm">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
+          <div className="flex items-center gap-2 bg-card border rounded-md px-2 py-1 shadow-sm">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[140px] border-0 shadow-none">
+              <SelectTrigger className="w-[100px] h-7 border-0 shadow-none text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -415,18 +406,18 @@ const DashboardContent = () => {
                 <SelectItem value="yearly">Yearly</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-sm font-medium text-primary">{dateLabel}</span>
+            <span className="text-xs font-medium text-primary">{dateLabel}</span>
           </div>
         </div>
       </div>
 
       {/* Sales Metrics */}
-      <div className="animate-fade-in" style={{ animationDelay: "0.1s" }}>
-        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-          <div className="h-1 w-12 bg-gradient-to-r from-primary to-transparent rounded-full" />
+      <div>
+        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
+          <div className="h-0.5 w-6 bg-gradient-to-r from-primary to-transparent rounded-full" />
           Sales Overview
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Sales"
             value={formatCurrency(salesData?.total || 0)}
@@ -463,12 +454,12 @@ const DashboardContent = () => {
       </div>
 
       {/* Purchase Metrics */}
-      <div className="animate-fade-in" style={{ animationDelay: "0.2s" }}>
-        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-          <div className="h-1 w-12 bg-gradient-to-r from-secondary to-transparent rounded-full" />
+      <div>
+        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
+          <div className="h-0.5 w-6 bg-gradient-to-r from-secondary to-transparent rounded-full" />
           Purchase Overview
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
           <MetricCard
             title="Total Purchase"
             value={formatCurrency(purchaseData?.total || 0)}
@@ -505,12 +496,12 @@ const DashboardContent = () => {
       </div>
 
       {/* Inventory & Financial Metrics */}
-      <div className="animate-fade-in" style={{ animationDelay: "0.3s" }}>
-        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-          <div className="h-1 w-12 bg-gradient-to-r from-accent to-transparent rounded-full" />
+      <div>
+        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
+          <div className="h-0.5 w-6 bg-gradient-to-r from-accent to-transparent rounded-full" />
           Inventory & Financial
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
           <MetricCard
             title="Total Products"
             value={productsCount || 0}
@@ -539,12 +530,12 @@ const DashboardContent = () => {
       </div>
 
       {/* Performance Metrics */}
-      <div className="animate-fade-in" style={{ animationDelay: "0.4s" }}>
-        <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-          <div className="h-1 w-12 bg-gradient-to-r from-success to-transparent rounded-full" />
+      <div>
+        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
+          <div className="h-0.5 w-6 bg-gradient-to-r from-green-500 to-transparent rounded-full" />
           Performance Metrics
         </h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-2 grid-cols-2 lg:grid-cols-5">
           <MetricCard
             title="Gross Profit"
             value={formatCurrency(profitData || 0)}
@@ -590,59 +581,60 @@ const DashboardContent = () => {
 
       {/* Field Sales App Section - Only visible for users with field sales access */}
       {hasFieldSalesAccess && (
-        <div className="animate-fade-in" style={{ animationDelay: "0.5s" }}>
-          <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-            <div className="h-1 w-12 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
+        <div>
+          <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
+            <div className="h-0.5 w-6 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
             Field Sales App
           </h2>
           <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-700 dark:via-amber-700 dark:to-yellow-700 border-orange-200 dark:border-orange-600">
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg">
-                  <Smartphone className="h-6 w-6 text-white" />
+            <CardHeader className="p-2 pb-1">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500">
+                  <Smartphone className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="text-xl">Field Sales Mobile App</CardTitle>
-                  <CardDescription className="text-base">
+                  <CardTitle className="text-sm">Field Sales Mobile App</CardTitle>
+                  <CardDescription className="text-xs">
                     Welcome, {employeeName || "Salesman"}
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-muted-foreground">
-                Access your mobile sales tools to manage customers, create orders, and track outstanding payments on the go.
-              </p>
-              <div className="flex flex-wrap gap-3">
+            <CardContent className="p-2 pt-1">
+              <div className="flex flex-wrap gap-2">
                 <Button 
+                  size="sm"
                   onClick={() => navigate("/salesman")}
-                  className="bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
+                  className="h-7 text-xs bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white"
                 >
-                  <Smartphone className="mr-2 h-4 w-4" />
-                  Open Field Sales App
+                  <Smartphone className="mr-1 h-3 w-3" />
+                  Open App
                 </Button>
                 <Button 
+                  size="sm"
                   variant="outline" 
                   onClick={() => navigate("/salesman/order/new")}
-                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                  className="h-7 text-xs border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
                 >
-                  <ClipboardList className="mr-2 h-4 w-4" />
+                  <ClipboardList className="mr-1 h-3 w-3" />
                   New Order
                 </Button>
                 <Button 
+                  size="sm"
                   variant="outline" 
                   onClick={() => navigate("/salesman/customers")}
-                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                  className="h-7 text-xs border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
                 >
-                  <MapPin className="mr-2 h-4 w-4" />
+                  <MapPin className="mr-1 h-3 w-3" />
                   Customers
                 </Button>
                 <Button 
+                  size="sm"
                   variant="outline" 
                   onClick={() => navigate("/salesman/outstanding")}
-                  className="border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
+                  className="h-7 text-xs border-orange-300 hover:bg-orange-50 dark:border-orange-700 dark:hover:bg-orange-950"
                 >
-                  <IndianRupee className="mr-2 h-4 w-4" />
+                  <IndianRupee className="mr-1 h-3 w-3" />
                   Outstanding
                 </Button>
               </div>
