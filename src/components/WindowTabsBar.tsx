@@ -92,19 +92,19 @@ export function WindowTabsBar() {
   }
 
   return (
-    <div className="bg-muted/30 border-b px-2 py-1">
-      <div className="flex items-center gap-1">
+    <div className="bg-muted/30 border-b px-2 py-0.5">
+      <div className="flex items-center gap-0.5">
         {/* Dashboard Button */}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 shrink-0"
+              size="xs"
+              className="h-6 gap-1 px-1.5 shrink-0"
               onClick={() => orgNavigate("/")}
             >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline text-xs">Dashboard</span>
+              <Home className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline text-[11px]">Dashboard</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
@@ -124,7 +124,7 @@ export function WindowTabsBar() {
                 <div
                   key={window.path}
                   className={cn(
-                    "group flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm cursor-pointer transition-all",
+                    "group flex items-center gap-1 px-2 py-1 rounded text-xs cursor-pointer transition-all",
                     "hover:bg-background/80",
                     isActive 
                       ? "bg-background text-primary shadow-sm border" 
@@ -132,7 +132,7 @@ export function WindowTabsBar() {
                   )}
                   onClick={() => switchWindow(window.path)}
                 >
-                  <IconComponent className="h-3.5 w-3.5 shrink-0" />
+                  <IconComponent className="h-3 w-3 shrink-0" />
                   <span className="truncate max-w-[100px]">{window.label}</span>
                   {openWindows.length > 1 && (
                     <button
@@ -157,8 +157,8 @@ export function WindowTabsBar() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0">
-              <Plus className="h-4 w-4" />
+            <Button variant="ghost" size="xs" className="h-6 w-6 p-0 shrink-0">
+              <Plus className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
@@ -197,11 +197,11 @@ export function WindowTabsBar() {
           <TooltipTrigger asChild>
             <Button 
               variant="ghost" 
-              size="sm" 
-              className="h-7 w-7 p-0 shrink-0" 
+              size="xs" 
+              className="h-6 w-6 p-0 shrink-0" 
               onClick={toggleTabsBarVisibility}
             >
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
