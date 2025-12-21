@@ -1419,6 +1419,29 @@ Thank you for choosing us!`;
                       ) : (
                         <>
                           <CommandEmpty>No customers found.</CommandEmpty>
+                          {/* Create New Customer Option */}
+                          <CommandGroup>
+                            <CommandItem
+                              onSelect={() => {
+                                setOpenCustomerSearch(false);
+                                setOpenCustomerDialog(true);
+                                // Pre-fill phone if search looks like a phone number
+                                const searchVal = customerSearchInput.trim();
+                                if (/^\d{6,}$/.test(searchVal.replace(/\D/g, ''))) {
+                                  customerForm.setValue('phone', searchVal);
+                                } else if (searchVal && !searchVal.includes('@')) {
+                                  customerForm.setValue('customer_name', searchVal);
+                                }
+                              }}
+                              className="cursor-pointer text-primary"
+                            >
+                              <Plus className="mr-2 h-4 w-4" />
+                              <span className="font-medium">Create New Customer</span>
+                              {customerSearchInput && (
+                                <span className="ml-1 text-muted-foreground">"{customerSearchInput}"</span>
+                              )}
+                            </CommandItem>
+                          </CommandGroup>
                           <CommandGroup heading={`Customers (${customersData?.length || 0})`}>
                             {filteredCustomers.map((customer: any) => {
                               const balance = getCustomerBalance(customer);
