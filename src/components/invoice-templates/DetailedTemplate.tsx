@@ -310,11 +310,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
                 <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{item.totalQty}</td>
                 {showMRP && (
                   <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>
-                    {items[index]?.mrp && items[index].mrp > item.rate ? (
-                      <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(items[index].mrp)}</span>
-                    ) : (
-                      <span>{formatCurrency(items[index]?.mrp || item.rate)}</span>
-                    )}
+                    {formatCurrency(items[index]?.mrp || item.rate)}
                   </td>
                 )}
                 <td style={{ textAlign: 'right', padding: '5px 4px', border: '1px solid #ddd' }}>{formatCurrency(item.rate)}</td>

@@ -332,7 +332,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                   <td style={{ padding: '10px', textAlign: 'right' }}>{item.totalQty}</td>
                   {showMRP && (
                     <td style={{ padding: '10px', textAlign: 'right' }}>
-                      <span style={{ textDecoration: 'line-through', color: '#999' }}>₹{(items[index]?.mrp || item.rate).toFixed(2)}</span>
+                      ₹{(items[index]?.mrp || item.rate).toFixed(2)}
                     </td>
                   )}
                   <td style={{ padding: '10px', textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
