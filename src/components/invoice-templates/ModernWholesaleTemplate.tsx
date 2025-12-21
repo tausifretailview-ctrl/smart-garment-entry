@@ -82,6 +82,9 @@ interface ModernWholesaleTemplateProps {
   colorScheme?: string;
   fontFamily?: string;
   minItemRows?: number;
+  // Amount formatting settings
+  amountWithDecimal?: boolean;
+  amountWithGrouping?: boolean;
 }
 
 // Font family mapping
@@ -148,10 +151,25 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   colorScheme = 'blue',
   fontFamily = 'inter',
   minItemRows = 8,
+  amountWithDecimal = true,
+  amountWithGrouping = true,
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
+  // Currency formatter based on settings
+  const formatCurrency = (amount: number) => {
+    if (!amountWithDecimal) {
+      if (amountWithGrouping) {
+        return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+      }
+      return `₹${Math.round(amount)}`;
+    }
+    if (amountWithGrouping) {
+      return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return `₹${amount.toFixed(2)}`;
+  };
   // Group items by product name for wholesale display (size/qty format like 10/3, 6/6)
   const groupItems = (items: WholesaleItem[]): GroupedItem[] => {
     if (!enableWholesaleGrouping) {
@@ -503,18 +521,18 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '600', fontSize: '8pt' }}>{item.totalQty}</td>
                   {showMRP && (
                     <td style={{ ...cellStyle, textAlign: 'right' }}>
-                      {item.mrp ? `₹${item.mrp.toFixed(2)}` : '-'}
+                      {item.mrp ? formatCurrency(item.mrp) : '-'}
                     </td>
                   )}
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>₹{item.rate.toFixed(2)}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
                   {showGSTBreakdown && (
                     <>
-                      <td style={{ ...cellStyle, textAlign: 'right' }}>₹{item.totalAmount.toFixed(2)}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right' }}>{formatCurrency(item.totalAmount)}</td>
                       <td style={{ ...cellStyle, textAlign: 'center' }}>{gstRate}%</td>
                     </>
                   )}
                   <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                    ₹{(item.totalAmount + (item.totalAmount * (gstRate || 0) / 100)).toFixed(2)}
+                    {formatCurrency(item.totalAmount + (item.totalAmount * (gstRate || 0) / 100))}
                   </td>
                 </tr>
               );
@@ -554,13 +572,13 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               {showGSTBreakdown && (
                 <>
                   <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', fontSize: '8pt' }}>
-                    ₹{calculatedTaxableAmount.toFixed(2)}
+                    {formatCurrency(calculatedTaxableAmount)}
                   </td>
                   <td style={cellStyle}></td>
                 </>
               )}
               <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', fontSize: '9pt' }}>
-                ₹{grandTotal.toFixed(2)}
+                {formatCurrency(grandTotal)}
               </td>
             </tr>
           </tbody>
@@ -584,7 +602,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 </div>
                 {Object.entries(gstSummary).map(([rate, values]) => (
                   <div key={rate} style={{ fontSize: '7pt', marginBottom: '1px' }}>
-                    <span>GST @{rate}%: ₹{values.taxable.toFixed(2)} → CGST: ₹{values.cgst.toFixed(2)} + SGST: ₹{values.sgst.toFixed(2)}</span>
+                    <span>GST @{rate}%: {formatCurrency(values.taxable)} → CGST: {formatCurrency(values.cgst)} + SGST: {formatCurrency(values.sgst)}</span>
                   </div>
                 ))}
               </div>
@@ -613,34 +631,34 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
               <tbody>
                 <tr>
                   <td style={{ padding: '2px 0' }}>Sub Total</td>
-                  <td style={{ padding: '2px 0', textAlign: 'right', fontWeight: '500' }}>₹{subtotal.toFixed(2)}</td>
+                  <td style={{ padding: '2px 0', textAlign: 'right', fontWeight: '500' }}>{formatCurrency(subtotal)}</td>
                 </tr>
                 {discount > 0 && (
                   <tr>
                     <td style={{ padding: '2px 0', color: '#16a34a' }}>Discount</td>
-                    <td style={{ padding: '2px 0', textAlign: 'right', color: '#16a34a' }}>-₹{discount.toFixed(2)}</td>
+                    <td style={{ padding: '2px 0', textAlign: 'right', color: '#16a34a' }}>-{formatCurrency(discount)}</td>
                   </tr>
                 )}
                 <tr>
                   <td style={{ padding: '2px 0' }}>Taxable Amount</td>
-                  <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{calculatedTaxableAmount.toFixed(2)}</td>
+                  <td style={{ padding: '2px 0', textAlign: 'right' }}>{formatCurrency(calculatedTaxableAmount)}</td>
                 </tr>
                 {showGSTBreakdown && (
                   <>
                     <tr>
                       <td style={{ padding: '2px 0' }}>CGST</td>
-                      <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{cgstAmount.toFixed(2)}</td>
+                      <td style={{ padding: '2px 0', textAlign: 'right' }}>{formatCurrency(cgstAmount)}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: '2px 0' }}>SGST</td>
-                      <td style={{ padding: '2px 0', textAlign: 'right' }}>₹{sgstAmount.toFixed(2)}</td>
+                      <td style={{ padding: '2px 0', textAlign: 'right' }}>{formatCurrency(sgstAmount)}</td>
                     </tr>
                   </>
                 )}
                 {roundOff !== 0 && (
                   <tr>
                     <td style={{ padding: '2px 0' }}>Round Off</td>
-                    <td style={{ padding: '2px 0', textAlign: 'right' }}>{roundOff > 0 ? '+' : ''}₹{roundOff.toFixed(2)}</td>
+                    <td style={{ padding: '2px 0', textAlign: 'right' }}>{roundOff > 0 ? '+' : ''}{formatCurrency(Math.abs(roundOff))}</td>
                   </tr>
                 )}
                 <tr style={{ borderTop: '1px solid #374151' }}>
@@ -656,7 +674,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                     fontWeight: '700', 
                     fontSize: '10pt',
                     color: colors.primary,
-                  }}>₹{grandTotal.toFixed(2)}</td>
+                  }}>{formatCurrency(grandTotal)}</td>
                 </tr>
               </tbody>
             </table>
