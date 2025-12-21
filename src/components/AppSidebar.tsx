@@ -102,8 +102,8 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton asChild isActive={isActive("/")}>
                 <NavLink to="/" className="flex items-center gap-3 group">
-                  <LayoutDashboard className="h-5 w-5 sidebar-icon text-white" />
-                  {open && <span className="font-medium text-white">Dashboard</span>}
+                  <LayoutDashboard className="h-5 w-5 sidebar-icon" />
+                  {open && <span className="font-medium">Dashboard</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
