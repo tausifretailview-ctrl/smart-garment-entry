@@ -103,7 +103,7 @@ export function AppSidebar() {
               <SidebarMenuButton asChild isActive={isActive("/")}>
                 <NavLink to="/" className="flex items-center gap-3 group">
                   <LayoutDashboard className="h-5 w-5 sidebar-icon" />
-                  {open && <span className="font-medium">Dashboard</span>}
+                  {open && <span className="font-medium dark:text-white">Dashboard</span>}
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
