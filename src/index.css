@@ -117,7 +117,7 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Dark mode: keep navigation chrome dark, but content area white (as per reference screenshot) */
+    /* Dark mode: keep navigation chrome dark, but content area white */
     --background: 0 0% 98%;
     --foreground: 0 0% 15%;
 
@@ -127,9 +127,9 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 15%;
 
-    --primary: 0 85% 55%;
+    --primary: 220 80% 50%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 0 90% 65%;
+    --primary-glow: 220 85% 60%;
 
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 15%;
@@ -137,7 +137,7 @@ All colors MUST be HSL.
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 0 85% 55%;
+    --accent: 220 80% 50%;
     --accent-foreground: 0 0% 100%;
 
     --success: 158 64% 52%;
@@ -151,10 +151,10 @@ All colors MUST be HSL.
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 0 85% 55%;
+    --ring: 220 80% 50%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(0 85% 55%), hsl(0 70% 40%));
-    --gradient-accent: linear-gradient(135deg, hsl(0 85% 55%), hsl(0 85% 50%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 80% 50%), hsl(220 70% 40%));
+    --gradient-accent: linear-gradient(135deg, hsl(220 80% 50%), hsl(230 80% 55%));
     --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
     --shadow-glow: none;
     --shadow-elevated: none;
@@ -162,12 +162,12 @@ All colors MUST be HSL.
     /* Navigation chrome - light black (neutral dark gray) for sidebar */
     --sidebar-background: 0 0% 18%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 0 85% 55%;
+    --sidebar-primary: 220 80% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 24%;
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 24%;
-    --sidebar-ring: 0 85% 55%;
+    --sidebar-ring: 220 80% 50%;
     --sidebar-muted: 0 0% 22%;
   }
 }
