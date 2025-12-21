@@ -1170,22 +1170,22 @@ const ProductEntry = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="h-[calc(100vh-6rem)] bg-background p-2 overflow-auto">
+      <div className="max-w-7xl mx-auto">
         <BackToDashboard label="Back to Products" to="/products" />
-        <div className="mb-6 flex items-center gap-3">
-          <Package className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Smart Inventory</h1>
+        <div className="mb-2 flex items-center gap-2">
+          <Package className="h-5 w-5 text-primary" />
+          <h1 className="text-lg font-bold text-foreground">Smart Inventory</h1>
         </div>
 
-        <Card className="shadow-lg border-border">
-          <CardHeader>
+        <Card className="shadow-sm border-border">
+          <CardHeader className="p-3 pb-2">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-2xl">
+                <CardTitle className="text-base font-semibold">
                   {editingProductId ? "Edit Product" : "Product Entry"}
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs">
                   {editingProductId ? "Update product information" : "Add new product to your inventory"}
                 </CardDescription>
               </div>
@@ -1193,39 +1193,40 @@ const ProductEntry = () => {
                 <Button
                   onClick={() => setShowExcelImport(true)}
                   variant="outline"
-                  className="gap-2"
+                  size="sm"
+                  className="gap-1 h-7 text-xs"
                 >
-                  <FileSpreadsheet className="h-4 w-4" />
+                  <FileSpreadsheet className="h-3 w-3" />
                   Import Excel
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="p-3 space-y-3">
             {/* Product Image Upload */}
-            <div className="space-y-2">
-              <Label htmlFor="product_image">Product Image</Label>
-              <div className="flex items-start gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="product_image" className="text-xs">Product Image</Label>
+              <div className="flex items-start gap-3">
                 {imagePreview ? (
                   <div className="relative">
                     <img
                       src={imagePreview}
                       alt="Product preview"
-                      className="w-32 h-32 object-cover rounded-lg border border-border"
+                      className="w-16 h-16 object-cover rounded border border-border"
                     />
                     <Button
                       type="button"
                       variant="destructive"
                       size="icon"
-                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full"
+                      className="absolute -top-1 -right-1 h-4 w-4 rounded-full"
                       onClick={handleRemoveImage}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-2 w-2" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="w-32 h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center bg-muted/50">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
+                  <div className="w-16 h-16 border-2 border-dashed border-border rounded flex items-center justify-center bg-muted/50">
+                    <Upload className="h-5 w-5 text-muted-foreground" />
                   </div>
                 )}
                 <div className="flex-1">
@@ -1234,49 +1235,49 @@ const ProductEntry = () => {
                     type="file"
                     accept="image/*"
                     onChange={handleImageChange}
-                    className="cursor-pointer"
+                    className="cursor-pointer h-7 text-xs"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Max file size: 5MB. Supported formats: JPG, PNG, WEBP
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Max 5MB. JPG, PNG, WEBP
                   </p>
                 </div>
               </div>
             </div>
 
             {/* Product Type Selection */}
-            <div className="space-y-2">
-              <Label>Product Type *</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Product Type *</Label>
               <RadioGroup
                 value={formData.product_type}
                 onValueChange={(value: ProductType) =>
                   setFormData({ ...formData, product_type: value, size_group_id: value === 'service' ? '' : formData.size_group_id })
                 }
-                className="flex gap-6"
+                className="flex gap-4"
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="goods" id="type-goods" />
-                  <Label htmlFor="type-goods" className="font-normal cursor-pointer">Goods</Label>
+                <div className="flex items-center space-x-1">
+                  <RadioGroupItem value="goods" id="type-goods" className="h-3 w-3" />
+                  <Label htmlFor="type-goods" className="font-normal cursor-pointer text-xs">Goods</Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="service" id="type-service" />
-                  <Label htmlFor="type-service" className="font-normal cursor-pointer">Service</Label>
+                <div className="flex items-center space-x-1">
+                  <RadioGroupItem value="service" id="type-service" className="h-3 w-3" />
+                  <Label htmlFor="type-service" className="font-normal cursor-pointer text-xs">Service</Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="combo" id="type-combo" />
-                  <Label htmlFor="type-combo" className="font-normal cursor-pointer">Combo</Label>
+                <div className="flex items-center space-x-1">
+                  <RadioGroupItem value="combo" id="type-combo" className="h-3 w-3" />
+                  <Label htmlFor="type-combo" className="font-normal cursor-pointer text-xs">Combo</Label>
                 </div>
               </RadioGroup>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 {formData.product_type === 'goods' && "Goods - Physical items with stock tracking"}
-                {formData.product_type === 'service' && "Service - No stock tracking, for invoicing only"}
-                {formData.product_type === 'combo' && "Combo - Bundle of multiple products"}
+                {formData.product_type === 'service' && "Service - No stock tracking"}
+                {formData.product_type === 'combo' && "Combo - Bundle of products"}
               </p>
             </div>
 
             {/* Product Details Form */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="product_name">Product Name *</Label>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              <div className="space-y-1">
+                <Label htmlFor="product_name" className="text-xs">Product Name *</Label>
                 <Input
                   id="product_name"
                   ref={productNameInputRef}
@@ -1285,12 +1286,13 @@ const ProductEntry = () => {
                     setFormData({ ...formData, product_name: e.target.value })
                   }
                   placeholder="Enter product name"
+                  className="h-7 text-xs"
                 />
               </div>
 
               {(fieldSettings?.category?.enabled ?? true) && (
-                <div className="space-y-2">
-                  <Label htmlFor="category">
+                <div className="space-y-1">
+                  <Label htmlFor="category" className="text-xs">
                     {fieldSettings?.category?.label || 'Category'}
                   </Label>
                   <Input
@@ -1300,13 +1302,14 @@ const ProductEntry = () => {
                       setFormData({ ...formData, category: e.target.value })
                     }
                     placeholder={`e.g., T-Shirt, Jeans`}
+                    className="h-7 text-xs"
                   />
                 </div>
               )}
 
               {(fieldSettings?.brand?.enabled ?? true) && (
-                <div className="space-y-2">
-                  <Label htmlFor="brand">
+                <div className="space-y-1">
+                  <Label htmlFor="brand" className="text-xs">
                     {fieldSettings?.brand?.label || 'Brand'}
                   </Label>
                   <Input
@@ -1316,13 +1319,14 @@ const ProductEntry = () => {
                       setFormData({ ...formData, brand: e.target.value })
                     }
                     placeholder="Brand name"
+                    className="h-7 text-xs"
                   />
                 </div>
               )}
 
               {(fieldSettings?.style?.enabled ?? true) && (
-                <div className="space-y-2">
-                  <Label htmlFor="style">
+                <div className="space-y-1">
+                  <Label htmlFor="style" className="text-xs">
                     {fieldSettings?.style?.label || 'Style'}
                   </Label>
                   <Input
@@ -1332,22 +1336,22 @@ const ProductEntry = () => {
                       setFormData({ ...formData, style: e.target.value })
                     }
                     placeholder="Style description"
+                    className="h-7 text-xs"
                   />
                 </div>
               )}
 
               {(fieldSettings?.color?.enabled ?? true) && (
-                <div className="space-y-2">
-                  <Label htmlFor="color">
-                    {fieldSettings?.color?.label || 'Colors'} (comma separated for multiple)
+                <div className="space-y-1">
+                  <Label htmlFor="color" className="text-xs">
+                    {fieldSettings?.color?.label || 'Colors'} (comma separated)
                   </Label>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <Input
                       id="color"
                       value={colorInput}
                       onChange={(e) => setColorInput(e.target.value)}
                       onBlur={() => {
-                        // Parse colors on blur
                         if (colorInput.trim()) {
                           const newColors = colorInput
                             .split(',')
@@ -1373,15 +1377,16 @@ const ProductEntry = () => {
                           }
                         }
                       }}
-                      placeholder="e.g., Black, Brown, White"
+                      placeholder="e.g., Black, White"
+                      className="h-7 text-xs"
                     />
                   </div>
                   {formData.colors.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="flex flex-wrap gap-1 mt-1">
                       {formData.colors.map((color, idx) => (
                         <span
                           key={idx}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-sm"
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px]"
                         >
                           {color}
                           <button
@@ -1394,7 +1399,7 @@ const ProductEntry = () => {
                             }}
                             className="hover:text-destructive"
                           >
-                            <X className="h-3 w-3" />
+                            <X className="h-2 w-2" />
                           </button>
                         </span>
                       ))}
@@ -1405,8 +1410,8 @@ const ProductEntry = () => {
 
               {/* Size Group - Hidden for service type */}
               {formData.product_type !== 'service' && (
-                <div className="space-y-2">
-                  <Label htmlFor="size_group">Size Group</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="size_group" className="text-xs">Size Group</Label>
                   <Select
                     value={formData.size_group_id}
                     onValueChange={(value) => {
@@ -1417,37 +1422,37 @@ const ProductEntry = () => {
                       }
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-7 text-xs">
                       <SelectValue placeholder="Select size group" />
                     </SelectTrigger>
                     <SelectContent className="bg-background">
-                      <SelectItem value="__create_new__" className="text-primary font-medium">
-                        <span className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          Create New Size Group
+                      <SelectItem value="__create_new__" className="text-primary font-medium text-xs">
+                        <span className="flex items-center gap-1">
+                          <Plus className="h-3 w-3" />
+                          New Size Group
                         </span>
                       </SelectItem>
                       {sizeGroups.map((group) => (
                         <div key={group.id} className="relative flex items-center">
-                          <SelectItem value={group.id} className="flex-1 pr-16">
+                          <SelectItem value={group.id} className="flex-1 pr-12 text-xs">
                             {group.group_name}
                           </SelectItem>
-                          <div className="absolute right-2 flex items-center gap-1 z-10">
+                          <div className="absolute right-2 flex items-center gap-0.5 z-10">
                             <button
                               type="button"
                               onClick={(e) => handleEditSizeGroup(group, e)}
-                              className="p-1 hover:bg-muted rounded"
+                              className="p-0.5 hover:bg-muted rounded"
                               title="Edit"
                             >
-                              <Edit className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                              <Edit className="h-2.5 w-2.5 text-muted-foreground hover:text-primary" />
                             </button>
                             <button
                               type="button"
                               onClick={(e) => handleDeleteSizeGroupClick(group, e)}
-                              className="p-1 hover:bg-muted rounded"
+                              className="p-0.5 hover:bg-muted rounded"
                               title="Delete"
                             >
-                              <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                              <Trash2 className="h-2.5 w-2.5 text-muted-foreground hover:text-destructive" />
                             </button>
                           </div>
                         </div>
@@ -1458,8 +1463,8 @@ const ProductEntry = () => {
               )}
 
               {(fieldSettings?.hsn_code?.enabled ?? true) && (
-                <div className="space-y-2">
-                  <Label htmlFor="hsn_code">
+                <div className="space-y-1">
+                  <Label htmlFor="hsn_code" className="text-xs">
                     {fieldSettings?.hsn_code?.label || 'HSN Code'}
                   </Label>
                   <Input
@@ -1469,24 +1474,25 @@ const ProductEntry = () => {
                       setFormData({ ...formData, hsn_code: e.target.value })
                     }
                     placeholder="HSN Code"
+                    className="h-7 text-xs"
                   />
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="gst_per">GST % *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="gst_per" className="text-xs">GST % *</Label>
                 <Select
                   value={formData.gst_per.toString()}
                   onValueChange={(value) =>
                     setFormData({ ...formData, gst_per: parseInt(value) })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {[0, 5, 12, 18, 28].map((rate) => (
-                      <SelectItem key={rate} value={rate.toString()}>
+                      <SelectItem key={rate} value={rate.toString()} className="text-xs">
                         {rate}%
                       </SelectItem>
                     ))}
@@ -1494,8 +1500,8 @@ const ProductEntry = () => {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="default_pur_price">Default Purchase Price</Label>
+              <div className="space-y-1">
+                <Label htmlFor="default_pur_price" className="text-xs">Purchase Price</Label>
                 <Input
                   id="default_pur_price"
                   type="number"
@@ -1508,11 +1514,12 @@ const ProductEntry = () => {
                       default_pur_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="h-7 text-xs"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="default_sale_price">Default Sale Price</Label>
+              <div className="space-y-1">
+                <Label htmlFor="default_sale_price" className="text-xs">Sale Price</Label>
                 <Input
                   id="default_sale_price"
                   type="number"
@@ -1525,12 +1532,13 @@ const ProductEntry = () => {
                       default_sale_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
+                  className="h-7 text-xs"
                 />
               </div>
 
               {showMrp && (
-                <div className="space-y-2">
-                  <Label htmlFor="default_mrp">Default MRP</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="default_mrp" className="text-xs">MRP</Label>
                   <Input
                     id="default_mrp"
                     type="number"
@@ -1544,24 +1552,25 @@ const ProductEntry = () => {
                       })
                     }
                     placeholder="MRP"
+                    className="h-7 text-xs"
                   />
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
+              <div className="space-y-1">
+                <Label htmlFor="status" className="text-xs">Status</Label>
                 <Select
                   value={formData.status}
                   onValueChange={(value) =>
                     setFormData({ ...formData, status: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-7 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="active" className="text-xs">Active</SelectItem>
+                    <SelectItem value="inactive" className="text-xs">Inactive</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1572,45 +1581,46 @@ const ProductEntry = () => {
               <Button
                 onClick={handleGenerateSizeVariants}
                 disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                variant="secondary"
-                className="gap-2"
+                variant="default"
+                size="sm"
+                className="gap-1 h-7 text-xs bg-primary hover:bg-primary/90 font-semibold shadow-md"
               >
-                <Package className="h-4 w-4" />
+                <Plus className="h-3 w-3" />
                 {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
               </Button>
             </div>
 
             {/* Size Variants Table */}
             {showVariants && variants.length > 0 && (
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">
-                    {formData.product_type === 'service' ? 'Service Details' : `Color-Size Variants (${variants.length})`}
+                  <h3 className="text-sm font-semibold">
+                    {formData.product_type === 'service' ? 'Service Details' : `Variants (${variants.length})`}
                   </h3>
                   <Button
                     onClick={handleAutoGenerateBarcodes}
                     size="sm"
-                    className="gap-2"
+                    className="gap-1 h-6 text-xs"
                   >
-                    <Barcode className="h-4 w-4" />
+                    <Barcode className="h-3 w-3" />
                     Auto-Generate Barcodes
                   </Button>
                 </div>
 
-                <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                <div className="border rounded overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {formData.product_type !== 'service' && <TableHead>Color</TableHead>}
-                        <TableHead>{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
-                        <TableHead>Purchase Price</TableHead>
-                        <TableHead>Sale Price</TableHead>
-                        {showMrp && <TableHead>MRP</TableHead>}
-                        {showMrp && <TableHead>Discount</TableHead>}
-                        <TableHead>Barcode</TableHead>
-                        {formData.product_type !== 'service' && <TableHead>Opening Qty</TableHead>}
-                        <TableHead className="text-center">Active</TableHead>
-                        <TableHead></TableHead>
+                        {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Color</TableHead>}
+                        <TableHead className="text-xs py-1">{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
+                        <TableHead className="text-xs py-1">Pur Price</TableHead>
+                        <TableHead className="text-xs py-1">Sale Price</TableHead>
+                        {showMrp && <TableHead className="text-xs py-1">MRP</TableHead>}
+                        {showMrp && <TableHead className="text-xs py-1">Disc</TableHead>}
+                        <TableHead className="text-xs py-1">Barcode</TableHead>
+                        {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Open Qty</TableHead>}
+                        <TableHead className="text-xs py-1 text-center">Active</TableHead>
+                        <TableHead className="text-xs py-1"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1623,12 +1633,12 @@ const ProductEntry = () => {
                           : 0;
                         
                         return (
-                          <TableRow key={index}>
+                          <TableRow key={index} className="text-xs">
                             {formData.product_type !== 'service' && (
-                              <TableCell className="font-medium text-primary">{variant.color || '-'}</TableCell>
+                              <TableCell className="font-medium text-primary py-1 text-xs">{variant.color || '-'}</TableCell>
                             )}
-                            <TableCell className="font-medium">{variant.size}</TableCell>
-                            <TableCell>
+                            <TableCell className="font-medium py-1 text-xs">{variant.size}</TableCell>
+                            <TableCell className="py-1">
                               <Input
                                 type="number"
                                 min="0"
@@ -1641,10 +1651,10 @@ const ProductEntry = () => {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-32"
+                                className="w-20 h-6 text-xs"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-1">
                               <Input
                                 type="number"
                                 min="0"
@@ -1657,11 +1667,11 @@ const ProductEntry = () => {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-32"
+                                className="w-20 h-6 text-xs"
                               />
                             </TableCell>
                             {showMrp && (
-                              <TableCell>
+                              <TableCell className="py-1">
                                 <Input
                                   type="number"
                                   min="0"
@@ -1674,23 +1684,23 @@ const ProductEntry = () => {
                                       e.target.value ? parseFloat(e.target.value) : null
                                     )
                                   }
-                                  className="w-28"
+                                  className="w-18 h-6 text-xs"
                                   placeholder="MRP"
                                 />
                               </TableCell>
                             )}
                             {showMrp && (
-                              <TableCell>
+                              <TableCell className="py-1">
                                 {discount > 0 ? (
-                                  <span className="text-green-600 font-medium">
+                                  <span className="text-green-600 font-medium text-xs">
                                     ₹{discount.toFixed(0)} ({discountPercent}%)
                                   </span>
                                 ) : (
-                                  <span className="text-muted-foreground">-</span>
+                                  <span className="text-muted-foreground text-xs">-</span>
                                 )}
                               </TableCell>
                             )}
-                            <TableCell>
+                            <TableCell className="py-1">
                               <Input
                                 value={variant.barcode}
                                 onChange={(e) =>
@@ -1700,12 +1710,12 @@ const ProductEntry = () => {
                                     e.target.value
                                   )
                                 }
-                                className="w-40"
-                                placeholder="Scan or enter barcode"
+                                className="w-28 h-6 text-xs"
+                                placeholder="Barcode"
                               />
                             </TableCell>
                             {formData.product_type !== 'service' && (
-                              <TableCell>
+                              <TableCell className="py-1">
                                 <Input
                                   type="number"
                                   min="0"
@@ -1718,30 +1728,31 @@ const ProductEntry = () => {
                                       parseInt(e.target.value) || 0
                                     )
                                   }
-                                  className="w-28"
+                                  className="w-16 h-6 text-xs"
                                   placeholder="0"
                                 />
                               </TableCell>
                             )}
-                            <TableCell className="text-center">
+                            <TableCell className="text-center py-1">
                               <Switch
                                 checked={variant.active}
                                 onCheckedChange={(checked) =>
                                   handleVariantChange(index, "active", checked)
                                 }
+                                className="h-4 w-7"
                               />
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="py-1">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                className="h-5 w-5 text-muted-foreground hover:text-destructive"
                                 onClick={() => {
                                   setVariants(variants.filter((_, i) => i !== index));
                                 }}
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-3 w-3" />
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1754,16 +1765,16 @@ const ProductEntry = () => {
             )}
 
             {/* Save Button */}
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end pt-2">
               <Button
                 onClick={handleSave}
                 disabled={loading}
-                size="lg"
-                className="gap-2 min-w-[150px]"
+                size="sm"
+                className="gap-1 h-8 text-xs min-w-[120px]"
               >
                 {loading ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="h-3 w-3 animate-spin" />
                     {editingProductId ? "Updating..." : "Saving..."}
                   </>
                 ) : (
