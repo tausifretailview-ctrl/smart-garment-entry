@@ -1,5 +1,6 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Loader2 } from "lucide-react";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
@@ -13,9 +14,11 @@ interface RoleProtectedRouteProps {
 export const RoleProtectedRoute = ({ 
   children, 
   allowedRoles,
-  redirectTo = "/" 
+  redirectTo
 }: RoleProtectedRouteProps) => {
   const { roles, loading } = useUserRoles();
+  const { orgSlug } = useParams<{ orgSlug: string }>();
+  const { currentOrganization } = useOrganization();
 
   if (loading) {
     return (
@@ -28,7 +31,10 @@ export const RoleProtectedRoute = ({
   const hasRequiredRole = roles.some(role => allowedRoles.includes(role));
 
   if (!hasRequiredRole) {
-    return <Navigate to={redirectTo} replace />;
+    // Use org-scoped redirect if available
+    const slug = orgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug");
+    const redirectPath = redirectTo || (slug ? `/${slug}` : "/");
+    return <Navigate to={redirectPath} replace />;
   }
 
   return <>{children}</>;
