@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download } from "lucide-react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +49,7 @@ interface ColumnSettings {
   whatsapp: boolean;
   copyLink: boolean;
   print: boolean;
+  download: boolean;
   modify: boolean;
   delete: boolean;
 }
@@ -57,6 +60,7 @@ const defaultColumnSettings: ColumnSettings = {
   whatsapp: true,
   copyLink: true,
   print: true,
+  download: true,
   modify: true,
   delete: true,
 };
@@ -525,6 +529,59 @@ export default function SalesInvoiceDashboard() {
         handlePrint();
       }, 100);
     }
+  };
+
+  const handleDownloadPDF = async (invoice: any) => {
+    setInvoiceToPrint(invoice);
+    toast({
+      title: "Generating PDF",
+      description: "Please wait while PDF is being generated...",
+    });
+    
+    // Wait for invoice to render
+    setTimeout(async () => {
+      if (printRef.current) {
+        try {
+          const canvas = await html2canvas(printRef.current, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            logging: false,
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: billFormat === 'a5' || billFormat === 'a5-horizontal' ? 'a5' : 'a4',
+          });
+          
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const imgWidth = canvas.width;
+          const imgHeight = canvas.height;
+          const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+          const imgX = (pdfWidth - imgWidth * ratio) / 2;
+          const imgY = 0;
+          
+          pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+          pdf.save(`Invoice_${invoice.sale_number}_${format(new Date(invoice.sale_date), 'ddMMyyyy')}.pdf`);
+          
+          toast({
+            title: "Success",
+            description: "PDF downloaded successfully",
+          });
+        } catch (error) {
+          console.error('Error generating PDF:', error);
+          toast({
+            title: "Error",
+            description: "Failed to generate PDF",
+            variant: "destructive",
+          });
+        }
+      }
+      setInvoiceToPrint(null);
+    }, 500);
   };
 
   const handleWhatsAppShare = (invoice: any) => {
@@ -1251,6 +1308,16 @@ export default function SalesInvoiceDashboard() {
                                     title="Print Invoice"
                                   >
                                     <Printer className="h-4 w-4" />
+                                  </Button>
+                                )}
+                                {columnSettings.download && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleDownloadPDF(invoice)}
+                                    title="Download PDF"
+                                  >
+                                    <Download className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
                                 {columnSettings.modify && (
