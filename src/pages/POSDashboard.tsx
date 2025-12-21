@@ -808,6 +808,10 @@ const POSDashboard = () => {
     totalCard: filteredSales.reduce((sum, sale) => sum + (sale.card_amount || 0), 0),
     totalUpi: filteredSales.reduce((sum, sale) => sum + (sale.upi_amount || 0), 0),
     totalBalance: filteredSales.reduce((sum, sale) => sum + (sale.net_amount - (sale.paid_amount || 0)), 0),
+    // Bill counts by payment method
+    cashBillCount: filteredSales.filter(sale => (sale.cash_amount || 0) > 0).length,
+    cardBillCount: filteredSales.filter(sale => (sale.card_amount || 0) > 0).length,
+    upiBillCount: filteredSales.filter(sale => (sale.upi_amount || 0) > 0).length,
   }), [filteredSales, saleItems]);
 
   // Memoize pagination calculations
@@ -1008,6 +1012,7 @@ const POSDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-emerald-600">₹{summaryStats.totalCash.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">{summaryStats.cashBillCount} Bills</p>
             </CardContent>
           </Card>
 
@@ -1021,6 +1026,7 @@ const POSDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-cyan-600">₹{summaryStats.totalCard.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">{summaryStats.cardBillCount} Bills</p>
             </CardContent>
           </Card>
 
@@ -1034,6 +1040,7 @@ const POSDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-indigo-600">₹{summaryStats.totalUpi.toFixed(0)}</div>
+              <p className="text-xs text-muted-foreground">{summaryStats.upiBillCount} Bills</p>
             </CardContent>
           </Card>
 
