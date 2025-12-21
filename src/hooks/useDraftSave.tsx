@@ -21,6 +21,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentDataRef = useRef<any>(null);
+  const draftClearedRef = useRef(false); // Track when draft was intentionally cleared
 
   // Check if draft exists on mount
   const checkDraft = useCallback(async () => {
@@ -122,6 +123,8 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       setHasDraft(false);
       setDraftData(null);
       setLastSaved(null);
+      currentDataRef.current = null; // Clear current data
+      draftClearedRef.current = true; // Mark as intentionally cleared
     } catch (error) {
       console.error('Error deleting draft:', error);
     }
@@ -153,22 +156,22 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     }
   }, []);
 
-  // Cleanup on unmount - SAVE draft before stopping auto-save
+  // Cleanup on unmount - SAVE draft before stopping auto-save (only if not intentionally cleared)
   useEffect(() => {
     return () => {
-      // Save current data before unmounting (SPA navigation)
-      if (currentDataRef.current) {
+      // Don't save if draft was intentionally cleared (e.g., after successful save)
+      if (currentDataRef.current && !draftClearedRef.current) {
         saveDraft(currentDataRef.current, false);
       }
       stopAutoSave();
     };
   }, [stopAutoSave, saveDraft]);
 
-  // Handle beforeunload to save draft
+  // Handle beforeunload to save draft (only if not intentionally cleared)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (currentDataRef.current) {
-        // Save draft synchronously (best effort)
+      // Don't save if draft was intentionally cleared
+      if (currentDataRef.current && !draftClearedRef.current) {
         saveDraft(currentDataRef.current, false);
       }
     };
