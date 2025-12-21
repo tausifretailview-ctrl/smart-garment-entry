@@ -274,11 +274,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
                 <td style={{ textAlign: 'center', padding: '3px 2px' }}>{item.totalQty}</td>
                 {showMRP && (
                   <td style={{ textAlign: 'right', padding: '3px 2px' }}>
-                    {items[index]?.mrp && items[index].mrp > item.rate ? (
-                      <span style={{ textDecoration: 'line-through', color: '#999', fontSize: '8px' }}>{formatCurrency(items[index].mrp)}</span>
-                    ) : (
-                      <span>{formatCurrency(items[index]?.mrp || item.rate)}</span>
-                    )}
+                    {formatCurrency(items[index]?.mrp || item.rate)}
                   </td>
                 )}
                 <td style={{ textAlign: 'right', padding: '3px 2px' }}>{formatCurrency(item.rate)}</td>

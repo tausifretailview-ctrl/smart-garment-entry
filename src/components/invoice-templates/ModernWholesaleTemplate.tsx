@@ -502,7 +502,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   </td>
                   <td style={{ ...cellStyle, textAlign: 'center', fontWeight: '600', fontSize: '8pt' }}>{item.totalQty}</td>
                   {showMRP && (
-                    <td style={{ ...cellStyle, textAlign: 'right', textDecoration: 'line-through', color: '#9ca3af' }}>
+                    <td style={{ ...cellStyle, textAlign: 'right' }}>
                       {item.mrp ? `₹${item.mrp.toFixed(2)}` : '-'}
                     </td>
                   )}

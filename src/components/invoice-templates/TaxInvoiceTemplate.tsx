@@ -313,11 +313,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
                 <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>{item.totalQty}</td>
                 {showMRP && (
                   <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
-                    {items[index]?.mrp && items[index].mrp > item.rate ? (
-                      <span style={{ textDecoration: 'line-through', color: '#999' }}>{formatCurrency(items[index].mrp)}</span>
-                    ) : (
-                      <span>{formatCurrency(items[index]?.mrp || item.rate)}</span>
-                    )}
+                    {formatCurrency(items[index]?.mrp || item.rate)}
                   </td>
                 )}
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>{formatCurrency(item.rate)}</td>
