@@ -118,27 +118,27 @@ const SalesmanDashboard = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-3 space-y-3">
       {/* Welcome */}
       <div>
-        <h1 className="text-xl font-bold text-foreground">Welcome back!</h1>
-        <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
+        <h1 className="text-lg font-bold text-foreground">Welcome back!</h1>
+        <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="border-0 shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full bg-muted ${stat.color}`}>
-                    <Icon className="h-5 w-5" />
+            <Card key={stat.label} className="border shadow-sm">
+              <CardContent className="p-2">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-full bg-muted ${stat.color}`}>
+                    <Icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-lg font-bold">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                    <p className="text-sm font-bold">{stat.value}</p>
+                    <p className="text-[10px] text-muted-foreground">{stat.label}</p>
                   </div>
                 </div>
               </CardContent>
@@ -148,20 +148,20 @@ const SalesmanDashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="space-y-3">
-        <h2 className="font-semibold text-foreground">Quick Actions</h2>
+      <div className="space-y-2">
+        <h2 className="font-semibold text-sm text-foreground">Quick Actions</h2>
         {quickActions.map((action) => {
           const Icon = action.icon;
           return (
             <Button
               key={action.label}
               variant={action.variant}
-              className="w-full h-14 justify-start text-left"
+              className="w-full h-10 justify-start text-left text-sm"
               onClick={() => navigate(action.path)}
             >
-              <Icon className="h-5 w-5 mr-3" />
+              <Icon className="h-4 w-4 mr-2" />
               <span className="flex-1">{action.label}</span>
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </Button>
           );
         })}
@@ -169,23 +169,23 @@ const SalesmanDashboard = () => {
 
       {/* Recent Orders */}
       {recentOrders.length > 0 && (
-        <div className="space-y-3">
-          <h2 className="font-semibold text-foreground">Recent Orders</h2>
+        <div className="space-y-2">
+          <h2 className="font-semibold text-sm text-foreground">Recent Orders</h2>
           {recentOrders.map((order) => (
             <Card
               key={order.id}
-              className="border-0 shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
+              className="border shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={() => navigate(`/salesman/order/${order.id}`)}
             >
-              <CardContent className="p-4">
+              <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">{order.order_number}</p>
-                    <p className="text-sm text-muted-foreground">{order.customer_name}</p>
+                    <p className="font-medium text-xs">{order.order_number}</p>
+                    <p className="text-xs text-muted-foreground">{order.customer_name}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">₹{order.net_amount.toLocaleString("en-IN")}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-semibold text-sm">₹{order.net_amount.toLocaleString("en-IN")}</p>
+                    <p className="text-[10px] text-muted-foreground">
                       {format(new Date(order.created_at), "hh:mm a")}
                     </p>
                   </div>
