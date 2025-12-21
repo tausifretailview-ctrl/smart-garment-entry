@@ -431,7 +431,7 @@ const DashboardContent = () => {
             title="Total Sales"
             value={formatCurrency(salesData?.total || 0)}
             icon={DollarSign}
-            bgColor="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-950 dark:to-cyan-900"
+            bgColor="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-700 dark:to-cyan-600"
             onClick={() => navigate("/sales-invoice-dashboard")}
             tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
           />
@@ -439,7 +439,7 @@ const DashboardContent = () => {
             title="Total Invoices"
             value={salesData?.count || 0}
             icon={FileText}
-            bgColor="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900"
+            bgColor="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-700 dark:to-blue-600"
             onClick={() => navigate("/sales-invoice-dashboard")}
             tooltip="Number of sales invoices generated. Click to view all invoices."
           />
@@ -447,7 +447,7 @@ const DashboardContent = () => {
             title="Sold Qty"
             value={salesData?.soldQty || 0}
             icon={ShoppingCart}
-            bgColor="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900"
+            bgColor="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-700 dark:to-purple-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total quantity of items sold. Click to view Stock Report."
           />
@@ -455,7 +455,7 @@ const DashboardContent = () => {
             title="Total Customers"
             value={customersCount || 0}
             icon={Users}
-            bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-950 dark:to-pink-900"
+            bgColor="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-700 dark:to-pink-600"
             onClick={() => navigate("/customers")}
             tooltip="Total registered customers. Click to manage customers."
           />
@@ -473,7 +473,7 @@ const DashboardContent = () => {
             title="Total Purchase"
             value={formatCurrency(purchaseData?.total || 0)}
             icon={ShoppingCart}
-            bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950 dark:to-emerald-900"
+            bgColor="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-700 dark:to-emerald-600"
             onClick={() => navigate("/purchase-bills")}
             tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
           />
@@ -481,7 +481,7 @@ const DashboardContent = () => {
             title="Total Bills"
             value={purchaseData?.count || 0}
             icon={FileText}
-            bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+            bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-700 dark:to-teal-600"
             onClick={() => navigate("/purchase-bills")}
             tooltip="Number of purchase bills recorded. Click to view all bills."
           />
@@ -489,7 +489,7 @@ const DashboardContent = () => {
             title="Purchase Qty"
             value={purchaseData?.purchaseQty || 0}
             icon={Package}
-            bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950 dark:to-indigo-900"
+            bgColor="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-700 dark:to-indigo-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total quantity of items purchased. Click to view Stock Report."
           />
@@ -497,7 +497,7 @@ const DashboardContent = () => {
             title="Total Suppliers"
             value={suppliersCount || 0}
             icon={Store}
-            bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950 dark:to-violet-900"
+            bgColor="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-700 dark:to-violet-600"
             onClick={() => navigate("/suppliers")}
             tooltip="Total registered suppliers. Click to manage suppliers."
           />
@@ -515,7 +515,7 @@ const DashboardContent = () => {
             title="Total Products"
             value={productsCount || 0}
             icon={Package}
-            bgColor="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900"
+            bgColor="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-700 dark:to-amber-600"
             onClick={() => navigate("/products")}
             tooltip="Total unique products in inventory. Click to view Product Dashboard."
           />
@@ -523,7 +523,7 @@ const DashboardContent = () => {
             title="Stock Qty"
             value={stockData || 0}
             icon={Package}
-            bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+            bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-700 dark:to-orange-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total items in stock across all variants. Click to view Stock Report."
           />
@@ -531,7 +531,7 @@ const DashboardContent = () => {
             title="Stock Value"
             value={formatCurrency(stockValue || 0)}
             icon={DollarSign}
-            bgColor="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900"
+            bgColor="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-700 dark:to-rose-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total value of current inventory at sale price. Click to view details."
           />
@@ -549,7 +549,7 @@ const DashboardContent = () => {
             title="Gross Profit"
             value={formatCurrency(profitData || 0)}
             icon={TrendingUp}
-            bgColor="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900"
+            bgColor="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-700 dark:to-green-600"
             onClick={() => navigate("/daily-cashier-report")}
             tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
           />
@@ -557,7 +557,7 @@ const DashboardContent = () => {
             title="Profit Margin"
             value={salesData?.total ? `${(((profitData || 0) / salesData.total) * 100).toFixed(1)}%` : "0%"}
             icon={TrendingUp}
-            bgColor="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-950 dark:to-lime-900"
+            bgColor="bg-gradient-to-br from-lime-50 to-lime-100 dark:from-lime-700 dark:to-lime-600"
             onClick={() => navigate("/daily-cashier-report")}
             tooltip="Percentage of profit relative to total sales. Click to view details."
           />
@@ -565,7 +565,7 @@ const DashboardContent = () => {
             title="Cash Collection"
             value={formatCurrency(cashCollection || 0)}
             icon={DollarSign}
-            bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950 dark:to-sky-900"
+            bgColor="bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-700 dark:to-sky-600"
             onClick={() => navigate("/payments-dashboard")}
             tooltip="Total cash collected from sales. Click to view Payments Dashboard."
           />
@@ -573,7 +573,7 @@ const DashboardContent = () => {
             title="Receivables"
             value={formatCurrency(receivablesData?.total || 0)}
             icon={AlertCircle}
-            bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900"
+            bgColor="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-700 dark:to-orange-600"
             onClick={() => navigate("/payments-dashboard")}
             tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
           />
@@ -581,7 +581,7 @@ const DashboardContent = () => {
             title="S/R Adjusted"
             value={formatCurrency(srAdjustedData?.total || 0)}
             icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900"
+            bgColor="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-700 dark:to-teal-600"
             onClick={() => navigate("/sale-return-dashboard")}
             tooltip={`Sale return credit used against ${srAdjustedData?.count || 0} new purchases. Click to view Sale Returns.`}
           />
@@ -595,7 +595,7 @@ const DashboardContent = () => {
             <div className="h-1 w-12 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
             Field Sales App
           </h2>
-          <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-950 dark:via-amber-950 dark:to-yellow-950 border-orange-200 dark:border-orange-800">
+          <Card className="bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-700 dark:via-amber-700 dark:to-yellow-700 border-orange-200 dark:border-orange-600">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg">
