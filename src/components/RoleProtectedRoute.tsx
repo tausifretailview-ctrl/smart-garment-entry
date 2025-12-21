@@ -16,9 +16,9 @@ export const RoleProtectedRoute = ({
   allowedRoles,
   redirectTo
 }: RoleProtectedRouteProps) => {
-  const { roles, loading } = useUserRoles();
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { currentOrganization } = useOrganization();
+  const { roles, loading } = useUserRoles(currentOrganization?.id);
 
   if (loading) {
     return (
