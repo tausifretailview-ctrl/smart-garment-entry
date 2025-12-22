@@ -1583,7 +1583,7 @@ const ProductEntry = () => {
                 disabled={formData.product_type !== 'service' && !formData.size_group_id}
                 variant="default"
                 size="sm"
-                className="gap-1 h-7 text-xs bg-primary hover:bg-primary/90 font-semibold shadow-md"
+                className="gap-1 h-7 text-xs bg-primary hover:bg-primary/90 !text-white font-semibold shadow-md"
               >
                 <Plus className="h-3 w-3" />
                 {formData.product_type === 'service' ? 'Generate Service Variant' : 'Generate Size Variants'}
