@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 
 import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, Clock, CheckCircle, Send, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -16,6 +17,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { useReactToPrint } from "react-to-print";
 import { QuotationPrint } from "@/components/QuotationPrint";
+import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
@@ -541,10 +543,27 @@ export default function QuotationDashboard() {
 // Print Dialog Component
 function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any; settings: any; onClose: () => void }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
+    settings?.sale_settings?.bill_format || 'a4'
+  );
+  
+  const getPageStyle = () => {
+    switch (selectedFormat) {
+      case 'a5':
+        return '@page { size: 148mm 210mm; margin: 4mm; }';
+      case 'a5-horizontal':
+        return '@page { size: 210mm 148mm; margin: 4mm; }';
+      case 'thermal':
+        return '@page { size: 80mm auto; margin: 2mm 4mm; }';
+      default:
+        return '@page { size: A4 portrait; margin: 10mm; }';
+    }
+  };
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Quotation-${quotation.quotation_number}`,
+    pageStyle: getPageStyle(),
   });
 
   const printItems = (quotation.quotation_items || []).map((item: any, index: number) => ({
@@ -565,37 +584,76 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
       <AlertDialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
         <AlertDialogHeader>
           <AlertDialogTitle>Print Quotation</AlertDialogTitle>
+          <AlertDialogDescription>
+            <div className="flex items-center gap-4 mt-2">
+              <Label className="text-foreground">Bill Format:</Label>
+              <Select value={selectedFormat} onValueChange={(v: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => setSelectedFormat(v)}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
+                  <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
+                  <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
+                  <SelectItem value="thermal">Thermal (80mm)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </AlertDialogDescription>
         </AlertDialogHeader>
         
         <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
-          <QuotationPrint
-            ref={printRef}
-            businessName={settings?.business_name || 'Business Name'}
-            address={settings?.address || ''}
-            mobile={settings?.mobile_number || ''}
-            email={settings?.email_id}
-            gstNumber={settings?.gst_number}
-            logoUrl={settings?.bill_barcode_settings?.logo_url}
-            quotationNumber={quotation.quotation_number}
-            quotationDate={new Date(quotation.quotation_date)}
-            validUntil={quotation.valid_until ? new Date(quotation.valid_until) : undefined}
-            customerName={quotation.customer_name}
-            customerAddress={quotation.customer_address}
-            customerMobile={quotation.customer_phone}
-            customerEmail={quotation.customer_email}
-            items={printItems}
-            grossAmount={quotation.gross_amount}
-            discountAmount={quotation.discount_amount + quotation.flat_discount_amount}
-            taxableAmount={quotation.gross_amount - quotation.discount_amount - quotation.flat_discount_amount}
-            gstAmount={quotation.gst_amount}
-            roundOff={quotation.round_off}
-            netAmount={quotation.net_amount}
-            termsConditions={quotation.terms_conditions}
-            notes={quotation.notes}
-            taxType={quotation.tax_type}
-            format={settings?.sale_settings?.bill_format === 'a5-horizontal' ? 'a5-horizontal' : settings?.sale_settings?.bill_format === 'a5' ? 'a5-vertical' : settings?.sale_settings?.bill_format || 'a4'}
-            colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
-          />
+          {selectedFormat === 'thermal' ? (
+            <ThermalPrint80mm
+              ref={printRef}
+              billNo={quotation.quotation_number}
+              date={new Date(quotation.quotation_date)}
+              customerName={quotation.customer_name}
+              items={printItems.map(item => ({
+                sr: item.sr,
+                particulars: item.particulars,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+              }))}
+              subTotal={quotation.gross_amount}
+              discount={quotation.discount_amount + quotation.flat_discount_amount}
+              grandTotal={quotation.net_amount}
+              gstBreakdown={{
+                cgst: quotation.gst_amount / 2,
+                sgst: quotation.gst_amount / 2,
+              }}
+            />
+          ) : (
+            <QuotationPrint
+              ref={printRef}
+              businessName={settings?.business_name || 'Business Name'}
+              address={settings?.address || ''}
+              mobile={settings?.mobile_number || ''}
+              email={settings?.email_id}
+              gstNumber={settings?.gst_number}
+              logoUrl={settings?.bill_barcode_settings?.logo_url}
+              quotationNumber={quotation.quotation_number}
+              quotationDate={new Date(quotation.quotation_date)}
+              validUntil={quotation.valid_until ? new Date(quotation.valid_until) : undefined}
+              customerName={quotation.customer_name}
+              customerAddress={quotation.customer_address}
+              customerMobile={quotation.customer_phone}
+              customerEmail={quotation.customer_email}
+              items={printItems}
+              grossAmount={quotation.gross_amount}
+              discountAmount={quotation.discount_amount + quotation.flat_discount_amount}
+              taxableAmount={quotation.gross_amount - quotation.discount_amount - quotation.flat_discount_amount}
+              gstAmount={quotation.gst_amount}
+              roundOff={quotation.round_off}
+              netAmount={quotation.net_amount}
+              termsConditions={quotation.terms_conditions}
+              notes={quotation.notes}
+              taxType={quotation.tax_type}
+              format={selectedFormat === 'a5' ? 'a5-vertical' : selectedFormat === 'a5-horizontal' ? 'a5-horizontal' : 'a4'}
+              colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
+            />
+          )}
         </div>
 
         <AlertDialogFooter>

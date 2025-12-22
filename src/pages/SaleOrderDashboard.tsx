@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
+import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -840,13 +841,30 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
   const printRef = useRef<HTMLDivElement>(null);
   const [printItems, setPrintItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedFormat, setSelectedFormat] = useState<"standard" | "wholesale-size-grouping">(
+  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
+    settings?.sale_settings?.bill_format || 'a4'
+  );
+  const [invoiceStyle, setInvoiceStyle] = useState<"standard" | "wholesale-size-grouping">(
     order.invoice_format || "standard"
   );
+  
+  const getPageStyle = () => {
+    switch (selectedFormat) {
+      case 'a5':
+        return '@page { size: 148mm 210mm; margin: 4mm; }';
+      case 'a5-horizontal':
+        return '@page { size: 210mm 148mm; margin: 4mm; }';
+      case 'thermal':
+        return '@page { size: 80mm auto; margin: 2mm 4mm; }';
+      default:
+        return '@page { size: A4 portrait; margin: 10mm; }';
+    }
+  };
   
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `SaleOrder-${order.order_number}`,
+    pageStyle: getPageStyle(),
   });
 
   // Fetch brand/style from products
@@ -900,61 +918,102 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
         <AlertDialogHeader>
           <AlertDialogTitle>Print Sale Order</AlertDialogTitle>
           <AlertDialogDescription>
-            <div className="flex items-center gap-4 mt-2">
-              <Label className="text-foreground">Invoice Format:</Label>
-              <Select value={selectedFormat} onValueChange={(v: "standard" | "wholesale-size-grouping") => setSelectedFormat(v)}>
-                <SelectTrigger className="w-[250px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="standard">Standard</SelectItem>
-                  <SelectItem value="wholesale-size-grouping">Modern Wholesale Size Grouping</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-foreground">Bill Format:</Label>
+                <Select value={selectedFormat} onValueChange={(v: 'a4' | 'a5' | 'a5-horizontal' | 'thermal') => setSelectedFormat(v)}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="a4">A4 (210mm × 297mm)</SelectItem>
+                    <SelectItem value="a5">A5 Vertical (148mm × 210mm)</SelectItem>
+                    <SelectItem value="a5-horizontal">A5 Horizontal (210mm × 148mm)</SelectItem>
+                    <SelectItem value="thermal">Thermal (80mm)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedFormat !== 'thermal' && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-foreground">Invoice Style:</Label>
+                  <Select value={invoiceStyle} onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceStyle(v)}>
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="wholesale-size-grouping">Modern Wholesale Size Grouping</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         
         <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
-          <SaleOrderPrint
-            ref={printRef}
-            businessName={settings?.business_name || 'Business Name'}
-            address={settings?.address || ''}
-            mobile={settings?.mobile_number || ''}
-            email={settings?.email_id}
-            gstNumber={settings?.gst_number}
-            logoUrl={settings?.bill_barcode_settings?.logo_url}
-            orderNumber={order.order_number}
-            orderDate={new Date(order.order_date)}
-            expectedDeliveryDate={order.expected_delivery_date ? new Date(order.expected_delivery_date) : undefined}
-            quotationNumber={order.quotation_id ? `Linked` : undefined}
-            customerName={order.customer_name}
-            customerAddress={order.customer_address}
-            customerMobile={order.customer_phone}
-            customerEmail={order.customer_email}
-            items={printItems}
-            grossAmount={order.gross_amount}
-            discountAmount={order.discount_amount + order.flat_discount_amount}
-            taxableAmount={order.gross_amount - order.discount_amount - order.flat_discount_amount}
-            gstAmount={order.gst_amount}
-            roundOff={order.round_off}
-            netAmount={order.net_amount}
-            status={order.status}
-            termsConditions={order.terms_conditions}
-            notes={order.notes}
-            shippingAddress={order.shipping_address}
-            taxType={order.tax_type}
-            format={settings?.sale_settings?.bill_format === 'a5-horizontal' ? 'a5-horizontal' : settings?.sale_settings?.bill_format === 'a5' ? 'a5-vertical' : settings?.sale_settings?.bill_format || 'a4'}
-            colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
-            invoiceFormat={selectedFormat}
-          />
+          {selectedFormat === 'thermal' ? (
+            <ThermalPrint80mm
+              ref={printRef}
+              billNo={order.order_number}
+              date={new Date(order.order_date)}
+              customerName={order.customer_name}
+              items={printItems.map((item: any, idx: number) => ({
+                sr: idx + 1,
+                particulars: item.particulars,
+                qty: item.orderQty,
+                rate: item.rate,
+                total: item.total,
+              }))}
+              subTotal={order.gross_amount}
+              discount={order.discount_amount + order.flat_discount_amount}
+              grandTotal={order.net_amount}
+              gstBreakdown={{
+                cgst: order.gst_amount / 2,
+                sgst: order.gst_amount / 2,
+              }}
+            />
+          ) : (
+            <SaleOrderPrint
+              ref={printRef}
+              businessName={settings?.business_name || 'Business Name'}
+              address={settings?.address || ''}
+              mobile={settings?.mobile_number || ''}
+              email={settings?.email_id}
+              gstNumber={settings?.gst_number}
+              logoUrl={settings?.bill_barcode_settings?.logo_url}
+              orderNumber={order.order_number}
+              orderDate={new Date(order.order_date)}
+              expectedDeliveryDate={order.expected_delivery_date ? new Date(order.expected_delivery_date) : undefined}
+              quotationNumber={order.quotation_id ? `Linked` : undefined}
+              customerName={order.customer_name}
+              customerAddress={order.customer_address}
+              customerMobile={order.customer_phone}
+              customerEmail={order.customer_email}
+              items={printItems}
+              grossAmount={order.gross_amount}
+              discountAmount={order.discount_amount + order.flat_discount_amount}
+              taxableAmount={order.gross_amount - order.discount_amount - order.flat_discount_amount}
+              gstAmount={order.gst_amount}
+              roundOff={order.round_off}
+              netAmount={order.net_amount}
+              status={order.status}
+              termsConditions={order.terms_conditions}
+              notes={order.notes}
+              shippingAddress={order.shipping_address}
+              taxType={order.tax_type}
+              format={selectedFormat === 'a5' ? 'a5-vertical' : selectedFormat === 'a5-horizontal' ? 'a5-horizontal' : 'a4'}
+              colorScheme={settings?.sale_settings?.invoice_color_scheme || 'blue'}
+              invoiceFormat={invoiceStyle}
+            />
+          )}
         </div>
 
         <AlertDialogFooter>
           <AlertDialogCancel>Close</AlertDialogCancel>
-          <Button onClick={() => handlePrint()}>
+          <Button onClick={() => handlePrint()} disabled={loading}>
             <Printer className="h-4 w-4 mr-2" />
-            Print
+            {loading ? 'Loading...' : 'Print'}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
