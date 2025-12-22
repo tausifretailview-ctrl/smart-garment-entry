@@ -113,6 +113,7 @@ const PurchaseEntry = () => {
   const [grossAmount, setGrossAmount] = useState(0);
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
@@ -579,12 +580,13 @@ const PurchaseEntry = () => {
 
   useEffect(() => {
     const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+    const grossAfterDiscount = gross - discountAmount;
     const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-    const netBeforeRoundOff = gross + gst;
+    const netBeforeRoundOff = grossAfterDiscount + gst;
     setGrossAmount(gross);
     setGstAmount(gst);
     setNetAmount(netBeforeRoundOff + roundOff);
-  }, [lineItems, roundOff]);
+  }, [lineItems, roundOff, discountAmount]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
@@ -1230,10 +1232,7 @@ const PurchaseEntry = () => {
 
   const totals = { 
     totalQty: lineItems.reduce((sum, item) => sum + item.qty, 0),
-    totalDiscount: lineItems.reduce((sum, item) => {
-      const subTotal = item.qty * item.pur_price;
-      return sum + (subTotal * (item.discount_percent / 100));
-    }, 0),
+    totalDiscount: discountAmount,
     grossAmount, 
     gstAmount, 
     netAmount 
@@ -2024,9 +2023,16 @@ const PurchaseEntry = () => {
                   <span className="text-muted-foreground">Gross Amount:</span>
                   <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Total Discount:</span>
-                  <span className="font-semibold text-destructive">-₹{totals.totalDiscount.toFixed(2)}</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
+                    className="w-28 text-right text-destructive"
+                    placeholder="0.00"
+                  />
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GST Amount:</span>
