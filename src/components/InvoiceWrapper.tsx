@@ -288,8 +288,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     // Select template component based on settings
     const renderTemplate = () => {
-      // Use ThermalPrint80mm for thermal-receipt format
-      if (format === 'thermal-receipt') {
+      // Use ThermalPrint80mm for thermal format (handles both 'thermal' and 'thermal-receipt')
+      if (format === 'thermal-receipt' || format === 'thermal') {
         return (
           <ThermalPrint80mm
             billNo={props.billNo}
