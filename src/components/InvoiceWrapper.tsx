@@ -10,6 +10,7 @@ import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
 import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
+import { ThermalPrint80mm } from './ThermalPrint80mm';
 import QRCode from 'qrcode';
 
 interface InvoiceItem {
@@ -287,6 +288,36 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     // Select template component based on settings
     const renderTemplate = () => {
+      // Use ThermalPrint80mm for thermal-receipt format
+      if (format === 'thermal-receipt') {
+        return (
+          <ThermalPrint80mm
+            billNo={props.billNo}
+            date={props.date}
+            customerName={props.customerName}
+            items={props.items.map((item, idx) => ({
+              sr: idx + 1,
+              particulars: item.particulars,
+              qty: item.qty,
+              rate: item.rate,
+              total: item.total,
+            }))}
+            subTotal={props.subTotal}
+            discount={props.discount}
+            grandTotal={props.grandTotal}
+            gstBreakdown={{
+              cgst: cgstAmount,
+              sgst: sgstAmount,
+            }}
+            paymentMethod={props.paymentMethod}
+            cashPaid={props.cashPaid || props.cashAmount}
+            upiPaid={props.upiPaid || props.upiAmount}
+            cardPaid={props.cardAmount}
+            refundCash={props.refundCash}
+          />
+        );
+      }
+      
       // Use A5HorizontalBillFormat for a5-horizontal format
       if (format === 'a5-horizontal') {
         const a5HorizontalData = {
