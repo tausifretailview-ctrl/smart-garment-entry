@@ -609,6 +609,8 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
               billNo={quotation.quotation_number}
               date={new Date(quotation.quotation_date)}
               customerName={quotation.customer_name}
+              customerPhone={quotation.customer_phone}
+              customerAddress={quotation.customer_address}
               items={printItems.map(item => ({
                 sr: item.sr,
                 particulars: item.particulars,
@@ -623,6 +625,8 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
                 cgst: quotation.gst_amount / 2,
                 sgst: quotation.gst_amount / 2,
               }}
+              documentType="quotation"
+              termsConditions={quotation.terms_conditions}
             />
           ) : (
             <QuotationPrint

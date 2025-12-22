@@ -295,6 +295,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             billNo={props.billNo}
             date={props.date}
             customerName={props.customerName}
+            customerPhone={props.customerMobile}
+            customerAddress={props.customerAddress}
             items={props.items.map((item, idx) => ({
               sr: idx + 1,
               particulars: item.particulars,
@@ -314,6 +316,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             upiPaid={props.upiPaid || props.upiAmount}
             cardPaid={props.cardAmount}
             refundCash={props.refundCash}
+            documentType="invoice"
+            termsConditions={termsConditions?.join('\n')}
           />
         );
       }
