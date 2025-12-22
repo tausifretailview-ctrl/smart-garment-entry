@@ -793,7 +793,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                 variant="default"
                 onClick={handleGenerateSizeVariants}
                 disabled={formData.product_type !== 'service' && !formData.size_group_id}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold border-2 border-primary shadow-md hover:shadow-lg transition-all"
+                className="bg-primary hover:bg-primary/90 !text-white font-semibold border-2 border-primary shadow-md hover:shadow-lg transition-all"
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Generate Size Variants
