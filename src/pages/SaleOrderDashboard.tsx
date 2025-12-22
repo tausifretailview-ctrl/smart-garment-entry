@@ -958,6 +958,8 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
               billNo={order.order_number}
               date={new Date(order.order_date)}
               customerName={order.customer_name}
+              customerPhone={order.customer_phone}
+              customerAddress={order.customer_address}
               items={printItems.map((item: any, idx: number) => ({
                 sr: idx + 1,
                 particulars: item.particulars,
@@ -972,6 +974,8 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
                 cgst: order.gst_amount / 2,
                 sgst: order.gst_amount / 2,
               }}
+              documentType="sale-order"
+              termsConditions={order.terms_conditions}
             />
           ) : (
             <SaleOrderPrint

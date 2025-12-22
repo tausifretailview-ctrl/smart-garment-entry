@@ -16,6 +16,8 @@ interface ThermalPrint80mmProps {
   billNo: string;
   date: Date;
   customerName?: string;
+  customerPhone?: string;
+  customerAddress?: string;
   items: ThermalItem[];
   subTotal: number;
   discount: number;
@@ -30,6 +32,8 @@ interface ThermalPrint80mmProps {
   upiPaid?: number;
   cardPaid?: number;
   refundCash?: number;
+  documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
+  termsConditions?: string;
 }
 
 export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80mmProps>(
@@ -38,6 +42,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       billNo,
       date,
       customerName,
+      customerPhone,
+      customerAddress,
       items,
       subTotal,
       discount,
@@ -48,7 +54,26 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       upiPaid = 0,
       cardPaid = 0,
       refundCash = 0,
+      documentType = 'invoice',
+      termsConditions,
     } = props;
+
+    const getDocumentTitle = () => {
+      switch (documentType) {
+        case 'quotation': return 'QUOTATION';
+        case 'sale-order': return 'SALE ORDER';
+        case 'pos': return 'TAX INVOICE';
+        default: return 'TAX INVOICE';
+      }
+    };
+
+    const getDocumentNoLabel = () => {
+      switch (documentType) {
+        case 'quotation': return 'Quotation No';
+        case 'sale-order': return 'Order No';
+        default: return 'Bill No';
+      }
+    };
 
     const { currentOrganization } = useOrganization();
     const [settings, setSettings] = useState<any>(null);
@@ -146,6 +171,17 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
               GSTIN: {settings.gst_number}
             </div>
           )}
+          {/* Document Type Title */}
+          <div style={{ 
+            fontWeight: 'bold', 
+            fontSize: '12px', 
+            marginTop: '6px',
+            padding: '4px 0',
+            borderTop: '1px dashed #000',
+            borderBottom: '1px dashed #000'
+          }}>
+            {getDocumentTitle()}
+          </div>
         </div>
 
         {/* Bill Info Row */}
@@ -153,14 +189,33 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           display: 'flex', 
           justifyContent: 'space-between', 
           fontSize: '9px', 
-          borderTop: '1px dashed #000',
           borderBottom: '1px dashed #000',
           padding: '4px 0',
-          marginBottom: '6px'
+          marginBottom: '4px'
         }}>
-          <span>Bill No: {billNo}</span>
+          <span>{getDocumentNoLabel()}: {billNo}</span>
           <span>Date: {format(date, 'dd/MM/yyyy')}</span>
         </div>
+
+        {/* Customer Details */}
+        {(customerName || customerPhone || customerAddress) && (
+          <div style={{ 
+            fontSize: '9px', 
+            marginBottom: '6px',
+            paddingBottom: '4px',
+            borderBottom: '1px dashed #000'
+          }}>
+            {customerName && (
+              <div><strong>Customer:</strong> {customerName}</div>
+            )}
+            {customerPhone && (
+              <div><strong>Phone:</strong> {customerPhone}</div>
+            )}
+            {customerAddress && (
+              <div style={{ lineHeight: '1.2' }}><strong>Address:</strong> {customerAddress}</div>
+            )}
+          </div>
+        )}
 
         {/* Items Header */}
         <div style={{ 
@@ -293,6 +348,19 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <div style={{ textAlign: 'center', marginBottom: '6px' }}>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '60px', height: '60px' }} />
             <div style={{ fontSize: '8px' }}>Scan to Pay</div>
+          </div>
+        )}
+
+        {/* Terms & Conditions */}
+        {termsConditions && (
+          <div style={{ 
+            fontSize: '8px', 
+            marginTop: '6px',
+            paddingTop: '4px',
+            borderTop: '1px dashed #000'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Terms & Conditions:</div>
+            <div style={{ lineHeight: '1.3', whiteSpace: 'pre-wrap' }}>{termsConditions}</div>
           </div>
         )}
 
