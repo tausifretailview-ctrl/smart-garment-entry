@@ -51,15 +51,25 @@ export function AppSidebar() {
   // URL format: /:orgSlug/path or /path
   const isActive = (path: string) => {
     const pathname = location.pathname;
-    // Handle root path
+    const parts = pathname.split("/").filter(Boolean);
+    
+    // Handle root path (dashboard)
     if (path === "/") {
-      // Match /:orgSlug exactly (no trailing path)
-      const parts = pathname.split("/").filter(Boolean);
+      // Match /:orgSlug exactly (no trailing path after org slug)
       return parts.length === 1;
     }
-    // Check if pathname ends with the path (after org slug)
-    const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-    return pathname.endsWith(`/${cleanPath}`) || pathname === path;
+    
+    // For other paths, we need to check the path AFTER the org slug
+    // If we only have org slug (parts.length === 1), no other path is active
+    if (parts.length === 1) {
+      return false;
+    }
+    
+    // Get the path after org slug (e.g., "/accounts" from "/orgSlug/accounts")
+    const pathAfterOrgSlug = "/" + parts.slice(1).join("/");
+    const cleanPath = path.startsWith("/") ? path : "/" + path;
+    
+    return pathAfterOrgSlug === cleanPath;
   };
   
   const isGroupActive = (paths: string[]) => paths.some(path => isActive(path));
