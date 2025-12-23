@@ -391,6 +391,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
       return false;
     }
 
+    // Validate MRP if enabled from settings
+    if (showMrp && (formData.default_mrp === undefined || formData.default_mrp === null || formData.default_mrp <= 0)) {
+      toast({
+        title: "Validation Error",
+        description: "MRP is required. Please enter a valid MRP.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate variants: purchase price and sale price are required
     for (let i = 0; i < variants.length; i++) {
       const variant = variants[i];
@@ -729,36 +739,39 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="default_pur_price">Purchase Price</Label>
+                  <Label htmlFor="default_pur_price">Purchase Price <span className="text-destructive">*</span></Label>
                   <Input
                     id="default_pur_price"
                     type="number"
                     value={formData.default_pur_price ?? ""}
                     onChange={(e) => setFormData({ ...formData, default_pur_price: e.target.value ? Number(e.target.value) : undefined })}
                     placeholder="0"
+                    required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="default_sale_price">Sale Price</Label>
+                  <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
                   <Input
                     id="default_sale_price"
                     type="number"
                     value={formData.default_sale_price ?? ""}
                     onChange={(e) => setFormData({ ...formData, default_sale_price: e.target.value ? Number(e.target.value) : undefined })}
                     placeholder="0"
+                    required
                   />
                 </div>
 
                 {showMrp && (
                   <div className="space-y-2">
-                    <Label htmlFor="default_mrp">MRP</Label>
+                    <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
                     <Input
                       id="default_mrp"
                       type="number"
                       value={formData.default_mrp ?? ""}
                       onChange={(e) => setFormData({ ...formData, default_mrp: e.target.value ? Number(e.target.value) : undefined })}
                       placeholder="MRP"
+                      required
                     />
                   </div>
                 )}

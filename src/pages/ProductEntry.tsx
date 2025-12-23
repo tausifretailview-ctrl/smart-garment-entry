@@ -646,6 +646,16 @@ const ProductEntry = () => {
       return false;
     }
 
+    // Validate MRP if enabled from settings
+    if (showMrp && (formData.default_mrp === undefined || formData.default_mrp === null || formData.default_mrp <= 0)) {
+      toast({
+        title: "Validation Error",
+        description: "MRP is required. Please enter a valid MRP.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate variants: purchase price and sale price are required
     for (let i = 0; i < variants.length; i++) {
       const variant = variants[i];
@@ -1536,7 +1546,7 @@ const ProductEntry = () => {
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="default_pur_price" className="text-xs">Purchase Price</Label>
+                <Label htmlFor="default_pur_price" className="text-xs">Purchase Price <span className="text-destructive">*</span></Label>
                 <Input
                   id="default_pur_price"
                   type="number"
@@ -1550,11 +1560,12 @@ const ProductEntry = () => {
                     })
                   }
                   className="h-7 text-xs"
+                  required
                 />
               </div>
 
               <div className="space-y-1">
-                <Label htmlFor="default_sale_price" className="text-xs">Sale Price</Label>
+                <Label htmlFor="default_sale_price" className="text-xs">Sale Price <span className="text-destructive">*</span></Label>
                 <Input
                   id="default_sale_price"
                   type="number"
@@ -1568,12 +1579,13 @@ const ProductEntry = () => {
                     })
                   }
                   className="h-7 text-xs"
+                  required
                 />
               </div>
 
               {showMrp && (
                 <div className="space-y-1">
-                  <Label htmlFor="default_mrp" className="text-xs">MRP</Label>
+                  <Label htmlFor="default_mrp" className="text-xs">MRP <span className="text-destructive">*</span></Label>
                   <Input
                     id="default_mrp"
                     type="number"
@@ -1588,6 +1600,7 @@ const ProductEntry = () => {
                     }
                     placeholder="MRP"
                     className="h-7 text-xs"
+                    required
                   />
                 </div>
               )}

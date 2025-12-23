@@ -38,8 +38,9 @@ export const productSchema = z.object({
   gst_per: z.number().refine((val) => [0, 5, 12, 18, 28].includes(val), {
     message: "GST % must be one of: 0, 5, 12, 18, 28",
   }),
-  default_pur_price: z.number().min(0, "Purchase price cannot be negative").optional(),
-  default_sale_price: z.number().min(0, "Sale price cannot be negative").optional(),
+  default_pur_price: z.number({ required_error: "Purchase Price is required" }).min(0.01, "Purchase Price must be greater than 0"),
+  default_sale_price: z.number({ required_error: "Sale Price is required" }).min(0.01, "Sale Price must be greater than 0"),
+  default_mrp: z.number().min(0, "MRP cannot be negative").optional(),
   status: z.enum(["active", "inactive"]),
 });
 
