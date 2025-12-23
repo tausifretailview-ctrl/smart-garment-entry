@@ -232,6 +232,74 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
+  // Fetch sale returns for selected period
+  const { data: saleReturnData } = useQuery({
+    queryKey: ["sale-returns", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization) return { total: 0, count: 0, returnQty: 0 };
+      
+      const { data, error } = await supabase
+        .from("sale_returns")
+        .select("net_amount, id")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .gte("return_date", startDate)
+        .lte("return_date", endDate);
+      if (error) throw error;
+      
+      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      const count = data?.length || 0;
+      
+      // Fetch return quantity
+      const returnIds = data?.map(r => r.id) || [];
+      let returnQty = 0;
+      if (returnIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("sale_return_items")
+          .select("quantity")
+          .in("return_id", returnIds);
+        returnQty = itemsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+      }
+      
+      return { total, count, returnQty };
+    },
+    enabled: !!currentOrganization,
+  });
+
+  // Fetch purchase returns for selected period
+  const { data: purchaseReturnData } = useQuery({
+    queryKey: ["purchase-returns", currentOrganization?.id, startDate, endDate],
+    queryFn: async () => {
+      if (!currentOrganization) return { total: 0, count: 0, returnQty: 0 };
+      
+      const { data, error } = await supabase
+        .from("purchase_returns")
+        .select("net_amount, id")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .gte("return_date", startDate)
+        .lte("return_date", endDate);
+      if (error) throw error;
+      
+      const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      const count = data?.length || 0;
+      
+      // Fetch return quantity
+      const returnIds = data?.map(r => r.id) || [];
+      let returnQty = 0;
+      if (returnIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("purchase_return_items")
+          .select("qty")
+          .in("return_id", returnIds);
+        returnQty = itemsData?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
+      }
+      
+      return { total, count, returnQty };
+    },
+    enabled: !!currentOrganization,
+  });
+
   // Fetch total suppliers
   const { data: suppliersCount } = useQuery({
     queryKey: ["suppliers-count", currentOrganization?.id],
@@ -322,29 +390,6 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
-  // Fetch S/R Adjusted (sale return adjustments used against new purchases)
-  const { data: srAdjustedData } = useQuery({
-    queryKey: ["sr-adjusted", currentOrganization?.id, startDate, endDate],
-    queryFn: async () => {
-      if (!currentOrganization) return { total: 0, count: 0 };
-      
-      const { data } = await supabase
-        .from("sales")
-        .select("sale_return_adjust")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", startDate)
-        .lte("sale_date", endDate)
-        .gt("sale_return_adjust", 0);
-      
-      const total = data?.reduce((sum, item) => sum + (Number(item.sale_return_adjust) || 0), 0) || 0;
-      const count = data?.length || 0;
-      
-      return { total, count };
-    },
-    enabled: !!currentOrganization,
-  });
-
   // Fetch total receivables (outstanding balance from all pending/partial payments)
   const { data: receivablesData } = useQuery({
     queryKey: ["receivables", currentOrganization?.id],
@@ -411,13 +456,13 @@ const DashboardContent = () => {
         </div>
       </div>
 
-      {/* Sales Metrics */}
+      {/* Sales Overview */}
       <div>
         <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
           <div className="h-0.5 w-6 bg-gradient-to-r from-primary to-transparent rounded-full" />
           Sales Overview
         </h2>
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
           <MetricCard
             title="Total Sales"
             value={formatCurrency(salesData?.total || 0)}
@@ -427,7 +472,7 @@ const DashboardContent = () => {
             tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
           />
           <MetricCard
-            title="Total Invoices"
+            title="Invoices"
             value={salesData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-cyan-500 to-cyan-600"
@@ -443,7 +488,23 @@ const DashboardContent = () => {
             tooltip="Total quantity of items sold. Click to view Stock Report."
           />
           <MetricCard
-            title="Total Customers"
+            title="S/R Amount"
+            value={formatCurrency(saleReturnData?.total || 0)}
+            icon={RotateCcw}
+            bgColor="bg-gradient-to-br from-red-500 to-red-600"
+            onClick={() => navigate("/sale-return-dashboard")}
+            tooltip="Total sale return amount. Click to view Sale Returns."
+          />
+          <MetricCard
+            title="S/R Qty"
+            value={saleReturnData?.returnQty || 0}
+            icon={RotateCcw}
+            bgColor="bg-gradient-to-br from-rose-500 to-rose-600"
+            onClick={() => navigate("/sale-return-dashboard")}
+            tooltip="Total sale return quantity. Click to view Sale Returns."
+          />
+          <MetricCard
+            title="Customers"
             value={customersCount || 0}
             icon={Users}
             bgColor="bg-gradient-to-br from-pink-500 to-pink-600"
@@ -453,13 +514,13 @@ const DashboardContent = () => {
         </div>
       </div>
 
-      {/* Purchase Metrics */}
+      {/* Purchase Overview */}
       <div>
         <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
           <div className="h-0.5 w-6 bg-gradient-to-r from-secondary to-transparent rounded-full" />
           Purchase Overview
         </h2>
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
           <MetricCard
             title="Total Purchase"
             value={formatCurrency(purchaseData?.total || 0)}
@@ -469,7 +530,7 @@ const DashboardContent = () => {
             tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
           />
           <MetricCard
-            title="Total Bills"
+            title="Bills"
             value={purchaseData?.count || 0}
             icon={FileText}
             bgColor="bg-gradient-to-br from-teal-500 to-teal-600"
@@ -485,7 +546,23 @@ const DashboardContent = () => {
             tooltip="Total quantity of items purchased. Click to view Stock Report."
           />
           <MetricCard
-            title="Total Suppliers"
+            title="P/R Amount"
+            value={formatCurrency(purchaseReturnData?.total || 0)}
+            icon={RotateCcw}
+            bgColor="bg-gradient-to-br from-amber-500 to-amber-600"
+            onClick={() => navigate("/purchase-return-dashboard")}
+            tooltip="Total purchase return amount. Click to view Purchase Returns."
+          />
+          <MetricCard
+            title="P/R Qty"
+            value={purchaseReturnData?.returnQty || 0}
+            icon={RotateCcw}
+            bgColor="bg-gradient-to-br from-yellow-500 to-yellow-600"
+            onClick={() => navigate("/purchase-return-dashboard")}
+            tooltip="Total purchase return quantity. Click to view Purchase Returns."
+          />
+          <MetricCard
+            title="Suppliers"
             value={suppliersCount || 0}
             icon={Store}
             bgColor="bg-gradient-to-br from-purple-500 to-purple-600"
@@ -501,9 +578,9 @@ const DashboardContent = () => {
           <div className="h-0.5 w-6 bg-gradient-to-r from-accent to-transparent rounded-full" />
           Inventory & Financial
         </h2>
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
           <MetricCard
-            title="Total Products"
+            title="Products"
             value={productsCount || 0}
             icon={Package}
             bgColor="bg-gradient-to-br from-violet-500 to-violet-600"
@@ -514,7 +591,7 @@ const DashboardContent = () => {
             title="Stock Qty"
             value={stockData || 0}
             icon={Package}
-            bgColor="bg-gradient-to-br from-amber-500 to-amber-600"
+            bgColor="bg-gradient-to-br from-indigo-500 to-indigo-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total items in stock across all variants. Click to view Stock Report."
           />
@@ -522,20 +599,10 @@ const DashboardContent = () => {
             title="Stock Value"
             value={formatCurrency(stockValue || 0)}
             icon={DollarSign}
-            bgColor="bg-gradient-to-br from-rose-500 to-rose-600"
+            bgColor="bg-gradient-to-br from-fuchsia-500 to-fuchsia-600"
             onClick={() => navigate("/stock-report")}
             tooltip="Total value of current inventory at sale price. Click to view details."
           />
-        </div>
-      </div>
-
-      {/* Performance Metrics */}
-      <div>
-        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-          <div className="h-0.5 w-6 bg-gradient-to-r from-green-500 to-transparent rounded-full" />
-          Performance Metrics
-        </h2>
-        <div className="grid gap-2 grid-cols-2 lg:grid-cols-5">
           <MetricCard
             title="Gross Profit"
             value={formatCurrency(profitData || 0)}
@@ -543,22 +610,6 @@ const DashboardContent = () => {
             bgColor="bg-gradient-to-br from-green-600 to-green-700"
             onClick={() => navigate("/daily-cashier-report")}
             tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
-          />
-          <MetricCard
-            title="Profit Margin"
-            value={salesData?.total ? `${(((profitData || 0) / salesData.total) * 100).toFixed(1)}%` : "0%"}
-            icon={TrendingUp}
-            bgColor="bg-gradient-to-br from-lime-500 to-lime-600"
-            onClick={() => navigate("/daily-cashier-report")}
-            tooltip="Percentage of profit relative to total sales. Click to view details."
-          />
-          <MetricCard
-            title="Cash Collection"
-            value={formatCurrency(cashCollection || 0)}
-            icon={DollarSign}
-            bgColor="bg-gradient-to-br from-sky-500 to-sky-600"
-            onClick={() => navigate("/payments-dashboard")}
-            tooltip="Total cash collected from sales. Click to view Payments Dashboard."
           />
           <MetricCard
             title="Receivables"
@@ -569,12 +620,12 @@ const DashboardContent = () => {
             tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
           />
           <MetricCard
-            title="S/R Adjusted"
-            value={formatCurrency(srAdjustedData?.total || 0)}
-            icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-indigo-500 to-indigo-600"
-            onClick={() => navigate("/sale-return-dashboard")}
-            tooltip={`Sale return credit used against ${srAdjustedData?.count || 0} new purchases. Click to view Sale Returns.`}
+            title="Cash Collection"
+            value={formatCurrency(cashCollection || 0)}
+            icon={DollarSign}
+            bgColor="bg-gradient-to-br from-sky-500 to-sky-600"
+            onClick={() => navigate("/payments-dashboard")}
+            tooltip="Total cash collected from sales. Click to view Payments Dashboard."
           />
         </div>
       </div>
