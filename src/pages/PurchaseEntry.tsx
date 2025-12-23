@@ -809,34 +809,78 @@ const PurchaseEntry = () => {
   const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>) => {
     for (const { variant, qty } of items) {
       let barcode = variant.barcode || "";
+      let skuId = variant.id;
       
-      // Auto-generate barcode if missing
-      if (!barcode) {
+      // Check if this is a custom/new size that needs to be created
+      if (variant.isCustomSize) {
         try {
+          // Generate barcode for new variant
           barcode = await generateCentralizedBarcode();
-          await supabase
+          
+          // Create new product variant
+          const { data: newVariant, error: createError } = await supabase
             .from("product_variants")
-            .update({ barcode })
-            .eq("id", variant.id);
-        } catch (error) {
+            .insert({
+              product_id: selectedProduct.id,
+              organization_id: currentOrganization?.id,
+              size: variant.size,
+              color: variant.color || selectedProduct.color || null,
+              pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
+              sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
+              mrp: variant.sale_price || selectedProduct.default_sale_price || 0,
+              barcode: barcode,
+              stock_qty: 0,
+              active: true,
+            })
+            .select("id")
+            .single();
+          
+          if (createError) throw createError;
+          
+          skuId = newVariant.id;
+          
+          toast({
+            title: "Size Created",
+            description: `New size "${variant.size}" created for ${selectedProduct.product_name}`,
+          });
+        } catch (error: any) {
+          console.error("Error creating new variant:", error);
           toast({
             title: "Error",
-            description: `Failed to generate barcode for size ${variant.size}`,
+            description: `Failed to create new size ${variant.size}: ${error.message}`,
             variant: "destructive",
           });
           continue;
+        }
+      } else {
+        // Existing variant - auto-generate barcode if missing
+        if (!barcode) {
+          try {
+            barcode = await generateCentralizedBarcode();
+            await supabase
+              .from("product_variants")
+              .update({ barcode })
+              .eq("id", variant.id);
+          } catch (error) {
+            toast({
+              title: "Error",
+              description: `Failed to generate barcode for size ${variant.size}`,
+              variant: "destructive",
+            });
+            continue;
+          }
         }
       }
 
       addItemRow({
         product_name: selectedProduct.product_name,
         product_id: selectedProduct.id,
-        sku_id: variant.id,
+        sku_id: skuId,
         size: variant.size,
         qty: qty,
         pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
         sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
-        mrp: variant.mrp || 0,
+        mrp: variant.mrp || variant.sale_price || 0,
         gst_per: selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
@@ -2098,6 +2142,9 @@ const PurchaseEntry = () => {
           showStock={false}
           validateStock={false}
           title="Enter Size-wise Qty"
+          allowCustomSizes={true}
+          defaultPurPrice={selectedProduct?.default_pur_price}
+          defaultSalePrice={selectedProduct?.default_sale_price}
         />
 
         {/* Print Barcode Dialog */}

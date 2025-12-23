@@ -5,14 +5,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { Plus, X } from "lucide-react";
 
 interface Variant {
   id: string;
   size: string;
   stock_qty?: number;
   sale_price?: number;
+  pur_price?: number;
   color?: string;
   barcode?: string;
+  isCustomSize?: boolean;
 }
 
 interface Product {
@@ -22,6 +25,16 @@ interface Product {
   hsn_code?: string;
   color?: string;
   product_type?: string;
+  default_pur_price?: number;
+  default_sale_price?: number;
+}
+
+interface CustomSizeEntry {
+  id: string;
+  size: string;
+  qty: number;
+  pur_price: number;
+  sale_price: number;
 }
 
 interface SizeGridDialogProps {
@@ -33,6 +46,9 @@ interface SizeGridDialogProps {
   showStock?: boolean;
   validateStock?: boolean;
   title?: string;
+  allowCustomSizes?: boolean;
+  defaultPurPrice?: number;
+  defaultSalePrice?: number;
 }
 
 export function SizeGridDialog({
@@ -44,11 +60,21 @@ export function SizeGridDialog({
   showStock = false,
   validateStock = false,
   title = "Enter Size-wise Qty",
+  allowCustomSizes = false,
+  defaultPurPrice,
+  defaultSalePrice,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
+  const [showAddCustom, setShowAddCustom] = useState(false);
+  const [newSize, setNewSize] = useState("");
+  const [newQty, setNewQty] = useState("");
+  const [newPurPrice, setNewPurPrice] = useState("");
+  const [newSalePrice, setNewSalePrice] = useState("");
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const customSizeInputRef = useRef<HTMLInputElement>(null);
 
   // Get unique colors from variants
   const uniqueColors = useMemo(() => {
@@ -71,11 +97,21 @@ export function SizeGridDialog({
     return variants.filter((v) => v.color === selectedColor);
   }, [variants, selectedColor, hasMultipleColors]);
 
+  // Get default prices
+  const effectivePurPrice = defaultPurPrice || product?.default_pur_price || filteredVariants[0]?.pur_price || 0;
+  const effectiveSalePrice = defaultSalePrice || product?.default_sale_price || filteredVariants[0]?.sale_price || 0;
+
   // Reset quantities and color selection when dialog opens with new product
   useEffect(() => {
     if (open) {
       setSizeQty({});
       setSelectedColor(null);
+      setCustomSizes([]);
+      setShowAddCustom(false);
+      setNewSize("");
+      setNewQty("");
+      setNewPurPrice("");
+      setNewSalePrice("");
       // If only one color, auto-select it
       if (uniqueColors.length === 1) {
         setSelectedColor(uniqueColors[0]);
@@ -91,11 +127,71 @@ export function SizeGridDialog({
     }
   }, [selectedColor, filteredVariants.length]);
 
+  // Focus custom size input when shown
+  useEffect(() => {
+    if (showAddCustom) {
+      setTimeout(() => customSizeInputRef.current?.focus(), 100);
+    }
+  }, [showAddCustom]);
+
+  const handleAddCustomSize = () => {
+    if (!newSize.trim()) {
+      toast({ title: "Error", description: "Please enter a size name", variant: "destructive" });
+      return;
+    }
+    if (!newQty || Number(newQty) <= 0) {
+      toast({ title: "Error", description: "Please enter a valid quantity", variant: "destructive" });
+      return;
+    }
+
+    const purPrice = Number(newPurPrice) || effectivePurPrice;
+    const salePrice = Number(newSalePrice) || effectiveSalePrice;
+
+    // Check if size already exists in variants or custom sizes
+    const existsInVariants = filteredVariants.some(v => v.size.toLowerCase() === newSize.trim().toLowerCase());
+    const existsInCustom = customSizes.some(c => c.size.toLowerCase() === newSize.trim().toLowerCase());
+
+    if (existsInVariants) {
+      toast({ title: "Size Exists", description: "This size already exists. Enter quantity in the grid above.", variant: "destructive" });
+      return;
+    }
+
+    if (existsInCustom) {
+      // Update existing custom size quantity
+      setCustomSizes(prev => prev.map(c =>
+        c.size.toLowerCase() === newSize.trim().toLowerCase()
+          ? { ...c, qty: c.qty + Number(newQty) }
+          : c
+      ));
+    } else {
+      // Add new custom size
+      setCustomSizes(prev => [...prev, {
+        id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        size: newSize.trim(),
+        qty: Number(newQty),
+        pur_price: purPrice,
+        sale_price: salePrice,
+      }]);
+    }
+
+    // Reset inputs
+    setNewSize("");
+    setNewQty("");
+    setNewPurPrice("");
+    setNewSalePrice("");
+    setShowAddCustom(false);
+  };
+
+  const removeCustomSize = (id: string) => {
+    setCustomSizes(prev => prev.filter(c => c.id !== id));
+  };
+
   const handleConfirm = () => {
     const entries = Object.entries(sizeQty);
-    const hasQty = entries.some(([_, qty]) => Number(qty) > 0);
+    const hasExistingQty = entries.some(([_, qty]) => Number(qty) > 0);
+    const hasCustomQty = customSizes.length > 0;
 
-    if (!hasQty) {
+    if (!hasExistingQty && !hasCustomQty) {
       toast({
         title: "No Items",
         description: "Please enter quantities for at least one size",
@@ -127,6 +223,8 @@ export function SizeGridDialog({
 
     // Build items array
     const items: Array<{ variant: Variant; qty: number }> = [];
+    
+    // Add existing variant items
     for (const [sizeKey, qtyStr] of entries) {
       const qty = Number(qtyStr);
       if (qty > 0) {
@@ -139,12 +237,27 @@ export function SizeGridDialog({
       }
     }
 
+    // Add custom size items
+    for (const custom of customSizes) {
+      const customVariant: Variant = {
+        id: custom.id,
+        size: custom.size,
+        stock_qty: 0,
+        pur_price: custom.pur_price,
+        sale_price: custom.sale_price,
+        color: selectedColor || uniqueColors[0] || undefined,
+        barcode: undefined,
+        isCustomSize: true,
+      };
+      items.push({ variant: customVariant, qty: custom.qty });
+    }
+
     onConfirm(items);
     onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !showAddCustom) {
       e.preventDefault();
       handleConfirm();
     }
@@ -153,14 +266,19 @@ export function SizeGridDialog({
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
     setSizeQty({}); // Reset quantities when color changes
+    setCustomSizes([]); // Reset custom sizes when color changes
   };
+
+  // Calculate total quantity
+  const totalQty = Object.values(sizeQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0) +
+                   customSizes.reduce((sum, c) => sum + c.qty, 0);
 
   if (!product) return null;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
-        className="max-w-4xl"
+        className="max-w-4xl max-h-[90vh] overflow-auto"
         onKeyDown={handleKeyDown}
       >
         <DialogHeader>
@@ -194,7 +312,7 @@ export function SizeGridDialog({
         )}
 
         {/* Size Grid - Show only when color is selected or single color product */}
-        {(selectedColor || !hasMultipleColors) && filteredVariants.length > 0 && (
+        {(selectedColor || !hasMultipleColors) && (
           <>
             {/* Back to color selection button */}
             {hasMultipleColors && selectedColor && (
@@ -205,37 +323,147 @@ export function SizeGridDialog({
                 onClick={() => {
                   setSelectedColor(null);
                   setSizeQty({});
+                  setCustomSizes([]);
                 }}
               >
                 ← Change Color
               </Button>
             )}
 
-            <div className="flex gap-3 mb-4 flex-wrap">
-              {filteredVariants.map((v, index) => (
-                <div key={v.id} className="flex flex-col items-center gap-1">
-                  <span className="text-sm font-medium">{v.size}</span>
-                  <input
-                    ref={index === 0 ? firstInputRef : undefined}
-                    type="number"
-                    min="0"
-                    className="w-16 text-center border rounded p-2 bg-background"
-                    value={sizeQty[v.id] || ""}
-                    onChange={(e) =>
-                      setSizeQty({ ...sizeQty, [v.id]: e.target.value })
-                    }
-                    placeholder="0"
-                  />
-                  {showStock && (
-                    <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                      Stock: {v.stock_qty || 0}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+            {/* Existing Variants Grid */}
+            {filteredVariants.length > 0 && (
+              <div className="flex gap-3 mb-4 flex-wrap">
+                {filteredVariants.map((v, index) => (
+                  <div key={v.id} className="flex flex-col items-center gap-1">
+                    <span className="text-sm font-medium">{v.size}</span>
+                    <input
+                      ref={index === 0 ? firstInputRef : undefined}
+                      type="number"
+                      min="0"
+                      className="w-16 text-center border rounded p-2 bg-background"
+                      value={sizeQty[v.id] || ""}
+                      onChange={(e) =>
+                        setSizeQty({ ...sizeQty, [v.id]: e.target.value })
+                      }
+                      placeholder="0"
+                    />
+                    {showStock && (
+                      <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        Stock: {v.stock_qty || 0}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {filteredVariants.length > 0 && filteredVariants[0].sale_price && (
+            {/* Custom Sizes List */}
+            {customSizes.length > 0 && (
+              <div className="mb-4">
+                <Label className="mb-2 block text-sm font-medium">New Sizes (Will be created)</Label>
+                <div className="flex gap-3 flex-wrap">
+                  {customSizes.map((custom) => (
+                    <div key={custom.id} className="flex flex-col items-center gap-1 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800">
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm font-medium">{custom.size}</span>
+                        <Badge variant="secondary" className="text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200">New</Badge>
+                      </div>
+                      <span className="text-lg font-semibold">{custom.qty}</span>
+                      <span className="text-xs text-muted-foreground">₹{custom.pur_price} / ₹{custom.sale_price}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => removeCustomSize(custom.id)}
+                      >
+                        <X className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add Custom Size Section - Only show if allowCustomSizes is true */}
+            {allowCustomSizes && (
+              <>
+                {!showAddCustom ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mb-4 border-dashed border-primary text-primary hover:bg-primary/10"
+                    onClick={() => setShowAddCustom(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add New Size
+                  </Button>
+                ) : (
+                  <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+                    <Label className="mb-2 block text-sm font-medium">Add New Size</Label>
+                    <div className="flex flex-wrap gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Size Name *</Label>
+                        <Input
+                          ref={customSizeInputRef}
+                          placeholder="e.g., 8, XL, 42"
+                          value={newSize}
+                          onChange={(e) => setNewSize(e.target.value)}
+                          className="w-24"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Quantity *</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Qty"
+                          value={newQty}
+                          onChange={(e) => setNewQty(e.target.value)}
+                          className="w-20"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Pur. Price</Label>
+                        <Input
+                          type="number"
+                          placeholder={`₹${effectivePurPrice}`}
+                          value={newPurPrice}
+                          onChange={(e) => setNewPurPrice(e.target.value)}
+                          className="w-24"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Sale Price</Label>
+                        <Input
+                          type="number"
+                          placeholder={`₹${effectiveSalePrice}`}
+                          value={newSalePrice}
+                          onChange={(e) => setNewSalePrice(e.target.value)}
+                          className="w-24"
+                        />
+                      </div>
+                      <Button size="sm" onClick={handleAddCustomSize}>
+                        Add
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        setShowAddCustom(false);
+                        setNewSize("");
+                        setNewQty("");
+                        setNewPurPrice("");
+                        setNewSalePrice("");
+                      }}>
+                        Cancel
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      💡 New size variant will be created for this product when you confirm.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {filteredVariants.length > 0 && filteredVariants[0].sale_price && !allowCustomSizes && (
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="space-y-2">
                   <Label>Sale Price (MRP)</Label>
@@ -262,7 +490,7 @@ export function SizeGridDialog({
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg mb-4">
               <span className="font-medium">Total Quantity:</span>
               <span className="text-xl font-bold text-primary">
-                {Object.values(sizeQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0)}
+                {totalQty}
               </span>
             </div>
           </>
@@ -272,7 +500,7 @@ export function SizeGridDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
-          {(selectedColor || !hasMultipleColors) && filteredVariants.length > 0 && (
+          {(selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
               Confirm (Enter)
             </Button>
