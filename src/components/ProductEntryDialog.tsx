@@ -849,9 +849,9 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                         <TableRow>
                           {formData.colors.length > 0 && <TableHead>Color</TableHead>}
                           <TableHead>Size</TableHead>
-                          <TableHead>Purchase Price</TableHead>
-                          <TableHead>Sale Price</TableHead>
-                          {showMrp && <TableHead>MRP</TableHead>}
+                          <TableHead>Purchase Price<span className="text-destructive">*</span></TableHead>
+                          <TableHead>Sale Price<span className="text-destructive">*</span></TableHead>
+                          {showMrp && <TableHead>MRP<span className="text-destructive">*</span></TableHead>}
                           <TableHead>Barcode</TableHead>
                           <TableHead>Opening Qty</TableHead>
                           <TableHead>Active</TableHead>

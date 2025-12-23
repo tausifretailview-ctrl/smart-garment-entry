@@ -1648,9 +1648,9 @@ const ProductEntry = () => {
                       <TableRow>
                         {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Color</TableHead>}
                         <TableHead className="text-xs py-1">{formData.product_type === 'service' ? 'Item' : 'Size'}</TableHead>
-                        <TableHead className="text-xs py-1">Pur Price</TableHead>
-                        <TableHead className="text-xs py-1">Sale Price</TableHead>
-                        {showMrp && <TableHead className="text-xs py-1">MRP</TableHead>}
+                        <TableHead className="text-xs py-1">Pur Price<span className="text-destructive">*</span></TableHead>
+                        <TableHead className="text-xs py-1">Sale Price<span className="text-destructive">*</span></TableHead>
+                        {showMrp && <TableHead className="text-xs py-1">MRP<span className="text-destructive">*</span></TableHead>}
                         {showMrp && <TableHead className="text-xs py-1">Disc</TableHead>}
                         <TableHead className="text-xs py-1">Barcode</TableHead>
                         {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Open Qty</TableHead>}
