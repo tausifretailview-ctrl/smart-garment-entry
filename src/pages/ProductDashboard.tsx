@@ -951,6 +951,7 @@ const ProductDashboard = () => {
                           style: product.style || "",
                           size: variant.size,
                           sale_price: variant.sale_price,
+                          mrp: variant.mrp,
                           pur_price: variant.pur_price,
                           barcode: variant.barcode,
                           qty: variant.stock_qty,
