@@ -2163,6 +2163,31 @@ export default function Accounts() {
                             </TableRow>
                           );
                         })}
+                      {/* Page Totals Row */}
+                      {reconciliationData && reconciliationData.length > 0 && (() => {
+                        const pageTotals = reconciliationData.reduce((acc: any, payment: any) => {
+                          const invoice = payment.invoiceDetails;
+                          const balance = invoice ? invoice.net_amount - (invoice.paid_amount || 0) : 0;
+                          return {
+                            invoiceAmount: acc.invoiceAmount + (invoice?.net_amount || 0),
+                            paidAmount: acc.paidAmount + (payment.total_amount || 0),
+                            balance: acc.balance + balance,
+                          };
+                        }, { invoiceAmount: 0, paidAmount: 0, balance: 0 });
+
+                        return (
+                          <TableRow className="bg-muted/70 font-semibold border-t-2">
+                            <TableCell colSpan={5} className="text-right">Page Total:</TableCell>
+                            <TableCell className="text-right">₹{pageTotals.invoiceAmount.toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-right">₹{pageTotals.paidAmount.toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                            <TableCell></TableCell>
+                            <TableCell className="text-right">₹{pageTotals.balance.toFixed(2)}</TableCell>
+                            {isAdmin && <TableCell></TableCell>}
+                          </TableRow>
+                        );
+                      })()}
                       {(!reconciliationData || reconciliationData.length === 0) && (
                         <TableRow>
                           <TableCell colSpan={isAdmin ? 12 : 11} className="text-center py-8 text-muted-foreground">
