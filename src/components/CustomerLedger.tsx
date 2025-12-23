@@ -175,6 +175,15 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Payments found:', vouchersData?.length || 0);
 
+      // Calculate total voucher payments per sale to exclude from "payment at sale"
+      const voucherPaymentsBySaleId: Record<string, number> = {};
+      (vouchersData || []).forEach((voucher) => {
+        if (voucher.reference_id) {
+          voucherPaymentsBySaleId[voucher.reference_id] = 
+            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + (voucher.total_amount || 0);
+        }
+      });
+
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
       
@@ -233,8 +242,12 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
 
-          // Add credit entry for payment made at time of sale (mix payment, partial payment)
-          const paidAtSale = sale.paid_amount || 0;
+          // Calculate "payment at sale" - exclude amounts paid via vouchers (recorded payments)
+          // Total paid_amount includes all payments, but voucher payments are recorded separately
+          const totalPaidOnSale = sale.paid_amount || 0;
+          const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
+          const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+          
           if (paidAtSale > 0) {
             runningBalance -= paidAtSale;
             
@@ -266,7 +279,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           
           // Find related invoice number
           const relatedSale = salesData.find(s => s.id === voucher.reference_id);
-          const invoiceRef = relatedSale ? ` for ${relatedSale.sale_number}` : '';
+          const invoiceRef = relatedSale ? ` - for ${relatedSale.sale_number}` : '';
           
           allTransactions.push({
             id: voucher.id,
@@ -324,6 +337,15 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
 
       if (vouchersError) throw vouchersError;
 
+      // Calculate total voucher payments per sale to exclude from "payment at sale"
+      const voucherPaymentsBySaleId: Record<string, number> = {};
+      vouchersData?.forEach((voucher) => {
+        if (voucher.reference_id) {
+          voucherPaymentsBySaleId[voucher.reference_id] = 
+            (voucherPaymentsBySaleId[voucher.reference_id] || 0) + (voucher.total_amount || 0);
+        }
+      });
+
       // Build payment history list
       const payments: any[] = [];
 
@@ -346,9 +368,12 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         });
       });
 
-      // Add payments made at time of sale (mix payments)
+      // Add payments made at time of sale (exclude amounts paid via vouchers)
       customerSales?.forEach((sale) => {
-        const paidAtSale = sale.paid_amount || 0;
+        const totalPaidOnSale = sale.paid_amount || 0;
+        const voucherPayments = voucherPaymentsBySaleId[sale.id] || 0;
+        const paidAtSale = Math.max(0, totalPaidOnSale - voucherPayments);
+        
         if (paidAtSale > 0) {
           // Check date filter
           if (startDate && new Date(sale.sale_date) < startDate) return;
@@ -357,7 +382,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           payments.push({
             id: `${sale.id}-sale-payment`,
             date: sale.sale_date,
-            voucherNumber: '-',
+            voucherNumber: 'At Sale',
             invoiceNumber: sale.sale_number,
             invoiceAmount: sale.net_amount,
             amount: paidAtSale,
