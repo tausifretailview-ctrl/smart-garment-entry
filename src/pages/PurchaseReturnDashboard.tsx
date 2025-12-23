@@ -120,7 +120,7 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
-  const fetchReturnItems = async (returnId: string) => {
+  const fetchReturnItems = async (returnId: string): Promise<PurchaseReturnItem[]> => {
     try {
       const { data, error } = await supabase
         .from("purchase_return_items" as any)
@@ -135,7 +135,7 @@ const PurchaseReturnDashboard = () => {
 
       if (error) throw error;
 
-      const items = (data || []).map((item: any) => ({
+      const items: PurchaseReturnItem[] = (data || []).map((item: any) => ({
         ...item,
         product_name: item.products?.product_name,
         brand: item.products?.brand,
@@ -144,6 +144,8 @@ const PurchaseReturnDashboard = () => {
       setReturns(prev => prev.map(ret => 
         ret.id === returnId ? { ...ret, items } : ret
       ));
+      
+      return items;
     } catch (error) {
       console.error("Error fetching return items:", error);
       toast({
@@ -151,6 +153,7 @@ const PurchaseReturnDashboard = () => {
         description: "Failed to load return items",
         variant: "destructive",
       });
+      return [];
     }
   };
 
@@ -250,16 +253,29 @@ const PurchaseReturnDashboard = () => {
   });
 
   const handlePrintClick = async (returnRecord: PurchaseReturn) => {
-    if (!returnRecord.items) {
-      await fetchReturnItems(returnRecord.id);
-      const updatedReturn = returns.find(r => r.id === returnRecord.id);
-      if (updatedReturn?.items) {
-        setReturnToPrint(updatedReturn);
-        setTimeout(() => handlePrint(), 100);
+    try {
+      let items = returnRecord.items;
+      if (!items || items.length === 0) {
+        items = await fetchReturnItems(returnRecord.id);
       }
-    } else {
-      setReturnToPrint(returnRecord);
-      setTimeout(() => handlePrint(), 100);
+      
+      if (items && items.length > 0) {
+        setReturnToPrint({ ...returnRecord, items });
+        setTimeout(() => handlePrint(), 100);
+      } else {
+        toast({
+          title: "Error",
+          description: "No items found for this purchase return",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error preparing print:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load items for printing",
+        variant: "destructive",
+      });
     }
   };
 
