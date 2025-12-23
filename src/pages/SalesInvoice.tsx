@@ -313,7 +313,7 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch products with variants
+  // Fetch products with variants and size groups
   const { data: productsData } = useQuery({
     queryKey: ['products-with-variants', currentOrganization?.id],
     queryFn: async () => {
@@ -323,13 +323,25 @@ export default function SalesInvoice() {
         .from('products')
         .select(`
           *,
-          product_variants (*)
+          product_variants (*),
+          size_groups (id, group_name, sizes)
         `)
         .eq('organization_id', currentOrganization.id)
         .eq('status', 'active');
       
       if (error) throw error;
-      return data || [];
+      
+      // Calculate size_range for each product
+      return (data || []).map((product: any) => {
+        const sizeGroup = product.size_groups;
+        let size_range: string | null = null;
+        if (sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 0) {
+          size_range = sizeGroup.sizes.length > 1
+            ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
+            : sizeGroup.sizes[0];
+        }
+        return { ...product, size_range };
+      });
     },
     enabled: !!currentOrganization?.id,
   });
@@ -1646,7 +1658,14 @@ Thank you for choosing us!`;
                           >
                             <div className="flex flex-col w-full gap-1">
                               <div className="flex justify-between items-center">
-                                <span className="font-medium">{product.product_name}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{product.product_name}</span>
+                                  {product.size_range && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                      {product.size_range}
+                                    </span>
+                                  )}
+                                </div>
                                 <span className="font-semibold text-primary">₹{variant.sale_price}</span>
                               </div>
                               <div className="flex justify-between items-center text-xs text-muted-foreground">

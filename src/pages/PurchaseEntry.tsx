@@ -46,6 +46,7 @@ interface ProductVariant {
   style: string;
   gst_per: number;
   hsn_code: string;
+  size_range?: string | null;
 }
 
 interface LineItem {
@@ -377,14 +378,30 @@ const PurchaseEntry = () => {
     }
 
     try {
-      // First, search products by name, brand, and style
+      // First, search products by name, brand, and style - include size_group_id
       const { data: matchingProducts } = await supabase
         .from("products")
-        .select("id")
+        .select("id, size_group_id")
         .eq("organization_id", currentOrganization?.id)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
       const productIds = matchingProducts?.map(p => p.id) || [];
+      const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
+
+      // Fetch size groups for these products
+      let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
+      if (sizeGroupIds.length > 0) {
+        const { data: sizeGroups } = await supabase
+          .from("size_groups")
+          .select("id, group_name, sizes")
+          .in("id", sizeGroupIds);
+        
+        if (sizeGroups) {
+          sizeGroups.forEach((sg: any) => {
+            sizeGroupsMap[sg.id] = { group_name: sg.group_name, sizes: sg.sizes || [] };
+          });
+        }
+      }
 
       // Then search product_variants by barcode OR matching product IDs
       let variantsQuery = supabase
@@ -409,7 +426,8 @@ const PurchaseEntry = () => {
             hsn_code,
             gst_per,
             default_pur_price,
-            default_sale_price
+            default_sale_price,
+            size_group_id
           )
         `)
         .eq("organization_id", currentOrganization?.id)
@@ -426,22 +444,51 @@ const PurchaseEntry = () => {
 
       if (error) throw error;
 
-      const results = (data || []).map((v: any) => ({
-        id: v.id,
-        product_id: v.products?.id || "",
-        size: v.size,
-        pur_price: v.pur_price,
-        sale_price: v.sale_price,
-        mrp: v.mrp || 0,
-        barcode: v.barcode || "",
-        product_name: v.products?.product_name || "",
-        brand: v.products?.brand || "",
-        category: v.products?.category || "",
-        color: v.color || v.products?.color || "",
-        style: v.products?.style || "",
-        gst_per: v.products?.gst_per || 0,
-        hsn_code: v.products?.hsn_code || "",
-      }));
+      // Also fetch size groups for barcode-matched products that weren't in the initial search
+      const additionalSizeGroupIds = [...new Set(
+        (data || [])
+          .map((v: any) => v.products?.size_group_id)
+          .filter((id: string) => id && !sizeGroupsMap[id])
+      )];
+      
+      if (additionalSizeGroupIds.length > 0) {
+        const { data: additionalSizeGroups } = await supabase
+          .from("size_groups")
+          .select("id, group_name, sizes")
+          .in("id", additionalSizeGroupIds);
+        
+        if (additionalSizeGroups) {
+          additionalSizeGroups.forEach((sg: any) => {
+            sizeGroupsMap[sg.id] = { group_name: sg.group_name, sizes: sg.sizes || [] };
+          });
+        }
+      }
+
+      const results = (data || []).map((v: any) => {
+        const sizeGroupId = v.products?.size_group_id;
+        const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
+        const sizeRange = sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 1
+          ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
+          : sizeGroup?.sizes?.[0] || null;
+        
+        return {
+          id: v.id,
+          product_id: v.products?.id || "",
+          size: v.size,
+          pur_price: v.pur_price,
+          sale_price: v.sale_price,
+          mrp: v.mrp || 0,
+          barcode: v.barcode || "",
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          category: v.products?.category || "",
+          color: v.color || v.products?.color || "",
+          style: v.products?.style || "",
+          gst_per: v.products?.gst_per || 0,
+          hsn_code: v.products?.hsn_code || "",
+          size_range: sizeRange,
+        };
+      });
 
       setInlineSearchResults(results);
       setSelectedInlineIndex(0);
@@ -614,13 +661,29 @@ const PurchaseEntry = () => {
     }
 
     try {
-      // First, search products by name, brand, and style
+      // First, search products by name, brand, and style - include size_group_id
       const { data: matchingProducts } = await supabase
         .from("products")
-        .select("id")
+        .select("id, size_group_id")
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
       const productIds = matchingProducts?.map(p => p.id) || [];
+      const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
+
+      // Fetch size groups for these products
+      let sizeGroupsMap: Record<string, { group_name: string; sizes: string[] }> = {};
+      if (sizeGroupIds.length > 0) {
+        const { data: sizeGroups } = await supabase
+          .from("size_groups")
+          .select("id, group_name, sizes")
+          .in("id", sizeGroupIds);
+        
+        if (sizeGroups) {
+          sizeGroups.forEach((sg: any) => {
+            sizeGroupsMap[sg.id] = { group_name: sg.group_name, sizes: sg.sizes || [] };
+          });
+        }
+      }
 
       // Then search product_variants by barcode OR matching product IDs
       let variantsQuery = supabase
@@ -645,7 +708,8 @@ const PurchaseEntry = () => {
             hsn_code,
             gst_per,
             default_pur_price,
-            default_sale_price
+            default_sale_price,
+            size_group_id
           )
         `)
         .eq("active", true);
@@ -661,22 +725,51 @@ const PurchaseEntry = () => {
 
       if (error) throw error;
 
-      const results = (data || []).map((v: any) => ({
-        id: v.id,
-        product_id: v.products?.id || "",
-        size: v.size,
-        pur_price: v.pur_price,
-        sale_price: v.sale_price,
-        mrp: v.mrp || 0,
-        barcode: v.barcode || "",
-        product_name: v.products?.product_name || "",
-        brand: v.products?.brand || "",
-        category: v.products?.category || "",
-        color: v.color || v.products?.color || "",
-        style: v.products?.style || "",
-        gst_per: v.products?.gst_per || 0,
-        hsn_code: v.products?.hsn_code || "",
-      }));
+      // Also fetch size groups for barcode-matched products that weren't in the initial search
+      const additionalSizeGroupIds = [...new Set(
+        (data || [])
+          .map((v: any) => v.products?.size_group_id)
+          .filter((id: string) => id && !sizeGroupsMap[id])
+      )];
+      
+      if (additionalSizeGroupIds.length > 0) {
+        const { data: additionalSizeGroups } = await supabase
+          .from("size_groups")
+          .select("id, group_name, sizes")
+          .in("id", additionalSizeGroupIds);
+        
+        if (additionalSizeGroups) {
+          additionalSizeGroups.forEach((sg: any) => {
+            sizeGroupsMap[sg.id] = { group_name: sg.group_name, sizes: sg.sizes || [] };
+          });
+        }
+      }
+
+      const results = (data || []).map((v: any) => {
+        const sizeGroupId = v.products?.size_group_id;
+        const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
+        const sizeRange = sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 1
+          ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
+          : sizeGroup?.sizes?.[0] || null;
+        
+        return {
+          id: v.id,
+          product_id: v.products?.id || "",
+          size: v.size,
+          pur_price: v.pur_price,
+          sale_price: v.sale_price,
+          mrp: v.mrp || 0,
+          barcode: v.barcode || "",
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          category: v.products?.category || "",
+          color: v.color || v.products?.color || "",
+          style: v.products?.style || "",
+          gst_per: v.products?.gst_per || 0,
+          hsn_code: v.products?.hsn_code || "",
+          size_range: sizeRange,
+        };
+      });
 
       setSearchResults(results);
       setSelectedSearchIndex(0);
@@ -1677,15 +1770,22 @@ const PurchaseEntry = () => {
                             idx === selectedSearchIndex ? "bg-accent" : "hover:bg-accent/50"
                           )}
                         >
-                          <div className="font-medium">
-                            {formatProductDescription({
-                              product_name: result.product_name,
-                              category: result.category,
-                              brand: result.brand,
-                              style: result.style,
-                              color: result.color,
-                              size: result.size
-                            })}
+                          <div className="font-medium flex items-center gap-2">
+                            <span>
+                              {formatProductDescription({
+                                product_name: result.product_name,
+                                category: result.category,
+                                brand: result.brand,
+                                style: result.style,
+                                color: result.color,
+                                size: result.size
+                              })}
+                            </span>
+                            {result.size_range && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                {result.size_range}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             {result.barcode && (
@@ -1973,15 +2073,22 @@ const PurchaseEntry = () => {
                                       idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
                                     )}
                                   >
-                                    <div className="font-medium">
-                                      {formatProductDescription({
-                                        product_name: result.product_name,
-                                        category: result.category,
-                                        brand: result.brand,
-                                        style: result.style,
-                                        color: result.color,
-                                        size: result.size
-                                      })}
+                                    <div className="font-medium flex items-center gap-2">
+                                      <span>
+                                        {formatProductDescription({
+                                          product_name: result.product_name,
+                                          category: result.category,
+                                          brand: result.brand,
+                                          style: result.style,
+                                          color: result.color,
+                                          size: result.size
+                                        })}
+                                      </span>
+                                      {result.size_range && (
+                                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                          {result.size_range}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                       {result.barcode && (
