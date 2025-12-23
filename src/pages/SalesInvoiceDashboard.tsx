@@ -425,6 +425,14 @@ export default function SalesInvoiceDashboard() {
     return filteredInvoices.slice(startIndex, endIndex);
   }, [filteredInvoices, currentPage, itemsPerPage]);
 
+  // Page totals for current page
+  const pageTotals = useMemo(() => ({
+    qty: paginatedInvoices.reduce((sum: number, inv: any) => 
+      sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
+    amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+    balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
+  }), [paginatedInvoices]);
+
   // Memoized event handlers (defined after filteredInvoices/paginatedInvoices)
   const toggleSelectAll = useCallback(() => {
     if (selectedInvoices.size === filteredInvoices.length && filteredInvoices.length > 0) {
@@ -1456,6 +1464,18 @@ export default function SalesInvoiceDashboard() {
                           )}
                         </>
                       ))
+                    )}
+                    {/* Page Totals Row */}
+                    {paginatedInvoices.length > 0 && (
+                      <TableRow className="bg-muted/70 font-semibold border-t-2">
+                        <TableCell colSpan={6} className="text-right">Page Total:</TableCell>
+                        <TableCell className="text-center">{pageTotals.qty}</TableCell>
+                        <TableCell>₹{pageTotals.amount.toFixed(2)}</TableCell>
+                        {columnSettings.status && <TableCell></TableCell>}
+                        {columnSettings.status && <TableCell className="text-right">₹{pageTotals.balance.toFixed(2)}</TableCell>}
+                        {columnSettings.delivery && <TableCell></TableCell>}
+                        <TableCell></TableCell>
+                      </TableRow>
                     )}
                   </TableBody>
                 </Table>
