@@ -646,6 +646,41 @@ const ProductEntry = () => {
       return false;
     }
 
+    // Validate variants: purchase price and sale price are required
+    for (let i = 0; i < variants.length; i++) {
+      const variant = variants[i];
+      
+      // Check purchase price
+      if (variant.pur_price === undefined || variant.pur_price === null || variant.pur_price <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Purchase price is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please enter a valid purchase price.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Check sale price
+      if (variant.sale_price === undefined || variant.sale_price === null || variant.sale_price <= 0) {
+        toast({
+          title: "Validation Error",
+          description: `Sale price is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please enter a valid sale price.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Check MRP if enabled from settings
+      if (showMrp && (variant.mrp === undefined || variant.mrp === null || variant.mrp <= 0)) {
+        toast({
+          title: "Validation Error",
+          description: `MRP is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please enter a valid MRP.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
     // Check for duplicate barcodes within the current variants
     const barcodesInForm = variants
       .map(v => v.barcode)
