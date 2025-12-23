@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
@@ -472,8 +472,12 @@ const PurchaseReturnDashboard = () => {
                 <TableBody>
                   {paginatedReturns.map((returnRecord) => (
                     <>
-                      <TableRow key={returnRecord.id} className="hover:bg-muted/50">
-                        <TableCell>
+                      <TableRow 
+                        key={returnRecord.id} 
+                        className="hover:bg-muted/50 cursor-pointer"
+                        onClick={() => toggleExpanded(returnRecord.id)}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedReturns.has(returnRecord.id)}
@@ -520,8 +524,16 @@ const PurchaseReturnDashboard = () => {
                         <TableCell className="max-w-xs truncate">
                           {returnRecord.notes || "-"}
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/purchase-return-entry?edit=${returnRecord.id}`)}
+                              title="Edit Return"
+                            >
+                              <Edit className="h-4 w-4 text-blue-600" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="sm"
@@ -534,6 +546,7 @@ const PurchaseReturnDashboard = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => toggleExpanded(returnRecord.id)}
+                              title={expandedReturns.has(returnRecord.id) ? "Collapse" : "Expand"}
                             >
                               {expandedReturns.has(returnRecord.id) ? (
                                 <ChevronUp className="h-4 w-4" />
@@ -545,6 +558,7 @@ const PurchaseReturnDashboard = () => {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteClick(returnRecord)}
+                              title="Delete Return"
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
@@ -552,45 +566,77 @@ const PurchaseReturnDashboard = () => {
                         </TableCell>
                       </TableRow>
 
-                      {expandedReturns.has(returnRecord.id) && returnRecord.items && (
+                      {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-muted/30">
+                          <TableCell colSpan={10} className="bg-muted/30 p-0">
                             <div className="p-4">
-                              <h4 className="font-semibold mb-3">Return Items</h4>
-                              <Table>
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead>Brand</TableHead>
-                                    <TableHead>Size</TableHead>
-                                    <TableHead>Barcode</TableHead>
-                                    <TableHead className="text-right">Qty</TableHead>
-                                    <TableHead className="text-right">Price</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {returnRecord.items.map((item) => (
-                                    <TableRow key={item.id}>
-                                      <TableCell>{item.product_name}</TableCell>
-                                      <TableCell>{item.brand || "-"}</TableCell>
-                                      <TableCell>
-                                        <Badge variant="secondary">{item.size}</Badge>
-                                      </TableCell>
-                                      <TableCell>
-                                        <code className="text-xs">{item.barcode || "N/A"}</code>
-                                      </TableCell>
-                                      <TableCell className="text-right">{item.qty}</TableCell>
+                              <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                <Package className="h-4 w-4" />
+                                Return Items ({returnRecord.items?.length || 0} items)
+                              </h4>
+                              {!returnRecord.items ? (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                                  Loading items...
+                                </div>
+                              ) : returnRecord.items.length === 0 ? (
+                                <p className="text-muted-foreground">No items found</p>
+                              ) : (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>#</TableHead>
+                                      <TableHead>Product</TableHead>
+                                      <TableHead>Brand</TableHead>
+                                      <TableHead>Size</TableHead>
+                                      <TableHead>Barcode</TableHead>
+                                      <TableHead>HSN Code</TableHead>
+                                      <TableHead className="text-right">Qty</TableHead>
+                                      <TableHead className="text-right">Price</TableHead>
+                                      <TableHead className="text-right">GST %</TableHead>
+                                      <TableHead className="text-right">Total</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {returnRecord.items.map((item, idx) => (
+                                      <TableRow key={item.id}>
+                                        <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                                        <TableCell className="font-medium">{item.product_name || "Unknown"}</TableCell>
+                                        <TableCell>{item.brand || "-"}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="secondary">{item.size}</Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                          <code className="text-xs bg-muted px-1 py-0.5 rounded">{item.barcode || "N/A"}</code>
+                                        </TableCell>
+                                        <TableCell>
+                                          <code className="text-xs">{(item as any).hsn_code || "-"}</code>
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium">{item.qty}</TableCell>
+                                        <TableCell className="text-right">
+                                          ₹{item.pur_price.toFixed(2)}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          {item.gst_per}%
+                                        </TableCell>
+                                        <TableCell className="text-right font-semibold">
+                                          ₹{item.line_total.toFixed(2)}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                    <TableRow className="bg-muted/50 font-semibold">
+                                      <TableCell colSpan={6} className="text-right">Total:</TableCell>
                                       <TableCell className="text-right">
-                                        ₹{item.pur_price.toFixed(2)}
+                                        {returnRecord.items.reduce((sum, item) => sum + item.qty, 0)}
                                       </TableCell>
-                                      <TableCell className="text-right font-semibold">
-                                        ₹{item.line_total.toFixed(2)}
+                                      <TableCell colSpan={2}></TableCell>
+                                      <TableCell className="text-right">
+                                        ₹{returnRecord.items.reduce((sum, item) => sum + item.line_total, 0).toFixed(2)}
                                       </TableCell>
                                     </TableRow>
-                                  ))}
-                                </TableBody>
-                              </Table>
+                                  </TableBody>
+                                </Table>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
