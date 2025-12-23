@@ -141,6 +141,7 @@ export default function SalesInvoice() {
   const [shippingInstructions, setShippingInstructions] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
@@ -455,6 +456,12 @@ export default function SalesInvoice() {
           hsnCode: item.hsn_code || '',
         }));
         setLineItems(transformedItems);
+        
+        // Store original items for stock validation in edit mode
+        setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
+          variantId: item.variant_id,
+          quantity: item.quantity,
+        })));
       }
     }
   });
@@ -1053,6 +1060,7 @@ Thank you for choosing us!`;
     }
 
     // Real-time stock validation before saving
+    // When editing, pass original items so their stock is considered "freed"
     const invoiceItems = filledItems.map(item => ({
       variantId: item.variantId,
       quantity: item.quantity,
@@ -1060,7 +1068,10 @@ Thank you for choosing us!`;
       size: item.size,
     }));
 
-    const insufficientItems = await validateCartStock(invoiceItems);
+    const insufficientItems = await validateCartStock(
+      invoiceItems,
+      editingInvoiceId ? originalItemsForEdit : undefined
+    );
     
     if (insufficientItems.length > 0) {
       showMultipleStockErrors(insufficientItems);
@@ -1319,6 +1330,7 @@ Thank you for choosing us!`;
     }
     
     setEditingInvoiceId(null);
+    setOriginalItemsForEdit([]);
     setSavedInvoiceData(null);
   };
 
