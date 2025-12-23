@@ -37,6 +37,7 @@ interface ProductVariant {
   barcode: string;
   pur_price: number;
   sale_price: number;
+  mrp: number;
   stock_qty: number;
 }
 
@@ -92,6 +93,7 @@ const ProductDashboard = () => {
   // Product history dialog states
   const [showProductHistory, setShowProductHistory] = useState(false);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<{id: string; name: string} | null>(null);
+  const [showMrp, setShowMrp] = useState(false);
   // Column visibility settings - persisted to database
   const defaultColumnSettings = {
     image: true,
@@ -121,7 +123,27 @@ const ProductDashboard = () => {
   useEffect(() => {
     fetchProductVariants();
     fetchSizeGroups();
+    fetchSettings();
   }, []);
+
+  const fetchSettings = async () => {
+    try {
+      if (!currentOrganization?.id) return;
+      const { data, error } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data?.purchase_settings && typeof data.purchase_settings === 'object') {
+        const purchaseSettings = data.purchase_settings as any;
+        setShowMrp(purchaseSettings.show_mrp || false);
+      }
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -160,6 +182,7 @@ const ProductDashboard = () => {
               barcode,
               pur_price,
               sale_price,
+              mrp,
               stock_qty
             )
           `)
@@ -187,6 +210,7 @@ const ProductDashboard = () => {
           barcode: v.barcode || "",
           pur_price: v.pur_price,
           sale_price: v.sale_price,
+          mrp: v.mrp || 0,
           stock_qty: v.stock_qty,
         }));
 
@@ -1115,6 +1139,7 @@ const ProductDashboard = () => {
                                         <TableHead>Color</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
+                                        {showMrp && <TableHead className="text-right">MRP</TableHead>}
                                         <TableHead className="text-right">Stock Qty</TableHead>
                                       </TableRow>
                                     </TableHeader>
@@ -1132,6 +1157,11 @@ const ProductDashboard = () => {
                                           <TableCell className="text-right">
                                             ₹{variant.sale_price.toFixed(2)}
                                           </TableCell>
+                                          {showMrp && (
+                                            <TableCell className="text-right">
+                                              ₹{variant.mrp.toFixed(2)}
+                                            </TableCell>
+                                          )}
                                           <TableCell className="text-right font-medium">
                                             {variant.stock_qty}
                                           </TableCell>
