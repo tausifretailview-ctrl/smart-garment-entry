@@ -270,7 +270,7 @@ export function CustomerHistoryDialog({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-3">
+          <ScrollArea className="flex-1 mt-3 h-[350px]">
             {/* Sales Tab */}
             <TabsContent value="sales" className="mt-0">
               {salesLoading ? (
