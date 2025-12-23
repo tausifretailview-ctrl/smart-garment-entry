@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -49,7 +50,12 @@ const PurchaseReturnEntry = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { currentOrganization } = useOrganization();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get("edit");
+  const isEditMode = !!editId;
+  
   const [loading, setLoading] = useState(false);
+  const [loadingReturn, setLoadingReturn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -67,10 +73,10 @@ const PurchaseReturnEntry = () => {
     notes: "",
   });
 
-  // Generate return number on mount
+  // Generate return number on mount (only for new returns)
   useEffect(() => {
     const generateReturnNumber = async () => {
-      if (!currentOrganization?.id) return;
+      if (!currentOrganization?.id || isEditMode) return;
       try {
         const { data, error } = await supabase.rpc("generate_purchase_return_number", {
           p_organization_id: currentOrganization.id,
@@ -82,7 +88,83 @@ const PurchaseReturnEntry = () => {
       }
     };
     generateReturnNumber();
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isEditMode]);
+
+  // Load existing return data in edit mode
+  useEffect(() => {
+    const loadReturnData = async () => {
+      if (!editId || !currentOrganization?.id) return;
+      
+      setLoadingReturn(true);
+      try {
+        // Fetch return header
+        const { data: returnRecord, error: returnError } = await supabase
+          .from("purchase_returns" as any)
+          .select("*")
+          .eq("id", editId)
+          .eq("organization_id", currentOrganization.id)
+          .single();
+
+        if (returnError) throw returnError;
+        if (!returnRecord) throw new Error("Return not found");
+
+        const typedReturn = returnRecord as any;
+        
+        // Set return data
+        setReturnNumber(typedReturn.return_number || "");
+        setReturnDate(new Date(typedReturn.return_date));
+        setReturnData({
+          supplier_id: typedReturn.supplier_id || "",
+          supplier_name: typedReturn.supplier_name || "",
+          original_bill_number: typedReturn.original_bill_number || "",
+          notes: typedReturn.notes || "",
+        });
+
+        // Fetch return items
+        const { data: items, error: itemsError } = await supabase
+          .from("purchase_return_items" as any)
+          .select(`
+            *,
+            products:product_id (
+              product_name,
+              brand
+            )
+          `)
+          .eq("return_id", editId);
+
+        if (itemsError) throw itemsError;
+
+        const loadedItems: LineItem[] = (items || []).map((item: any) => ({
+          temp_id: item.id,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          product_name: item.products?.product_name || "Unknown",
+          size: item.size,
+          qty: item.qty,
+          pur_price: item.pur_price,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code || "",
+          barcode: item.barcode || "",
+          line_total: item.line_total,
+          brand: item.products?.brand || "",
+        }));
+
+        setLineItems(loadedItems);
+      } catch (error) {
+        console.error("Error loading return:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load purchase return",
+          variant: "destructive",
+        });
+        navigate("/purchase-returns");
+      } finally {
+        setLoadingReturn(false);
+      }
+    };
+
+    loadReturnData();
+  }, [editId, currentOrganization?.id]);
 
   // Fetch suppliers
   const { data: suppliers = [] } = useQuery({
@@ -255,50 +337,102 @@ const PurchaseReturnEntry = () => {
 
     setLoading(true);
     try {
-      // Insert purchase return header with return number
-      const { data: returnRecord, error: returnError } = await supabase
-        .from("purchase_returns" as any)
-        .insert({
-          organization_id: currentOrganization?.id,
-          supplier_id: returnData.supplier_id,
-          supplier_name: returnData.supplier_name,
-          original_bill_number: returnData.original_bill_number || null,
-          return_date: format(returnDate, "yyyy-MM-dd"),
-          gross_amount: grossAmount,
-          gst_amount: gstAmount,
-          net_amount: netAmount,
-          notes: returnData.notes || null,
-          return_number: returnNumber,
-        })
-        .select()
-        .single();
+      if (isEditMode && editId) {
+        // Update existing return
+        const { error: updateError } = await supabase
+          .from("purchase_returns" as any)
+          .update({
+            supplier_id: returnData.supplier_id,
+            supplier_name: returnData.supplier_name,
+            original_bill_number: returnData.original_bill_number || null,
+            return_date: format(returnDate, "yyyy-MM-dd"),
+            gross_amount: grossAmount,
+            gst_amount: gstAmount,
+            net_amount: netAmount,
+            notes: returnData.notes || null,
+          })
+          .eq("id", editId);
 
-      if (returnError) throw returnError;
+        if (updateError) throw updateError;
 
-      // Insert return items
-      const itemsToInsert = lineItems.map((item) => ({
-        return_id: (returnRecord as any).id,
-        product_id: item.product_id,
-        sku_id: item.sku_id,
-        size: item.size,
-        qty: item.qty,
-        pur_price: item.pur_price,
-        gst_per: item.gst_per,
-        hsn_code: item.hsn_code,
-        barcode: item.barcode,
-        line_total: item.line_total,
-      }));
+        // Delete existing items
+        const { error: deleteError } = await supabase
+          .from("purchase_return_items" as any)
+          .delete()
+          .eq("return_id", editId);
 
-      const { error: itemsError } = await supabase
-        .from("purchase_return_items" as any)
-        .insert(itemsToInsert);
+        if (deleteError) throw deleteError;
 
-      if (itemsError) throw itemsError;
+        // Insert updated items
+        const itemsToInsert = lineItems.map((item) => ({
+          return_id: editId,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          size: item.size,
+          qty: item.qty,
+          pur_price: item.pur_price,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code,
+          barcode: item.barcode,
+          line_total: item.line_total,
+        }));
 
-      toast({
-        title: "Success",
-        description: "Purchase return saved successfully",
-      });
+        const { error: itemsError } = await supabase
+          .from("purchase_return_items" as any)
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        toast({
+          title: "Success",
+          description: "Purchase return updated successfully",
+        });
+      } else {
+        // Insert new purchase return
+        const { data: returnRecord, error: returnError } = await supabase
+          .from("purchase_returns" as any)
+          .insert({
+            organization_id: currentOrganization?.id,
+            supplier_id: returnData.supplier_id,
+            supplier_name: returnData.supplier_name,
+            original_bill_number: returnData.original_bill_number || null,
+            return_date: format(returnDate, "yyyy-MM-dd"),
+            gross_amount: grossAmount,
+            gst_amount: gstAmount,
+            net_amount: netAmount,
+            notes: returnData.notes || null,
+            return_number: returnNumber,
+          })
+          .select()
+          .single();
+
+        if (returnError) throw returnError;
+
+        // Insert return items
+        const itemsToInsert = lineItems.map((item) => ({
+          return_id: (returnRecord as any).id,
+          product_id: item.product_id,
+          sku_id: item.sku_id,
+          size: item.size,
+          qty: item.qty,
+          pur_price: item.pur_price,
+          gst_per: item.gst_per,
+          hsn_code: item.hsn_code,
+          barcode: item.barcode,
+          line_total: item.line_total,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from("purchase_return_items" as any)
+          .insert(itemsToInsert);
+
+        if (itemsError) throw itemsError;
+
+        toast({
+          title: "Success",
+          description: "Purchase return saved successfully",
+        });
+      }
 
       navigate("/purchase-returns");
     } catch (error: any) {
@@ -313,14 +447,27 @@ const PurchaseReturnEntry = () => {
     }
   };
 
+  if (loadingReturn) {
+    return (
+      <div className="container mx-auto p-6 flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading purchase return...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Purchase Return Entry
+            {isEditMode ? "Edit Purchase Return" : "Purchase Return Entry"}
           </h1>
-          <p className="text-muted-foreground mt-1">Create a new purchase return record</p>
+          <p className="text-muted-foreground mt-1">
+            {isEditMode ? `Editing return: ${returnNumber}` : "Create a new purchase return record"}
+          </p>
         </div>
         <BackToDashboard to="/purchase-returns" label="Back to Returns" />
       </div>
@@ -536,7 +683,7 @@ const PurchaseReturnEntry = () => {
         </Button>
         <Button onClick={handleSave} disabled={loading}>
           {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Save Return
+          {isEditMode ? "Update Return" : "Save Return"}
         </Button>
       </div>
     </div>
