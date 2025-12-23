@@ -540,67 +540,67 @@ const DailyCashierReport = () => {
         <>
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800">
+            <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <Receipt className="h-4 w-4" />
                   Gross Sale
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{formatCurrency(totals.grossSale)}</p>
-                <p className="text-xs text-blue-600 dark:text-blue-400">{totals.totalBills} Bills</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.grossSale)}</p>
+                <p className="text-xs text-white/70">{totals.totalBills} Bills</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+            <Card className="bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-red-700 dark:text-red-300 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <TrendingDown className="h-4 w-4" />
                   Total Discount
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-red-900 dark:text-red-100">{formatCurrency(totals.totalDiscount)}</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalDiscount)}</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+            <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-green-700 dark:text-green-300 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <IndianRupee className="h-4 w-4" />
                   Net Sale
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatCurrency(totals.totalSale)}</p>
-                <p className="text-xs text-green-600 dark:text-green-400">Gross - Discount</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalSale)}</p>
+                <p className="text-xs text-white/70">Gross - Discount</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 border-teal-200 dark:border-teal-800">
+            <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-teal-700 dark:text-teal-300 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <RotateCcw className="h-4 w-4" />
                   S/R Adjusted
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-teal-900 dark:text-teal-100">{formatCurrency(totals.totalSRAdjusted)}</p>
-                <p className="text-xs text-teal-600 dark:text-teal-400">Return credit used</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalSRAdjusted)}</p>
+                <p className="text-xs text-white/70">Return credit used</p>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+            <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-300 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
                   <Clock className="h-4 w-4" />
                   Balance Pending
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{formatCurrency(totals.totalBalance)}</p>
-                <p className="text-xs text-orange-600 dark:text-orange-400">Outstanding</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalBalance)}</p>
+                <p className="text-xs text-white/70">Outstanding</p>
               </CardContent>
             </Card>
           </div>

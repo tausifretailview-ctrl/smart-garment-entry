@@ -805,23 +805,22 @@ export default function Accounts() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card 
             className={cn(
-              "cursor-pointer transition-all hover:shadow-lg",
-              "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800",
-              paymentCardFilter === null && "ring-2 ring-blue-500"
+              "cursor-pointer transition-all hover:shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg",
+              paymentCardFilter === null && "ring-2 ring-white"
             )}
             onClick={() => handleCardClick(null)}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Total Invoices
               </CardTitle>
-              <Receipt className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{paymentStats.totalAmount.toFixed(2)}
               </div>
-              <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 {paymentStats.totalInvoices} invoices
               </p>
             </CardContent>
@@ -829,23 +828,22 @@ export default function Accounts() {
 
           <Card 
             className={cn(
-              "cursor-pointer transition-all hover:shadow-lg",
-              "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800",
-              paymentCardFilter === "completed" && "ring-2 ring-green-500"
+              "cursor-pointer transition-all hover:shadow-lg bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg",
+              paymentCardFilter === "completed" && "ring-2 ring-white"
             )}
             onClick={() => handleCardClick("completed")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Paid
               </CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{paymentStats.completedAmount.toFixed(2)}
               </div>
-              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 {paymentStats.completedCount} completed
               </p>
             </CardContent>
@@ -853,23 +851,22 @@ export default function Accounts() {
 
           <Card 
             className={cn(
-              "cursor-pointer transition-all hover:shadow-lg",
-              "bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800",
-              paymentCardFilter === "partial" && "ring-2 ring-orange-500"
+              "cursor-pointer transition-all hover:shadow-lg bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg",
+              paymentCardFilter === "partial" && "ring-2 ring-white"
             )}
             onClick={() => handleCardClick("partial")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Partial
               </CardTitle>
-              <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{paymentStats.partialAmount.toFixed(2)}
               </div>
-              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 {paymentStats.partialCount} partial
               </p>
             </CardContent>
@@ -877,23 +874,22 @@ export default function Accounts() {
 
           <Card 
             className={cn(
-              "cursor-pointer transition-all hover:shadow-lg",
-              "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800",
-              paymentCardFilter === "pending" && "ring-2 ring-red-500"
+              "cursor-pointer transition-all hover:shadow-lg bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg",
+              paymentCardFilter === "pending" && "ring-2 ring-white"
             )}
             onClick={() => handleCardClick("pending")}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Pending
               </CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <AlertCircle className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-900 dark:text-red-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{paymentStats.pendingAmount.toFixed(2)}
               </div>
-              <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 {paymentStats.pendingCount} pending
               </p>
             </CardContent>
@@ -902,94 +898,74 @@ export default function Accounts() {
 
         {/* Dashboard Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950 dark:to-green-900 border-green-200 dark:border-green-800">
+          <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Total Receivables
               </CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <TrendingUp className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900 dark:text-green-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{dashboardMetrics.totalReceivables.toFixed(2)}
               </div>
-              <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 Customer payments received
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800">
+          <Card className="bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Total Payables
               </CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <TrendingDown className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-900 dark:text-red-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{dashboardMetrics.totalPayables.toFixed(2)}
               </div>
-              <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 Supplier & employee payments
               </p>
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950 dark:to-orange-900 border-orange-200 dark:border-orange-800">
+          <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100">
+              <CardTitle className="text-sm font-medium text-white/90">
                 Monthly Expenses
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              <DollarSign className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+              <div className="text-2xl font-bold text-white">
                 ₹{dashboardMetrics.monthlyExpenses.toFixed(2)}
               </div>
-              <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
+              <p className="text-xs text-white/70 mt-1">
                 Current month expenses
               </p>
             </CardContent>
           </Card>
 
           <Card className={cn(
-            "bg-gradient-to-br border-2",
+            "border-0 shadow-lg",
             dashboardMetrics.currentMonthPL >= 0
-              ? "from-blue-50 to-blue-100 dark:from-blue-950 dark:to-blue-900 border-blue-200 dark:border-blue-800"
-              : "from-purple-50 to-purple-100 dark:from-purple-950 dark:to-purple-900 border-purple-200 dark:border-purple-800"
+              ? "bg-gradient-to-br from-green-500 to-green-600"
+              : "bg-gradient-to-br from-purple-500 to-purple-600"
           )}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={cn(
-                "text-sm font-medium",
-                dashboardMetrics.currentMonthPL >= 0
-                  ? "text-blue-900 dark:text-blue-100"
-                  : "text-purple-900 dark:text-purple-100"
-              )}>
+              <CardTitle className="text-sm font-medium text-white/90">
                 Current Month P/L
               </CardTitle>
-              <Wallet className={cn(
-                "h-4 w-4",
-                dashboardMetrics.currentMonthPL >= 0
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-purple-600 dark:text-purple-400"
-              )} />
+              <Wallet className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className={cn(
-                "text-2xl font-bold",
-                dashboardMetrics.currentMonthPL >= 0
-                  ? "text-blue-900 dark:text-blue-100"
-                  : "text-purple-900 dark:text-purple-100"
-              )}>
+              <div className="text-2xl font-bold text-white">
                 ₹{dashboardMetrics.currentMonthPL.toFixed(2)}
               </div>
-              <p className={cn(
-                "text-xs mt-1",
-                dashboardMetrics.currentMonthPL >= 0
-                  ? "text-blue-700 dark:text-blue-300"
-                  : "text-purple-700 dark:text-purple-300"
-              )}>
+              <p className="text-xs text-white/70 mt-1">
                 {dashboardMetrics.currentMonthPL >= 0 ? "Profit" : "Loss"} for {format(new Date(), "MMMM yyyy")}
               </p>
             </CardContent>
