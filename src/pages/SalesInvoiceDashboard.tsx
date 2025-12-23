@@ -1185,6 +1185,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead className="text-center">Qty</TableHead>
                       <TableHead>Amount</TableHead>
                       {columnSettings.status && <TableHead>Pay Status</TableHead>}
+                      {columnSettings.status && <TableHead className="text-right">Balance</TableHead>}
                       {columnSettings.delivery && <TableHead>Delivery</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -1192,7 +1193,7 @@ export default function SalesInvoiceDashboard() {
                   <TableBody>
                     {paginatedInvoices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={10 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={10 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="text-center py-8 text-muted-foreground">
                           No invoices found
                         </TableCell>
                       </TableRow>
@@ -1241,9 +1242,22 @@ export default function SalesInvoiceDashboard() {
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                <Badge variant={invoice.payment_status === 'completed' ? 'default' : 'secondary'}>
+                                <Badge 
+                                  className={
+                                    invoice.payment_status === 'completed' 
+                                      ? 'bg-green-500 hover:bg-green-600 text-white' 
+                                      : invoice.payment_status === 'partial' 
+                                        ? 'bg-yellow-500 hover:bg-yellow-600 text-white' 
+                                        : 'bg-pink-200 hover:bg-pink-300 text-pink-800'
+                                  }
+                                >
                                   {invoice.payment_status}
                                 </Badge>
+                              </TableCell>
+                            )}
+                            {columnSettings.status && (
+                              <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                                ₹{((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toFixed(2)}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -1335,7 +1349,7 @@ export default function SalesInvoiceDashboard() {
                           </TableRow>
                           {expandedRows.has(invoice.id) && (
                             <TableRow>
-                              <TableCell colSpan={9 + (columnSettings.status ? 1 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4">
+                              <TableCell colSpan={9 + (columnSettings.status ? 2 : 0) + (columnSettings.delivery ? 1 : 0)} className="bg-muted/50 p-4">
                                 <div className="space-y-4">
                                   <div>
                                     <h4 className="font-semibold mb-2">Items:</h4>
