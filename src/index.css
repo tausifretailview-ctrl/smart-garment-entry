@@ -117,7 +117,7 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* Dark mode: keep navigation chrome dark, but content area white */
+    /* Vasy ERP Dark Theme - Dark navy navigation, light content area */
     --background: 0 0% 98%;
     --foreground: 0 0% 15%;
 
@@ -127,9 +127,10 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 15%;
 
-    --primary: 220 80% 50%;
+    /* Teal/Cyan accent like Vasy ERP */
+    --primary: 187 100% 42%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 220 85% 60%;
+    --primary-glow: 187 100% 50%;
 
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 15%;
@@ -137,7 +138,7 @@ All colors MUST be HSL.
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 220 80% 50%;
+    --accent: 187 100% 42%;
     --accent-foreground: 0 0% 100%;
 
     --success: 158 64% 52%;
@@ -151,24 +152,24 @@ All colors MUST be HSL.
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 220 80% 50%;
+    --ring: 187 100% 42%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(220 80% 50%), hsl(220 70% 40%));
-    --gradient-accent: linear-gradient(135deg, hsl(220 80% 50%), hsl(230 80% 55%));
+    --gradient-primary: linear-gradient(135deg, hsl(187 100% 42%), hsl(187 100% 35%));
+    --gradient-accent: linear-gradient(135deg, hsl(187 100% 42%), hsl(190 100% 45%));
     --gradient-success: linear-gradient(135deg, hsl(158 64% 52%), hsl(142 71% 45%));
-    --shadow-glow: none;
-    --shadow-elevated: none;
+    --shadow-glow: 0 0 20px hsl(187 100% 42% / 0.3);
+    --shadow-elevated: 0 4px 20px hsl(213 32% 17% / 0.2);
 
-    /* Navigation chrome - light gray for sidebar in dark mode */
-    --sidebar-background: 220 10% 85%;
-    --sidebar-foreground: 220 15% 20%;
-    --sidebar-primary: 220 80% 50%;
+    /* Dark navy sidebar like Vasy ERP */
+    --sidebar-background: 213 32% 17%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 187 100% 42%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 10% 78%;
-    --sidebar-accent-foreground: 220 15% 15%;
-    --sidebar-border: 220 10% 75%;
-    --sidebar-ring: 220 80% 50%;
-    --sidebar-muted: 220 10% 80%;
+    --sidebar-accent: 213 32% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 213 32% 25%;
+    --sidebar-ring: 187 100% 42%;
+    --sidebar-muted: 213 32% 20%;
   }
 }
 

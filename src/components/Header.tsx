@@ -53,24 +53,24 @@ export const Header = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground dark:bg-[hsl(213,32%,17%)] dark:text-white dark:border-[hsl(213,32%,25%)]">
       <div className="container flex h-10 items-center justify-between px-3">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
+              <Button variant="ghost" size="icon" className="text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground border-sidebar-border">
+            <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground dark:bg-[hsl(213,32%,17%)] dark:text-white border-sidebar-border">
               <nav className="flex flex-col gap-4 mt-8">
                 {quickActions.map((action) => (
                   <Button
                     key={action.path}
                     variant="ghost"
-                    className="justify-start text-sidebar-foreground hover:bg-primary/10 hover:text-primary"
+                    className="justify-start text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary"
                     onClick={() => {
                       orgNavigate(action.path);
                       setMobileMenuOpen(false);
@@ -96,7 +96,7 @@ export const Header = () => {
               </div>
             </div>
             <div className="hidden sm:flex flex-col items-start">
-              <span className="font-display text-sm font-bold text-primary dark:text-white leading-tight">
+              <span className="font-display text-sm font-bold text-primary dark:text-[hsl(187,100%,42%)] leading-tight">
                 Smart Inventory
               </span>
             </div>
@@ -111,9 +111,9 @@ export const Header = () => {
               variant="ghost"
               size="sm"
               onClick={() => orgNavigate(action.path)}
-              className="text-sidebar-foreground hover:bg-primary/10 hover:text-primary transition-all"
+              className="text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary transition-all"
             >
-              <action.icon className="h-4 w-4 mr-2 text-primary" />
+              <action.icon className="h-4 w-4 mr-2 text-primary dark:text-[hsl(187,100%,42%)]" />
               {action.label}
             </Button>
           ))}
@@ -122,7 +122,7 @@ export const Header = () => {
         {/* Right Side */}
         <div className="flex items-center gap-3">
           {/* Search */}
-          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
+          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
             <Search className="h-5 w-5" />
           </Button>
 
@@ -158,7 +158,7 @@ export const Header = () => {
           <OrganizationSelector />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground hover:bg-primary/10 hover:text-primary">
+          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
             <Bell className="h-5 w-5" />
             <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
           </Button>
