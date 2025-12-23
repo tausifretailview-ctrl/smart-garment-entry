@@ -35,6 +35,9 @@ interface PurchaseReturnPrintProps {
 
 export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrintProps>(
   ({ returnData, items, businessDetails }, ref) => {
+    // Calculate total quantity
+    const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+    
     return (
       <div ref={ref} className="p-6 bg-white text-black" style={{ width: "210mm", minHeight: "297mm", fontFamily: "Arial, sans-serif" }}>
         <style>
@@ -48,6 +51,23 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
               }
+            }
+            .pr-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 11px;
+            }
+            .pr-table th, .pr-table td {
+              border: 1px solid #000;
+              padding: 4px 6px;
+            }
+            .pr-table th {
+              background-color: #f0f0f0;
+              font-weight: 600;
+              text-align: center;
+            }
+            .pr-table td {
+              vertical-align: middle;
             }
           `}
         </style>
@@ -87,35 +107,56 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           </p>
         </div>
 
-        {/* Items Table */}
-        <table className="w-full mb-2 border-collapse text-xs">
+        {/* Items Table - Like Sale Invoice */}
+        <table className="pr-table mb-3">
           <thead>
-            <tr className="border-b border-black">
-              <th className="text-left py-1 px-1 font-semibold">#</th>
-              <th className="text-left py-1 px-1 font-semibold">Product</th>
-              <th className="text-left py-1 px-1 font-semibold">Brand</th>
-              <th className="text-left py-1 px-1 font-semibold">Size</th>
-              <th className="text-left py-1 px-1 font-semibold">Barcode</th>
-              <th className="text-center py-1 px-1 font-semibold">Qty</th>
-              <th className="text-right py-1 px-1 font-semibold">Price</th>
-              <th className="text-center py-1 px-1 font-semibold">GST%</th>
-              <th className="text-right py-1 px-1 font-semibold">Total</th>
+            <tr>
+              <th style={{ width: "5%" }}>SR</th>
+              <th style={{ width: "30%" }}>PARTICULARS</th>
+              <th style={{ width: "10%" }}>BRAND</th>
+              <th style={{ width: "10%" }}>SIZE</th>
+              <th style={{ width: "15%" }}>BARCODE</th>
+              <th style={{ width: "6%" }}>QTY</th>
+              <th style={{ width: "10%" }}>PRICE</th>
+              <th style={{ width: "6%" }}>GST%</th>
+              <th style={{ width: "10%" }}>TOTAL</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => (
               <tr key={item.id}>
-                <td className="py-0.5 px-1">{index + 1}</td>
-                <td className="py-0.5 px-1">{item.product_name || "-"}</td>
-                <td className="py-0.5 px-1">{item.brand || "-"}</td>
-                <td className="py-0.5 px-1">{item.size}</td>
-                <td className="py-0.5 px-1">{item.barcode || "-"}</td>
-                <td className="py-0.5 px-1 text-center">{item.qty}</td>
-                <td className="py-0.5 px-1 text-right">₹{item.pur_price.toFixed(2)}</td>
-                <td className="py-0.5 px-1 text-center">{item.gst_per}%</td>
-                <td className="py-0.5 px-1 text-right">₹{item.line_total.toFixed(2)}</td>
+                <td className="text-center">{index + 1}</td>
+                <td>{item.product_name || "-"}</td>
+                <td className="text-center">{item.brand || "-"}</td>
+                <td className="text-center">{item.size}</td>
+                <td className="text-center">{item.barcode || "-"}</td>
+                <td className="text-center">{item.qty}</td>
+                <td className="text-right">₹{item.pur_price.toFixed(2)}</td>
+                <td className="text-center">{item.gst_per}%</td>
+                <td className="text-right">₹{item.line_total.toFixed(2)}</td>
               </tr>
             ))}
+            {/* Add empty rows to make minimum 5 rows */}
+            {items.length < 5 && Array.from({ length: 5 - items.length }).map((_, index) => (
+              <tr key={`empty-${index}`}>
+                <td className="text-center">{items.length + index + 1}</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+                <td>&nbsp;</td>
+              </tr>
+            ))}
+            {/* Total Row */}
+            <tr className="font-semibold">
+              <td colSpan={5} className="text-right">Total:</td>
+              <td className="text-center">{totalQty}</td>
+              <td colSpan={2}></td>
+              <td className="text-right">₹{returnData.gross_amount.toFixed(2)}</td>
+            </tr>
           </tbody>
         </table>
 
