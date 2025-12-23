@@ -670,69 +670,69 @@ export default function StockReport() {
 
       <div className="grid gap-4 md:grid-cols-5 mb-6">
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
           onClick={() => setActiveTab("all")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Stock</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-white/90">Total Stock</CardTitle>
+            <Package className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalStock.toLocaleString('en-IN')}</div>
-            <p className="text-xs text-muted-foreground">{stockItems.length} variants</p>
+            <div className="text-2xl font-bold text-white">{totalStock.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-white/70">{stockItems.length} variants</p>
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow border-primary/50 bg-primary/5">
+        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Value</CardTitle>
-            <IndianRupee className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-medium text-white/90">Stock Value</CardTitle>
+            <IndianRupee className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-primary">₹{totalStockValue.toLocaleString('en-IN')}</div>
-            <p className="text-xs text-muted-foreground">Inventory valuation</p>
+            <div className="text-2xl font-bold text-white">₹{totalStockValue.toLocaleString('en-IN')}</div>
+            <p className="text-xs text-white/70">Inventory valuation</p>
           </CardContent>
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-destructive"
+          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
           onClick={() => setActiveTab("low")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
+            <CardTitle className="text-sm font-medium text-white/90">Low Stock Alerts</CardTitle>
+            <AlertCircle className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">{lowStockItems.length}</div>
-            <p className="text-xs text-muted-foreground">Below {lowStockThreshold} units</p>
+            <div className="text-2xl font-bold text-white">{lowStockItems.length}</div>
+            <p className="text-xs text-white/70">Below {lowStockThreshold} units</p>
           </CardContent>
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg"
           onClick={() => setActiveTab("batch")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Batches</CardTitle>
-            <TrendingDown className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-white/90">Active Batches</CardTitle>
+            <TrendingDown className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{batchStock.length}</div>
-            <p className="text-xs text-muted-foreground">Purchase bills in stock</p>
+            <div className="text-2xl font-bold text-white">{batchStock.length}</div>
+            <p className="text-xs text-white/70">Purchase bills in stock</p>
           </CardContent>
         </Card>
 
         <Card 
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary"
+          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-sky-500 to-sky-600 border-0 shadow-lg"
           onClick={() => setActiveTab("movements")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Movements</CardTitle>
-            <History className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium text-white/90">Recent Movements</CardTitle>
+            <History className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{movements.length}</div>
-            <p className="text-xs text-muted-foreground">Last 50 transactions</p>
+            <div className="text-2xl font-bold text-white">{movements.length}</div>
+            <p className="text-xs text-white/70">Last 50 transactions</p>
           </CardContent>
         </Card>
       </div>

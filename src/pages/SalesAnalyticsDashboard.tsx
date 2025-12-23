@@ -418,61 +418,61 @@ export default function SalesAnalyticsDashboard() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(summaryStats.totalRevenue)}</p>
+                <p className="text-sm text-white/80">Total Revenue</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(summaryStats.totalRevenue)}</p>
                 <GrowthIndicator value={summaryStats.revenueGrowth} />
               </div>
-              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <IndianRupee className="h-6 w-6 text-primary" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <IndianRupee className="h-6 w-6 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-chart-2/10 to-chart-2/5 border-chart-2/20">
+        <Card className="bg-gradient-to-br from-cyan-500 to-cyan-600 border-0 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Orders</p>
-                <p className="text-2xl font-bold text-foreground">{summaryStats.totalOrders}</p>
+                <p className="text-sm text-white/80">Total Orders</p>
+                <p className="text-2xl font-bold text-white">{summaryStats.totalOrders}</p>
                 <GrowthIndicator value={summaryStats.ordersGrowth} />
               </div>
-              <div className="h-12 w-12 rounded-full bg-chart-2/20 flex items-center justify-center">
-                <ShoppingCart className="h-6 w-6 text-chart-2" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <ShoppingCart className="h-6 w-6 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-chart-3/10 to-chart-3/5 border-chart-3/20">
+        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Avg Order Value</p>
-                <p className="text-2xl font-bold text-foreground">{formatCurrency(summaryStats.avgOrderValue)}</p>
+                <p className="text-sm text-white/80">Avg Order Value</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(summaryStats.avgOrderValue)}</p>
                 <GrowthIndicator value={summaryStats.aovGrowth} />
               </div>
-              <div className="h-12 w-12 rounded-full bg-chart-3/20 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-chart-3" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-white" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-chart-4/10 to-chart-4/5 border-chart-4/20">
+        <Card className="bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-lg">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Unique Customers</p>
-                <p className="text-2xl font-bold text-foreground">{summaryStats.uniqueCustomers}</p>
-                <p className="text-xs text-muted-foreground mt-1">Active buyers</p>
+                <p className="text-sm text-white/80">Unique Customers</p>
+                <p className="text-2xl font-bold text-white">{summaryStats.uniqueCustomers}</p>
+                <p className="text-xs text-white/60 mt-1">Active buyers</p>
               </div>
-              <div className="h-12 w-12 rounded-full bg-chart-4/20 flex items-center justify-center">
-                <Users className="h-6 w-6 text-chart-4" />
+              <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center">
+                <Users className="h-6 w-6 text-white" />
               </div>
             </div>
           </CardContent>
