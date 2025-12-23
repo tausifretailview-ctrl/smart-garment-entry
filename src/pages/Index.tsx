@@ -59,15 +59,15 @@ const MetricCard = ({
       <div className="group relative" onClick={onClick}>
         <Card className={`${bgColor} relative overflow-hidden border-0 shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-[1.02] cursor-pointer`}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
-            <CardTitle className="text-xs font-bold text-white drop-shadow-sm">
+            <CardTitle className="text-xs font-bold text-foreground">
               {title}
             </CardTitle>
-            <div className="p-1.5 rounded-lg bg-white/20">
-              <Icon className="h-3.5 w-3.5 text-white" />
+            <div className="p-1.5 rounded-lg bg-black/10">
+              <Icon className="h-3.5 w-3.5 text-foreground" />
             </div>
           </CardHeader>
           <CardContent className="p-2 pt-0">
-            <div className="text-lg font-extrabold text-white drop-shadow-sm">
+            <div className="text-lg font-extrabold text-foreground">
               {value}
             </div>
           </CardContent>
