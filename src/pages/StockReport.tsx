@@ -130,14 +130,16 @@ export default function StockReport() {
             sale_price,
             pur_price,
             barcode,
-            products (
+            products!inner (
               product_name,
               brand,
-              color
+              color,
+              product_type
             )
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
+          .neq("products.product_type", "service")
           .order("stock_qty", { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
 
@@ -286,14 +288,16 @@ export default function StockReport() {
             notes,
             created_at,
             variant_id,
-            product_variants (
+            product_variants!inner (
               size,
-              products (
-                product_name
+              products!inner (
+                product_name,
+                product_type
               )
             )
           `)
           .eq("organization_id", currentOrganization.id)
+          .neq("product_variants.products.product_type", "service")
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
@@ -342,12 +346,13 @@ export default function StockReport() {
           .from('batch_stock')
           .select(`
             *,
-            product_variants (
+            product_variants!inner (
               size,
               barcode,
-              products (
+              products!inner (
                 product_name,
-                brand
+                brand,
+                product_type
               )
             ),
             purchase_bills (
@@ -357,6 +362,7 @@ export default function StockReport() {
           `)
           .eq('organization_id', currentOrganization.id)
           .gt('quantity', 0)
+          .neq('product_variants.products.product_type', 'service')
           .order('purchase_date', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
         
