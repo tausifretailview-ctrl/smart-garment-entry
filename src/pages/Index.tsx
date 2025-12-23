@@ -62,8 +62,8 @@ const MetricCard = ({
             <CardTitle className="text-xs font-bold text-foreground">
               {title}
             </CardTitle>
-            <div className="p-1.5 rounded-lg bg-black/10">
-              <Icon className="h-3.5 w-3.5 text-foreground" />
+            <div className="p-1.5 rounded-lg bg-white/20">
+              <Icon className="h-3.5 w-3.5 text-white" />
             </div>
           </CardHeader>
           <CardContent className="p-2 pt-0">
