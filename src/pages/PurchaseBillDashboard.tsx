@@ -744,70 +744,70 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        {/* Summary Statistics - Modern Gradient Style Cards */}
+        {/* Summary Statistics - Vasy ERP Style Vibrant Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium">Total Bills</CardDescription>
-              <Receipt className="h-4 w-4 text-blue-500" />
+              <CardDescription className="text-xs font-medium text-white/80">Total Bills</CardDescription>
+              <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{summaryStats.totalBills}</div>
-              <p className="text-xs text-muted-foreground">Qty: {summaryStats.totalQty}</p>
+              <div className="text-2xl font-bold text-white">{summaryStats.totalBills}</div>
+              <p className="text-xs text-white/70">Qty: {summaryStats.totalQty}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-green-500 hover:scale-[1.02] bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-950/30 dark:to-green-900/20"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium">Paid</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <CardDescription className="text-xs font-medium text-white/80">Paid</CardDescription>
+              <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{summaryStats.paidCount}</div>
-              <p className="text-xs text-muted-foreground">₹{summaryStats.paidAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{summaryStats.paidCount}</div>
+              <p className="text-xs text-white/70">₹{summaryStats.paidAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-orange-500 hover:scale-[1.02] bg-gradient-to-br from-orange-50 to-orange-100/50 dark:from-orange-950/30 dark:to-orange-900/20"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium">Partial</CardDescription>
-              <Clock className="h-4 w-4 text-orange-500" />
+              <CardDescription className="text-xs font-medium text-white/80">Partial</CardDescription>
+              <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{summaryStats.partialCount}</div>
-              <p className="text-xs text-muted-foreground">₹{summaryStats.partialAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{summaryStats.partialCount}</div>
+              <p className="text-xs text-white/70">₹{summaryStats.partialAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-red-500 hover:scale-[1.02] bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium">Unpaid</CardDescription>
-              <Wallet className="h-4 w-4 text-red-500" />
+              <CardDescription className="text-xs font-medium text-white/80">Unpaid</CardDescription>
+              <Wallet className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{summaryStats.unpaidCount}</div>
-              <p className="text-xs text-muted-foreground">₹{summaryStats.unpaidAmount.toFixed(0)}</p>
+              <div className="text-2xl font-bold text-white">{summaryStats.unpaidCount}</div>
+              <p className="text-xs text-white/70">₹{summaryStats.unpaidAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500 hover:scale-[1.02] bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20"
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium">Total Amount</CardDescription>
-              <IndianRupee className="h-4 w-4 text-purple-500" />
+              <CardDescription className="text-xs font-medium text-white/80">Total Amount</CardDescription>
+              <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-muted-foreground">Avg: ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(0) : "0"}</p>
+              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-xs text-white/70">Avg: ₹{filteredBills.length > 0 ? (summaryStats.totalAmount / filteredBills.length).toFixed(0) : "0"}</p>
             </CardContent>
           </Card>
         </div>
