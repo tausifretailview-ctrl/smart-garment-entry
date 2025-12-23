@@ -354,38 +354,38 @@ const PurchaseReturnDashboard = () => {
         </Button>
       </div>
 
-      {/* Summary Cards - Modern Gradient Style */}
+      {/* Summary Cards - Vasy ERP Style Vibrant */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-blue-500 hover:scale-[1.02] bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20">
+        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium">Total Returns</CardDescription>
-            <Receipt className="h-4 w-4 text-blue-500" />
+            <CardDescription className="text-xs font-medium text-white/80">Total Returns</CardDescription>
+            <Receipt className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{filteredReturns.length}</div>
-            <p className="text-xs text-muted-foreground">All return records</p>
+            <div className="text-2xl font-bold text-white">{filteredReturns.length}</div>
+            <p className="text-xs text-white/70">All return records</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-red-500 hover:scale-[1.02] bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-950/30 dark:to-red-900/20">
+        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium">Total Return Amount</CardDescription>
-            <TrendingDown className="h-4 w-4 text-red-500" />
+            <CardDescription className="text-xs font-medium text-white/80">Total Return Amount</CardDescription>
+            <TrendingDown className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">₹{totalReturnAmount.toFixed(0)}</div>
-            <p className="text-xs text-muted-foreground">Net refund value</p>
+            <div className="text-2xl font-bold text-white">₹{totalReturnAmount.toFixed(0)}</div>
+            <p className="text-xs text-white/70">Net refund value</p>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-purple-500 hover:scale-[1.02] bg-gradient-to-br from-purple-50 to-purple-100/50 dark:from-purple-950/30 dark:to-purple-900/20">
+        <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription className="text-xs font-medium">Average Return Value</CardDescription>
-            <IndianRupee className="h-4 w-4 text-purple-500" />
+            <CardDescription className="text-xs font-medium text-white/80">Average Return Value</CardDescription>
+            <IndianRupee className="h-4 w-4 text-white" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">₹{averageReturnValue.toFixed(0)}</div>
-            <p className="text-xs text-muted-foreground">Per return</p>
+            <div className="text-2xl font-bold text-white">₹{averageReturnValue.toFixed(0)}</div>
+            <p className="text-xs text-white/70">Per return</p>
           </CardContent>
         </Card>
       </div>
