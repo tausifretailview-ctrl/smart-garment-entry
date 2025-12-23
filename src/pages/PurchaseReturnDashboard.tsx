@@ -122,24 +122,43 @@ const PurchaseReturnDashboard = () => {
 
   const fetchReturnItems = async (returnId: string): Promise<PurchaseReturnItem[]> => {
     try {
-      const { data, error } = await supabase
+      // First fetch return items
+      const { data: itemsData, error: itemsError } = await supabase
         .from("purchase_return_items" as any)
-        .select(`
-          *,
-          products:product_id (
-            product_name,
-            brand
-          )
-        `)
+        .select("*")
         .eq("return_id", returnId);
 
-      if (error) throw error;
+      if (itemsError) throw itemsError;
 
-      const items: PurchaseReturnItem[] = (data || []).map((item: any) => ({
-        ...item,
-        product_name: item.products?.product_name,
-        brand: item.products?.brand,
-      }));
+      if (!itemsData || itemsData.length === 0) {
+        setReturns(prev => prev.map(ret => 
+          ret.id === returnId ? { ...ret, items: [] } : ret
+        ));
+        return [];
+      }
+
+      // Get unique product IDs
+      const productIds = [...new Set(itemsData.map((item: any) => item.product_id))];
+
+      // Fetch product info
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select("id, product_name, brand")
+        .in("id", productIds);
+
+      if (productsError) throw productsError;
+
+      // Create product lookup map
+      const productMap = new Map((productsData || []).map((p: any) => [p.id, p]));
+
+      const items: PurchaseReturnItem[] = itemsData.map((item: any) => {
+        const product = productMap.get(item.product_id);
+        return {
+          ...item,
+          product_name: product?.product_name || "Unknown",
+          brand: product?.brand || "",
+        };
+      });
 
       setReturns(prev => prev.map(ret => 
         ret.id === returnId ? { ...ret, items } : ret

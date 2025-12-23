@@ -123,31 +123,43 @@ const PurchaseReturnEntry = () => {
         // Fetch return items
         const { data: items, error: itemsError } = await supabase
           .from("purchase_return_items" as any)
-          .select(`
-            *,
-            products:product_id (
-              product_name,
-              brand
-            )
-          `)
+          .select("*")
           .eq("return_id", editId);
 
         if (itemsError) throw itemsError;
 
-        const loadedItems: LineItem[] = (items || []).map((item: any) => ({
-          temp_id: item.id,
-          product_id: item.product_id,
-          sku_id: item.sku_id,
-          product_name: item.products?.product_name || "Unknown",
-          size: item.size,
-          qty: item.qty,
-          pur_price: item.pur_price,
-          gst_per: item.gst_per,
-          hsn_code: item.hsn_code || "",
-          barcode: item.barcode || "",
-          line_total: item.line_total,
-          brand: item.products?.brand || "",
-        }));
+        // Get unique product IDs to fetch product info
+        const productIds = [...new Set((items || []).map((item: any) => item.product_id))];
+        
+        let productMap = new Map();
+        if (productIds.length > 0) {
+          const { data: productsData, error: productsError } = await supabase
+            .from("products")
+            .select("id, product_name, brand")
+            .in("id", productIds);
+
+          if (!productsError && productsData) {
+            productMap = new Map(productsData.map((p: any) => [p.id, p]));
+          }
+        }
+
+        const loadedItems: LineItem[] = (items || []).map((item: any) => {
+          const product = productMap.get(item.product_id);
+          return {
+            temp_id: item.id,
+            product_id: item.product_id,
+            sku_id: item.sku_id,
+            product_name: product?.product_name || "Unknown",
+            size: item.size,
+            qty: item.qty,
+            pur_price: item.pur_price,
+            gst_per: item.gst_per,
+            hsn_code: item.hsn_code || "",
+            barcode: item.barcode || "",
+            line_total: item.line_total,
+            brand: product?.brand || "",
+          };
+        });
 
         setLineItems(loadedItems);
       } catch (error) {
