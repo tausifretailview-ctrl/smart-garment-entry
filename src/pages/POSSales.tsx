@@ -113,6 +113,7 @@ export default function POSSales() {
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [currentSaleId, setCurrentSaleId] = useState<string | null>(null);
+  const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [showPrintConfirmDialog, setShowPrintConfirmDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
@@ -290,6 +291,12 @@ export default function POSSales() {
         }));
 
         setItems(cartItems);
+        
+        // Store original items for stock validation in edit mode
+        setOriginalItemsForEdit(saleItems.map(item => ({
+          variantId: item.variant_id,
+          quantity: item.quantity,
+        })));
 
         toast({
           title: "Invoice Loaded",
@@ -993,6 +1000,7 @@ export default function POSSales() {
       setAvailableCreditBalance(0);
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
+      setOriginalItemsForEdit([]); // Clear original items for edit
     }
   };
 
@@ -1015,14 +1023,18 @@ export default function POSSales() {
     }
 
     // Real-time stock validation before saving
-    const cartItems = items.map(item => ({
+    // When editing, pass original items so their stock is considered "freed"
+    const cartItemsForValidation = items.map(item => ({
       variantId: item.variantId,
       quantity: item.quantity,
       productName: item.productName,
       size: item.size,
     }));
 
-    const insufficientItems = await validateCartStock(cartItems);
+    const insufficientItems = await validateCartStock(
+      cartItemsForValidation,
+      currentSaleId ? originalItemsForEdit : undefined
+    );
     
     if (insufficientItems.length > 0) {
       showMultipleStockErrors(insufficientItems);
@@ -1099,6 +1111,7 @@ export default function POSSales() {
       // Reset edit mode after successful save
       if (wasEditing) {
         setCurrentSaleId(null);
+        setOriginalItemsForEdit([]);
       }
     }
   };
@@ -1139,14 +1152,18 @@ export default function POSSales() {
     }
 
     // Real-time stock validation before saving
-    const cartItems = items.map(item => ({
+    // When editing, pass original items so their stock is considered "freed"
+    const cartItemsForValidation = items.map(item => ({
       variantId: item.variantId,
       quantity: item.quantity,
       productName: item.productName,
       size: item.size,
     }));
 
-    const insufficientItems = await validateCartStock(cartItems);
+    const insufficientItems = await validateCartStock(
+      cartItemsForValidation,
+      currentSaleId ? originalItemsForEdit : undefined
+    );
     
     if (insufficientItems.length > 0) {
       showMultipleStockErrors(insufficientItems);
@@ -1641,6 +1658,8 @@ export default function POSSales() {
     setCreditApplied(0);
     setAvailableCreditBalance(0);
     setSearchInput("");
+    setCurrentSaleId(null);
+    setOriginalItemsForEdit([]);
     
     toast({
       title: "Cart Cleared",
@@ -1663,6 +1682,7 @@ export default function POSSales() {
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
+    setOriginalItemsForEdit([]);
     setCurrentInvoiceNumber("");
     setIsHeldSale(false);
     

@@ -9,6 +9,11 @@ interface StockCheckResult {
   size: string;
 }
 
+interface OldItem {
+  variantId: string;
+  quantity: number;
+}
+
 /**
  * Hook for real-time stock validation to prevent overselling
  * Checks available stock before allowing transactions
@@ -21,11 +26,13 @@ export const useStockValidation = () => {
    * Check if requested quantity is available in stock
    * @param variantId - Product variant ID
    * @param requestedQty - Quantity user wants to add/update
+   * @param freedQty - Quantity that will be freed from old invoice (for edit mode)
    * @returns StockCheckResult with availability status
    */
   const checkStock = useCallback(async (
     variantId: string,
-    requestedQty: number
+    requestedQty: number,
+    freedQty: number = 0
   ): Promise<StockCheckResult> => {
     setChecking(true);
     try {
@@ -57,7 +64,8 @@ export const useStockValidation = () => {
         };
       }
 
-      const availableStock = variant.stock_qty || 0;
+      // Available stock = current stock + stock that will be freed from old invoice
+      const availableStock = (variant.stock_qty || 0) + freedQty;
 
       return {
         isAvailable: availableStock >= requestedQty,
@@ -86,16 +94,31 @@ export const useStockValidation = () => {
   /**
    * Validate stock for multiple items in a cart/invoice
    * Returns array of items that exceed available stock
+   * @param items - New items to validate
+   * @param oldItems - Old items from existing invoice (for edit mode) - stock from these will be considered "freed"
    */
   const validateCartStock = useCallback(async (
-    items: Array<{ variantId: string; quantity: number; productName?: string; size?: string }>
+    items: Array<{ variantId: string; quantity: number; productName?: string; size?: string }>,
+    oldItems?: Array<{ variantId: string; quantity: number }>
   ): Promise<Array<{ productName: string; size: string; requested: number; available: number }>> => {
     setChecking(true);
     const insufficientItems: Array<{ productName: string; size: string; requested: number; available: number }> = [];
 
+    // Create a map of freed quantities from old items
+    const freedQtyMap = new Map<string, number>();
+    if (oldItems && oldItems.length > 0) {
+      for (const oldItem of oldItems) {
+        const currentFreed = freedQtyMap.get(oldItem.variantId) || 0;
+        freedQtyMap.set(oldItem.variantId, currentFreed + oldItem.quantity);
+      }
+    }
+
     try {
       for (const item of items) {
-        const result = await checkStock(item.variantId, item.quantity);
+        // Get the freed quantity for this variant (if any)
+        const freedQty = freedQtyMap.get(item.variantId) || 0;
+        
+        const result = await checkStock(item.variantId, item.quantity, freedQty);
         if (!result.isAvailable) {
           insufficientItems.push({
             productName: item.productName || result.productName,
