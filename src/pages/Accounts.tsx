@@ -27,6 +27,7 @@ import { useReactToPrint } from "react-to-print";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -182,69 +183,52 @@ export default function Accounts() {
     enabled: !!referenceId && referenceType === "supplier",
   });
 
-  // Fetch customers with outstanding balance only (for payment receipt)
+  // Fetch customers with outstanding balance using pagination (bypasses 1000-row limit)
   const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance", currentOrganization?.id],
     queryFn: async () => {
-      // First get all customers with opening_balance - using higher limit for large datasets
-      const { data: allCustomers, error: custError } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("customer_name")
-        .limit(10000);
-      if (custError) throw custError;
+      // Fetch ALL customers using range pagination
+      const allCustomers = await fetchAllCustomers(currentOrganization!.id);
+      
+      // Fetch ALL sales using range pagination
+      const allSales = await fetchAllSalesSummary(currentOrganization!.id);
+      
+      console.log(`Accounts: Fetched ${allCustomers.length} customers, ${allSales.length} sales`);
 
-      // Get customers with pending/partial invoices - using higher limit for large datasets
-      const { data: pendingInvoices, error: invError } = await supabase
-        .from("sales")
-        .select("customer_id, net_amount, paid_amount")
-        .eq("organization_id", currentOrganization?.id)
-        .in("payment_status", ["pending", "partial"])
-        .is("deleted_at", null)
-        .limit(50000);
-      if (invError) throw invError;
-
-      // Calculate invoice balance per customer (net_amount - paid_amount)
-      const customerInvoiceBalances = new Map<string, number>();
-      pendingInvoices?.forEach((inv) => {
-        if (inv.customer_id) {
-          const balance = (inv.net_amount || 0) - (inv.paid_amount || 0);
-          customerInvoiceBalances.set(
-            inv.customer_id,
-            (customerInvoiceBalances.get(inv.customer_id) || 0) + Math.max(0, balance)
+      // Calculate invoice balance per customer using actual amounts (net_amount - paid_amount)
+      // NOT relying on payment_status which may be stale
+      const customerBalances = new Map<string, number>();
+      allSales.forEach((sale: any) => {
+        if (sale.customer_id) {
+          const outstanding = Math.max(0, (sale.net_amount || 0) - (sale.paid_amount || 0));
+          customerBalances.set(
+            sale.customer_id,
+            (customerBalances.get(sale.customer_id) || 0) + outstanding
           );
         }
       });
 
       // Filter customers with total balance > 0 (opening_balance + invoice balance)
-      return allCustomers?.filter((c) => {
-        const openingBalance = c.opening_balance || 0;
-        const invoiceBalance = customerInvoiceBalances.get(c.id) || 0;
-        const totalBalance = openingBalance + invoiceBalance;
-        return totalBalance > 0;
-      }).map((c) => ({
-        ...c,
-        outstandingBalance: (c.opening_balance || 0) + (customerInvoiceBalances.get(c.id) || 0),
-      })) || [];
+      return allCustomers
+        .filter((c: any) => {
+          const openingBalance = c.opening_balance || 0;
+          const invoiceBalance = customerBalances.get(c.id) || 0;
+          const totalBalance = openingBalance + invoiceBalance;
+          return totalBalance > 0;
+        })
+        .map((c: any) => ({
+          ...c,
+          outstandingBalance: (c.opening_balance || 0) + (customerBalances.get(c.id) || 0),
+        }));
     },
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch all customers (for other purposes like ledger) - using higher limit for large datasets
+  // Fetch all customers using pagination (for other purposes like ledger)
   const { data: customers } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("customer_name")
-        .limit(10000);
-      if (error) throw error;
-      return data;
+      return await fetchAllCustomers(currentOrganization!.id);
     },
     enabled: !!currentOrganization?.id,
   });

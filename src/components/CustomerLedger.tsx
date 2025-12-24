@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -65,37 +66,24 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
     }
   }, [paymentFilter]);
 
-  // Fetch all customers with their transaction summary
+  // Fetch all customers with their transaction summary using pagination
   const { data: customers, isLoading } = useQuery({
     queryKey: ["customer-ledger", organizationId],
     queryFn: async () => {
-      // Fetch all customers (excluding soft-deleted) - using higher limit for large datasets
-      const { data: customersData, error: customersError } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .order("customer_name")
-        .limit(10000);
+      // Fetch ALL customers using range pagination (bypasses 1000-row limit)
+      const customersData = await fetchAllCustomers(organizationId);
 
-      if (customersError) throw customersError;
+      // Fetch ALL sales using range pagination (bypasses 1000-row limit)
+      const salesData = await fetchAllSalesSummary(organizationId);
 
-      // Fetch sales for each customer - using higher limit for large datasets
-      const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select("customer_id, net_amount, paid_amount")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .limit(50000);
-
-      if (salesError) throw salesError;
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales`);
 
       // Calculate totals per customer - using paid_amount directly from sales table
-      const customerTotals = customersData.map((customer) => {
-        const customerSales = salesData.filter((s) => s.customer_id === customer.id);
-        const totalSales = customerSales.reduce((sum, s) => sum + (s.net_amount || 0), 0);
+      const customerTotals = customersData.map((customer: any) => {
+        const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
+        const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         // Use paid_amount from sales table (includes cash, card, upi from mixed payments)
-        const totalPaid = customerSales.reduce((sum, s) => sum + (s.paid_amount || 0), 0);
+        const totalPaid = customerSales.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
         const openingBalance = customer.opening_balance || 0;
         // Balance = Opening Balance + Total Sales - Total Paid
         const balance = openingBalance + totalSales - totalPaid;
