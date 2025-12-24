@@ -2048,6 +2048,7 @@ const PurchaseEntry = () => {
                                 parseInt(e.target.value) || 0
                               )
                             }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-20"
                           />
                         </TableCell>
@@ -2064,6 +2065,7 @@ const PurchaseEntry = () => {
                                 parseFloat(e.target.value) || 0
                               )
                             }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-28"
                           />
                         </TableCell>
@@ -2080,6 +2082,7 @@ const PurchaseEntry = () => {
                                 parseFloat(e.target.value) || 0
                               )
                             }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-28"
                           />
                         </TableCell>
@@ -2096,6 +2099,7 @@ const PurchaseEntry = () => {
                                 parseFloat(e.target.value) || 0
                               )
                             }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-28"
                           />
                         </TableCell>
@@ -2116,6 +2120,7 @@ const PurchaseEntry = () => {
                                 parseFloat(e.target.value) || 0
                               )
                             }
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-20"
                           />
                         </TableCell>
@@ -2331,6 +2336,7 @@ const PurchaseEntry = () => {
                     step="0.01"
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     className="w-28 text-right text-destructive"
                     placeholder="0.00"
                   />
@@ -2346,6 +2352,7 @@ const PurchaseEntry = () => {
                     step="0.01"
                     value={roundOff}
                     onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     className="w-28 text-right"
                     placeholder="0.00"
                   />
