@@ -297,9 +297,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-right">{item.line_total.toFixed(2)}</td>
                 </tr>
               ))}
-              {/* Add empty rows for minimum height - reduced to 6 */}
-              {items.length < 6 && Array.from({ length: 6 - items.length }).map((_, index) => (
-                <tr key={`empty-${index}`} style={{ height: "20px" }}>
+              {/* Add empty rows for minimum 10 rows */}
+              {items.length < 10 && Array.from({ length: 10 - items.length }).map((_, index) => (
+                <tr key={`empty-${index}`} style={{ height: "18px" }}>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
