@@ -1799,6 +1799,7 @@ Thank you for choosing us!`;
                         min="1"
                         value={item.quantity}
                         onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-16 h-8"
                       />
                     )}
@@ -1810,6 +1811,7 @@ Thank you for choosing us!`;
                         min="0"
                         value={item.mrp}
                         onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-20 h-8"
                       />
                     ) : '-'}
@@ -1821,6 +1823,7 @@ Thank you for choosing us!`;
                         min="0"
                         value={item.salePrice}
                         onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-20 h-8"
                       />
                     ) : '-'}
@@ -1833,6 +1836,7 @@ Thank you for choosing us!`;
                         max="100"
                         value={item.discountPercent}
                         onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-16 h-8"
                       />
                     )}
@@ -1845,6 +1849,7 @@ Thank you for choosing us!`;
                         max="100"
                         value={item.gstPercent}
                         onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-16 h-8"
                       />
                     ) : `${item.gstPercent}%`}
@@ -1877,6 +1882,7 @@ Thank you for choosing us!`;
                   max="100"
                   value={flatDiscountPercent}
                   onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+                  onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   className="w-20 h-8"
                 />
                 <span className="text-muted-foreground">(-₹{flatDiscountAmount.toFixed(2)})</span>
@@ -1892,6 +1898,7 @@ Thank you for choosing us!`;
                 step="0.01"
                 value={roundOff}
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 className="w-24 h-8"
               />
             </div>
