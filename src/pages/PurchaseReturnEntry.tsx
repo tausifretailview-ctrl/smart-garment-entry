@@ -44,6 +44,8 @@ interface LineItem {
   barcode: string;
   line_total: number;
   brand?: string;
+  discount_percent: number;
+  discount_amount: number;
 }
 
 const PurchaseReturnEntry = () => {
@@ -161,6 +163,8 @@ const PurchaseReturnEntry = () => {
             barcode: item.barcode || "",
             line_total: item.line_total,
             brand: product?.brand || "",
+            discount_percent: item.discount_percent || 0,
+            discount_amount: item.discount_amount || 0,
           };
         });
 
@@ -336,6 +340,8 @@ const PurchaseReturnEntry = () => {
       barcode: variant.barcode,
       line_total: lineTotal,
       brand: variant.brand,
+      discount_percent: 0,
+      discount_amount: 0,
     };
     setLineItems([...lineItems, newItem]);
     setSearchQuery("");
@@ -347,9 +353,21 @@ const PurchaseReturnEntry = () => {
       prev.map((item) => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
-          if (field === "qty" || field === "pur_price") {
-            updated.line_total = updated.qty * updated.pur_price;
+          // Calculate base amount
+          const baseAmount = updated.qty * updated.pur_price;
+          
+          // Handle discount changes
+          if (field === "discount_percent") {
+            updated.discount_amount = baseAmount * (updated.discount_percent / 100);
+          } else if (field === "discount_amount") {
+            updated.discount_percent = baseAmount > 0 ? (updated.discount_amount / baseAmount) * 100 : 0;
+          } else if (field === "qty" || field === "pur_price") {
+            // Recalculate discount amount when qty or price changes
+            updated.discount_amount = baseAmount * (updated.discount_percent / 100);
           }
+          
+          // Calculate line total after discount
+          updated.line_total = baseAmount - updated.discount_amount;
           return updated;
         }
         return item;
@@ -722,6 +740,8 @@ const PurchaseReturnEntry = () => {
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
                     <TableHead className="w-32">Price</TableHead>
+                    <TableHead className="w-20">Disc%</TableHead>
+                    <TableHead className="w-24">Disc ₹</TableHead>
                     <TableHead className="w-24">GST%</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="w-12"></TableHead>
@@ -757,6 +777,33 @@ const PurchaseReturnEntry = () => {
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-28"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={item.discount_percent}
+                          onChange={(e) =>
+                            updateLineItem(item.temp_id, "discount_percent", parseFloat(e.target.value) || 0)
+                          }
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.discount_amount}
+                          onChange={(e) =>
+                            updateLineItem(item.temp_id, "discount_amount", parseFloat(e.target.value) || 0)
+                          }
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-24"
                         />
                       </TableCell>
                       <TableCell>
