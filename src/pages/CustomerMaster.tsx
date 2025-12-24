@@ -111,6 +111,29 @@ const CustomerMaster = () => {
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       const normalizedPhone = normalizePhoneNumber(data.phone);
+      
+      if (!normalizedPhone) {
+        throw new Error("Valid phone number is required");
+      }
+      
+      // Check for existing customer with same phone
+      const { data: existingCustomers, error: checkError } = await supabase
+        .from("customers")
+        .select("id, customer_name, phone")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+      
+      if (checkError) throw checkError;
+      
+      // Find duplicate by normalized phone
+      const duplicate = existingCustomers?.find(c => 
+        normalizePhoneNumber(c.phone) === normalizedPhone
+      );
+      
+      if (duplicate) {
+        throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      }
+      
       // Use phone as customer name if name is empty
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
@@ -138,7 +161,32 @@ const CustomerMaster = () => {
 
   const updateCustomer = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
       const normalizedPhone = normalizePhoneNumber(data.phone);
+      
+      if (!normalizedPhone) {
+        throw new Error("Valid phone number is required");
+      }
+      
+      // Check for existing customer with same phone (excluding current customer)
+      const { data: existingCustomers, error: checkError } = await supabase
+        .from("customers")
+        .select("id, customer_name, phone")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .neq("id", id);
+      
+      if (checkError) throw checkError;
+      
+      // Find duplicate by normalized phone
+      const duplicate = existingCustomers?.find(c => 
+        normalizePhoneNumber(c.phone) === normalizedPhone
+      );
+      
+      if (duplicate) {
+        throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
+      }
+      
       // Use phone as customer name if name is empty
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
