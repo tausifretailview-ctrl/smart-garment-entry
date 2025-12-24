@@ -794,6 +794,10 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           id: string
+          last_purchase_date: string | null
+          last_purchase_mrp: number | null
+          last_purchase_pur_price: number | null
+          last_purchase_sale_price: number | null
           mrp: number | null
           opening_qty: number | null
           organization_id: string
@@ -812,6 +816,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          last_purchase_date?: string | null
+          last_purchase_mrp?: number | null
+          last_purchase_pur_price?: number | null
+          last_purchase_sale_price?: number | null
           mrp?: number | null
           opening_qty?: number | null
           organization_id: string
@@ -830,6 +838,10 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           id?: string
+          last_purchase_date?: string | null
+          last_purchase_mrp?: number | null
+          last_purchase_pur_price?: number | null
+          last_purchase_sale_price?: number | null
           mrp?: number | null
           opening_qty?: number | null
           organization_id?: string

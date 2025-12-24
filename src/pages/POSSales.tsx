@@ -58,9 +58,17 @@ import {
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
+import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
+
+interface PendingPriceSelection {
+  product: any;
+  variant: any;
+  masterPrice: { sale_price: number; mrp: number };
+  lastPurchasePrice: { sale_price: number; mrp: number; date?: Date };
+}
 
 interface CartItem {
   id: string;
@@ -147,6 +155,10 @@ export default function POSSales() {
     address: "",
     gst_number: "",
   });
+  
+  // Price selection dialog state
+  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
+  const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -667,7 +679,7 @@ export default function POSSales() {
     }
   };
 
-  const addItemToCart = async (product: any, variant: any) => {
+  const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     const existingItemIndex = items.findIndex(item => item.barcode === variant.barcode);
     
     if (existingItemIndex >= 0) {
@@ -704,6 +716,32 @@ export default function POSSales() {
         return;
       }
       
+      // Check if last_purchase prices differ from master prices
+      const masterSalePrice = parseFloat(variant.sale_price || 0);
+      const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
+      const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
+      const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
+      
+      // If no override provided and last purchase prices differ, show dialog
+      if (!overridePrice && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
+        setPendingPriceSelection({
+          product,
+          variant,
+          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          lastPurchasePrice: { 
+            sale_price: lastPurchaseSalePrice, 
+            mrp: lastPurchaseMrp || lastPurchaseSalePrice,
+            date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
+          }
+        });
+        setShowPriceSelectionDialog(true);
+        return;
+      }
+      
+      // Use override price or master price
+      const salePrice = overridePrice?.sale_price ?? masterSalePrice;
+      const mrpToUse = overridePrice?.mrp ?? masterMrp;
+      
       // Build product description: name-category-style,brand-color
       const descriptionParts = [product.product_name];
       if (product.category) descriptionParts.push(product.category);
@@ -719,10 +757,7 @@ export default function POSSales() {
         description += ',' + extraParts.join('-');
       }
       
-      // Add new item - use MRP from variant if available, otherwise sale_price
-      const variantMrp = variant.mrp ? parseFloat(variant.mrp) : null;
-      const salePrice = parseFloat(variant.sale_price || 0);
-      const displayMrp = variantMrp && variantMrp > salePrice ? variantMrp : salePrice;
+      const displayMrp = mrpToUse > salePrice ? mrpToUse : salePrice;
       
       const newItem: CartItem = {
         id: variant.id,
@@ -732,7 +767,7 @@ export default function POSSales() {
         color: variant.color || product.color || '',
         quantity: 1,
         mrp: displayMrp,
-        originalMrp: variantMrp,
+        originalMrp: mrpToUse,
         gstPer: product.gst_per || 0,
         discountPercent: 0,
         discountAmount: 0,
@@ -748,6 +783,17 @@ export default function POSSales() {
     // Close search dropdown and clear input
     setOpenProductSearch(false);
     setSearchInput("");
+  };
+
+  // Handle price selection from dialog
+  const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
+    if (pendingPriceSelection) {
+      addItemToCart(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
+      setPendingPriceSelection(null);
+      setShowPriceSelectionDialog(false);
+    }
+  };
+
     
     // Auto-scroll to show newly added product only after 6 items
     setTimeout(() => {
