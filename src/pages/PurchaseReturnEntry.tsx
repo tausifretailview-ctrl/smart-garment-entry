@@ -742,6 +742,7 @@ const PurchaseReturnEntry = () => {
                           onChange={(e) =>
                             updateLineItem(item.temp_id, "qty", parseInt(e.target.value) || 1)
                           }
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-20"
                         />
                       </TableCell>
@@ -754,6 +755,7 @@ const PurchaseReturnEntry = () => {
                           onChange={(e) =>
                             updateLineItem(item.temp_id, "pur_price", parseFloat(e.target.value) || 0)
                           }
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-28"
                         />
                       </TableCell>
@@ -767,6 +769,7 @@ const PurchaseReturnEntry = () => {
                           onChange={(e) =>
                             updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
                           }
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-20"
                         />
                       </TableCell>
