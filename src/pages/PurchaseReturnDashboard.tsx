@@ -10,10 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
+import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 
@@ -43,6 +44,7 @@ interface PurchaseReturn {
   notes?: string;
   created_at: string;
   items?: PurchaseReturnItem[];
+  total_qty?: number; // Calculated from items
 }
 
 const PurchaseReturnDashboard = () => {
@@ -60,6 +62,7 @@ const PurchaseReturnDashboard = () => {
   const [selectedReturns, setSelectedReturns] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [returnToPrint, setReturnToPrint] = useState<PurchaseReturn | null>(null);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [businessDetails, setBusinessDetails] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +110,31 @@ const PurchaseReturnDashboard = () => {
         .order("return_date", { ascending: false });
 
       if (error) throw error;
-      setReturns((data || []) as unknown as PurchaseReturn[]);
+      
+      // Fetch total qty for each return
+      const returnIds = (data || []).map((r: any) => r.id);
+      let qtyMap: Record<string, number> = {};
+      
+      if (returnIds.length > 0) {
+        const { data: itemsData } = await supabase
+          .from("purchase_return_items" as any)
+          .select("return_id, qty")
+          .in("return_id", returnIds);
+        
+        if (itemsData) {
+          qtyMap = (itemsData as any[]).reduce((acc, item) => {
+            acc[item.return_id] = (acc[item.return_id] || 0) + item.qty;
+            return acc;
+          }, {} as Record<string, number>);
+        }
+      }
+      
+      const returnsWithQty = (data || []).map((r: any) => ({
+        ...r,
+        total_qty: qtyMap[r.id] || 0
+      }));
+      
+      setReturns(returnsWithQty as unknown as PurchaseReturn[]);
     } catch (error) {
       console.error("Error fetching purchase returns:", error);
       toast({
@@ -298,6 +325,33 @@ const PurchaseReturnDashboard = () => {
     }
   };
 
+  const handlePrintPreviewClick = async (returnRecord: PurchaseReturn) => {
+    try {
+      let items = returnRecord.items;
+      if (!items || items.length === 0) {
+        items = await fetchReturnItems(returnRecord.id);
+      }
+      
+      if (items && items.length > 0) {
+        setReturnToPrint({ ...returnRecord, items });
+        setShowPrintPreview(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "No items found for this purchase return",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error preparing print preview:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load items for print preview",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredReturns = returns.filter(ret => {
     const matchesSearch = 
       ret.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -481,6 +535,7 @@ const PurchaseReturnDashboard = () => {
                     <TableHead>Return Date</TableHead>
                     <TableHead>Supplier</TableHead>
                     <TableHead>Original Bill</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Gross Amount</TableHead>
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
@@ -531,6 +586,9 @@ const PurchaseReturnDashboard = () => {
                             {returnRecord.original_bill_number || "N/A"}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {returnRecord.total_qty || 0}
+                        </TableCell>
                         <TableCell className="text-right">
                           ₹{returnRecord.gross_amount.toFixed(2)}
                         </TableCell>
@@ -552,6 +610,14 @@ const PurchaseReturnDashboard = () => {
                               title="Edit Return"
                             >
                               <Edit className="h-4 w-4 text-blue-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePrintPreviewClick(returnRecord)}
+                              title="Print Preview"
+                            >
+                              <Eye className="h-4 w-4 text-green-600" />
                             </Button>
                             <Button
                               variant="ghost"
@@ -587,7 +653,7 @@ const PurchaseReturnDashboard = () => {
 
                       {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={10} className="bg-muted/30 p-0">
+                          <TableCell colSpan={11} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3 flex items-center gap-2">
                                 <Package className="h-4 w-4" />
@@ -761,6 +827,22 @@ const PurchaseReturnDashboard = () => {
           />
         )}
       </div>
+
+      {/* Print Preview Dialog */}
+      {returnToPrint && (
+        <PrintPreviewDialog
+          open={showPrintPreview}
+          onOpenChange={setShowPrintPreview}
+          renderInvoice={() => (
+            <PurchaseReturnPrint
+              returnData={returnToPrint}
+              items={returnToPrint.items || []}
+              businessDetails={businessDetails}
+            />
+          )}
+          defaultFormat="a4"
+        />
+      )}
 
       {/* Supplier History Dialog */}
       {selectedSupplierForHistory && currentOrganization && (
