@@ -126,10 +126,6 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const discountPercent = returnData.discount_percent || 0;
     const amountBeforeTax = returnData.gross_amount - discountAmount;
     
-    // Calculate CGST and SGST (split GST equally)
-    const cgstAmount = returnData.gst_amount / 2;
-    const sgstAmount = returnData.gst_amount / 2;
-    
     // Get terms from settings or use defaults
     const terms = saleSettings?.terms_list?.length ? saleSettings.terms_list : [
       "SUBJECT TO LOCAL JURISDICTION.",
@@ -145,13 +141,13 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const logo = logoUrl || saleSettings?.logo_url;
     
     return (
-      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", minHeight: "297mm", fontFamily: "Arial, sans-serif", padding: "8mm" }}>
+      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", maxHeight: "297mm", fontFamily: "Arial, sans-serif", padding: "5mm" }}>
         <style>
           {`
             @media print {
               @page {
                 size: A4;
-                margin: 8mm;
+                margin: 5mm;
               }
               body {
                 -webkit-print-color-adjust: exact;
@@ -168,11 +164,11 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             .pr-table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 12px;
+              font-size: 11px;
             }
             .pr-table th, .pr-table td {
               border: 1px solid #000;
-              padding: 4px 6px;
+              padding: 2px 4px;
             }
             .pr-table th {
               background-color: #f5f5f5;
@@ -180,12 +176,12 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               text-align: center;
             }
             .pr-cell {
-              font-size: 12px;
-              padding: 3px 5px;
+              font-size: 11px;
+              padding: 2px 4px;
             }
             .pr-label {
               font-weight: 600;
-              min-width: 80px;
+              min-width: 70px;
               display: inline-block;
             }
           `}
@@ -193,39 +189,39 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
         <div className="pr-border">
           {/* Header Section - Business name centered, logo on right */}
-          <div className="flex items-start pr-border-b p-3">
+          <div className="flex items-start pr-border-b p-2">
             {/* Empty left space for balance */}
             <div style={{ flex: 1 }}></div>
             
             {/* Center - Business Name & Address */}
             <div style={{ flex: 2 }} className="text-center">
-              <h1 className="text-2xl font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
-              <p className="text-sm">{businessDetails?.address || ""}</p>
-              <p className="text-sm">
+              <h1 className="text-xl font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
+              <p className="text-xs">{businessDetails?.address || ""}</p>
+              <p className="text-xs">
                 {businessDetails?.mobile_number && `Phone: ${businessDetails.mobile_number}`}
                 {businessDetails?.email_id && ` | Email: ${businessDetails.email_id}`}
               </p>
-              <p className="text-sm font-semibold">GSTIN: {businessDetails?.gst_number || ""}</p>
+              <p className="text-xs font-semibold">GSTIN: {businessDetails?.gst_number || ""}</p>
             </div>
             
             {/* Right - Logo */}
             <div style={{ flex: 1 }} className="text-right">
               {logo ? (
-                <img src={logo} alt="Logo" style={{ maxHeight: "60px", maxWidth: "100px", marginLeft: "auto" }} />
+                <img src={logo} alt="Logo" style={{ maxHeight: "50px", maxWidth: "80px", marginLeft: "auto" }} />
               ) : (
-                <div className="text-sm text-gray-400 italic">Logo</div>
+                <div className="text-xs text-gray-400 italic">Logo</div>
               )}
             </div>
           </div>
 
           {/* Title */}
-          <div className="text-center pr-border-b py-2" style={{ backgroundColor: "#f5f5f5" }}>
-            <h2 className="text-base font-bold">PURCHASE RETURN (DEBIT NOTE)</h2>
+          <div className="text-center pr-border-b py-1" style={{ backgroundColor: "#f5f5f5" }}>
+            <h2 className="text-sm font-bold">PURCHASE RETURN (DEBIT NOTE)</h2>
           </div>
 
           {/* Billed To / Shipped To Section */}
           <div className="flex pr-border-b">
-            <div className="w-1/2 pr-border-r p-2">
+            <div className="w-1/2 pr-border-r p-1">
               <p className="text-xs font-bold mb-1 bg-gray-100 px-1">Details Of Supplier (Billed To)</p>
               <div className="pr-cell">
                 <p><span className="pr-label">Name</span>: {returnData.supplier_name}</p>
@@ -235,7 +231,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <p><span className="pr-label">GSTIN No</span>: {returnData.supplier_gst || ""}</p>
               </div>
             </div>
-            <div className="w-1/2 p-2">
+            <div className="w-1/2 p-1">
               <p className="text-xs font-bold mb-1 bg-gray-100 px-1">Details Of Consignee (Shipped To)</p>
               <div className="pr-cell">
                 <p><span className="pr-label">Name</span>: {businessDetails?.business_name || ""}</p>
@@ -249,14 +245,14 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
           {/* Return Details Section */}
           <div className="flex pr-border-b">
-            <div className="w-1/2 pr-border-r p-2">
+            <div className="w-1/2 pr-border-r p-1">
               <div className="pr-cell">
                 <p><span className="pr-label">LrNo :</span></p>
                 <p><span className="pr-label">Lr Dt :</span> {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
                 <p><span className="pr-label">Transport</span>:</p>
               </div>
             </div>
-            <div className="w-1/2 p-2">
+            <div className="w-1/2 p-1">
               <div className="flex">
                 <div className="w-1/2 pr-cell">
                   <p><span className="pr-label">Return No</span>: {returnData.return_number || ""}</p>
@@ -278,12 +274,12 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <table className="pr-table">
             <thead>
               <tr>
-                <th style={{ width: "4%" }}>Sr</th>
-                <th style={{ width: "26%" }}>Description Of Goods</th>
+                <th style={{ width: "3%" }}>Sr</th>
+                <th style={{ width: "28%" }}>Description Of Goods</th>
                 <th style={{ width: "10%" }}>Hsn Code</th>
-                <th style={{ width: "8%" }}>Pcs</th>
+                <th style={{ width: "7%" }}>Pcs</th>
                 <th style={{ width: "12%" }}>Rate</th>
-                <th style={{ width: "10%" }}>Disc%</th>
+                <th style={{ width: "8%" }}>Disc%</th>
                 <th style={{ width: "12%" }}>Disc Amt</th>
                 <th style={{ width: "14%" }}>Amount</th>
               </tr>
@@ -301,9 +297,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-right">{item.line_total.toFixed(2)}</td>
                 </tr>
               ))}
-              {/* Add empty rows for minimum height */}
-              {items.length < 10 && Array.from({ length: 10 - items.length }).map((_, index) => (
-                <tr key={`empty-${index}`} style={{ height: "24px" }}>
+              {/* Add empty rows for minimum height - reduced to 6 */}
+              {items.length < 6 && Array.from({ length: 6 - items.length }).map((_, index) => (
+                <tr key={`empty-${index}`} style={{ height: "20px" }}>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
@@ -319,51 +315,51 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
           {/* Total Row */}
           <div className="flex pr-border-t">
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "4%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 font-bold" style={{ width: "26%", fontSize: "12px" }}>Total</div>
-            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "8%", fontSize: "12px" }}>{totalQty}</div>
-            <div className="pr-border-r p-1" style={{ width: "12%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "12%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right font-bold" style={{ width: "14%", fontSize: "12px" }}>{returnData.gross_amount.toFixed(2)}</div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "3%", fontSize: "11px" }}></div>
+            <div className="pr-border-r p-1 font-bold" style={{ width: "28%", fontSize: "11px" }}>Total</div>
+            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "11px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "11px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1" style={{ width: "12%", fontSize: "11px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "11px" }}></div>
+            <div className="pr-border-r p-1 text-right font-bold" style={{ width: "12%", fontSize: "11px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
+            <div className="p-1 text-right font-bold" style={{ width: "14%", fontSize: "11px" }}>{returnData.gross_amount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}
           <div className="flex pr-border-t">
-            <div className="w-1/2 pr-border-r p-2">
-              <span className="text-sm font-bold">Remark:</span>
-              <span className="text-sm ml-2">{returnData.notes || ""}</span>
+            <div className="w-1/2 pr-border-r p-1">
+              <span className="text-xs font-bold">Remark:</span>
+              <span className="text-xs ml-2">{returnData.notes || ""}</span>
             </div>
             <div className="w-1/2 flex">
-              <div className="w-1/2 pr-border-r p-2 text-sm">Dis : {discountPercent.toFixed(2)}(%)</div>
-              <div className="w-1/2 p-2 text-right text-sm">{discountAmount.toFixed(2)}</div>
+              <div className="w-1/2 pr-border-r p-1 text-xs">Dis : {discountPercent.toFixed(2)}(%)</div>
+              <div className="w-1/2 p-1 text-right text-xs">{discountAmount.toFixed(2)}</div>
             </div>
           </div>
 
           {/* Amount in Words & Summary Section */}
           <div className="flex pr-border-t">
             <div className="w-1/2 pr-border-r">
-              <div className="p-2">
-                <p className="text-sm"><span className="font-bold">In Words :</span> {amountInWords(returnData.net_amount)}</p>
+              <div className="p-1">
+                <p className="text-xs"><span className="font-bold">In Words :</span> {amountInWords(returnData.net_amount)}</p>
               </div>
               
               {/* Bank Details */}
               {showBankDetails && (
-                <div className="pr-border-t p-2">
-                  <p className="text-sm font-bold mb-1">BANK DETAILS:</p>
-                  {bankDetails?.bank_name && <p className="text-sm">Bank: {bankDetails.bank_name}</p>}
-                  {bankDetails?.account_holder && <p className="text-sm">A/c Holder: {bankDetails.account_holder}</p>}
-                  {bankDetails?.account_number && <p className="text-sm">A/c No: {bankDetails.account_number}</p>}
-                  {bankDetails?.ifsc_code && <p className="text-sm">IFSC: {bankDetails.ifsc_code}</p>}
+                <div className="pr-border-t p-1">
+                  <p className="text-xs font-bold mb-1">BANK DETAILS:</p>
+                  {bankDetails?.bank_name && <p className="text-xs">Bank: {bankDetails.bank_name}</p>}
+                  {bankDetails?.account_holder && <p className="text-xs">A/c Holder: {bankDetails.account_holder}</p>}
+                  {bankDetails?.account_number && <p className="text-xs">A/c No: {bankDetails.account_number}</p>}
+                  {bankDetails?.ifsc_code && <p className="text-xs">IFSC: {bankDetails.ifsc_code}</p>}
                 </div>
               )}
 
               {/* Terms & Conditions from Settings */}
-              <div className="pr-border-t p-2">
-                <p className="text-sm font-bold mb-1">TERMS & CONDITIONS :-</p>
+              <div className="pr-border-t p-1">
+                <p className="text-xs font-bold mb-1">TERMS & CONDITIONS :-</p>
                 {terms.map((term, index) => (
-                  <p key={index} className="text-sm">{index + 1}) {term}</p>
+                  <p key={index} className="text-xs">{index + 1}) {term}</p>
                 ))}
               </div>
             </div>
@@ -371,34 +367,22 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             {/* Amount Summary */}
             <div className="w-1/2">
               <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Total Amount Before Tax</div>
-                <div className="w-1/3 p-2 text-right text-sm">{amountBeforeTax.toFixed(2)}</div>
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Total Amount Before Tax</div>
+                <div className="w-1/3 p-1 text-right text-xs">{amountBeforeTax.toFixed(2)}</div>
               </div>
               <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Paid Freight</div>
-                <div className="w-1/3 p-2 text-right text-sm">0.00</div>
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Add : GST</div>
+                <div className="w-1/3 p-1 text-right text-xs">{returnData.gst_amount.toFixed(2)}</div>
               </div>
               <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Add : CGST</div>
-                <div className="w-1/3 p-2 text-right text-sm">{cgstAmount.toFixed(2)}</div>
-              </div>
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Add : SGST</div>
-                <div className="w-1/3 p-2 text-right text-sm">{sgstAmount.toFixed(2)}</div>
-              </div>
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Add : IGST</div>
-                <div className="w-1/3 p-2 text-right text-sm">0.00</div>
-              </div>
-              <div className="flex pr-border-b">
-                <div className="w-2/3 pr-border-r p-2 text-sm font-bold">Total Amount After Tax</div>
-                <div className="w-1/3 p-2 text-right text-sm font-bold">{returnData.net_amount.toFixed(2)}</div>
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Total Amount After Tax</div>
+                <div className="w-1/3 p-1 text-right text-xs font-bold">{returnData.net_amount.toFixed(2)}</div>
               </div>
 
               {/* Signatory */}
-              <div className="p-3 text-center">
-                <p className="text-sm font-bold mb-8">For, {businessDetails?.business_name || ""}</p>
-                <p className="text-sm font-bold">Authorised Signatory</p>
+              <div className="p-2 text-center">
+                <p className="text-xs font-bold mb-6">For, {businessDetails?.business_name || ""}</p>
+                <p className="text-xs font-bold">Authorised Signatory</p>
               </div>
             </div>
           </div>
