@@ -69,11 +69,12 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
   const { data: customers, isLoading } = useQuery({
     queryKey: ["customer-ledger", organizationId],
     queryFn: async () => {
-      // Fetch all customers
+      // Fetch all customers (excluding soft-deleted)
       const { data: customersData, error: customersError } = await supabase
         .from("customers")
         .select("*")
         .eq("organization_id", organizationId)
+        .is("deleted_at", null)
         .order("customer_name");
 
       if (customersError) throw customersError;
