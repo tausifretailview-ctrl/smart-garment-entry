@@ -66,6 +66,8 @@ const PurchaseReturnEntry = () => {
   const [netAmount, setNetAmount] = useState(0);
   const [returnNumber, setReturnNumber] = useState("");
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -207,27 +209,50 @@ const PurchaseReturnEntry = () => {
     if (taxType === "exclusive") {
       // GST Exclusive: line_total is base price, GST added on top
       const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-      const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+      // Apply discount on gross amount
+      const discountedGross = gross - discountAmount;
+      const gst = lineItems.reduce((sum, r) => {
+        const itemDiscountedTotal = r.line_total - (r.line_total / gross * discountAmount);
+        return sum + (itemDiscountedTotal * r.gst_per / 100);
+      }, 0);
       setGrossAmount(gross);
-      setGstAmount(gst);
-      setNetAmount(gross + gst);
+      setGstAmount(gross > 0 ? gst : 0);
+      setNetAmount(discountedGross + (gross > 0 ? gst : 0));
     } else {
       // GST Inclusive: line_total includes GST, need to extract base and GST
       let totalGross = 0;
       let totalGst = 0;
+      const lineTotal = lineItems.reduce((sum, r) => sum + r.line_total, 0);
       lineItems.forEach((item) => {
         const inclusiveTotal = item.line_total;
         const gstRate = item.gst_per / 100;
         const baseAmount = inclusiveTotal / (1 + gstRate);
-        const gstAmount = inclusiveTotal - baseAmount;
+        const gstAmt = inclusiveTotal - baseAmount;
         totalGross += baseAmount;
-        totalGst += gstAmount;
+        totalGst += gstAmt;
       });
+      // Apply discount proportionally
+      const discountRatio = lineTotal > 0 ? discountAmount / lineTotal : 0;
+      const adjustedGross = totalGross * (1 - discountRatio);
+      const adjustedGst = totalGst * (1 - discountRatio);
       setGrossAmount(totalGross);
-      setGstAmount(totalGst);
-      setNetAmount(totalGross + totalGst);
+      setGstAmount(adjustedGst);
+      setNetAmount(adjustedGross + adjustedGst);
     }
-  }, [lineItems, taxType]);
+  }, [lineItems, taxType, discountAmount]);
+
+  // Sync discount percent and amount
+  const handleDiscountPercentChange = (percent: number) => {
+    setDiscountPercent(percent);
+    const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+    setDiscountAmount(gross * percent / 100);
+  };
+
+  const handleDiscountAmountChange = (amount: number) => {
+    setDiscountAmount(amount);
+    const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+    setDiscountPercent(gross > 0 ? (amount / gross) * 100 : 0);
+  };
 
   const searchProducts = async (query: string) => {
     if (!query || query.length < 1) {
@@ -607,6 +632,42 @@ const PurchaseReturnEntry = () => {
               <span className="text-muted-foreground">Gross Amount:</span>
               <span className="font-medium">₹{grossAmount.toFixed(2)}</span>
             </div>
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-sm text-muted-foreground">Discount</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={discountPercent || ""}
+                    onChange={(e) => handleDiscountPercentChange(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="pr-6"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={discountAmount || ""}
+                    onChange={(e) => handleDiscountAmountChange(parseFloat(e.target.value) || 0)}
+                    placeholder="0"
+                    className="pl-6"
+                  />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                </div>
+              </div>
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex justify-between text-destructive">
+                <span className="text-muted-foreground">Discount:</span>
+                <span className="font-medium">-₹{discountAmount.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">GST Amount:</span>
               <span className="font-medium">₹{gstAmount.toFixed(2)}</span>
