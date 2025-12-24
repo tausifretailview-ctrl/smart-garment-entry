@@ -629,6 +629,7 @@ const PurchaseReturnEntry = () => {
                     <TableHead>Barcode</TableHead>
                     <TableHead className="w-24">Qty</TableHead>
                     <TableHead className="w-32">Price</TableHead>
+                    <TableHead className="w-24">GST%</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
@@ -661,6 +662,19 @@ const PurchaseReturnEntry = () => {
                             updateLineItem(item.temp_id, "pur_price", parseFloat(e.target.value) || 0)
                           }
                           className="w-28"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={item.gst_per}
+                          onChange={(e) =>
+                            updateLineItem(item.temp_id, "gst_per", parseFloat(e.target.value) || 0)
+                          }
+                          className="w-20"
                         />
                       </TableCell>
                       <TableCell className="text-right font-medium">
