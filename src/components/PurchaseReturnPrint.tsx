@@ -7,22 +7,31 @@ interface PurchaseReturnItem {
   brand?: string;
   size: string;
   barcode?: string;
+  hsn_code?: string;
   qty: number;
   pur_price: number;
   line_total: number;
   gst_per: number;
+  remarks?: string;
 }
 
 interface PurchaseReturnPrintProps {
   returnData: {
     id: string;
+    return_number?: string;
     return_date: string;
     supplier_name: string;
+    supplier_address?: string;
+    supplier_phone?: string;
+    supplier_gst?: string;
     original_bill_number?: string;
+    original_bill_date?: string;
     gross_amount: number;
     gst_amount: number;
     net_amount: number;
     notes?: string;
+    discount_amount?: number;
+    discount_percent?: number;
   };
   items: PurchaseReturnItem[];
   businessDetails?: {
@@ -30,170 +39,321 @@ interface PurchaseReturnPrintProps {
     address?: string;
     mobile_number?: string;
     gst_number?: string;
+    state?: string;
+    city?: string;
   };
+}
+
+// Number to words conversion
+const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 
+              'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+function numberToWords(num: number): string {
+  if (num === 0) return 'Zero';
+  if (num < 0) return 'Minus ' + numberToWords(Math.abs(num));
+  
+  let words = '';
+  
+  if (Math.floor(num / 10000000) > 0) {
+    words += numberToWords(Math.floor(num / 10000000)) + ' Crore ';
+    num %= 10000000;
+  }
+  
+  if (Math.floor(num / 100000) > 0) {
+    words += numberToWords(Math.floor(num / 100000)) + ' Lakh ';
+    num %= 100000;
+  }
+  
+  if (Math.floor(num / 1000) > 0) {
+    words += numberToWords(Math.floor(num / 1000)) + ' Thousand ';
+    num %= 1000;
+  }
+  
+  if (Math.floor(num / 100) > 0) {
+    words += numberToWords(Math.floor(num / 100)) + ' Hundred ';
+    num %= 100;
+  }
+  
+  if (num > 0) {
+    if (num < 20) {
+      words += ones[num];
+    } else {
+      words += tens[Math.floor(num / 10)];
+      if (num % 10 > 0) {
+        words += ' ' + ones[num % 10];
+      }
+    }
+  }
+  
+  return words.trim();
+}
+
+function amountInWords(amount: number): string {
+  const rupees = Math.floor(amount);
+  const paise = Math.round((amount - rupees) * 100);
+  
+  let result = numberToWords(rupees) + ' Rupees';
+  if (paise > 0) {
+    result += ' and ' + numberToWords(paise) + ' Paise';
+  }
+  result += ' Only';
+  
+  return result.toUpperCase();
 }
 
 export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrintProps>(
   ({ returnData, items, businessDetails }, ref) => {
-    // Calculate total quantity
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+    const discountAmount = returnData.discount_amount || 0;
+    const discountPercent = returnData.discount_percent || 0;
+    const amountBeforeTax = returnData.gross_amount - discountAmount;
+    
+    // Calculate CGST and SGST (split GST equally)
+    const cgstAmount = returnData.gst_amount / 2;
+    const sgstAmount = returnData.gst_amount / 2;
     
     return (
-      <div ref={ref} className="p-6 bg-white text-black" style={{ width: "210mm", minHeight: "297mm", fontFamily: "Arial, sans-serif" }}>
+      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", minHeight: "297mm", fontFamily: "Arial, sans-serif", padding: "8mm" }}>
         <style>
           {`
             @media print {
               @page {
                 size: A4;
-                margin: 10mm;
+                margin: 8mm;
               }
               body {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
               }
             }
+            .pr-border {
+              border: 1px solid #000;
+            }
+            .pr-border-t { border-top: 1px solid #000; }
+            .pr-border-b { border-bottom: 1px solid #000; }
+            .pr-border-l { border-left: 1px solid #000; }
+            .pr-border-r { border-right: 1px solid #000; }
             .pr-table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 11px;
+              font-size: 10px;
             }
             .pr-table th, .pr-table td {
               border: 1px solid #000;
-              padding: 4px 6px;
+              padding: 3px 5px;
             }
             .pr-table th {
-              background-color: #f0f0f0;
+              background-color: #f5f5f5;
               font-weight: 600;
               text-align: center;
             }
-            .pr-table td {
-              vertical-align: middle;
+            .pr-cell {
+              font-size: 10px;
+              padding: 2px 4px;
+            }
+            .pr-label {
+              font-weight: 600;
+              min-width: 70px;
+              display: inline-block;
             }
           `}
         </style>
 
-        {/* Header */}
-        <div className="mb-4">
-          <h1 className="text-xl font-bold">{businessDetails?.business_name || "Company Name"}</h1>
-          {businessDetails?.address && (
-            <p className="text-xs">{businessDetails.address}</p>
-          )}
-          {businessDetails?.mobile_number && (
-            <p className="text-xs">Phone: {businessDetails.mobile_number}</p>
-          )}
-          {businessDetails?.gst_number && (
-            <p className="text-xs">GSTIN: {businessDetails.gst_number}</p>
-          )}
-        </div>
-
-        {/* Return Title */}
-        <div className="mb-4">
-          <h2 className="text-base font-bold">PURCHASE RETURN RECEIPT</h2>
-        </div>
-
-        {/* Return Details */}
-        <div className="mb-3 text-xs">
-          <p className="mb-1">
-            <span className="font-semibold">Supplier:</span> {returnData.supplier_name}
-          </p>
-          {returnData.original_bill_number && (
-            <p className="mb-1">
-              <span className="font-semibold">Original Bill No:</span> {returnData.original_bill_number}
-            </p>
-          )}
-          <p className="mb-1">
-            <span className="font-semibold">Return Date:</span>{" "}
-            {format(new Date(returnData.return_date), "dd MMM yyyy")}
-          </p>
-        </div>
-
-        {/* Items Table - Like Sale Invoice */}
-        <table className="pr-table mb-3">
-          <thead>
-            <tr>
-              <th style={{ width: "5%" }}>SR</th>
-              <th style={{ width: "30%" }}>PARTICULARS</th>
-              <th style={{ width: "10%" }}>BRAND</th>
-              <th style={{ width: "10%" }}>SIZE</th>
-              <th style={{ width: "15%" }}>BARCODE</th>
-              <th style={{ width: "6%" }}>QTY</th>
-              <th style={{ width: "10%" }}>PRICE</th>
-              <th style={{ width: "6%" }}>GST%</th>
-              <th style={{ width: "10%" }}>TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, index) => (
-              <tr key={item.id}>
-                <td className="text-center">{index + 1}</td>
-                <td>{item.product_name || "-"}</td>
-                <td className="text-center">{item.brand || "-"}</td>
-                <td className="text-center">{item.size}</td>
-                <td className="text-center">{item.barcode || "-"}</td>
-                <td className="text-center">{item.qty}</td>
-                <td className="text-right">₹{item.pur_price.toFixed(2)}</td>
-                <td className="text-center">{item.gst_per}%</td>
-                <td className="text-right">₹{item.line_total.toFixed(2)}</td>
-              </tr>
-            ))}
-            {/* Add empty rows to make minimum 5 rows */}
-            {items.length < 5 && Array.from({ length: 5 - items.length }).map((_, index) => (
-              <tr key={`empty-${index}`}>
-                <td className="text-center">{items.length + index + 1}</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-                <td>&nbsp;</td>
-              </tr>
-            ))}
-            {/* Total Row */}
-            <tr className="font-semibold">
-              <td colSpan={5} className="text-right">Total:</td>
-              <td className="text-center">{totalQty}</td>
-              <td colSpan={2}></td>
-              <td className="text-right">₹{returnData.gross_amount.toFixed(2)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Amount Details - Left aligned under table */}
-        <div className="text-xs mb-4">
-          <p>Gross Amount: ₹{returnData.gross_amount.toFixed(2)}</p>
-          <p>GST Amount: ₹{returnData.gst_amount.toFixed(2)}</p>
-          <p className="font-bold">Net Amount: ₹{returnData.net_amount.toFixed(2)}</p>
-        </div>
-
-        {/* Notes */}
-        {returnData.notes && (
-          <div className="mb-4 text-xs">
-            <p className="font-semibold">Notes:</p>
-            <p>{returnData.notes}</p>
-          </div>
-        )}
-
-        {/* Signature Section */}
-        <div className="mt-8 text-xs">
-          <div className="flex justify-between items-end">
-            <div>
-              <p className="mb-6">Received By:</p>
-              <p>Signature</p>
+        <div className="pr-border">
+          {/* Header Section */}
+          <div className="flex justify-between items-start pr-border-b p-3">
+            <div style={{ flex: 2 }}>
+              <h1 className="text-lg font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
+              <p className="text-xs">PHONE NO : {businessDetails?.mobile_number || ""}</p>
+              <p className="text-xs">GSTIN No : {businessDetails?.gst_number || ""} CIN NO :</p>
             </div>
-            <div className="w-24 h-16 border border-black mr-8"></div>
+            <div style={{ flex: 1 }} className="text-right">
+              {/* Logo placeholder */}
+              <div className="text-sm font-bold">{businessDetails?.business_name || ""}</div>
+            </div>
           </div>
-          
-          <div className="mt-6">
-            <p className="mb-6">Authorized Signatory:</p>
-            <p>Signature</p>
-          </div>
-        </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-xs text-center">
-          <p>This is a computer-generated document. No signature required.</p>
+          {/* Title */}
+          <div className="text-center pr-border-b py-1">
+            <h2 className="text-sm font-bold">PURCHASE RETURN (DEBIT NOTE)</h2>
+          </div>
+
+          {/* Billed To / Shipped To Section */}
+          <div className="flex pr-border-b">
+            <div className="w-1/2 pr-border-r p-2">
+              <p className="text-xs font-bold mb-1 bg-gray-100 px-1">Details Of Supplier (Billed To)</p>
+              <div className="pr-cell">
+                <p><span className="pr-label">Name</span>: {returnData.supplier_name}</p>
+                <p><span className="pr-label">Address</span>: {returnData.supplier_address || ""}</p>
+                <p><span className="pr-label">City</span>: </p>
+                <p><span className="pr-label">State</span>: MAHARASHTRA - 27</p>
+                <p><span className="pr-label">GSTIN No</span>: {returnData.supplier_gst || ""}</p>
+              </div>
+            </div>
+            <div className="w-1/2 p-2">
+              <p className="text-xs font-bold mb-1 bg-gray-100 px-1">Details Of Consignee (Shipped To)</p>
+              <div className="pr-cell">
+                <p><span className="pr-label">Name</span>: {businessDetails?.business_name || ""}</p>
+                <p><span className="pr-label">Address</span>: {businessDetails?.address || ""}</p>
+                <p><span className="pr-label">City</span>: {businessDetails?.city || ""}</p>
+                <p><span className="pr-label">State</span>: {businessDetails?.state || "MAHARASHTRA - 27"}</p>
+                <p><span className="pr-label">Broker</span>: Direct Party</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Return Details Section */}
+          <div className="flex pr-border-b">
+            <div className="w-1/2 pr-border-r p-2">
+              <div className="pr-cell">
+                <p><span className="pr-label">LrNo :</span></p>
+                <p><span className="pr-label">Lr Dt :</span> {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
+                <p><span className="pr-label">Transport</span>:</p>
+              </div>
+            </div>
+            <div className="w-1/2 p-2">
+              <div className="flex">
+                <div className="w-1/2 pr-cell">
+                  <p><span className="pr-label">Return No</span>: {returnData.return_number || ""}</p>
+                  <p><span className="pr-label">Return Dt</span>: {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
+                  <p><span className="pr-label">Party DebitNote No.</span>:</p>
+                  <p><span className="pr-label">Party DebitNote Date:</span> {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
+                </div>
+                <div className="w-1/2 pr-cell">
+                  <p><span className="pr-label">S Bill No.</span>: {returnData.original_bill_number || ""}</p>
+                  <p><span className="pr-label">S Bill Date.</span>: {returnData.original_bill_date ? format(new Date(returnData.original_bill_date), "dd/MM/yyyy") : ""}</p>
+                  <p><span className="pr-label">Agst Bill No.</span>:</p>
+                  <p><span className="pr-label">Agst Bill Date.</span>:</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <table className="pr-table">
+            <thead>
+              <tr>
+                <th style={{ width: "4%" }}>Sr</th>
+                <th style={{ width: "32%" }}>Description Of Goods</th>
+                <th style={{ width: "14%" }}>Remarks</th>
+                <th style={{ width: "10%" }}>Hsn Code</th>
+                <th style={{ width: "8%" }}>Pcs</th>
+                <th style={{ width: "14%" }}>Rate</th>
+                <th style={{ width: "14%" }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="text-center">{index + 1}</td>
+                  <td>{item.product_name || "-"}</td>
+                  <td className="text-center">{item.remarks || ""}</td>
+                  <td className="text-center">{item.hsn_code || ""}</td>
+                  <td className="text-center">{item.qty}</td>
+                  <td className="text-right">{item.pur_price.toFixed(2)}</td>
+                  <td className="text-right">{item.line_total.toFixed(2)}</td>
+                </tr>
+              ))}
+              {/* Add empty rows for minimum height */}
+              {items.length < 10 && Array.from({ length: 10 - items.length }).map((_, index) => (
+                <tr key={`empty-${index}`} style={{ height: "20px" }}>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                  <td>&nbsp;</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Total Row */}
+          <div className="flex pr-border-t">
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "4%", fontSize: "10px" }}></div>
+            <div className="pr-border-r p-1 font-bold" style={{ width: "32%", fontSize: "10px" }}>Total</div>
+            <div className="pr-border-r p-1" style={{ width: "14%", fontSize: "10px" }}></div>
+            <div className="pr-border-r p-1" style={{ width: "10%", fontSize: "10px" }}></div>
+            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "8%", fontSize: "10px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1" style={{ width: "14%", fontSize: "10px" }}></div>
+            <div className="p-1 text-right font-bold" style={{ width: "14%", fontSize: "10px" }}>{returnData.gross_amount.toFixed(2)}</div>
+          </div>
+
+          {/* Remark & Discount Row */}
+          <div className="flex pr-border-t">
+            <div className="w-1/2 pr-border-r p-1">
+              <span className="text-xs font-bold">Remark:</span>
+              <span className="text-xs ml-2">{returnData.notes || ""}</span>
+            </div>
+            <div className="w-1/2 flex">
+              <div className="w-1/2 pr-border-r p-1 text-xs">Dis : {discountPercent.toFixed(2)}(%)</div>
+              <div className="w-1/2 p-1 text-right text-xs">{discountAmount.toFixed(2)}</div>
+            </div>
+          </div>
+
+          {/* Amount in Words & Summary Section */}
+          <div className="flex pr-border-t">
+            <div className="w-1/2 pr-border-r">
+              <div className="p-2">
+                <p className="text-xs"><span className="font-bold">In Words :</span> {amountInWords(returnData.net_amount)}</p>
+              </div>
+              
+              {/* IRN & ACK */}
+              <div className="pr-border-t p-1">
+                <p className="text-xs"><span className="font-bold">IRN</span> :</p>
+              </div>
+              <div className="pr-border-t p-1">
+                <p className="text-xs"><span className="font-bold">ACK NO</span> :</p>
+              </div>
+              <div className="pr-border-t p-1">
+                <p className="text-xs"><span className="font-bold">ACK DATE</span> :</p>
+              </div>
+
+              {/* Terms & Conditions */}
+              <div className="pr-border-t p-2">
+                <p className="text-xs font-bold mb-1">TERMS & CONDITIONS :-</p>
+                <p className="text-xs">1)SUBJECT TO LOCAL JURISDICTION.</p>
+                <p className="text-xs">2)GOODS HAVE BEEN SOLD & DESPATCHED AT THE ENTIRE RISK OF THE PURCHASER.</p>
+                <p className="text-xs">3)COMPLAINTS,IF ANY REGARDING THIS INVOICE MUST BE INFORMED IN WRITING WITHIN 48 HOURS</p>
+              </div>
+            </div>
+
+            {/* Amount Summary */}
+            <div className="w-1/2">
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Total Amount Before Tax</div>
+                <div className="w-1/3 p-1 text-right text-xs">{amountBeforeTax.toFixed(2)}</div>
+              </div>
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Paid Freight</div>
+                <div className="w-1/3 p-1 text-right text-xs">0.00</div>
+              </div>
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Add : CGST</div>
+                <div className="w-1/3 p-1 text-right text-xs">{cgstAmount.toFixed(2)}</div>
+              </div>
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Add : SGST</div>
+                <div className="w-1/3 p-1 text-right text-xs">{sgstAmount.toFixed(2)}</div>
+              </div>
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Add : IGST</div>
+                <div className="w-1/3 p-1 text-right text-xs">0.00</div>
+              </div>
+              <div className="flex pr-border-b">
+                <div className="w-2/3 pr-border-r p-1 text-xs font-bold">Total Amount After Tax</div>
+                <div className="w-1/3 p-1 text-right text-xs font-bold">{returnData.net_amount.toFixed(2)}</div>
+              </div>
+
+              {/* Signatory */}
+              <div className="p-2 text-center">
+                <p className="text-xs font-bold mb-8">For, {businessDetails?.business_name || ""}</p>
+                <p className="text-xs font-bold">Authorised Signatory</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
