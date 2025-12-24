@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { Loader2, Search, CheckCircle, AlertTriangle, RefreshCw, RotateCcw } from "lucide-react";
 
 interface Discrepancy {
   variant_id: string;
@@ -26,7 +26,12 @@ interface FixResult {
   size: string;
   old_qty: number;
   new_qty: number;
-  adjustment: number;
+  adjustment?: number;
+  opening?: number;
+  purchases?: number;
+  sales?: number;
+  pur_returns?: number;
+  sale_returns?: number;
 }
 
 export const StockReconciliation = () => {
@@ -34,11 +39,14 @@ export const StockReconciliation = () => {
   const { currentOrganization } = useOrganization();
   const [isScanning, setIsScanning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [discrepancies, setDiscrepancies] = useState<Discrepancy[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [showFixDialog, setShowFixDialog] = useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   const [fixResults, setFixResults] = useState<FixResult[]>([]);
   const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [resultDialogTitle, setResultDialogTitle] = useState("Reconciliation Complete");
 
   const handleScanDiscrepancies = async () => {
     if (!currentOrganization?.id) {
@@ -120,6 +128,43 @@ export const StockReconciliation = () => {
     }
   };
 
+  const handleResetFromTransactions = async () => {
+    if (!currentOrganization?.id) return;
+
+    setIsResetting(true);
+    setShowResetDialog(false);
+    
+    try {
+      const { data, error } = await supabase.rpc('reset_stock_from_transactions', {
+        p_organization_id: currentOrganization.id
+      });
+
+      if (error) throw error;
+
+      const result = data?.[0];
+      const fixedCount = result?.fixed_count || 0;
+      const details = (result?.details || []) as unknown as FixResult[];
+
+      setFixResults(details);
+      setDiscrepancies([]);
+      setResultDialogTitle("Stock Reset Complete");
+      setShowResultsDialog(true);
+
+      toast({
+        title: "Stock Reset Complete",
+        description: `Reset ${fixedCount} product variant(s) to match transaction history`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to reset stock",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -152,7 +197,7 @@ export const StockReconciliation = () => {
             <Button 
               variant="destructive" 
               onClick={() => setShowFixDialog(true)}
-              disabled={isFixing}
+              disabled={isFixing || isResetting}
             >
               {isFixing ? (
                 <>
@@ -167,6 +212,24 @@ export const StockReconciliation = () => {
               )}
             </Button>
           )}
+
+          <Button 
+            variant="outline" 
+            onClick={() => setShowResetDialog(true)}
+            disabled={isResetting || isFixing || isScanning}
+          >
+            {isResetting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Resetting...
+              </>
+            ) : (
+              <>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset Stock from Bills
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Last Scan Time */}
@@ -248,13 +311,36 @@ export const StockReconciliation = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Reset Confirmation Dialog */}
+        <AlertDialog open={showResetDialog} onOpenChange={setShowResetDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset Stock from Transaction History?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will recalculate ALL stock levels based on actual transaction records:
+                <br /><br />
+                <strong>Stock = Opening Qty + Purchases - Sales - Purchase Returns + Sale Returns</strong>
+                <br /><br />
+                Use this to fix negative stock or corrupted data from old bugs. This ignores all 
+                previous stock movements and recalculates from scratch.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleResetFromTransactions}>
+                Reset All Stock
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Results Dialog */}
         <AlertDialog open={showResultsDialog} onOpenChange={setShowResultsDialog}>
-          <AlertDialogContent className="max-w-2xl">
+          <AlertDialogContent className="max-w-3xl">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-green-500" />
-                Reconciliation Complete
+                {resultDialogTitle}
               </AlertDialogTitle>
               <AlertDialogDescription>
                 The following stock levels have been corrected:
@@ -270,7 +356,14 @@ export const StockReconciliation = () => {
                       <TableHead>Size</TableHead>
                       <TableHead className="text-right">Old Qty</TableHead>
                       <TableHead className="text-right">New Qty</TableHead>
-                      <TableHead className="text-right">Adjustment</TableHead>
+                      {fixResults[0]?.purchases !== undefined ? (
+                        <>
+                          <TableHead className="text-right">Purchases</TableHead>
+                          <TableHead className="text-right">Sales</TableHead>
+                        </>
+                      ) : (
+                        <TableHead className="text-right">Adjustment</TableHead>
+                      )}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -281,11 +374,18 @@ export const StockReconciliation = () => {
                         <TableCell>{item.size}</TableCell>
                         <TableCell className="text-right">{item.old_qty}</TableCell>
                         <TableCell className="text-right">{item.new_qty}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant={item.adjustment > 0 ? "default" : "secondary"}>
-                            {item.adjustment > 0 ? "+" : ""}{item.adjustment}
-                          </Badge>
-                        </TableCell>
+                        {item.purchases !== undefined ? (
+                          <>
+                            <TableCell className="text-right text-green-600">+{item.purchases}</TableCell>
+                            <TableCell className="text-right text-red-600">-{item.sales}</TableCell>
+                          </>
+                        ) : (
+                          <TableCell className="text-right">
+                            <Badge variant={item.adjustment && item.adjustment > 0 ? "default" : "secondary"}>
+                              {item.adjustment && item.adjustment > 0 ? "+" : ""}{item.adjustment}
+                            </Badge>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

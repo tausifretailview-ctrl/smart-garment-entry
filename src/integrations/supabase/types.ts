@@ -2555,6 +2555,13 @@ export type Database = {
         }
         Returns: Json
       }
+      reset_stock_from_transactions: {
+        Args: { p_organization_id: string }
+        Returns: {
+          details: Json
+          fixed_count: number
+        }[]
+      }
       restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
       restore_purchase_return: {
         Args: { p_return_id: string }
