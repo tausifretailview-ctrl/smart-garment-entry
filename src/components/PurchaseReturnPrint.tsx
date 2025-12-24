@@ -15,6 +15,13 @@ interface PurchaseReturnItem {
   remarks?: string;
 }
 
+interface BankDetails {
+  bank_name?: string;
+  account_number?: string;
+  ifsc_code?: string;
+  account_holder?: string;
+}
+
 interface PurchaseReturnPrintProps {
   returnData: {
     id: string;
@@ -38,10 +45,18 @@ interface PurchaseReturnPrintProps {
     business_name?: string;
     address?: string;
     mobile_number?: string;
+    email_id?: string;
     gst_number?: string;
     state?: string;
     city?: string;
   };
+  saleSettings?: {
+    terms_list?: string[];
+    bank_details?: BankDetails;
+    show_bank_details?: boolean;
+    logo_url?: string;
+  };
+  logoUrl?: string;
 }
 
 // Number to words conversion
@@ -103,7 +118,7 @@ function amountInWords(amount: number): string {
 }
 
 export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrintProps>(
-  ({ returnData, items, businessDetails }, ref) => {
+  ({ returnData, items, businessDetails, saleSettings, logoUrl }, ref) => {
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
     const discountAmount = returnData.discount_amount || 0;
     const discountPercent = returnData.discount_percent || 0;
@@ -112,6 +127,20 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     // Calculate CGST and SGST (split GST equally)
     const cgstAmount = returnData.gst_amount / 2;
     const sgstAmount = returnData.gst_amount / 2;
+    
+    // Get terms from settings or use defaults
+    const terms = saleSettings?.terms_list?.length ? saleSettings.terms_list : [
+      "SUBJECT TO LOCAL JURISDICTION.",
+      "GOODS HAVE BEEN SOLD & DESPATCHED AT THE ENTIRE RISK OF THE PURCHASER.",
+      "COMPLAINTS,IF ANY REGARDING THIS INVOICE MUST BE INFORMED IN WRITING WITHIN 48 HOURS"
+    ];
+    
+    // Get bank details from settings
+    const bankDetails = saleSettings?.bank_details;
+    const showBankDetails = saleSettings?.show_bank_details !== false && bankDetails;
+    
+    // Get logo URL
+    const logo = logoUrl || saleSettings?.logo_url;
     
     return (
       <div ref={ref} className="bg-white text-black" style={{ width: "210mm", minHeight: "297mm", fontFamily: "Arial, sans-serif", padding: "8mm" }}>
@@ -161,21 +190,34 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
         </style>
 
         <div className="pr-border">
-          {/* Header Section */}
-          <div className="flex justify-between items-start pr-border-b p-3">
-            <div style={{ flex: 2 }}>
-              <h1 className="text-lg font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
-              <p className="text-xs">PHONE NO : {businessDetails?.mobile_number || ""}</p>
-              <p className="text-xs">GSTIN No : {businessDetails?.gst_number || ""} CIN NO :</p>
+          {/* Header Section - Business name centered, logo on right */}
+          <div className="flex items-start pr-border-b p-3">
+            {/* Empty left space for balance */}
+            <div style={{ flex: 1 }}></div>
+            
+            {/* Center - Business Name & Address */}
+            <div style={{ flex: 2 }} className="text-center">
+              <h1 className="text-xl font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
+              <p className="text-xs">{businessDetails?.address || ""}</p>
+              <p className="text-xs">
+                {businessDetails?.mobile_number && `Phone: ${businessDetails.mobile_number}`}
+                {businessDetails?.email_id && ` | Email: ${businessDetails.email_id}`}
+              </p>
+              <p className="text-xs font-semibold">GSTIN: {businessDetails?.gst_number || ""}</p>
             </div>
+            
+            {/* Right - Logo */}
             <div style={{ flex: 1 }} className="text-right">
-              {/* Logo placeholder */}
-              <div className="text-sm font-bold">{businessDetails?.business_name || ""}</div>
+              {logo ? (
+                <img src={logo} alt="Logo" style={{ maxHeight: "60px", maxWidth: "100px", marginLeft: "auto" }} />
+              ) : (
+                <div className="text-sm text-gray-400 italic">Logo</div>
+              )}
             </div>
           </div>
 
           {/* Title */}
-          <div className="text-center pr-border-b py-1">
+          <div className="text-center pr-border-b py-1" style={{ backgroundColor: "#f5f5f5" }}>
             <h2 className="text-sm font-bold">PURCHASE RETURN (DEBIT NOTE)</h2>
           </div>
 
@@ -300,6 +342,17 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <p className="text-xs"><span className="font-bold">In Words :</span> {amountInWords(returnData.net_amount)}</p>
               </div>
               
+              {/* Bank Details */}
+              {showBankDetails && (
+                <div className="pr-border-t p-2">
+                  <p className="text-xs font-bold mb-1">BANK DETAILS:</p>
+                  {bankDetails?.bank_name && <p className="text-xs">Bank: {bankDetails.bank_name}</p>}
+                  {bankDetails?.account_holder && <p className="text-xs">A/c Holder: {bankDetails.account_holder}</p>}
+                  {bankDetails?.account_number && <p className="text-xs">A/c No: {bankDetails.account_number}</p>}
+                  {bankDetails?.ifsc_code && <p className="text-xs">IFSC: {bankDetails.ifsc_code}</p>}
+                </div>
+              )}
+              
               {/* IRN & ACK */}
               <div className="pr-border-t p-1">
                 <p className="text-xs"><span className="font-bold">IRN</span> :</p>
@@ -311,12 +364,12 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 <p className="text-xs"><span className="font-bold">ACK DATE</span> :</p>
               </div>
 
-              {/* Terms & Conditions */}
+              {/* Terms & Conditions from Settings */}
               <div className="pr-border-t p-2">
                 <p className="text-xs font-bold mb-1">TERMS & CONDITIONS :-</p>
-                <p className="text-xs">1)SUBJECT TO LOCAL JURISDICTION.</p>
-                <p className="text-xs">2)GOODS HAVE BEEN SOLD & DESPATCHED AT THE ENTIRE RISK OF THE PURCHASER.</p>
-                <p className="text-xs">3)COMPLAINTS,IF ANY REGARDING THIS INVOICE MUST BE INFORMED IN WRITING WITHIN 48 HOURS</p>
+                {terms.map((term, index) => (
+                  <p key={index} className="text-xs">{index + 1}) {term}</p>
+                ))}
               </div>
             </div>
 

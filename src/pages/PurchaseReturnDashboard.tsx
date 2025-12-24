@@ -64,6 +64,8 @@ const PurchaseReturnDashboard = () => {
   const [returnToPrint, setReturnToPrint] = useState<PurchaseReturn | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [businessDetails, setBusinessDetails] = useState<any>(null);
+  const [saleSettings, setSaleSettings] = useState<any>(null);
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Supplier history dialog states
@@ -86,12 +88,22 @@ const PurchaseReturnDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("settings")
-        .select("business_name, address, mobile_number, gst_number")
+        .select("business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings")
         .eq("organization_id", currentOrganization.id)
         .single();
 
       if (error) throw error;
-      setBusinessDetails(data);
+      setBusinessDetails({
+        business_name: data?.business_name,
+        address: data?.address,
+        mobile_number: data?.mobile_number,
+        email_id: data?.email_id,
+        gst_number: data?.gst_number,
+      });
+      setSaleSettings(data?.sale_settings);
+      // Get logo from bill_barcode_settings
+      const barcodeSettings = data?.bill_barcode_settings as any;
+      setLogoUrl(barcodeSettings?.logo_url);
     } catch (error) {
       console.error("Error fetching business details:", error);
     }
@@ -824,6 +836,8 @@ const PurchaseReturnDashboard = () => {
             returnData={returnToPrint}
             items={returnToPrint.items || []}
             businessDetails={businessDetails}
+            saleSettings={saleSettings}
+            logoUrl={logoUrl}
           />
         )}
       </div>
@@ -838,6 +852,8 @@ const PurchaseReturnDashboard = () => {
               returnData={returnToPrint}
               items={returnToPrint.items || []}
               businessDetails={businessDetails}
+              saleSettings={saleSettings}
+              logoUrl={logoUrl}
             />
           )}
           defaultFormat="a4"
