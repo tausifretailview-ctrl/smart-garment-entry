@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
@@ -26,6 +26,7 @@ import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -56,6 +57,10 @@ export default function Accounts() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  // Customer search state
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
 
   // Reconciliation filters
   const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
@@ -1040,32 +1045,78 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Customer</Label>
-                      <select
-                        value={referenceId || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setReferenceId(val);
-                          setReferenceType("customer");
-                          setVoucherType("receipt");
-                          setSelectedInvoiceIds([]);
-                          setSelectedInvoiceId("");
-                        }}
-                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="" disabled>
-                          Select customer
-                        </option>
-                        {customersWithBalance?.length === 0 && (
-                          <option value="" disabled>
-                            No customers with outstanding balance
-                          </option>
-                        )}
-                        {customersWithBalance?.map((customer) => (
-                          <option key={customer.id} value={customer.id}>
-                            {customer.customer_name} - ₹{customer.outstandingBalance.toFixed(2)}
-                          </option>
-                        ))}
-                      </select>
+                      <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={customerSearchOpen}
+                            className="w-full justify-between"
+                          >
+                            {referenceId && referenceType === "customer"
+                              ? customersWithBalance?.find((c) => c.id === referenceId)?.customer_name || "Select customer"
+                              : "Select customer"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[400px] p-0" align="start">
+                          <Command shouldFilter={false}>
+                            <CommandInput 
+                              placeholder="Search customer by name or phone..." 
+                              value={customerSearchTerm}
+                              onValueChange={setCustomerSearchTerm}
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                {customersWithBalance?.length === 0 
+                                  ? "No customers with outstanding balance" 
+                                  : "No customer found"}
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {customersWithBalance
+                                  ?.filter((customer) => {
+                                    if (!customerSearchTerm) return true;
+                                    const term = customerSearchTerm.toLowerCase();
+                                    return (
+                                      customer.customer_name.toLowerCase().includes(term) ||
+                                      (customer.phone?.toLowerCase().includes(term))
+                                    );
+                                  })
+                                  .slice(0, 50)
+                                  .map((customer) => (
+                                    <CommandItem
+                                      key={customer.id}
+                                      value={customer.id}
+                                      onSelect={() => {
+                                        setReferenceId(customer.id);
+                                        setReferenceType("customer");
+                                        setVoucherType("receipt");
+                                        setSelectedInvoiceIds([]);
+                                        setSelectedInvoiceId("");
+                                        setCustomerSearchOpen(false);
+                                        setCustomerSearchTerm("");
+                                      }}
+                                      className="flex items-center justify-between"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{customer.customer_name}</span>
+                                        {customer.phone && (
+                                          <span className="text-xs text-muted-foreground">{customer.phone}</span>
+                                        )}
+                                      </div>
+                                      <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300 bg-amber-50">
+                                        ₹{customer.outstandingBalance.toFixed(2)}
+                                      </Badge>
+                                      {referenceId === customer.id && (
+                                        <Check className="ml-2 h-4 w-4 text-primary" />
+                                      )}
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       {referenceId && referenceType === "customer" && customerBalance !== undefined && (
                         <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800 rounded-md">
                           <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
