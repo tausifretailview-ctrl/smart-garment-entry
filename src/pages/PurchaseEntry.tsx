@@ -27,9 +27,20 @@ import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportU
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
+import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 // Draft feature temporarily disabled
 // import { useDraftSave } from "@/hooks/useDraftSave";
 // import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+
+interface PriceChange {
+  sku_id: string;
+  product_name: string;
+  size: string;
+  barcode: string;
+  field: "pur_price" | "sale_price" | "mrp";
+  old_value: number;
+  new_value: number;
+}
 
 interface ProductVariant {
   id: string;
@@ -136,6 +147,11 @@ const PurchaseEntry = () => {
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   // Draft feature temporarily disabled
   // const [showDraftDialog, setShowDraftDialog] = useState(false)
+  
+  // Price update confirmation state
+  const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
+  const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
+  const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -1082,6 +1098,127 @@ const PurchaseEntry = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lineItems]);
 
+  // Function to detect price changes between line items and product_variants
+  const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {
+    const changes: PriceChange[] = [];
+    
+    // Get unique sku_ids
+    const skuIds = [...new Set(items.filter(i => i.sku_id).map(i => i.sku_id))];
+    if (skuIds.length === 0) return [];
+    
+    // Fetch current prices from product_variants
+    const { data: variants, error } = await supabase
+      .from("product_variants")
+      .select("id, pur_price, sale_price, mrp")
+      .in("id", skuIds);
+    
+    if (error || !variants) return [];
+    
+    const variantMap = new Map(variants.map(v => [v.id, v]));
+    
+    // Compare prices for each unique item (by sku_id)
+    const processedSkus = new Set<string>();
+    
+    for (const item of items) {
+      if (!item.sku_id || processedSkus.has(item.sku_id)) continue;
+      processedSkus.add(item.sku_id);
+      
+      const variant = variantMap.get(item.sku_id);
+      if (!variant) continue;
+      
+      // Check pur_price
+      if (variant.pur_price !== null && variant.pur_price !== item.pur_price) {
+        changes.push({
+          sku_id: item.sku_id,
+          product_name: item.product_name,
+          size: item.size,
+          barcode: item.barcode,
+          field: "pur_price",
+          old_value: variant.pur_price || 0,
+          new_value: item.pur_price,
+        });
+      }
+      
+      // Check sale_price
+      if (variant.sale_price !== null && variant.sale_price !== item.sale_price) {
+        changes.push({
+          sku_id: item.sku_id,
+          product_name: item.product_name,
+          size: item.size,
+          barcode: item.barcode,
+          field: "sale_price",
+          old_value: variant.sale_price || 0,
+          new_value: item.sale_price,
+        });
+      }
+      
+      // Check MRP
+      const itemMrp = item.mrp || 0;
+      const variantMrp = variant.mrp || 0;
+      if (variantMrp !== itemMrp && itemMrp > 0) {
+        changes.push({
+          sku_id: item.sku_id,
+          product_name: item.product_name,
+          size: item.size,
+          barcode: item.barcode,
+          field: "mrp",
+          old_value: variantMrp,
+          new_value: itemMrp,
+        });
+      }
+    }
+    
+    return changes;
+  };
+
+  // Function to update product_variants with selected price changes
+  const handlePriceUpdateConfirm = async (selectedChanges: PriceChange[]) => {
+    if (selectedChanges.length === 0) {
+      setShowPriceUpdateDialog(false);
+      return;
+    }
+    
+    try {
+      // Group changes by sku_id
+      const updatesBySkuId = new Map<string, Partial<{ pur_price: number; sale_price: number; mrp: number }>>();
+      
+      for (const change of selectedChanges) {
+        const existing = updatesBySkuId.get(change.sku_id) || {};
+        existing[change.field] = change.new_value;
+        updatesBySkuId.set(change.sku_id, existing);
+      }
+      
+      // Update each variant
+      for (const [skuId, updates] of updatesBySkuId) {
+        const { error } = await supabase
+          .from("product_variants")
+          .update(updates)
+          .eq("id", skuId);
+        
+        if (error) throw error;
+      }
+      
+      toast({
+        title: "Prices Updated",
+        description: `Updated ${updatesBySkuId.size} product variant(s) in Product Master`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update prices",
+        variant: "destructive",
+      });
+    } finally {
+      setShowPriceUpdateDialog(false);
+      setDetectedPriceChanges([]);
+    }
+  };
+
+  const handlePriceUpdateSkip = () => {
+    setShowPriceUpdateDialog(false);
+    setDetectedPriceChanges([]);
+  };
+
   const handleSave = async () => {
     // Prevent double-click saves
     if (loading) return;
@@ -1319,6 +1456,14 @@ const PurchaseEntry = () => {
           .insert(itemsToInsert);
 
         if (itemsError) throw itemsError;
+
+        // Check for price changes and show dialog if any
+        const priceChanges = await detectPriceChanges(lineItems);
+        if (priceChanges.length > 0) {
+          setDetectedPriceChanges(priceChanges);
+          setPendingSaveItems([...lineItems]);
+          setShowPriceUpdateDialog(true);
+        }
 
         toast({
           title: "Success",
@@ -2368,6 +2513,15 @@ const PurchaseEntry = () => {
           open={showProductDialog}
           onOpenChange={setShowProductDialog}
           onProductCreated={handleProductCreated}
+        />
+
+        {/* Price Update Confirmation Dialog */}
+        <PriceUpdateConfirmDialog
+          open={showPriceUpdateDialog}
+          onOpenChange={setShowPriceUpdateDialog}
+          priceChanges={detectedPriceChanges}
+          onConfirm={handlePriceUpdateConfirm}
+          onSkip={handlePriceUpdateSkip}
         />
       </div>
     </div>
