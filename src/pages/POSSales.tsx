@@ -794,20 +794,6 @@ export default function POSSales() {
     }
   };
 
-    
-    // Auto-scroll to show newly added product only after 6 items
-    setTimeout(() => {
-      if (itemsContainerRef.current && items.length >= 6) {
-        itemsContainerRef.current.scrollTo({
-          top: itemsContainerRef.current.scrollHeight,
-          behavior: 'smooth'
-        });
-      }
-      // Always keep focus on barcode search bar
-      barcodeInputRef.current?.focus();
-    }, 100);
-  };
-
   const calculateNetAmount = (item: CartItem) => {
     const baseAmount = item.mrp * item.quantity;
     const percentDiscount = (baseAmount * item.discountPercent) / 100;
@@ -3053,6 +3039,22 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Price Selection Dialog */}
+        {pendingPriceSelection && (
+          <PriceSelectionDialog
+            open={showPriceSelectionDialog}
+            onOpenChange={(open) => {
+              setShowPriceSelectionDialog(open);
+              if (!open) setPendingPriceSelection(null);
+            }}
+            productName={pendingPriceSelection.product.product_name}
+            size={pendingPriceSelection.variant.size}
+            masterPrice={pendingPriceSelection.masterPrice}
+            lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+            onSelect={handlePriceSelection}
+          />
+        )}
 
         {/* Hidden Credit Note for Printing */}
         {creditNoteData && (

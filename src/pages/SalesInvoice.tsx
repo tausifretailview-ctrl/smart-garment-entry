@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { useReactToPrint } from "react-to-print";
 import {
   Command,
@@ -156,6 +157,15 @@ export default function SalesInvoice() {
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
+  
+  // Price selection dialog state
+  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
+  const [pendingPriceSelection, setPendingPriceSelection] = useState<{
+    product: any;
+    variant: any;
+    masterPrice: { sale_price: number; mrp: number };
+    lastPurchasePrice: { sale_price: number; mrp: number; date?: Date };
+  } | null>(null);
 
   // Draft save hook
   const {
@@ -615,7 +625,7 @@ export default function SalesInvoice() {
     }
   };
 
-  const addProductToInvoice = async (product: any, variant: any) => {
+  const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
     if (entryMode === "grid") {
       openSizeGridForProduct(product);
@@ -660,6 +670,32 @@ export default function SalesInvoice() {
       updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
       setLineItems(updatedItems);
     } else {
+      // Check if last_purchase prices differ from master prices (for new items only)
+      const masterSalePrice = parseFloat(variant.sale_price || 0);
+      const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
+      const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
+      const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
+      
+      // If no override provided and last purchase prices differ, show dialog
+      if (!overridePrice && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
+        setPendingPriceSelection({
+          product,
+          variant,
+          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          lastPurchasePrice: { 
+            sale_price: lastPurchaseSalePrice, 
+            mrp: lastPurchaseMrp || lastPurchaseSalePrice,
+            date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
+          }
+        });
+        setShowPriceSelectionDialog(true);
+        return;
+      }
+      
+      // Use override price or master price
+      const salePrice = overridePrice?.sale_price ?? masterSalePrice;
+      const mrpToUse = overridePrice?.mrp ?? masterMrp;
+      
       // Find first empty row and fill it
       const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
       
@@ -674,8 +710,8 @@ export default function SalesInvoice() {
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
           quantity: 1,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
+          mrp: mrpToUse,
+          salePrice: salePrice,
           discountPercent: 0,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
@@ -694,8 +730,8 @@ export default function SalesInvoice() {
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
           quantity: 1,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
+          mrp: mrpToUse,
+          salePrice: salePrice,
           discountPercent: 0,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
@@ -722,6 +758,15 @@ export default function SalesInvoice() {
       title: "Product Added",
       description: `${product.product_name} (${variant.size}) added to invoice`,
     });
+  };
+
+  // Handle price selection from dialog
+  const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
+    if (pendingPriceSelection) {
+      addProductToInvoice(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
+      setPendingPriceSelection(null);
+      setShowPriceSelectionDialog(false);
+    }
   };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
@@ -2029,6 +2074,22 @@ Thank you for choosing us!`;
           setShowDraftDialog(false);
         }}
       />
+
+      {/* Price Selection Dialog */}
+      {pendingPriceSelection && (
+        <PriceSelectionDialog
+          open={showPriceSelectionDialog}
+          onOpenChange={(open) => {
+            setShowPriceSelectionDialog(open);
+            if (!open) setPendingPriceSelection(null);
+          }}
+          productName={pendingPriceSelection.product.product_name}
+          size={pendingPriceSelection.variant.size}
+          masterPrice={pendingPriceSelection.masterPrice}
+          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+          onSelect={handlePriceSelection}
+        />
+      )}
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
