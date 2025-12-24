@@ -899,13 +899,16 @@ const PurchaseEntry = () => {
   };
 
   // Handle confirmation from SizeGridDialog
-  const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>) => {
+  const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>, newColor?: string) => {
     for (const { variant, qty } of items) {
       let barcode = variant.barcode || "";
       let skuId = variant.id;
       
+      // Check if this is for a new color - need to create variants for all sizes
+      const isNewColorVariant = newColor && variant.isCustomSize;
+      
       // Check if this is a custom/new size that needs to be created
-      if (variant.isCustomSize) {
+      if (variant.isCustomSize || isNewColorVariant) {
         try {
           // Generate barcode for new variant
           barcode = await generateCentralizedBarcode();
@@ -917,7 +920,7 @@ const PurchaseEntry = () => {
               product_id: selectedProduct.id,
               organization_id: currentOrganization?.id,
               size: variant.size,
-              color: variant.color || selectedProduct.color || null,
+              color: newColor || variant.color || selectedProduct.color || null,
               pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
               sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
               mrp: variant.sale_price || selectedProduct.default_sale_price || 0,
@@ -933,14 +936,16 @@ const PurchaseEntry = () => {
           skuId = newVariant.id;
           
           toast({
-            title: "Size Created",
-            description: `New size "${variant.size}" created for ${selectedProduct.product_name}`,
+            title: newColor ? "Color Variant Created" : "Size Created",
+            description: newColor 
+              ? `New variant "${variant.size}" in color "${newColor}" created for ${selectedProduct.product_name}`
+              : `New size "${variant.size}" created for ${selectedProduct.product_name}`,
           });
         } catch (error: any) {
           console.error("Error creating new variant:", error);
           toast({
             title: "Error",
-            description: `Failed to create new size ${variant.size}: ${error.message}`,
+            description: `Failed to create new variant ${variant.size}: ${error.message}`,
             variant: "destructive",
           });
           continue;
@@ -980,7 +985,7 @@ const PurchaseEntry = () => {
         discount_percent: 0,
         brand: selectedProduct.brand || "",
         category: selectedProduct.category || "",
-        color: variant.color || selectedProduct.color || "",
+        color: newColor || variant.color || selectedProduct.color || "",
         style: selectedProduct.style || "",
       });
     }
@@ -2250,6 +2255,7 @@ const PurchaseEntry = () => {
           validateStock={false}
           title="Enter Size-wise Qty"
           allowCustomSizes={true}
+          allowAddColor={true}
           defaultPurPrice={selectedProduct?.default_pur_price}
           defaultSalePrice={selectedProduct?.default_sale_price}
         />
