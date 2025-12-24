@@ -186,22 +186,24 @@ export default function Accounts() {
   const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance", currentOrganization?.id],
     queryFn: async () => {
-      // First get all customers with opening_balance
+      // First get all customers with opening_balance - using higher limit for large datasets
       const { data: allCustomers, error: custError } = await supabase
         .from("customers")
         .select("*")
         .eq("organization_id", currentOrganization?.id)
         .is("deleted_at", null)
-        .order("customer_name");
+        .order("customer_name")
+        .limit(10000);
       if (custError) throw custError;
 
-      // Get customers with pending/partial invoices
+      // Get customers with pending/partial invoices - using higher limit for large datasets
       const { data: pendingInvoices, error: invError } = await supabase
         .from("sales")
         .select("customer_id, net_amount, paid_amount")
         .eq("organization_id", currentOrganization?.id)
         .in("payment_status", ["pending", "partial"])
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .limit(50000);
       if (invError) throw invError;
 
       // Calculate invoice balance per customer (net_amount - paid_amount)
@@ -230,7 +232,7 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch all customers (for other purposes like ledger)
+  // Fetch all customers (for other purposes like ledger) - using higher limit for large datasets
   const { data: customers } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
@@ -238,7 +240,9 @@ export default function Accounts() {
         .from("customers")
         .select("*")
         .eq("organization_id", currentOrganization?.id)
-        .order("customer_name");
+        .is("deleted_at", null)
+        .order("customer_name")
+        .limit(10000);
       if (error) throw error;
       return data;
     },

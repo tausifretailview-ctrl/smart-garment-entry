@@ -69,22 +69,24 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
   const { data: customers, isLoading } = useQuery({
     queryKey: ["customer-ledger", organizationId],
     queryFn: async () => {
-      // Fetch all customers (excluding soft-deleted)
+      // Fetch all customers (excluding soft-deleted) - using higher limit for large datasets
       const { data: customersData, error: customersError } = await supabase
         .from("customers")
         .select("*")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
-        .order("customer_name");
+        .order("customer_name")
+        .limit(10000);
 
       if (customersError) throw customersError;
 
-      // Fetch sales for each customer
+      // Fetch sales for each customer - using higher limit for large datasets
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
         .select("customer_id, net_amount, paid_amount")
         .eq("organization_id", organizationId)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .limit(50000);
 
       if (salesError) throw salesError;
 
