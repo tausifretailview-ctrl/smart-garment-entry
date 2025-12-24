@@ -1,9 +1,23 @@
 import * as XLSX from 'xlsx';
 
-// Normalize phone number by removing all non-numeric characters (spaces, dashes, parentheses, etc.)
+// Normalize phone number: strip non-digits, remove Indian country code prefixes, return last 10 digits
 export const normalizePhoneNumber = (phone: string | number | null | undefined): string => {
   if (!phone) return '';
-  return String(phone).replace(/\D/g, '');
+  let normalized = String(phone).replace(/\D/g, ''); // Remove all non-digits
+  
+  // Handle Indian number formats - extract last 10 digits
+  if (normalized.length >= 10) {
+    // Remove country code (91) or leading 0 if present
+    if (normalized.startsWith('91') && normalized.length > 10) {
+      normalized = normalized.slice(-10);
+    } else if (normalized.startsWith('0') && normalized.length > 10) {
+      normalized = normalized.slice(-10);
+    } else if (normalized.length > 10) {
+      normalized = normalized.slice(-10);
+    }
+  }
+  
+  return normalized;
 };
 
 export interface TargetField {
