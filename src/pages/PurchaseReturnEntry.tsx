@@ -65,6 +65,7 @@ const PurchaseReturnEntry = () => {
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
   const [returnNumber, setReturnNumber] = useState("");
+  const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -203,12 +204,30 @@ const PurchaseReturnEntry = () => {
   }, [searchQuery]);
 
   useEffect(() => {
-    const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
-    const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-    setGrossAmount(gross);
-    setGstAmount(gst);
-    setNetAmount(gross + gst);
-  }, [lineItems]);
+    if (taxType === "exclusive") {
+      // GST Exclusive: line_total is base price, GST added on top
+      const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+      const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+      setGrossAmount(gross);
+      setGstAmount(gst);
+      setNetAmount(gross + gst);
+    } else {
+      // GST Inclusive: line_total includes GST, need to extract base and GST
+      let totalGross = 0;
+      let totalGst = 0;
+      lineItems.forEach((item) => {
+        const inclusiveTotal = item.line_total;
+        const gstRate = item.gst_per / 100;
+        const baseAmount = inclusiveTotal / (1 + gstRate);
+        const gstAmount = inclusiveTotal - baseAmount;
+        totalGross += baseAmount;
+        totalGst += gstAmount;
+      });
+      setGrossAmount(totalGross);
+      setGstAmount(totalGst);
+      setNetAmount(totalGross + totalGst);
+    }
+  }, [lineItems, taxType]);
 
   const searchProducts = async (query: string) => {
     if (!query || query.length < 1) {
@@ -551,6 +570,19 @@ const PurchaseReturnEntry = () => {
                     setReturnData({ ...returnData, original_bill_number: e.target.value })
                   }
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>GST Type</Label>
+                <Select value={taxType} onValueChange={(value: "exclusive" | "inclusive") => setTaxType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="exclusive">GST Exclusive</SelectItem>
+                    <SelectItem value="inclusive">GST Inclusive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2 md:col-span-2">
