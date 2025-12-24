@@ -1364,7 +1364,7 @@ export default function POSSales() {
 
   const { sendWhatsApp } = useWhatsAppSend();
 
-  const handleWhatsAppShare = (useCurrentData: boolean = false) => {
+  const handleWhatsAppShare = async (useCurrentData: boolean = false) => {
     const phone = useCurrentData ? customerPhone : savedInvoiceData?.customerPhone;
     const invoiceNo = useCurrentData ? currentInvoiceNumber : savedInvoiceData?.invoiceNumber;
     const name = useCurrentData ? customerName : savedInvoiceData?.customerName;
@@ -1375,6 +1375,12 @@ export default function POSSales() {
     const method = useCurrentData ? paymentMethod : savedInvoiceData?.method;
     const srAdjust = useCurrentData ? saleReturnAdjust : (savedInvoiceData?.saleReturnAdjust || 0);
     const roundOffAmount = useCurrentData ? roundOff : (savedInvoiceData?.roundOff || 0);
+    const custId = useCurrentData ? customerId : savedInvoiceData?.customerId;
+    
+    // Get payment breakdown from savedInvoiceData (already saved)
+    const cashAmt = savedInvoiceData?.cashAmount || 0;
+    const cardAmt = savedInvoiceData?.cardAmount || 0;
+    const upiAmt = savedInvoiceData?.upiAmount || 0;
     
     if (!phone) {
       toast({
@@ -1394,7 +1400,40 @@ export default function POSSales() {
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
     const invoiceUrl = saleId ? `${window.location.origin}/${orgSlug}/invoice/view/${saleId}` : '';
     
-    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment Method: ${(method || 'cash').toUpperCase()}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
+    // Build payment breakdown
+    const paymentParts: string[] = [];
+    if (cashAmt > 0) paymentParts.push(`Cash: ₹${Number(cashAmt).toLocaleString("en-IN")}`);
+    if (cardAmt > 0) paymentParts.push(`Card: ₹${Number(cardAmt).toLocaleString("en-IN")}`);
+    if (upiAmt > 0) paymentParts.push(`UPI: ₹${Number(upiAmt).toLocaleString("en-IN")}`);
+    const paymentBreakdown = paymentParts.length > 0 ? paymentParts.join(" | ") : (method || 'cash').toUpperCase();
+    
+    // Fetch customer outstanding if customer exists
+    let outstandingText = '';
+    if (custId) {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('opening_balance')
+        .eq('id', custId)
+        .single();
+      
+      const openingBalance = customer?.opening_balance || 0;
+      
+      const { data: salesData } = await supabase
+        .from('sales')
+        .select('net_amount, paid_amount')
+        .eq('customer_id', custId)
+        .eq('organization_id', currentOrganization?.id);
+      
+      const totalSales = salesData?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+      const totalPaid = salesData?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
+      const customerBalance = openingBalance + totalSales - totalPaid;
+      
+      if (customerBalance > 0) {
+        outstandingText = `\n💰 *Outstanding Balance: ₹${Number(customerBalance).toLocaleString("en-IN")}*`;
+      }
+    }
+    
+    const message = `*Invoice Details*\n\nInvoice No: ${invoiceNo}\nDate: ${format(new Date(), 'dd/MM/yyyy')}\nCustomer: ${name || 'Walk in Customer'}\n\n*Items:*\n${itemsList}\n\nGross Amount: ₹${(grossAmount || 0).toFixed(2)}\nDiscount: ₹${(discountAmount || 0).toFixed(2)}${srAdjust > 0 ? `\nS/R Adjust: -₹${srAdjust.toFixed(2)}` : ''}\nRound Off: ₹${(roundOffAmount || 0).toFixed(2)}\n*Net Amount: ₹${(totalAmount || 0).toFixed(2)}*\n\nPayment: ${paymentBreakdown}${outstandingText}${invoiceUrl ? `\n\n📄 View Invoice Online:\n${invoiceUrl}` : ''}\n\nThank you for your business!`;
 
     sendWhatsApp(phone, message);
   };

@@ -13,6 +13,11 @@ interface Invoice {
   delivery_status?: string;
   paid_amount?: number;
   due_date?: string;
+  cash_amount?: number;
+  card_amount?: number;
+  upi_amount?: number;
+  customer_id?: string;
+  organization_id?: string;
 }
 
 interface Quotation {
@@ -97,11 +102,11 @@ export const useWhatsAppTemplates = () => {
     return links.length > 0 ? `Follow us:\n${links.join('\n')}` : '';
   };
 
-  const formatMessage = (templateType: string, invoice: Invoice, items?: string) => {
+  const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number) => {
     const template = getTemplate(templateType);
     if (!template) {
       // Return default message if no template found
-      return getDefaultMessage(templateType, invoice, items);
+      return getDefaultMessage(templateType, invoice, items, customerBalance);
     }
 
     let message = template.message_template;
@@ -112,6 +117,12 @@ export const useWhatsAppTemplates = () => {
 
     // Build social links text
     const socialLinksText = buildSocialLinksText();
+
+    // Build payment breakdown text
+    const paymentBreakdown = buildPaymentBreakdown(invoice);
+
+    // Outstanding amount (customer balance)
+    const outstandingAmount = customerBalance || 0;
 
     // Replace placeholders
     message = message
@@ -127,12 +138,28 @@ export const useWhatsAppTemplates = () => {
       .replace(/{social_links}/g, socialLinksText)
       .replace(/{instagram_link}/g, settings?.instagram_link || "")
       .replace(/{website_link}/g, settings?.website_link || "")
-      .replace(/{google_review_link}/g, settings?.google_review_link || "");
+      .replace(/{google_review_link}/g, settings?.google_review_link || "")
+      .replace(/{payment_breakdown}/g, paymentBreakdown)
+      .replace(/{outstanding_amount}/g, `₹${Number(outstandingAmount).toLocaleString("en-IN")}`);
 
     return message;
   };
 
-  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string) => {
+  const buildPaymentBreakdown = (invoice: Invoice) => {
+    const parts: string[] = [];
+    if (invoice.cash_amount && invoice.cash_amount > 0) {
+      parts.push(`Cash: ₹${Number(invoice.cash_amount).toLocaleString("en-IN")}`);
+    }
+    if (invoice.card_amount && invoice.card_amount > 0) {
+      parts.push(`Card: ₹${Number(invoice.card_amount).toLocaleString("en-IN")}`);
+    }
+    if (invoice.upi_amount && invoice.upi_amount > 0) {
+      parts.push(`UPI: ₹${Number(invoice.upi_amount).toLocaleString("en-IN")}`);
+    }
+    return parts.length > 0 ? parts.join(" | ") : "";
+  };
+
+  const getDefaultMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number) => {
     const deliveryStatusText = invoice.delivery_status === "delivered" 
       ? "delivered successfully" 
       : invoice.delivery_status === "in_process"
@@ -140,6 +167,16 @@ export const useWhatsAppTemplates = () => {
       : "pending delivery";
 
     const socialLinksText = buildSocialLinksText();
+    const paymentBreakdown = buildPaymentBreakdown(invoice);
+    const outstandingAmount = customerBalance || 0;
+
+    let paymentInfo = `Payment Status: ${invoice.payment_status}`;
+    if (paymentBreakdown) {
+      paymentInfo += `\nPayment: ${paymentBreakdown}`;
+    }
+    if (outstandingAmount > 0) {
+      paymentInfo += `\n💰 Outstanding Balance: ₹${Number(outstandingAmount).toLocaleString("en-IN")}`;
+    }
 
     return `Hello ${invoice.customer_name},
 
@@ -147,7 +184,7 @@ Your order details:
 Invoice: ${invoice.sale_number}
 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
-Payment Status: ${invoice.payment_status}
+${paymentInfo}
 ${invoice.delivery_status ? `Delivery Status: ${deliveryStatusText}` : ""}
 
 ${items || ""}

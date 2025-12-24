@@ -592,7 +592,7 @@ export default function SalesInvoiceDashboard() {
     }, 500);
   };
 
-  const handleWhatsAppShare = (invoice: any) => {
+  const handleWhatsAppShare = async (invoice: any) => {
     if (!invoice.customer_phone) {
       toast({
         title: "No Phone Number",
@@ -610,6 +610,28 @@ export default function SalesInvoiceDashboard() {
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
     const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${invoice.id}`;
     
+    // Fetch customer balance if customer_id exists
+    let customerBalance = 0;
+    if (invoice.customer_id) {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('opening_balance')
+        .eq('id', invoice.customer_id)
+        .single();
+      
+      const openingBalance = customer?.opening_balance || 0;
+      
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('net_amount, paid_amount')
+        .eq('customer_id', invoice.customer_id)
+        .eq('organization_id', currentOrganization?.id);
+      
+      const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+      const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
+      customerBalance = openingBalance + totalSales - totalPaid;
+    }
+    
     // Use template for message
     const templateMessage = formatMessage('sales_invoice', {
       sale_number: invoice.sale_number,
@@ -618,7 +640,13 @@ export default function SalesInvoiceDashboard() {
       sale_date: invoice.sale_date,
       net_amount: invoice.net_amount,
       payment_status: invoice.payment_status,
-    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`);
+      cash_amount: invoice.cash_amount,
+      card_amount: invoice.card_amount,
+      upi_amount: invoice.upi_amount,
+      paid_amount: invoice.paid_amount,
+      customer_id: invoice.customer_id,
+      organization_id: currentOrganization?.id,
+    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`, customerBalance);
 
     sendWhatsApp(invoice.customer_phone, templateMessage);
   };

@@ -571,6 +571,28 @@ const POSDashboard = () => {
     const orgSlug = currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || '';
     const invoiceUrl = `${window.location.origin}/${orgSlug}/invoice/view/${sale.id}`;
     
+    // Fetch customer balance if customer_id exists
+    let customerBalance = 0;
+    if (sale.customer_id) {
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('opening_balance')
+        .eq('id', sale.customer_id)
+        .single();
+      
+      const openingBalance = customer?.opening_balance || 0;
+      
+      const { data: sales } = await supabase
+        .from('sales')
+        .select('net_amount, paid_amount')
+        .eq('customer_id', sale.customer_id)
+        .eq('organization_id', currentOrganization?.id);
+      
+      const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+      const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
+      customerBalance = openingBalance + totalSales - totalPaid;
+    }
+    
     // Use template for message
     const templateMessage = formatMessage('sales_invoice', {
       sale_number: sale.sale_number,
@@ -579,7 +601,13 @@ const POSDashboard = () => {
       sale_date: sale.sale_date,
       net_amount: sale.net_amount,
       payment_status: sale.payment_status,
-    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`);
+      cash_amount: sale.cash_amount,
+      card_amount: sale.card_amount,
+      upi_amount: sale.upi_amount,
+      paid_amount: sale.paid_amount,
+      customer_id: sale.customer_id,
+      organization_id: currentOrganization?.id,
+    }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`, customerBalance);
 
     sendWhatsApp(sale.customer_phone, templateMessage);
   };
