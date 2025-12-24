@@ -187,10 +187,7 @@ Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
 ${paymentInfo}
 ${invoice.delivery_status ? `Delivery Status: ${deliveryStatusText}` : ""}
 
-${items || ""}
-
-${socialLinksText}
-
+${items || ""}${socialLinksText ? `\n${socialLinksText}` : ''}
 Thank you for your business!`;
   };
 
