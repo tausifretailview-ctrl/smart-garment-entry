@@ -793,14 +793,22 @@ const ProductEntry = () => {
       const productColor = formData.colors.length > 0 ? formData.colors[0] : null;
       
       if (editingProductId) {
-        // Update existing product
+        // Update existing product - explicitly define columns to avoid sending invalid fields like default_mrp
         const productPayload = {
-          ...formData,
-          color: productColor, // Store first color in products table for backward compatibility
+          product_type: formData.product_type,
+          product_name: formData.product_name,
+          category: formData.category || null,
+          brand: formData.brand || null,
+          style: formData.style || null,
+          color: productColor,
+          hsn_code: formData.hsn_code || null,
+          gst_per: formData.gst_per,
+          default_pur_price: formData.default_pur_price,
+          default_sale_price: formData.default_sale_price,
+          status: formData.status,
           image_url: imageUrl,
           size_group_id: formData.size_group_id || null,
         };
-        delete (productPayload as any).colors; // Remove colors array from payload
         
         const { data, error: productError } = await supabase
           .from("products")
