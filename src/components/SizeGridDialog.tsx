@@ -42,13 +42,15 @@ interface SizeGridDialogProps {
   onClose: () => void;
   product: Product | null;
   variants: Variant[];
-  onConfirm: (items: Array<{ variant: Variant; qty: number }>) => void;
+  onConfirm: (items: Array<{ variant: Variant; qty: number }>, newColor?: string) => void;
   showStock?: boolean;
   validateStock?: boolean;
   title?: string;
   allowCustomSizes?: boolean;
+  allowAddColor?: boolean;
   defaultPurPrice?: number;
   defaultSalePrice?: number;
+  onColorAdded?: (color: string) => void;
 }
 
 export function SizeGridDialog({
@@ -61,8 +63,10 @@ export function SizeGridDialog({
   validateStock = false,
   title = "Enter Size-wise Qty",
   allowCustomSizes = false,
+  allowAddColor = false,
   defaultPurPrice,
   defaultSalePrice,
+  onColorAdded,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
@@ -73,17 +77,23 @@ export function SizeGridDialog({
   const [newQty, setNewQty] = useState("");
   const [newPurPrice, setNewPurPrice] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
+  const [showAddColor, setShowAddColor] = useState(false);
+  const [newColorName, setNewColorName] = useState("");
+  const [addedColors, setAddedColors] = useState<string[]>([]);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const customSizeInputRef = useRef<HTMLInputElement>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
-  // Get unique colors from variants
+  // Get unique colors from variants including newly added colors
   const uniqueColors = useMemo(() => {
     const colors = new Set<string>();
     variants.forEach((v) => {
       if (v.color) colors.add(v.color);
     });
+    // Add any colors that were added during this session
+    addedColors.forEach(c => colors.add(c));
     return Array.from(colors);
-  }, [variants]);
+  }, [variants, addedColors]);
 
   // Check if product has multiple colors
   const hasMultipleColors = uniqueColors.length > 1;
@@ -108,17 +118,20 @@ export function SizeGridDialog({
       setSelectedColor(null);
       setCustomSizes([]);
       setShowAddCustom(false);
+      setShowAddColor(false);
       setNewSize("");
       setNewQty("");
       setNewPurPrice("");
       setNewSalePrice("");
+      setNewColorName("");
+      setAddedColors([]);
       // If only one color, auto-select it
       if (uniqueColors.length === 1) {
         setSelectedColor(uniqueColors[0]);
       }
       setTimeout(() => firstInputRef.current?.focus(), 100);
     }
-  }, [open, product?.id, uniqueColors]);
+  }, [open, product?.id]);
 
   // Focus first input when color is selected
   useEffect(() => {
@@ -133,6 +146,45 @@ export function SizeGridDialog({
       setTimeout(() => customSizeInputRef.current?.focus(), 100);
     }
   }, [showAddCustom]);
+
+  // Focus color input when shown
+  useEffect(() => {
+    if (showAddColor) {
+      setTimeout(() => colorInputRef.current?.focus(), 100);
+    }
+  }, [showAddColor]);
+
+  const handleAddColor = () => {
+    if (!newColorName.trim()) {
+      toast({ title: "Error", description: "Please enter a color name", variant: "destructive" });
+      return;
+    }
+
+    const colorUpperCase = newColorName.trim().toUpperCase();
+
+    // Check if color already exists
+    if (uniqueColors.some(c => c.toUpperCase() === colorUpperCase)) {
+      toast({ title: "Color Exists", description: "This color already exists", variant: "destructive" });
+      return;
+    }
+
+    // Add to added colors list
+    setAddedColors(prev => [...prev, colorUpperCase]);
+    
+    // Notify parent if callback provided
+    if (onColorAdded) {
+      onColorAdded(colorUpperCase);
+    }
+
+    // Auto-select the new color
+    setSelectedColor(colorUpperCase);
+    
+    // Reset input
+    setNewColorName("");
+    setShowAddColor(false);
+
+    toast({ title: "Color Added", description: `${colorUpperCase} added. You can now enter quantities for this color.` });
+  };
 
   const handleAddCustomSize = () => {
     if (!newSize.trim()) {
@@ -252,12 +304,14 @@ export function SizeGridDialog({
       items.push({ variant: customVariant, qty: custom.qty });
     }
 
-    onConfirm(items);
+    // Pass newColor if it's a newly added color
+    const isNewColor = addedColors.includes(selectedColor || "");
+    onConfirm(items, isNewColor ? selectedColor || undefined : undefined);
     onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && !showAddCustom) {
+    if (e.key === "Enter" && !e.shiftKey && !showAddCustom && !showAddColor) {
       e.preventDefault();
       handleConfirm();
     }
@@ -292,11 +346,11 @@ export function SizeGridDialog({
           )}
         </div>
 
-        {/* Color Selection - Show only if multiple colors exist */}
-        {hasMultipleColors && !selectedColor && (
+        {/* Color Selection - Show only if multiple colors exist or allowAddColor */}
+        {(hasMultipleColors || allowAddColor) && !selectedColor && (
           <div className="mb-4">
             <Label className="mb-2 block">Select Color</Label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
               {uniqueColors.map((color) => (
                 <Button
                   key={color}
@@ -305,17 +359,79 @@ export function SizeGridDialog({
                   onClick={() => handleColorSelect(color)}
                 >
                   {color}
+                  {addedColors.includes(color) && (
+                    <Badge variant="secondary" className="ml-1 text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200">New</Badge>
+                  )}
                 </Button>
               ))}
+              
+              {/* Add New Color Button */}
+              {allowAddColor && !showAddColor && (
+                <Button
+                  variant="outline"
+                  className="min-w-[80px] border-dashed border-primary text-primary hover:bg-primary/10"
+                  onClick={() => setShowAddColor(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Color
+                </Button>
+              )}
             </div>
+
+            {/* Add New Color Input */}
+            {showAddColor && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Color Name *</Label>
+                  <Input
+                    ref={colorInputRef}
+                    placeholder="e.g., BK, RD, BL"
+                    value={newColorName}
+                    onChange={(e) => setNewColorName(e.target.value.toUpperCase())}
+                    className="w-32"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddColor();
+                      }
+                    }}
+                  />
+                </div>
+                <Button size="sm" onClick={handleAddColor}>
+                  Add
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => {
+                  setShowAddColor(false);
+                  setNewColorName("");
+                }}>
+                  Cancel
+                </Button>
+                <p className="text-xs text-muted-foreground w-full">
+                  💡 New color variant will be created for this product when you confirm.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
+        {/* For single color products without add color option - show message */}
+        {!hasMultipleColors && !allowAddColor && uniqueColors.length === 1 && (
+          <div className="mb-2">
+            <Badge variant="outline">{uniqueColors[0]}</Badge>
+          </div>
+        )}
+
+        {/* Check if this is a newly added color */}
+        {(() => {
+          const isNewColor = selectedColor && addedColors.includes(selectedColor);
+          return null; // Just checking, used below
+        })()}
+
         {/* Size Grid - Show only when color is selected or single color product */}
-        {(selectedColor || !hasMultipleColors) && (
+        {(selectedColor || (!hasMultipleColors && !allowAddColor)) && (
           <>
             {/* Back to color selection button */}
-            {hasMultipleColors && selectedColor && (
+            {(hasMultipleColors || allowAddColor) && selectedColor && (
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -328,6 +444,15 @@ export function SizeGridDialog({
               >
                 ← Change Color
               </Button>
+            )}
+
+            {/* Show message for new color */}
+            {selectedColor && addedColors.includes(selectedColor) && (
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  💡 This is a new color. Add sizes below to create variants for "{selectedColor}".
+                </p>
+              </div>
             )}
 
             {/* Existing Variants Grid */}
@@ -384,10 +509,10 @@ export function SizeGridDialog({
               </div>
             )}
 
-            {/* Add Custom Size Section - Only show if allowCustomSizes is true */}
-            {allowCustomSizes && (
+            {/* Add Custom Size Section - Show if allowCustomSizes is true OR if new color with no variants */}
+            {(allowCustomSizes || (selectedColor && addedColors.includes(selectedColor))) && (
               <>
-                {!showAddCustom ? (
+                {!showAddCustom && !(selectedColor && addedColors.includes(selectedColor) && customSizes.length === 0) ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -445,15 +570,18 @@ export function SizeGridDialog({
                       <Button size="sm" onClick={handleAddCustomSize}>
                         Add
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => {
-                        setShowAddCustom(false);
-                        setNewSize("");
-                        setNewQty("");
-                        setNewPurPrice("");
-                        setNewSalePrice("");
-                      }}>
-                        Cancel
-                      </Button>
+                      {/* Only show cancel if we have existing variants or custom sizes */}
+                      {(filteredVariants.length > 0 || customSizes.length > 0 || !(selectedColor && addedColors.includes(selectedColor))) && (
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          setShowAddCustom(false);
+                          setNewSize("");
+                          setNewQty("");
+                          setNewPurPrice("");
+                          setNewSalePrice("");
+                        }}>
+                          Cancel
+                        </Button>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
                       💡 New size variant will be created for this product when you confirm.
@@ -500,7 +628,7 @@ export function SizeGridDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
-          {(selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
+          {(selectedColor || (!hasMultipleColors && !allowAddColor)) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
               Confirm (Enter)
             </Button>
