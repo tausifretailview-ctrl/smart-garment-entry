@@ -175,8 +175,29 @@ export default function POSSales() {
     }
   }, [currentOrganization?.id]);
 
-  // Always keep focus on barcode search bar when page is idle
+  // Auto-focus barcode input on mount and keep focus when idle
   useEffect(() => {
+    // Focus immediately on mount
+    barcodeInputRef.current?.focus();
+    
+    // Re-focus periodically when no dialog is open
+    const focusInterval = setInterval(() => {
+      const activeElement = document.activeElement;
+      const isDialogOpen = document.querySelector('[role="dialog"]');
+      const isPopoverOpen = document.querySelector('[data-radix-popper-content-wrapper]');
+      
+      // Only auto-focus if no dialog/popover is open and user isn't in another input
+      if (
+        !isDialogOpen && 
+        !isPopoverOpen &&
+        activeElement?.tagName !== 'INPUT' &&
+        activeElement?.tagName !== 'SELECT' &&
+        activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        barcodeInputRef.current?.focus();
+      }
+    }, 500);
+
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // Don't refocus if user is clicking on input, select, textarea, or button
@@ -197,7 +218,10 @@ export default function POSSales() {
     };
 
     document.addEventListener('click', handleGlobalClick);
-    return () => document.removeEventListener('click', handleGlobalClick);
+    return () => {
+      document.removeEventListener('click', handleGlobalClick);
+      clearInterval(focusInterval);
+    };
   }, []);
 
   const fetchPosBillFormat = async () => {
