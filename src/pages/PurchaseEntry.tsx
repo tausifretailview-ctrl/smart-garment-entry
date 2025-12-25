@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -151,6 +152,9 @@ const PurchaseEntry = () => {
   // Price update confirmation state
   const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
   const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
+  
+  // State for selective barcode printing
+  const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
   const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
 
   const [billData, setBillData] = useState({
@@ -1535,6 +1539,20 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // Get items to print - either selected items or all items if none selected
+    const itemsToPrint = selectedForPrint.size > 0
+      ? lineItems.filter(item => selectedForPrint.has(item.temp_id))
+      : lineItems;
+
+    if (itemsToPrint.length === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select items to print barcodes",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       // Fetch supplier code
       let supplierCode = "";
@@ -1549,7 +1567,7 @@ const PurchaseEntry = () => {
       }
 
       // Format items for barcode printing page
-      const barcodeItems = lineItems.map((item) => ({
+      const barcodeItems = itemsToPrint.map((item) => ({
         sku_id: item.sku_id,
         product_name: item.product_name || "",
         brand: item.brand || "",
@@ -1566,6 +1584,9 @@ const PurchaseEntry = () => {
         supplier_code: supplierCode,
       }));
 
+      // Clear selection after navigation
+      setSelectedForPrint(new Set());
+
       // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
         state: { purchaseItems: barcodeItems } 
@@ -1577,6 +1598,28 @@ const PurchaseEntry = () => {
         description: "Failed to prepare barcode data",
         variant: "destructive",
       });
+    }
+  };
+
+  // Toggle selection for a single item
+  const toggleItemSelection = (tempId: string) => {
+    setSelectedForPrint(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(tempId)) {
+        newSet.delete(tempId);
+      } else {
+        newSet.add(tempId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle select all
+  const toggleSelectAll = () => {
+    if (selectedForPrint.size === lineItems.length) {
+      setSelectedForPrint(new Set());
+    } else {
+      setSelectedForPrint(new Set(lineItems.map(item => item.temp_id)));
     }
   };
 
@@ -2003,6 +2046,14 @@ const PurchaseEntry = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={lineItems.length > 0 && selectedForPrint.size === lineItems.length}
+                        onCheckedChange={toggleSelectAll}
+                        aria-label="Select all for printing"
+                        disabled={lineItems.length === 0}
+                      />
+                    </TableHead>
                     <TableHead className="w-12">SR.NO</TableHead>
                     <TableHead className="w-auto min-w-[300px]">ITEM NAME</TableHead>
                     <TableHead className="w-28">BARCODE</TableHead>
@@ -2026,6 +2077,13 @@ const PurchaseEntry = () => {
                     
                     return (
                       <TableRow key={item.temp_id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedForPrint.has(item.temp_id)}
+                            onCheckedChange={() => toggleItemSelection(item.temp_id)}
+                            aria-label={`Select ${item.product_name} for printing`}
+                          />
+                        </TableCell>
                         <TableCell className="text-center font-medium">{index + 1}</TableCell>
                         <TableCell className="font-medium whitespace-nowrap">
                           {formatProductDescription(item)}
@@ -2164,6 +2222,7 @@ const PurchaseEntry = () => {
                   
                   {/* Inline Search Row - Always visible at bottom */}
                   <TableRow className="bg-accent/30">
+                    <TableCell></TableCell>
                     <TableCell className="text-center font-medium text-muted-foreground">
                       {lineItems.length + 1}
                     </TableCell>
@@ -2286,7 +2345,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={10} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={11} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -2300,9 +2359,10 @@ const PurchaseEntry = () => {
                   {/* Footer row with QTY total */}
                   {lineItems.length > 0 && (
                     <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell></TableCell>
                       <TableCell colSpan={3} className="text-right">Total:</TableCell>
                       <TableCell className="text-center">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={8}></TableCell>
+                      <TableCell colSpan={9}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -2377,7 +2437,7 @@ const PurchaseEntry = () => {
             className="gap-2 min-w-[150px]"
           >
             <Printer className="h-4 w-4" />
-            Print Barcodes
+            Print Barcodes {selectedForPrint.size > 0 && `(${selectedForPrint.size})`}
           </Button>
           <Button
             onClick={handleSave}
