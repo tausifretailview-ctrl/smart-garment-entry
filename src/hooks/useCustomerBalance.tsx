@@ -33,13 +33,30 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
         .from('sales')
         .select('net_amount, paid_amount')
         .eq('customer_id', customerId)
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .is('deleted_at', null);
 
       if (salesError) throw salesError;
 
+      // Fetch voucher payments made for this customer (opening balance payments, etc.)
+      const { data: voucherPayments, error: voucherError } = await supabase
+        .from('voucher_entries')
+        .select('total_amount')
+        .eq('reference_type', 'customer')
+        .eq('reference_id', customerId)
+        .eq('organization_id', organizationId)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+
+      if (voucherError) throw voucherError;
+
       // Calculate totals
       const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
-      const totalPaid = sales?.reduce((sum, sale) => sum + (sale.paid_amount || 0), 0) || 0;
+      const totalPaidOnSales = sales?.reduce((sum, sale) => sum + (sale.paid_amount || 0), 0) || 0;
+      const totalVoucherPayments = voucherPayments?.reduce((sum, v) => sum + (Number(v.total_amount) || 0), 0) || 0;
+
+      // Total paid = payments on sales + voucher payments (opening balance payments)
+      const totalPaid = totalPaidOnSales + totalVoucherPayments;
 
       // Balance = Opening Balance + Total Sales - Total Paid
       const balance = openingBalance + totalSales - totalPaid;
