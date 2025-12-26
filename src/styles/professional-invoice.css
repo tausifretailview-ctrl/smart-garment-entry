@@ -104,9 +104,9 @@
   }
 }
 
-/* Default page setup */
+/* Default page setup - minimal margins so browser Default works well */
 @page {
-  margin: 5mm;
+  margin: 2mm;
 }
 
 /* Force A5 Vertical using page name */
@@ -116,7 +116,7 @@
 
 @page a5vertical {
   size: A5 portrait;
-  margin: 5mm;
+  margin: 2mm;
 }
 
 /* Force A5 Horizontal using page name */
@@ -126,7 +126,7 @@
 
 @page a5horizontal {
   size: A5 landscape;
-  margin: 5mm;
+  margin: 2mm;
 }
 
 /* Force A4 using page name */
@@ -136,5 +136,5 @@
 
 @page a4page {
   size: A4 portrait;
-  margin: 10mm;
+  margin: 3mm;
 }
