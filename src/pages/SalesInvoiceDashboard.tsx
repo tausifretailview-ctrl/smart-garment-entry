@@ -1864,6 +1864,7 @@ export default function SalesInvoiceDashboard() {
                 upiPaid={invoiceToPrint.payment_method === 'upi' ? invoiceToPrint.net_amount : 0}
                 paymentMethod={invoiceToPrint.payment_method}
                 salesman={invoiceToPrint.salesman || ''}
+                notes={invoiceToPrint.notes || ''}
               />
               ) : null
             }
@@ -1922,6 +1923,7 @@ export default function SalesInvoiceDashboard() {
               grandTotal={invoiceToPrint.net_amount}
               paymentMethod={invoiceToPrint.payment_method}
               salesman={invoiceToPrint.salesman || ''}
+              notes={invoiceToPrint.notes || ''}
             />
           </div>
         )}

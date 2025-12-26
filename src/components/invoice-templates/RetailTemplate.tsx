@@ -65,6 +65,7 @@ interface RetailTemplateProps {
   };
   declarationText?: string;
   termsConditions?: string[];
+  notes?: string;
 
   showHSN?: boolean;
   showBarcode?: boolean;
@@ -120,6 +121,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   previousBalance = 0,
   qrCodeUrl,
   termsConditions = [],
+  notes,
   amountWithDecimal = true,
   amountWithGrouping = true,
   format = "a5-vertical",
@@ -445,7 +447,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             marginTop: "6px",
           }}
         >
-          {/* Terms & QR */}
+          {/* Terms, QR & Notes */}
           <div style={{ flex: 1, fontSize: "11px" }}>
             {termsConditions.length > 0 && (
               <div>
@@ -460,6 +462,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             {qrCodeUrl && (
               <div style={{ marginTop: "4px" }}>
                 <img src={qrCodeUrl} alt="UPI QR" style={{ width: "50px", height: "50px" }} />
+              </div>
+            )}
+            {notes && (
+              <div style={{ marginTop: "6px", padding: "4px", border: "1px solid #ccc", borderRadius: "2px", backgroundColor: "#fafafa" }}>
+                <strong style={{ fontSize: "10px" }}>Note:</strong>
+                <div style={{ fontSize: "10px", marginTop: "2px", whiteSpace: "pre-wrap" }}>{notes}</div>
               </div>
             )}
           </div>
@@ -491,16 +499,18 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                padding: "3px 0",
-                borderTop: "1px solid #000",
-                marginTop: "2px",
+                padding: "6px 4px",
                 fontWeight: "bold",
+                fontSize: "14px",
+                border: "2px solid #000",
+                backgroundColor: "#f0f0f0",
+                marginTop: "2px",
               }}
             >
               <span>Bill Total:</span>
               <span>₹{formatAmount(billTotal)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", marginTop: "4px" }}>
               <span>Received (Today):</span>
               <span>₹{formatAmount(receivedToday)}</span>
             </div>
@@ -516,11 +526,9 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                padding: "6px 4px",
+                padding: "3px 4px",
                 fontWeight: "bold",
-                fontSize: "16px",
-                border: "2px solid #000",
-                backgroundColor: "#f0f0f0",
+                borderTop: "1px solid #000",
                 marginTop: "4px",
               }}
             >

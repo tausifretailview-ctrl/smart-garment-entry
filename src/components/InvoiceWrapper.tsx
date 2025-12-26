@@ -97,6 +97,7 @@ interface InvoiceWrapperProps {
   declarationText?: string;
   termsConditions?: string[];
   salesman?: string;
+  notes?: string;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -276,8 +277,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       logoPlacement,
       fontFamily,
       
-      // Salesman
+      // Salesman and Notes
       salesman: props.salesman,
+      notes: props.notes,
       
       // Wholesale mode settings
       enableWholesaleGrouping: enableWholesaleMode,
