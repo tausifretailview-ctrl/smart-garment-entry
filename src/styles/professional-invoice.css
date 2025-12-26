@@ -64,21 +64,21 @@
   }
 
   .professional-invoice-template.format-a5-vertical {
-    width: 135mm !important;
-    max-width: 135mm !important;
-    height: 195mm !important;
-    max-height: 195mm !important;
+    width: 138mm !important;
+    max-width: 138mm !important;
+    height: 200mm !important;
+    max-height: 200mm !important;
     overflow: hidden !important;
-    padding: 2mm !important;
+    padding: 3mm !important;
   }
 
   .professional-invoice-template.format-a5-horizontal {
-    width: 195mm !important;
-    max-width: 195mm !important;
-    height: 135mm !important;
-    max-height: 135mm !important;
+    width: 200mm !important;
+    max-width: 200mm !important;
+    height: 138mm !important;
+    max-height: 138mm !important;
     overflow: hidden !important;
-    padding: 2mm !important;
+    padding: 3mm !important;
   }
 
   .professional-invoice-template.format-a4 {
