@@ -9,6 +9,12 @@ interface CustomerBalanceResult {
   isLoading: boolean;
 }
 
+/**
+ * Hook to calculate accurate customer balance including:
+ * - Opening balance from customer record
+ * - All sales net_amount
+ * - All payments: at-sale (paid_amount) + voucher receipts (including invoice payments)
+ */
 export function useCustomerBalance(customerId: string | null, organizationId: string | null): CustomerBalanceResult {
   const { data, isLoading } = useQuery({
     queryKey: ['customer-balance', customerId, organizationId],
@@ -28,35 +34,61 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
 
       const openingBalance = customer?.opening_balance || 0;
 
-      // Fetch all sales for this customer (net_amount and paid_amount)
+      // Fetch all sales for this customer (id, net_amount and paid_amount)
       const { data: sales, error: salesError } = await supabase
         .from('sales')
-        .select('net_amount, paid_amount')
+        .select('id, net_amount, paid_amount')
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
         .is('deleted_at', null);
 
       if (salesError) throw salesError;
 
-      // Fetch voucher payments made for this customer (opening balance payments, etc.)
-      const { data: voucherPayments, error: voucherError } = await supabase
+      const saleIds = sales?.map(s => s.id) || [];
+
+      // Fetch ALL voucher payments: both opening balance payments AND invoice payments
+      const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('total_amount')
-        .eq('reference_type', 'customer')
-        .eq('reference_id', customerId)
+        .select('reference_id, reference_type, total_amount')
         .eq('organization_id', organizationId)
         .eq('voucher_type', 'receipt')
         .is('deleted_at', null);
 
       if (voucherError) throw voucherError;
 
+      // Separate opening balance payments from invoice payments
+      let openingBalanceVoucherPayments = 0;
+      const invoiceVoucherPayments: Record<string, number> = {};
+
+      allVouchers?.forEach(v => {
+        if (!v.reference_id) return;
+        
+        // Check if this is a payment for one of this customer's invoices
+        if (saleIds.includes(v.reference_id)) {
+          invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+        } 
+        // Check if this is an opening balance payment for this customer
+        else if (v.reference_type === 'customer' && v.reference_id === customerId) {
+          openingBalanceVoucherPayments += Number(v.total_amount) || 0;
+        }
+      });
+
       // Calculate totals
       const totalSales = sales?.reduce((sum, sale) => sum + (sale.net_amount || 0), 0) || 0;
-      const totalPaidOnSales = sales?.reduce((sum, sale) => sum + (sale.paid_amount || 0), 0) || 0;
-      const totalVoucherPayments = voucherPayments?.reduce((sum, v) => sum + (Number(v.total_amount) || 0), 0) || 0;
+      
+      // For each sale, use the MAX of paid_amount or voucher payments to handle:
+      // - Old data where paid_amount wasn't updated when voucher was created
+      // - New data where paid_amount is properly updated
+      let totalPaidOnSales = 0;
+      sales?.forEach(sale => {
+        const salePaidAmount = sale.paid_amount || 0;
+        const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
+        // Use max to avoid double-counting but also catch old unsynced data
+        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+      });
 
-      // Total paid = payments on sales + voucher payments (opening balance payments)
-      const totalPaid = totalPaidOnSales + totalVoucherPayments;
+      // Total paid = payments on sales + opening balance voucher payments
+      const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
 
       // Balance = Opening Balance + Total Sales - Total Paid
       const balance = openingBalance + totalSales - totalPaid;
