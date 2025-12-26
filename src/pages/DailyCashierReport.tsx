@@ -743,6 +743,17 @@ const DailyCashierReport = () => {
                     </TableCell>
                     <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(totals.totalBalance)}</TableCell>
                   </TableRow>
+                  <TableRow className="bg-green-100 dark:bg-green-900/40">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
+                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
+                        </div>
+                        <span className="font-bold text-green-700 dark:text-green-300">Actual Net Receivable</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance)}</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </CardContent>
