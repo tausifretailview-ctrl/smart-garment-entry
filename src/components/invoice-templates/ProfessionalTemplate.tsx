@@ -349,6 +349,19 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
             </tr>
           ))}
+          {/* Add empty rows to fill up to 5 minimum rows */}
+          {Array.from({ length: Math.max(0, 5 - items.length) }).map((_, index) => (
+            <tr key={`empty-${index}`}>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center', height: isA4 ? '18px' : '14px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>
+              {showBarcode && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>}
+              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>
+              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>
+            </tr>
+          ))}
           {/* Total quantity row */}
           {showTotalQuantity && (
             <tr style={{ backgroundColor: colors.accent, fontWeight: 'bold' }}>
