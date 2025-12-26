@@ -185,12 +185,12 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   const getPageDimensions = () => {
     switch (format) {
       case 'a5-horizontal':
-        return { width: '210mm', minHeight: '148mm', padding: '4mm' };
+        return { width: '210mm', minHeight: '148mm', padding: '3mm' };
       case 'a5-vertical':
-        return { width: '148mm', minHeight: '210mm', padding: '3mm' };
+        return { width: '148mm', minHeight: '210mm', padding: '2mm' };
       case 'a4':
       default:
-        return { width: '210mm', minHeight: '297mm', padding: '5mm' };
+        return { width: '210mm', minHeight: '297mm', padding: '4mm' };
     }
   };
 
@@ -201,23 +201,23 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
     switch (format) {
       case 'a5-horizontal':
         return {
-          headerTitle: '16pt',
-          businessName: '14pt',
-          normal: '9pt',
-          small: '8pt',
-          heading: '10pt',
-          grandTotal: '12pt',
-          terms: '8pt',
+          headerTitle: '12pt',
+          businessName: '11pt',
+          normal: '7pt',
+          small: '6.5pt',
+          heading: '8pt',
+          grandTotal: '10pt',
+          terms: '6pt',
         };
       case 'a5-vertical':
         return {
-          headerTitle: '14pt',
-          businessName: '12pt',
-          normal: '8pt',
-          small: '7pt',
-          heading: '9pt',
-          grandTotal: '10pt',
-          terms: '7pt',
+          headerTitle: '11pt',
+          businessName: '10pt',
+          normal: '7pt',
+          small: '6pt',
+          heading: '7.5pt',
+          grandTotal: '9pt',
+          terms: '6pt',
         };
       case 'a4':
       default:
@@ -232,6 +232,21 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         };
     }
   };
+
+  // Adjust minItemRows based on format for proper fit
+  const getAdjustedMinRows = () => {
+    switch (format) {
+      case 'a5-horizontal':
+        return Math.min(minItemRows, 6);
+      case 'a5-vertical':
+        return Math.min(minItemRows, 8);
+      case 'a4':
+      default:
+        return minItemRows;
+    }
+  };
+
+  const adjustedMinRows = getAdjustedMinRows();
 
   const fontSizes = getFontSizes();
 
@@ -559,7 +574,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             );
           })}
           {/* Empty rows to reach minimum */}
-          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
+          {Array.from({ length: Math.max(0, adjustedMinRows - groupedItems.length) }).map((_, index) => (
             <tr key={`empty-${index}`}>
               <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, height: '16px' }}>&nbsp;</td>
               <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
