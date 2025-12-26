@@ -183,7 +183,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         width: isA4 ? '210mm' : isHorizontal ? '210mm' : '148mm',
         maxHeight: isA4 ? '277mm' : isHorizontal ? '138mm' : '200mm',
         height: 'auto',
-        padding: isA4 ? '10mm' : isHorizontal ? '6mm' : '4mm',
+        padding: isA4 ? '5mm' : isHorizontal ? '4mm' : '3mm',
         fontFamily: 'Arial, sans-serif',
         fontSize: isA4 ? '10pt' : isHorizontal ? '8pt' : '7pt',
         backgroundColor: 'white',
@@ -304,13 +304,8 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             <span style={{ color: colors.primary, fontWeight: 'bold' }}>{invoiceNumber}</span>
           </p>
           <p style={{ margin: '3px 0' }}>
-            <strong>Date:</strong> {formatDate(invoiceDate)}
+            <strong>Date:</strong> {formatDate(invoiceDate)}{invoiceTime && `, ${invoiceTime}`}
           </p>
-          {invoiceTime && (
-            <p style={{ margin: '3px 0' }}>
-              <strong>Time:</strong> {invoiceTime}
-            </p>
-          )}
         </div>
       </div>
 
@@ -532,10 +527,10 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           )}
           {termsConditions && termsConditions.length > 0 && (
             <div>
-              <strong style={{ fontSize: isA4 ? '6pt' : '5pt' }}>Terms & Conditions:</strong>
-              <ol style={{ margin: '2px 0', paddingLeft: '12px', lineHeight: 1.2 }}>
+              <strong style={{ fontSize: isA4 ? '8pt' : '7pt' }}>Terms & Conditions:</strong>
+              <ol style={{ margin: '2px 0', paddingLeft: '12px', lineHeight: 1.3 }}>
                 {termsConditions.map((term, index) => (
-                  <li key={index} style={{ marginBottom: '1px', fontSize: isA4 ? '6pt' : '5pt' }}>{term}</li>
+                  <li key={index} style={{ marginBottom: '1px', fontSize: isA4 ? '7pt' : '6.5pt' }}>{term}</li>
                 ))}
               </ol>
             </div>
@@ -595,7 +590,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         @media print {
           .professional-invoice-template {
             margin: 0;
-            padding: ${isA4 ? '15mm' : isHorizontal ? '8mm' : '5mm'};
+            padding: ${isA4 ? '5mm' : isHorizontal ? '4mm' : '3mm'};
             box-shadow: none;
           }
           @page {
