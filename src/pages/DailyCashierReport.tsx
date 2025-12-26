@@ -603,6 +603,19 @@ const DailyCashierReport = () => {
                 <p className="text-xs text-white/70">Outstanding</p>
               </CardContent>
             </Card>
+
+            <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0 shadow-lg ring-2 ring-green-400/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
+                  <Receipt className="h-4 w-4" />
+                  Actual Net Receivable
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance)}</p>
+                <p className="text-xs text-white/70">Net - Balance Pending</p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Payment Method Breakdown */}
