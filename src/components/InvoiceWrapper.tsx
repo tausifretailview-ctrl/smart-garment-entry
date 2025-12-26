@@ -9,6 +9,7 @@ import { MinimalTemplate } from './invoice-templates/MinimalTemplate';
 import { CompactTemplate } from './invoice-templates/CompactTemplate';
 import { DetailedTemplate } from './invoice-templates/DetailedTemplate';
 import { TaxInvoiceTemplate } from './invoice-templates/TaxInvoiceTemplate';
+import { RetailTemplate } from './invoice-templates/RetailTemplate';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import QRCode from 'qrcode';
@@ -371,6 +372,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <DetailedTemplate {...commonProps} />;
         case 'tax-invoice':
           return <TaxInvoiceTemplate {...commonProps} />;
+        case 'retail':
+          return <RetailTemplate {...commonProps} />;
         case 'professional':
         default:
           return <ProfessionalTemplate {...commonProps} />;
