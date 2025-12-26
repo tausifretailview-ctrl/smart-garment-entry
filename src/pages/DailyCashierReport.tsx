@@ -771,9 +771,17 @@ const DailyCashierReport = () => {
                   <span>Less: S/R Adjusted</span>
                   <span className="font-semibold">- {formatCurrency(totals.totalSRAdjusted)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold text-primary">
+                <div className="flex justify-between py-2 border-b text-lg font-bold text-primary">
                   <span>Net Receivable</span>
                   <span>{formatCurrency(totals.netReceivable)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b text-orange-600">
+                  <span>Less: Balance Pending</span>
+                  <span className="font-semibold">- {formatCurrency(totals.totalBalance)}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold bg-green-100 dark:bg-green-900/30 px-2 -mx-2 rounded">
+                  <span className="text-green-700 dark:text-green-400">Actual Net Receivable</span>
+                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
