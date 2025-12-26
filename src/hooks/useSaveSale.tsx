@@ -36,6 +36,7 @@ interface SaleData {
   netAmount: number;
   refundAmount?: number;
   salesman?: string | null;
+  notes?: string | null;
 }
 
 export const useSaveSale = () => {
@@ -274,6 +275,7 @@ export const useSaveSale = () => {
           upi_amount: upiAmt,
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
+          notes: saleData.notes || null,
           created_by: user.id,
           organization_id: currentOrganization.id,
         })
@@ -464,6 +466,7 @@ export const useSaveSale = () => {
           upi_amount: upiAmt,
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
+          notes: saleData.notes || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', saleId)

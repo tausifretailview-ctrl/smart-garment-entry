@@ -148,6 +148,7 @@ export default function POSSales() {
   const [openSalesmanSearch, setOpenSalesmanSearch] = useState(false);
   const [selectedSalesman, setSelectedSalesman] = useState("");
   const [salesmanSearchInput, setSalesmanSearchInput] = useState("");
+  const [saleNotes, setSaleNotes] = useState("");
   const [newCustomerForm, setNewCustomerForm] = useState({
     customer_name: "",
     phone: "",
@@ -454,6 +455,7 @@ export default function POSSales() {
       setCurrentSaleId(null);
       setCurrentInvoiceNumber("");
       setSelectedSalesman("");
+      setSaleNotes("");
       toast({
         title: "New Invoice",
         description: "Cart cleared. Ready for new sale.",
@@ -465,6 +467,7 @@ export default function POSSales() {
     
     setOnClearCart(() => () => {
       setItems([]);
+      setSaleNotes("");
       toast({
         title: "Cart Cleared",
         description: "All items removed from cart",
@@ -1014,6 +1017,7 @@ export default function POSSales() {
       netAmount: finalAmount,
       creditApplied,
       salesman: selectedSalesman || null,
+      notes: saleNotes || null,
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -1057,6 +1061,7 @@ export default function POSSales() {
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
+      setSaleNotes("");
     }
   };
 
@@ -1112,6 +1117,7 @@ export default function POSSales() {
       netAmount: finalAmount,
       creditApplied,
       salesman: selectedSalesman || null,
+      notes: saleNotes || null,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -1242,6 +1248,7 @@ export default function POSSales() {
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
       creditApplied,
       salesman: selectedSalesman || null,
+      notes: saleNotes || null,
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';
@@ -1414,6 +1421,7 @@ export default function POSSales() {
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setSelectedSalesman("");
+    setSaleNotes("");
     
     setSavedInvoiceData(null);
   };
@@ -1755,6 +1763,7 @@ export default function POSSales() {
     setSearchInput("");
     setCurrentSaleId(null);
     setOriginalItemsForEdit([]);
+    setSaleNotes("");
     
     toast({
       title: "Cart Cleared",
@@ -1780,6 +1789,7 @@ export default function POSSales() {
     setOriginalItemsForEdit([]);
     setCurrentInvoiceNumber("");
     setIsHeldSale(false);
+    setSaleNotes("");
     
     toast({
       title: "New Invoice",
@@ -1815,6 +1825,7 @@ export default function POSSales() {
       saleReturnAdjust,
       roundOff,
       netAmount: finalAmount,
+      notes: saleNotes || null,
     };
 
     const result = await holdSale(saleData);
@@ -1833,6 +1844,7 @@ export default function POSSales() {
       setCurrentSaleId(null);
       setCurrentInvoiceNumber("");
       setIsHeldSale(false);
+      setSaleNotes("");
       
       // Refetch today's sales
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
@@ -2576,10 +2588,25 @@ export default function POSSales() {
                         </Button>
                       </div>
                     </div>
-                ))
-              )}
+                  ))
+                )}
+                {/* Notes Section - Always visible after items */}
+                <div className="min-w-[1200px] p-4 border-t bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <Label className="text-sm font-medium whitespace-nowrap">
+                      <FileText className="h-4 w-4 inline mr-1" />
+                      Note:
+                    </Label>
+                    <Input
+                      placeholder="Add note (e.g., Pico Fall Details, Alterations, etc.)"
+                      value={saleNotes}
+                      onChange={(e) => setSaleNotes(e.target.value)}
+                      className="flex-1 h-9"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
           </Card>
           </div>
         </div>
