@@ -201,6 +201,16 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
     switch (format) {
       case 'a5-horizontal':
         return {
+          headerTitle: '16pt',
+          businessName: '14pt',
+          normal: '9pt',
+          small: '8pt',
+          heading: '10pt',
+          grandTotal: '12pt',
+          terms: '8pt',
+        };
+      case 'a5-vertical':
+        return {
           headerTitle: '14pt',
           businessName: '12pt',
           normal: '8pt',
@@ -209,26 +219,16 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           grandTotal: '10pt',
           terms: '7pt',
         };
-      case 'a5-vertical':
-        return {
-          headerTitle: '12pt',
-          businessName: '11pt',
-          normal: '7pt',
-          small: '6pt',
-          heading: '8pt',
-          grandTotal: '9pt',
-          terms: '6pt',
-        };
       case 'a4':
       default:
         return {
-          headerTitle: '16pt',
-          businessName: '14pt',
-          normal: '9pt',
-          small: '8pt',
-          heading: '10pt',
-          grandTotal: '12pt',
-          terms: '8pt',
+          headerTitle: '18pt',
+          businessName: '16pt',
+          normal: '10pt',
+          small: '9pt',
+          heading: '11pt',
+          grandTotal: '14pt',
+          terms: '9pt',
         };
     }
   };
