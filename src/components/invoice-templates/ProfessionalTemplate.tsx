@@ -233,13 +233,13 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
     }
   };
 
-  // Adjust minItemRows based on format for proper fit
+  // Adjust minItemRows based on format for proper fit - reduced for A5 to prevent overflow
   const getAdjustedMinRows = () => {
     switch (format) {
       case 'a5-horizontal':
-        return Math.min(minItemRows, 6);
+        return Math.min(minItemRows, 4);
       case 'a5-vertical':
-        return Math.min(minItemRows, 8);
+        return Math.min(minItemRows, 5);
       case 'a4':
       default:
         return minItemRows;
