@@ -76,14 +76,37 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
       const salesData = await fetchAllSalesSummary(organizationId);
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales`);
+      // Fetch opening balance payments (voucher entries with reference_type='customer')
+      const { data: openingBalancePayments, error: voucherError } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, total_amount')
+        .eq('organization_id', organizationId)
+        .eq('reference_type', 'customer')
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+
+      if (voucherError) {
+        console.error('Error fetching opening balance payments:', voucherError);
+      }
+
+      // Create a map of customer ID -> total voucher payments for opening balance
+      const customerVoucherPayments = new Map<string, number>();
+      openingBalancePayments?.forEach((v: any) => {
+        const current = customerVoucherPayments.get(v.reference_id) || 0;
+        customerVoucherPayments.set(v.reference_id, current + (Number(v.total_amount) || 0));
+      });
+
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${openingBalancePayments?.length || 0} opening balance payments`);
 
       // Calculate totals per customer - using paid_amount directly from sales table
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
         // Use paid_amount from sales table (includes cash, card, upi from mixed payments)
-        const totalPaid = customerSales.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
+        const totalPaidOnSales = customerSales.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
+        // Add opening balance payments (voucher entries with reference_type='customer')
+        const openingBalancePaymentTotal = customerVoucherPayments.get(customer.id) || 0;
+        const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         // Balance = Opening Balance + Total Sales - Total Paid
         const balance = openingBalance + totalSales - totalPaid;
@@ -162,9 +185,33 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
 
       if (vouchersError) throw vouchersError;
 
+      // Also fetch opening balance payments (reference_type = 'customer')
+      let openingBalanceQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_type", "customer")
+        .eq("reference_id", selectedCustomer.id)
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null);
+
+      if (startDate) {
+        openingBalanceQuery = openingBalanceQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: openingBalancePayments, error: openingError } = await openingBalanceQuery.order("voucher_date", { ascending: true });
+
+      if (openingError) throw openingError;
+
+      // Merge invoice payments and opening balance payments
+      const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
+
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
-      console.log('Payments found:', vouchersData?.length || 0);
+      console.log('Invoice payments found:', vouchersData?.length || 0);
+      console.log('Opening balance payments found:', openingBalancePayments?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
@@ -196,14 +243,14 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         });
       }
 
-      // Merge sales and payments chronologically
+      // Merge sales and payments chronologically (use allVouchers which includes opening balance payments)
       const combined = [
         ...salesData.map((sale) => ({
           date: sale.sale_date,
           type: 'invoice' as const,
           data: sale,
         })),
-        ...(vouchersData || []).map((voucher) => ({
+        ...allVouchers.map((voucher) => ({
           date: voucher.voucher_date,
           type: 'payment' as const,
           data: voucher,
@@ -268,8 +315,9 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
           
-          // Find related invoice number
-          const relatedSale = salesData.find(s => s.id === voucher.reference_id);
+          // Determine if this is an opening balance payment or invoice payment
+          const isOpeningBalancePayment = voucher.reference_type === 'customer';
+          const relatedSale = !isOpeningBalancePayment ? salesData.find(s => s.id === voucher.reference_id) : null;
           const invoiceRef = relatedSale ? ` - for ${relatedSale.sale_number}` : '';
           
           allTransactions.push({
@@ -277,7 +325,9 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
             date: voucher.voucher_date,
             type: 'payment',
             reference: voucher.voucher_number,
-            description: (voucher.description || 'Payment received') + invoiceRef,
+            description: isOpeningBalancePayment 
+              ? (voucher.description || 'Opening balance payment')
+              : (voucher.description || 'Payment received') + invoiceRef,
             debit: 0,
             credit: voucher.total_amount,
             balance: runningBalance,
@@ -328,6 +378,26 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
 
       if (vouchersError) throw vouchersError;
 
+      // Fetch opening balance payments (reference_type = 'customer')
+      let openingBalanceQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_type", "customer")
+        .eq("reference_id", selectedCustomer.id)
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null);
+
+      if (startDate) {
+        openingBalanceQuery = openingBalanceQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: openingBalancePayments, error: openingError } = await openingBalanceQuery.order("voucher_date", { ascending: false });
+
+      if (openingError) throw openingError;
+
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
       vouchersData?.forEach((voucher) => {
@@ -340,7 +410,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       // Build payment history list
       const payments: any[] = [];
 
-      // Add payments from voucher entries
+      // Add payments from voucher entries (invoice payments)
       vouchersData?.forEach((voucher) => {
         const relatedSale = saleMap.get(voucher.reference_id || '');
         payments.push({
@@ -356,6 +426,24 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           card: 0,
           upi: 0,
           source: 'voucher',
+        });
+      });
+
+      // Add opening balance payments
+      openingBalancePayments?.forEach((voucher) => {
+        payments.push({
+          id: voucher.id,
+          date: voucher.voucher_date,
+          voucherNumber: voucher.voucher_number,
+          invoiceNumber: 'Opening Balance',
+          invoiceAmount: selectedCustomer.opening_balance || 0,
+          amount: voucher.total_amount,
+          method: 'recorded',
+          description: voucher.description || 'Opening balance payment',
+          cash: 0,
+          card: 0,
+          upi: 0,
+          source: 'opening_balance',
         });
       });
 
