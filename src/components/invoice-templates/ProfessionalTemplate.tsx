@@ -318,61 +318,43 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       <table style={{
         width: '100%',
         borderCollapse: 'collapse',
-        marginBottom: isA4 ? '12px' : '8px',
-        fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt',
+        marginBottom: isA4 ? '8px' : '4px',
+        fontSize: isA4 ? '9pt' : isHorizontal ? '7.5pt' : '7pt',
         border: `1px solid ${colors.primary}`
       }}>
         <thead>
           <tr style={{ backgroundColor: colors.primary, color: 'white' }}>
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Sr.</th>
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
-            {showHSN && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>HSN</th>}
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Size</th>
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Qty</th>
-            {showMRP && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>MRP</th>}
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Rate</th>
-            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '6px 4px' : '4px 3px', fontWeight: 'bold' }}>Amount</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold', width: '25px' }}>Sr.</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', textAlign: 'left', fontWeight: 'bold' }}>Description</th>
+            {showBarcode && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold' }}>Barcode</th>}
+            {showHSN && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold' }}>HSN</th>}
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold', width: '30px' }}>Qty</th>
+            {showMRP && <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold' }}>MRP</th>}
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold' }}>Rate</th>
+            <th style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px 2px' : '2px 1px', fontWeight: 'bold' }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
             <tr key={item.sr}>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.sr}</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'left' }}>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.sr}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'left' }}>
                 {item.particulars}
-                {showBarcode && item.barcode && (
-                  <div style={{ fontSize: isA4 ? '8pt' : '7pt', color: colors.primary, marginTop: '2px' }}>
-                    [{item.barcode}]
-                  </div>
-                )}
               </td>
-              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.hsn}</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.size}</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{item.qty}</td>
-              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.sp)}</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
-            </tr>
-          ))}
-          {/* Add empty rows only if items count is less than minimum - limit to avoid overflow */}
-          {Array.from({ length: Math.max(0, Math.min(minItemRows - items.length, 8 - items.length)) }).map((_, index) => (
-            <tr key={`empty-${index}`}>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px', textAlign: 'center', height: '14px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
-              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
-              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>}
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: '2px' }}>&nbsp;</td>
+              {showBarcode && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center', fontSize: isA4 ? '8pt' : '6.5pt' }}>{item.barcode}</td>}
+              {showHSN && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.hsn}</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{item.qty}</td>
+              {showMRP && <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'right' }}>{formatCurrency(item.sp)}</td>}
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'right' }}>{formatCurrency(item.rate)}</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'right' }}>{formatCurrency(item.total)}</td>
             </tr>
           ))}
           {/* Total quantity row */}
           {showTotalQuantity && (
             <tr style={{ backgroundColor: colors.accent, fontWeight: 'bold' }}>
-              <td colSpan={showHSN ? 4 : 3} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'right' }}>Total Quantity:</td>
-              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px', textAlign: 'center' }}>{totalQuantity}</td>
-              <td colSpan={showMRP ? 3 : 2} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '4px' : '3px 2px' }}>&nbsp;</td>
+              <td colSpan={showBarcode ? (showHSN ? 4 : 3) : (showHSN ? 3 : 2)} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'right' }}>Total Quantity:</td>
+              <td style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px', textAlign: 'center' }}>{totalQuantity}</td>
+              <td colSpan={showMRP ? 3 : 2} style={{ border: `1px solid ${colors.primary}`, padding: isA4 ? '2px' : '1px' }}>&nbsp;</td>
             </tr>
           )}
         </tbody>
@@ -382,14 +364,14 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       <div style={{
         display: 'flex',
         border: `1px solid ${colors.primary}`,
-        marginBottom: isA4 ? '12px' : '8px',
-        fontSize: isA4 ? '9pt' : isHorizontal ? '8pt' : '7.5pt'
+        marginBottom: isA4 ? '8px' : '4px',
+        fontSize: isA4 ? '8pt' : isHorizontal ? '7pt' : '7pt'
       }}>
         {/* Left side - GST Breakdown or Declaration */}
         <div style={{
           flex: 1,
           borderRight: `1px solid ${colors.primary}`,
-          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+          padding: isA4 ? '6px' : isHorizontal ? '4px' : '3px'
         }}>
           {showGSTBreakdown && (cgstAmount > 0 || sgstAmount > 0 || igstAmount > 0) && (
             <div>
@@ -453,7 +435,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         {/* Right side - Totals */}
         <div style={{
           width: isHorizontal ? '35%' : '40%',
-          padding: isA4 ? '10px' : isHorizontal ? '8px' : '6px'
+          padding: isA4 ? '6px' : isHorizontal ? '4px' : '3px'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', margin: '3px 0' }}>
             <span>Subtotal:</span>
@@ -486,11 +468,11 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
-            marginTop: '8px',
-            paddingTop: '8px',
+            marginTop: '4px',
+            paddingTop: '4px',
             borderTop: `2px solid ${colors.primary}`,
             fontWeight: 'bold',
-            fontSize: isA4 ? '12pt' : isHorizontal ? '11pt' : '10pt',
+            fontSize: isA4 ? '11pt' : isHorizontal ? '10pt' : '9pt',
             color: colors.primary
           }}>
             <span>Grand Total:</span>
