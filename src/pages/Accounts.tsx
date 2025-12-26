@@ -117,7 +117,7 @@ export default function Accounts() {
     staleTime: 5000,
   });
 
-  // Fetch customer outstanding balance (includes opening balance + actual outstanding)
+  // Fetch customer outstanding balance (includes opening balance + actual outstanding - opening balance payments)
   const { data: customerBalance } = useQuery({
     queryKey: ["customer-balance", referenceId],
     queryFn: async () => {
@@ -147,7 +147,24 @@ export default function Accounts() {
         return sum + Math.max(0, balance);
       }, 0) || 0;
       
-      return openingBalance + invoiceOutstanding;
+      // Get opening balance payments (voucher entries with reference_type='customer' 
+      // where reference_id is the customer_id, NOT a sale_id)
+      const { data: openingBalancePayments, error: obpError } = await supabase
+        .from("voucher_entries")
+        .select("total_amount, reference_id")
+        .eq("organization_id", currentOrganization?.id)
+        .eq("voucher_type", "receipt")
+        .eq("reference_type", "customer")
+        .is("deleted_at", null);
+      
+      if (obpError) throw obpError;
+      
+      // Filter payments where reference_id matches customer_id (opening balance payments)
+      const openingBalancePaid = openingBalancePayments?.filter(
+        p => p.reference_id === referenceId
+      ).reduce((sum, p) => sum + (p.total_amount || 0), 0) || 0;
+      
+      return openingBalance + invoiceOutstanding - openingBalancePaid;
     },
     enabled: !!referenceId && referenceType === "customer",
   });
