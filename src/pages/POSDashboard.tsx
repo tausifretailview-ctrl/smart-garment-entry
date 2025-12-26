@@ -82,6 +82,7 @@ interface Sale {
   credit_note_id?: string | null;
   credit_note_amount?: number;
   salesman?: string | null;
+  notes?: string | null;
   created_at: string;
 }
 
@@ -1690,6 +1691,7 @@ const POSDashboard = () => {
               upiAmount={previewSale.upi_amount}
               paidAmount={previewSale.paid_amount}
               salesman={previewSale.salesman || ''}
+              notes={previewSale.notes || ''}
             />
           )}
         />
