@@ -97,7 +97,7 @@ interface SaleSettings {
   pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   sales_tax_rate?: number;
-  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice';
+  invoice_template?: 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'retail';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -1826,7 +1826,7 @@ export default function Settings() {
                           ...settings,
                           sale_settings: {
                             ...settings.sale_settings,
-                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice',
+                            invoice_template: value as 'professional' | 'modern' | 'modern-wholesale' | 'classic' | 'minimal' | 'compact' | 'detailed' | 'tax-invoice' | 'retail',
                           },
                         })
                       }
@@ -1843,6 +1843,7 @@ export default function Settings() {
                         <SelectItem value="compact">Compact - Space-saving layout</SelectItem>
                         <SelectItem value="detailed">Detailed - Comprehensive info</SelectItem>
                         <SelectItem value="tax-invoice">Tax Invoice - GST compliant</SelectItem>
+                        <SelectItem value="retail">Retail Invoice - Fixed ERP style</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
