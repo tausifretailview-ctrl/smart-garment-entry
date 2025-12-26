@@ -293,9 +293,10 @@ export default function PaymentsDashboard() {
         newStatus = 'completed';
       }
 
-      // Update sales record (only payment status and payment date/method when completed)
+      // Update sales record with new paid_amount and status
       const updateData: any = {
         payment_status: newStatus,
+        paid_amount: newPaidAmount, // CRITICAL: Update paid_amount so balance calculations work correctly
       };
       
       if (newStatus === 'completed') {
