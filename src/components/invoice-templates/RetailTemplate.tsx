@@ -177,7 +177,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
       style={{
         ...getContainerStyle(),
         fontFamily: "Arial, sans-serif",
-        fontSize: "13px",
+        fontSize: "12px",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -289,7 +289,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   padding: "4px",
                   width: "40px",
                   textAlign: "center",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -300,7 +300,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   border: "1px solid #000",
                   padding: "4px",
                   textAlign: "left",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -310,21 +310,9 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 style={{
                   border: "1px solid #000",
                   padding: "4px",
-                  width: "60px",
-                  textAlign: "center",
-                  fontSize: "13px",
-                  fontWeight: "bold",
-                }}
-              >
-                Size
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
                   width: "90px",
                   textAlign: "center",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -336,7 +324,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   padding: "4px",
                   width: "50px",
                   textAlign: "center",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -348,7 +336,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   padding: "4px",
                   width: "80px",
                   textAlign: "right",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -360,7 +348,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   padding: "4px",
                   width: "90px",
                   textAlign: "right",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "bold",
                 }}
               >
@@ -377,7 +365,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     padding: "4px",
                     textAlign: "center",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
+                    fontSize: "12px",
                   }}
                 >
                   {item ? index + 1 : ""}
@@ -387,7 +375,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     border: "1px solid #000",
                     padding: "4px",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
+                    fontSize: "12px",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
@@ -401,18 +389,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     padding: "4px",
                     textAlign: "center",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
-                  }}
-                >
-                  {item?.size || ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "center",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "11px",
+                    fontSize: "10px",
                   }}
                 >
                   {item?.barcode || ""}
@@ -423,7 +400,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     padding: "4px",
                     textAlign: "center",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
+                    fontSize: "12px",
                   }}
                 >
                   {item ? item.qty : ""}
@@ -434,7 +411,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     padding: "4px",
                     textAlign: "right",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
+                    fontSize: "12px",
                   }}
                 >
                   {item ? formatAmount(item.rate) : ""}
@@ -445,7 +422,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     padding: "4px",
                     textAlign: "right",
                     height: isA4 ? "28px" : "24px",
-                    fontSize: "13px",
+                    fontSize: "12px",
                   }}
                 >
                   {item ? formatAmount(item.total) : ""}
@@ -469,11 +446,11 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           }}
         >
           {/* Terms & QR */}
-          <div style={{ flex: 1, fontSize: "12px" }}>
+          <div style={{ flex: 1, fontSize: "11px" }}>
             {termsConditions.length > 0 && (
               <div>
                 <strong>Terms & Conditions:</strong>
-                <ul style={{ margin: "2px 0 0 12px", padding: 0, fontSize: "12px" }}>
+                <ul style={{ margin: "2px 0 0 12px", padding: 0, fontSize: "11px" }}>
                   {termsConditions.slice(0, 3).map((term, i) => (
                     <li key={i}>{term}</li>
                   ))}
@@ -491,7 +468,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           <div
             style={{
               width: "200px",
-              fontSize: "13px",
+              fontSize: "12px",
               border: "1px solid #000",
               padding: "4px",
             }}
@@ -557,22 +534,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             marginTop: "12px",
             paddingTop: "6px",
             borderTop: "1px solid #000",
           }}
         >
-          <div
-            style={{
-              fontSize: isA4 ? "10px" : "9px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ borderTop: "1px solid #000", width: "100px", marginTop: "20px", paddingTop: "2px" }}>
-              Customer Signature
-            </div>
-          </div>
           <div
             style={{
               fontSize: isA4 ? "10px" : "9px",
