@@ -15,6 +15,7 @@ interface ModernTemplateProps {
   customerMobile?: string;
   customerGSTIN?: string;
   salesman?: string;
+  notes?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -78,6 +79,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   customerMobile,
   customerGSTIN,
   salesman,
+  notes,
   items,
   subtotal,
   discount,
@@ -522,6 +524,19 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Notes Section */}
+        {notes && (
+          <div style={{ 
+            borderTop: '1px solid #000',
+            padding: '6px 8px',
+            fontSize: '8pt',
+            backgroundColor: '#fff9e6'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Note:</div>
+            <div style={{ fontStyle: 'italic' }}>{notes}</div>
+          </div>
+        )}
 
         {/* Terms & Conditions */}
         {termsConditions && termsConditions.length > 0 && (
