@@ -116,8 +116,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${grandTotal.toFixed(2)}&cu=INR`;
         
         const qrUrl = await QRCode.toDataURL(upiString, {
-          width: 80,
+          width: 200,
           margin: 1,
+          errorCorrectionLevel: 'M',
           color: {
             dark: '#000000',
             light: '#FFFFFF'
@@ -346,7 +347,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* UPI QR Code if available */}
         {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
           <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '60px', height: '60px' }} />
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
             <div style={{ fontSize: '8px' }}>Scan to Pay</div>
           </div>
         )}

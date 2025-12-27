@@ -403,7 +403,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
         </div>
         {qrCodeUrl && (
           <div style={{ textAlign: 'center' }}>
-            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '70px', height: '70px' }} />
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
             <div style={{ fontSize: '7px', marginTop: '2px', color: colors.secondary }}>Scan to Pay</div>
           </div>
         )}

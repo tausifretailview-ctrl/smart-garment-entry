@@ -47,7 +47,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
           companyDetails.businessName || ""
         )}&am=${receiptData.paidAmount}&cu=INR`;
 
-        QRCode.toDataURL(upiString, { width: 150, margin: 1 })
+        QRCode.toDataURL(upiString, { width: 200, margin: 1, errorCorrectionLevel: 'M' })
           .then(setQrCodeUrl)
           .catch(console.error);
       }

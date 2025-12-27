@@ -48,7 +48,7 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
       try {
         const upiString = `upi://pay?pa=${data.organization.upiId || data.organization.phone}&pn=${encodeURIComponent(data.organization.name)}&cu=INR`;
         const qrUrl = await QRCode.toDataURL(upiString, { 
-          width: 50, 
+          width: 200, 
           margin: 1,
           errorCorrectionLevel: 'M'
         });
@@ -296,8 +296,8 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
         }
         
         .a5h-qr-small {
-          width: 40px;
-          height: 40px;
+          width: 80px;
+          height: 80px;
           flex-shrink: 0;
         }
         

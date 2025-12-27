@@ -486,7 +486,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
             justifyContent: 'center'
           }}>
             {qrCodeUrl ? (
-              <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '70px', height: '70px' }} />
+              <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '100px', height: '100px' }} />
             ) : (
               <div style={{ 
                 width: '60px', 

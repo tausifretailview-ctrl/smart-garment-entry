@@ -721,7 +721,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           }}>
             {qrCodeUrl ? (
               <>
-                <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '55px', height: '55px' }} />
+                <img src={qrCodeUrl} alt="UPI QR Code" style={{ width: '100px', height: '100px' }} />
                 <div style={{ fontSize: '5pt', color: '#6b7280', marginTop: '1px' }}>Scan to Pay</div>
               </>
             ) : (

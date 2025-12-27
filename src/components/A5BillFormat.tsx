@@ -49,7 +49,7 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
       try {
         const upiString = `upi://pay?pa=${data.organization.upiId || data.organization.phone}&pn=${encodeURIComponent(data.organization.name)}&cu=INR`;
         const qrUrl = await QRCode.toDataURL(upiString, { 
-          width: 80, 
+          width: 200, 
           margin: 1,
           errorCorrectionLevel: 'M'
         });
@@ -308,8 +308,8 @@ export const A5BillFormat = ({ data }: { data: BillData }) => {
         }
         
         .qr-box img {
-          width: 75px;
-          height: 75px;
+          width: 100px;
+          height: 100px;
           margin-bottom: 5px;
         }
         

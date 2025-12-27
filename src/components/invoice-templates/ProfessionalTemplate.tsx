@@ -760,7 +760,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           )}
           {qrCodeUrl && (
             <div style={{ 
-              width: '80px', 
+              width: '110px', 
               border: `1px solid ${colors.primary}`, 
               padding: '4px',
               display: 'flex',
@@ -769,7 +769,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               justifyContent: 'center',
               borderRadius: '3px'
             }}>
-              <img src={qrCodeUrl} alt="UPI QR" style={{ width: '60px', height: '60px' }} />
+              <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
               <div style={{ fontSize: '6pt', textAlign: 'center', marginTop: '2px' }}>Scan to Pay</div>
             </div>
           )}
