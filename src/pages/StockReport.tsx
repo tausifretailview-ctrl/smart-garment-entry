@@ -547,12 +547,19 @@ export default function StockReport() {
   if (loading) {
     return (
       <div className="container mx-auto py-8 space-y-6">
-        <Skeleton className="h-12 w-64" />
-        <div className="grid gap-4 md:grid-cols-3">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          <span className="text-lg font-medium">Loading Stock Report...</span>
         </div>
+        <div className="grid gap-4 md:grid-cols-5">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-[400px] w-full" />
       </div>
     );
   }
