@@ -519,22 +519,21 @@ const PurchaseEntry = () => {
   };
 
   const handleInlineProductSelect = async (variant: ProductVariant) => {
+    setInlineSearchQuery("");
+    setShowInlineSearch(false);
+    setInlineSearchResults([]);
+    
     if (entryMode === "grid") {
+      // For Size Grid mode - open size grid, focus will be handled by handleSizeGridConfirm
       openSizeGridModal(variant.product_id);
     } else {
+      // For Free Size mode - add row and focus on QTY field
       addInlineRow(variant);
       setTimeout(() => {
         lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         lastQtyInputRef.current?.focus();
       }, 100);
     }
-    setInlineSearchQuery("");
-    setShowInlineSearch(false);
-    setInlineSearchResults([]);
-    // Focus back on inline search after adding
-    setTimeout(() => {
-      inlineSearchInputRef.current?.focus();
-    }, 150);
   };
 
   const handleAddNewProductFromInline = () => {
@@ -1012,10 +1011,9 @@ const PurchaseEntry = () => {
 
     setShowSizeGrid(false);
     setSizeQty({});
-    // Scroll to and focus on quantity input after adding from size grid
+    // For Size Grid mode - focus on search box to find next product
     setTimeout(() => {
-      lastQtyInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      lastQtyInputRef.current?.focus();
+      inlineSearchInputRef.current?.focus();
     }, 100);
   };
 
