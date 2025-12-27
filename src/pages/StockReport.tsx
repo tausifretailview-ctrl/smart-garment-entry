@@ -901,17 +901,20 @@ export default function StockReport() {
                               )}
                             </div>
                           </TableCell>
-                          {sizeWiseData.sizes.map(size => (
-                            <TableCell 
-                              key={size} 
-                              className={`text-center ${
-                                row.sizeStocks[size] === 0 ? 'text-destructive' : 
-                                row.sizeStocks[size] > 0 ? 'text-foreground' : 'text-muted-foreground'
-                              }`}
-                            >
-                              {row.sizeStocks[size] || 0}
-                            </TableCell>
-                          ))}
+                          {sizeWiseData.sizes.map(size => {
+                            const qty = row.sizeStocks[size] || 0;
+                            return (
+                              <TableCell 
+                                key={size} 
+                                className={`text-center ${
+                                  qty === 0 ? 'text-muted-foreground/50' : 
+                                  'font-bold text-foreground bg-green-100 dark:bg-green-900/40'
+                                }`}
+                              >
+                                {qty}
+                              </TableCell>
+                            );
+                          })}
                           <TableCell className="text-center font-bold text-primary bg-primary/10">
                             {row.totalStock}
                           </TableCell>
