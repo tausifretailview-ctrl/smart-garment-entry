@@ -186,6 +186,7 @@ const ProductDashboard = () => {
               stock_qty
             )
           `)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
 
