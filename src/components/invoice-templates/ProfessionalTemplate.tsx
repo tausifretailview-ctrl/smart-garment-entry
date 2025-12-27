@@ -46,6 +46,7 @@ interface ProfessionalTemplateProps {
   customerMobile?: string;
   customerGSTIN?: string;
   salesman?: string;
+  notes?: string;
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
@@ -117,6 +118,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   customerMobile,
   customerGSTIN,
   salesman,
+  notes,
   items,
   subtotal,
   discount,
@@ -804,6 +806,21 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           <div style={{ marginTop: 'auto', fontSize: fontSizes.small }}>Authorised Signatory</div>
         </div>
       </div>
+
+      {/* Notes Section */}
+      {notes && (
+        <div style={{ 
+          border: `1px solid ${colors.primary}`, 
+          padding: '5px', 
+          fontSize: fontSizes.small,
+          borderRadius: '3px',
+          marginBottom: '6px',
+          background: '#fff9e6'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '2px', color: colors.primary }}>Note:</div>
+          <div style={{ fontStyle: 'italic' }}>{notes}</div>
+        </div>
+      )}
 
       {/* Terms & Conditions */}
       {termsConditions && termsConditions.length > 0 && (

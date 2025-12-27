@@ -1163,6 +1163,7 @@ export default function POSSales() {
         customerPhone: customerPhone,
         roundOff: roundOff,
         creditApplied: creditApplied,
+        notes: saleNotes || null,
       });
       setShowPrintConfirmDialog(true);
       
@@ -1318,6 +1319,7 @@ export default function POSSales() {
           paymentBreakdown: paymentData,
           refundAmount: paymentData.refundAmount,
           creditApplied: creditApplied,
+          notes: saleNotes || null,
         });
         setShowPrintConfirmDialog(true);
       }
@@ -2863,9 +2865,17 @@ export default function POSSales() {
                 <Check className="h-5 w-5 text-green-500" />
                 Invoice Saved!
               </AlertDialogTitle>
-              <AlertDialogDescription>
-                Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.
-                What would you like to do next?
+              <AlertDialogDescription asChild>
+                <div>
+                  <p>Invoice {savedInvoiceData?.invoiceNumber} has been saved successfully.</p>
+                  {savedInvoiceData?.notes && (
+                    <div className="mt-2 p-2 bg-amber-50 rounded-md border border-amber-200">
+                      <span className="font-medium text-amber-800">Note:</span>{' '}
+                      <span className="text-amber-700">{savedInvoiceData.notes}</span>
+                    </div>
+                  )}
+                  <p className="mt-2">What would you like to do next?</p>
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-3 py-4">
@@ -2939,6 +2949,7 @@ export default function POSSales() {
                 cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
+                notes={savedInvoiceData.notes}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -3005,6 +3016,7 @@ export default function POSSales() {
               cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
               upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
               paymentMethod={savedInvoiceData?.method || paymentMethod}
+              notes={savedInvoiceData?.notes || saleNotes}
             />
           )}
         </div>

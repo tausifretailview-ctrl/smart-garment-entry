@@ -12,6 +12,7 @@ interface MinimalTemplateProps {
   customerName: string;
   customerMobile?: string;
   salesman?: string;
+  notes?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -79,6 +80,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   customerName,
   customerMobile,
   salesman,
+  notes,
   items,
   subtotal,
   discount,
@@ -362,6 +364,13 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
       {paymentMethod && (
         <div style={{ marginBottom: '30px', fontSize: '9pt', color: colors.secondary }}>
           <strong>Payment:</strong> {paymentMethod}
+        </div>
+      )}
+
+      {/* Notes Section */}
+      {notes && (
+        <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff9e6', borderLeft: `3px solid ${colors.primary}`, borderRadius: '4px' }}>
+          <strong style={{ color: colors.primary }}>Note:</strong> <span style={{ fontStyle: 'italic', fontSize: '9pt' }}>{notes}</span>
         </div>
       )}
 

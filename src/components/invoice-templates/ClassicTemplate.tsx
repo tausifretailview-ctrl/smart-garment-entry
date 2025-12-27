@@ -12,6 +12,7 @@ interface ClassicTemplateProps {
   customerName: string;
   customerMobile?: string;
   salesman?: string;
+  notes?: string;
   items: Array<{
     sr: number;
     particulars: string;
@@ -83,6 +84,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   customerName,
   customerMobile,
   salesman,
+  notes,
   items,
   subtotal,
   discount,
@@ -404,6 +406,13 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Notes Section */}
+        {notes && (
+          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff9e6', borderLeft: `4px solid ${colors.primary}`, borderRadius: '4px' }}>
+            <strong style={{ color: colors.primary }}>Note:</strong> <span style={{ fontStyle: 'italic' }}>{notes}</span>
           </div>
         )}
 
