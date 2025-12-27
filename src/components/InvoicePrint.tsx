@@ -120,8 +120,9 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${grandTotal.toFixed(2)}&cu=INR`;
       
       const qrUrl = await QRCode.toDataURL(upiString, {
-        width: 120,
+        width: 200,
         margin: 1,
+        errorCorrectionLevel: 'M',
         color: {
           dark: '#000000',
           light: '#FFFFFF'

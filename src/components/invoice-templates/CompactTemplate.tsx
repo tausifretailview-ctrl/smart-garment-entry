@@ -376,7 +376,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
       {/* QR Code */}
       {qrCodeUrl && (
         <div style={{ textAlign: 'center', marginTop: '10px' }}>
-          <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px' }} />
+          <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
           <div style={{ fontSize: '8px', marginTop: '4px', color: colors.secondary }}>Scan to Pay</div>
         </div>
       )}

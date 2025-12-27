@@ -461,7 +461,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             )}
             {qrCodeUrl && (
               <div style={{ marginTop: "4px" }}>
-                <img src={qrCodeUrl} alt="UPI QR" style={{ width: "50px", height: "50px" }} />
+                <img src={qrCodeUrl} alt="UPI QR" style={{ width: "100px", height: "100px" }} />
               </div>
             )}
             {notes && (
