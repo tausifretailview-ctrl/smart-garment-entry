@@ -272,6 +272,7 @@ export default function POSSales() {
       setSaleReturnAdjust(sale.sale_return_adjust || 0);
       setRoundOff(sale.round_off);
       setPaymentMethod(sale.payment_method as any);
+      setSelectedSalesman(sale.salesman || "");
 
       if (isHeld && sale.notes) {
         // Load items from notes (held sale doesn't have sale_items)
@@ -328,6 +329,9 @@ export default function POSSales() {
         }));
 
         setItems(cartItems);
+        
+        // Load sale notes for regular sales
+        setSaleNotes(sale.notes || "");
         
         // Store original items for stock validation in edit mode
         setOriginalItemsForEdit(saleItems.map(item => ({
