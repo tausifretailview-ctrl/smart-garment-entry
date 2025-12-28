@@ -5,6 +5,59 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Smart search result sorting - prioritizes exact matches, starts-with, then contains
+export function sortSearchResults<T extends Record<string, any>>(
+  results: T[],
+  searchTerm: string,
+  fields: { barcode?: string; style?: string; productName?: string }
+): T[] {
+  if (!searchTerm || results.length === 0) return results;
+  
+  const term = searchTerm.toLowerCase();
+  
+  return [...results].sort((a, b) => {
+    // Get field values using provided field mapping
+    const aBarcode = (a[fields.barcode || 'barcode'] || '').toLowerCase();
+    const bBarcode = (b[fields.barcode || 'barcode'] || '').toLowerCase();
+    const aStyle = (a[fields.style || 'style'] || '').toLowerCase();
+    const bStyle = (b[fields.style || 'style'] || '').toLowerCase();
+    const aName = (a[fields.productName || 'product_name'] || '').toLowerCase();
+    const bName = (b[fields.productName || 'product_name'] || '').toLowerCase();
+    
+    // Priority 1: Exact barcode match
+    const aExactBarcode = aBarcode === term;
+    const bExactBarcode = bBarcode === term;
+    if (aExactBarcode && !bExactBarcode) return -1;
+    if (!aExactBarcode && bExactBarcode) return 1;
+    
+    // Priority 2: Barcode starts with search term
+    const aBarcodeStarts = aBarcode.startsWith(term);
+    const bBarcodeStarts = bBarcode.startsWith(term);
+    if (aBarcodeStarts && !bBarcodeStarts) return -1;
+    if (!aBarcodeStarts && bBarcodeStarts) return 1;
+    
+    // Priority 3: Style starts with search term
+    const aStyleStarts = aStyle.startsWith(term);
+    const bStyleStarts = bStyle.startsWith(term);
+    if (aStyleStarts && !bStyleStarts) return -1;
+    if (!aStyleStarts && bStyleStarts) return 1;
+    
+    // Priority 4: Product name starts with search term
+    const aNameStarts = aName.startsWith(term);
+    const bNameStarts = bName.startsWith(term);
+    if (aNameStarts && !bNameStarts) return -1;
+    if (!aNameStarts && bNameStarts) return 1;
+    
+    // Priority 5: Style contains search term
+    const aStyleContains = aStyle.includes(term);
+    const bStyleContains = bStyle.includes(term);
+    if (aStyleContains && !bStyleContains) return -1;
+    if (!aStyleContains && bStyleContains) return 1;
+    
+    return 0; // Keep original order for equal matches
+  });
+}
+
 // Convert number to Indian number words
 export function numberToWords(num: number): string {
   if (num === 0) return 'Zero Rupees Only';

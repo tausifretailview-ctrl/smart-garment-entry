@@ -16,7 +16,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, CalendarIcon, Trash2, Plus, Search } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 
 interface ProductVariant {
@@ -201,7 +201,7 @@ const PurchaseReturnEntry = () => {
   });
 
   useEffect(() => {
-    if (searchQuery.length >= 2) {
+    if (searchQuery.length >= 1) {
       searchProducts(searchQuery);
     } else {
       setSearchResults([]);
@@ -313,7 +313,13 @@ const PurchaseReturnEntry = () => {
         hsn_code: v.products?.hsn_code || "",
       }));
 
-      setSearchResults(results);
+      // Apply smart sorting
+      const sortedResults = sortSearchResults(results, query, {
+        barcode: 'barcode',
+        productName: 'product_name',
+      });
+
+      setSearchResults(sortedResults);
       setShowSearch(true);
     } catch (error: any) {
       console.error(error);

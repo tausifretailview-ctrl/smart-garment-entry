@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
@@ -827,19 +827,27 @@ export default function SaleOrderEntry() {
     }
   };
 
-  const filteredProducts = productsData?.filter(product => {
+  const filteredProducts = (() => {
     const searchLower = searchInput.toLowerCase();
-    const matchesProduct = product.product_name?.toLowerCase().includes(searchLower) ||
-      product.brand?.toLowerCase().includes(searchLower) ||
-      product.category?.toLowerCase().includes(searchLower) ||
-      product.style?.toLowerCase().includes(searchLower) ||
-      product.color?.toLowerCase().includes(searchLower);
-    const matchesVariant = product.product_variants?.some((v: any) => 
-      v.barcode?.toLowerCase().includes(searchLower) ||
-      v.color?.toLowerCase().includes(searchLower)
-    );
-    return matchesProduct || matchesVariant;
-  }) || [];
+    const filtered = productsData?.filter(product => {
+      const matchesProduct = product.product_name?.toLowerCase().includes(searchLower) ||
+        product.brand?.toLowerCase().includes(searchLower) ||
+        product.category?.toLowerCase().includes(searchLower) ||
+        product.style?.toLowerCase().includes(searchLower) ||
+        product.color?.toLowerCase().includes(searchLower);
+      const matchesVariant = product.product_variants?.some((v: any) => 
+        v.barcode?.toLowerCase().includes(searchLower) ||
+        v.color?.toLowerCase().includes(searchLower)
+      );
+      return matchesProduct || matchesVariant;
+    }) || [];
+    
+    // Apply smart sorting
+    return sortSearchResults(filtered, searchInput, {
+      style: 'style',
+      productName: 'product_name',
+    });
+  })();
 
   return (
     <div className="p-4 space-y-4">
