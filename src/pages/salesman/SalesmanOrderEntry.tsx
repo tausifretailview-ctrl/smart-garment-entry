@@ -26,7 +26,7 @@ import {
   Grid3X3
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
-import { cn } from "@/lib/utils";
+import { cn, sortSearchResults } from "@/lib/utils";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
 
 interface Customer {
@@ -200,7 +200,7 @@ const SalesmanOrderEntry = () => {
   }, [currentOrganization?.id]);
 
   const searchProducts = useCallback(async (term: string) => {
-    if (!term || term.length < 2) {
+    if (!term || term.length < 1) {
       setProducts([]);
       return;
     }
@@ -286,7 +286,14 @@ const SalesmanOrderEntry = () => {
         } as Variant);
       });
 
-      setProducts(Array.from(productMap.values()));
+      // Apply smart sorting based on product name
+      const sortedProducts = sortSearchResults(
+        Array.from(productMap.values()),
+        term,
+        { productName: 'product.product_name' }
+      );
+
+      setProducts(sortedProducts);
     } catch (error) {
       console.error("Product search error:", error);
       setProducts([]);

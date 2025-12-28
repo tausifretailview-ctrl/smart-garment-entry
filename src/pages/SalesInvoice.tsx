@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
@@ -132,6 +132,8 @@ export default function SalesInvoice() {
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
@@ -483,6 +485,107 @@ export default function SalesInvoice() {
     }
   }, [taxType]);
 
+  // Product search with server-side filtering and smart sorting
+  useEffect(() => {
+    const searchProducts = async () => {
+      if (!searchInput || searchInput.length < 1 || !currentOrganization?.id) {
+        setProductSearchResults([]);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const query = searchInput;
+        
+        // Search products by name, brand, style
+        const { data: matchingProducts } = await supabase
+          .from("products")
+          .select("id, size_group_id")
+          .eq("organization_id", currentOrganization.id)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+
+        const productIds = matchingProducts?.map(p => p.id) || [];
+        const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
+
+        // Fetch size groups
+        let sizeGroupsMap: Record<string, { sizes: string[] }> = {};
+        if (sizeGroupIds.length > 0) {
+          const { data: sizeGroups } = await supabase
+            .from("size_groups")
+            .select("id, sizes")
+            .in("id", sizeGroupIds);
+          
+          if (sizeGroups) {
+            sizeGroups.forEach((sg: any) => {
+              sizeGroupsMap[sg.id] = { sizes: sg.sizes || [] };
+            });
+          }
+        }
+
+        // Search product_variants by barcode OR matching product IDs
+        let variantsQuery = supabase
+          .from("product_variants")
+          .select(`
+            id, size, pur_price, sale_price, mrp, barcode, active, color, stock_qty, product_id,
+            last_purchase_sale_price, last_purchase_mrp, last_purchase_date,
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per, size_group_id)
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .gt("stock_qty", 0);
+
+        if (productIds.length > 0) {
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+        } else {
+          variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+        }
+
+        const { data, error } = await variantsQuery.limit(50);
+
+        if (error) throw error;
+
+        // Map results
+        const results = (data || []).map((v: any) => {
+          const sizeGroupId = v.products?.size_group_id;
+          const sizeGroup = sizeGroupId ? sizeGroupsMap[sizeGroupId] : null;
+          const sizeRange = sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 1
+            ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
+            : sizeGroup?.sizes?.[0] || null;
+          
+          return {
+            variant: v,
+            product: {
+              ...v.products,
+              size_range: sizeRange,
+            },
+            style: v.products?.style || '',
+            barcode: v.barcode || '',
+            product_name: v.products?.product_name || '',
+          };
+        });
+
+        // Sort with smart sorting
+        const sortedResults = sortSearchResults(results, searchInput, {
+          barcode: 'barcode',
+          style: 'style',
+          productName: 'product_name',
+        });
+
+        setProductSearchResults(sortedResults);
+      } catch (error) {
+        console.error("Product search error:", error);
+        setProductSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(searchProducts, 150);
+    return () => clearTimeout(debounceTimer);
+  }, [searchInput, currentOrganization?.id]);
   // Open size grid modal for a product
   const openSizeGridForProduct = (product: any) => {
     const variants = product.product_variants || [];
@@ -1688,67 +1791,64 @@ Thank you for choosing us!`;
               </div>
             </PopoverTrigger>
             <PopoverContent className="w-[600px] p-0" align="start">
-              <Command>
-                <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
+              <Command shouldFilter={false}>
+                <CommandInput placeholder="Search by name, barcode, brand, style..." value={searchInput} onValueChange={setSearchInput} />
                 <CommandList className="max-h-[400px]">
-                  <CommandEmpty>No products found</CommandEmpty>
-                  <CommandGroup>
-                    {productsData?.slice(0, 15).map(product => (
-                      product.product_variants
-                        ?.filter((variant: any) => variant.stock_qty > 0)
-                        ?.filter((variant: any) => {
-                          if (!searchInput) return true;
-                          const searchLower = searchInput.toLowerCase();
-                          return product.product_name?.toLowerCase().includes(searchLower) ||
-                            product.brand?.toLowerCase().includes(searchLower) ||
-                            product.category?.toLowerCase().includes(searchLower) ||
-                            product.style?.toLowerCase().includes(searchLower) ||
-                            product.color?.toLowerCase().includes(searchLower) ||
-                            variant.color?.toLowerCase().includes(searchLower) ||
-                            variant.barcode?.toLowerCase().includes(searchLower);
-                        })
-                        ?.map((variant: any) => (
-                          <CommandItem
-                            key={variant.id}
-                            onSelect={() => addProductToInvoice(product, variant)}
-                            className="cursor-pointer py-2"
-                          >
-                            <div className="flex flex-col w-full gap-1">
-                              <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium">{product.product_name}</span>
-                                  {product.size_range && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
-                                      {product.size_range}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="font-semibold text-primary">₹{variant.sale_price}</span>
-                              </div>
-                              <div className="flex justify-between items-center text-xs text-muted-foreground">
-                                <div className="flex gap-2 flex-wrap">
-                                  {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                  {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                  {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
-                                  {(variant.color || product.color) && (
-                                    <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
-                                  )}
-                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
-                                </div>
-                                <div className="flex gap-2 items-center">
-                                  {variant.mrp && variant.mrp !== variant.sale_price && (
-                                    <span className="line-through">MRP: ₹{variant.mrp}</span>
-                                  )}
-                                  <span className={variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'}>
-                                    Stock: {variant.stock_qty}
+                  {isSearching ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : productSearchResults.length === 0 && searchInput.length >= 1 ? (
+                    <CommandEmpty>No products found</CommandEmpty>
+                  ) : productSearchResults.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      Start typing to search products...
+                    </div>
+                  ) : (
+                    <CommandGroup>
+                      {productSearchResults.map(({ product, variant }) => (
+                        <CommandItem
+                          key={variant.id}
+                          value={variant.id}
+                          onSelect={() => addProductToInvoice(product, variant)}
+                          className="cursor-pointer py-2"
+                        >
+                          <div className="flex flex-col w-full gap-1">
+                            <div className="flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{product.product_name}</span>
+                                {product.size_range && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                    {product.size_range}
                                   </span>
-                                </div>
+                                )}
+                              </div>
+                              <span className="font-semibold text-primary">₹{variant.sale_price}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-muted-foreground">
+                              <div className="flex gap-2 flex-wrap">
+                                {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
+                                {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
+                                {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
+                                {(variant.color || product.color) && (
+                                  <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
+                                )}
+                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                {variant.mrp && variant.mrp !== variant.sale_price && (
+                                  <span className="line-through">MRP: ₹{variant.mrp}</span>
+                                )}
+                                <span className={variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'}>
+                                  Stock: {variant.stock_qty}
+                                </span>
                               </div>
                             </div>
-                          </CommandItem>
-                        ))
-                    ))}
-                  </CommandGroup>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
                 </CommandList>
               </Command>
             </PopoverContent>

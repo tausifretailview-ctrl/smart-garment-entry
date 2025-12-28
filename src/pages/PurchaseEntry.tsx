@@ -20,7 +20,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -368,7 +368,7 @@ const PurchaseEntry = () => {
   }, [location.state?.editBillId, toast, navigate, isEditMode, editingBillId]);
 
   useEffect(() => {
-    if (searchQuery.length >= 2) {
+    if (searchQuery.length >= 1) {
       searchProducts(searchQuery);
     } else {
       setSearchResults([]);
@@ -378,12 +378,12 @@ const PurchaseEntry = () => {
 
   // Inline search effect for table row
   useEffect(() => {
-    if (inlineSearchQuery.length >= 3) {
+    if (inlineSearchQuery.length >= 1) {
       searchProductsInline(inlineSearchQuery);
     } else {
       setInlineSearchResults([]);
-      if (inlineSearchQuery.length > 0 && inlineSearchQuery.length < 3) {
-        setShowInlineSearch(true); // Show "enter 3 or more" message
+      if (inlineSearchQuery.length > 0 && inlineSearchQuery.length < 1) {
+        setShowInlineSearch(true);
       } else {
         setShowInlineSearch(false);
       }
@@ -391,7 +391,7 @@ const PurchaseEntry = () => {
   }, [inlineSearchQuery]);
 
   const searchProductsInline = async (query: string) => {
-    if (!query || query.length < 3) {
+    if (!query || query.length < 1) {
       setInlineSearchResults([]);
       setSelectedInlineIndex(0);
       return;
@@ -510,7 +510,14 @@ const PurchaseEntry = () => {
         };
       });
 
-      setInlineSearchResults(results);
+      // Apply smart sorting
+      const sortedResults = sortSearchResults(results, query, {
+        barcode: 'barcode',
+        style: 'style',
+        productName: 'product_name',
+      });
+
+      setInlineSearchResults(sortedResults);
       setSelectedInlineIndex(0);
       setShowInlineSearch(true);
     } catch (error: any) {
@@ -790,7 +797,14 @@ const PurchaseEntry = () => {
         };
       });
 
-      setSearchResults(results);
+      // Apply smart sorting
+      const sortedResults = sortSearchResults(results, query, {
+        barcode: 'barcode',
+        style: 'style',
+        productName: 'product_name',
+      });
+
+      setSearchResults(sortedResults);
       setSelectedSearchIndex(0);
       setShowSearch(true);
     } catch (error: any) {
