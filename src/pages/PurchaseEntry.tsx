@@ -267,6 +267,24 @@ const PurchaseEntry = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch last purchase bill for reference
+  const { data: lastPurchaseBill } = useQuery({
+    queryKey: ["last-purchase-bill", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("software_bill_no, supplier_invoice_no, supplier_name, bill_date")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (error && error.code !== "PGRST116") throw error; // PGRST116 = no rows found
+      return data;
+    },
+    enabled: !!currentOrganization?.id && !isEditMode,
+  });
+
   // Restore saved purchase state from sessionStorage if available
   useEffect(() => {
     const savedState = sessionStorage.getItem('purchaseEntryState');
@@ -1860,8 +1878,27 @@ const PurchaseEntry = () => {
         </div>
 
         <Card className="shadow-lg border-border mb-6">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Bill Information</CardTitle>
+            {!isEditMode && lastPurchaseBill && (
+              <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
+                <span className="font-medium">Last Bill:</span>{" "}
+                <span className="text-foreground">{lastPurchaseBill.software_bill_no}</span>
+                {lastPurchaseBill.supplier_invoice_no && (
+                  <>
+                    {" | "}
+                    <span className="font-medium">Supplier Inv:</span>{" "}
+                    <span className="text-foreground">{lastPurchaseBill.supplier_invoice_no}</span>
+                  </>
+                )}
+                {lastPurchaseBill.supplier_name && (
+                  <>
+                    {" | "}
+                    <span className="text-foreground">{lastPurchaseBill.supplier_name}</span>
+                  </>
+                )}
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
