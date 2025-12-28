@@ -338,35 +338,57 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
-  // Calculate profit (Sales - Purchase Cost)
+  // Calculate Gross Profit using actual COGS (Cost of Goods Sold)
   const { data: profitData } = useQuery({
-    queryKey: ["profit-data", currentOrganization?.id, startDate, endDate],
+    queryKey: ["profit-data-cogs", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
-      // Get sales amount
-      const { data: salesData } = await supabase
+      // Get all sales in the period
+      const { data: salesList } = await supabase
         .from("sales")
-        .select("net_amount")
+        .select("id, net_amount")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("sale_date", startDate)
         .lte("sale_date", endDate);
       
-      const totalSales = salesData?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      if (!salesList || salesList.length === 0) return 0;
       
-      // Get purchase amount for same period
-      const { data: purchaseData } = await supabase
-        .from("purchase_bills")
-        .select("net_amount")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("bill_date", startDate)
-        .lte("bill_date", endDate);
+      const totalSalesRevenue = salesList.reduce((sum, sale) => sum + (Number(sale.net_amount) || 0), 0);
+      const saleIds = salesList.map(s => s.id);
       
-      const totalPurchase = purchaseData?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
+      // Get all sale items with their variant_id and quantity
+      const { data: saleItemsList } = await supabase
+        .from("sale_items")
+        .select("variant_id, quantity, unit_price, line_total")
+        .in("sale_id", saleIds);
       
-      return totalSales - totalPurchase;
+      if (!saleItemsList || saleItemsList.length === 0) return totalSalesRevenue;
+      
+      // Get unique variant IDs
+      const variantIds = [...new Set(saleItemsList.map(item => item.variant_id))];
+      
+      // Fetch purchase prices for all variants
+      const { data: variants } = await supabase
+        .from("product_variants")
+        .select("id, pur_price")
+        .in("id", variantIds);
+      
+      // Create a map of variant_id to pur_price
+      const variantPriceMap = new Map<string, number>();
+      variants?.forEach(v => {
+        variantPriceMap.set(v.id, Number(v.pur_price) || 0);
+      });
+      
+      // Calculate total COGS (Cost of Goods Sold)
+      const totalCOGS = saleItemsList.reduce((sum, item) => {
+        const purPrice = variantPriceMap.get(item.variant_id) || 0;
+        return sum + (purPrice * (item.quantity || 0));
+      }, 0);
+      
+      // Gross Profit = Sales Revenue - COGS
+      return totalSalesRevenue - totalCOGS;
     },
     enabled: !!currentOrganization,
   });
