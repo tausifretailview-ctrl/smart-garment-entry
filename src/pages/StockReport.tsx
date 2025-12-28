@@ -86,6 +86,7 @@ export default function StockReport() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
+  const [includeZeroStock, setIncludeZeroStock] = useState(false);
 
   // Global keyboard shortcut for Ctrl+G
   useEffect(() => {
@@ -102,11 +103,19 @@ export default function StockReport() {
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
-      fetchStockData();
+      fetchStockData(false); // Load only in-stock items by default for faster loading
       fetchMovements();
       fetchBatchStock();
     }
   }, [currentOrganization?.id]);
+
+  // When user starts searching and we haven't loaded zero stock items, load all items
+  useEffect(() => {
+    if (searchTerm && !includeZeroStock && currentOrganization?.id) {
+      setIncludeZeroStock(true);
+      fetchStockData(true);
+    }
+  }, [searchTerm, includeZeroStock, currentOrganization?.id]);
 
   const fetchSettings = async () => {
     if (!currentOrganization?.id) return;
@@ -126,18 +135,18 @@ export default function StockReport() {
     }
   };
 
-  const fetchStockData = async () => {
+  const fetchStockData = async (loadAllItems: boolean = false) => {
     if (!currentOrganization?.id) return;
     
     try {
-      // Fetch ALL product variants using pagination to bypass 1000 row limit
+      // Fetch product variants using pagination to bypass 1000 row limit
       const allVariants: any[] = [];
       const PAGE_SIZE = 1000;
       let offset = 0;
       let hasMore = true;
       
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .from("product_variants")
           .select(`
             id,
@@ -157,7 +166,14 @@ export default function StockReport() {
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
-          .neq("products.product_type", "service")
+          .neq("products.product_type", "service");
+        
+        // Only fetch items with stock > 0 by default for faster loading
+        if (!loadAllItems) {
+          query = query.gt("stock_qty", 0);
+        }
+        
+        const { data, error } = await query
           .order("stock_qty", { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
 
@@ -592,7 +608,7 @@ export default function StockReport() {
 
       {/* Search Bar with Filters */}
       <div className="space-y-3">
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -602,6 +618,9 @@ export default function StockReport() {
               className="pl-10 h-11"
             />
           </div>
+          <Badge variant={includeZeroStock ? "secondary" : "outline"} className="h-7 whitespace-nowrap text-xs">
+            {includeZeroStock ? "All Items" : "In-Stock Only"}
+          </Badge>
           <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
             <CollapsibleTrigger asChild>
               <Button variant="outline" className="h-11 gap-2">
