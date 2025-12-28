@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -87,6 +87,10 @@ export default function StockReport() {
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
   const [includeZeroStock, setIncludeZeroStock] = useState(false);
+  
+  // Pagination for All Stock tab
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 100;
 
   // Global keyboard shortcut for Ctrl+G
   useEffect(() => {
@@ -567,6 +571,18 @@ export default function StockReport() {
   const totalStock = filteredStockItems.reduce((sum, item) => sum + item.stock_qty, 0);
   const totalStockValue = filteredStockItems.reduce((sum, item) => sum + (item.pur_price || 0) * item.stock_qty, 0);
 
+  // Pagination calculations for All Stock tab
+  const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
+  const paginatedStockItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStockItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredStockItems, currentPage, ITEMS_PER_PAGE]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+
   const clearFilters = () => {
     setSearchTerm("");
     setBrandFilter("all");
@@ -812,16 +828,24 @@ export default function StockReport() {
         <TabsContent value="all" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Current Stock Levels</CardTitle>
-              <CardDescription>
-                Stock breakdown: Opening Qty + Purchase Qty - Sales Qty = Current Stock Qty
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Current Stock Levels</CardTitle>
+                  <CardDescription>
+                    Stock breakdown: Opening Qty + Purchase Qty - Sales Qty = Current Stock Qty
+                  </CardDescription>
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} - {Math.min(currentPage * ITEMS_PER_PAGE, filteredStockItems.length)} of {filteredStockItems.length} items
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                   <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-16 text-center">Sr No</TableHead>
                       <TableHead>Supplier</TableHead>
                       <TableHead>Supplier Invoice</TableHead>
                       <TableHead>Product</TableHead>
@@ -839,15 +863,18 @@ export default function StockReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStockItems.length === 0 ? (
+                    {paginatedStockItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
                           No products found matching your search
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredStockItems.map((item) => (
+                      paginatedStockItems.map((item, index) => (
                         <TableRow key={item.id}>
+                          <TableCell className="text-center font-medium text-muted-foreground">
+                            {((currentPage - 1) * ITEMS_PER_PAGE) + index + 1}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{item.supplier_name || '—'}</TableCell>
                           <TableCell className="font-mono text-sm">{item.supplier_invoice_no || '—'}</TableCell>
                           <TableCell className="font-medium">{item.product_name}</TableCell>
@@ -898,6 +925,79 @@ export default function StockReport() {
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                    >
+                      First
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Prev
+                    </Button>
+                    
+                    {/* Page number buttons */}
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={currentPage === pageNum ? "default" : "outline"}
+                            size="sm"
+                            className="w-9"
+                            onClick={() => setCurrentPage(pageNum)}
+                          >
+                            {pageNum}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                    
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Last
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
