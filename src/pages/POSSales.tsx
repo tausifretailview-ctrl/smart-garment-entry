@@ -1168,6 +1168,8 @@ export default function POSSales() {
         roundOff: roundOff,
         creditApplied: creditApplied,
         notes: saleNotes || null,
+        paidAmount: method === 'pay_later' ? 0 : finalAmount,
+        previousBalance: customerBalance || 0,
       });
       setShowPrintConfirmDialog(true);
       
@@ -1324,6 +1326,8 @@ export default function POSSales() {
           refundAmount: paymentData.refundAmount,
           creditApplied: creditApplied,
           notes: saleNotes || null,
+          paidAmount: paymentData.totalPaid,
+          previousBalance: customerBalance || 0,
         });
         setShowPrintConfirmDialog(true);
       }
@@ -1584,6 +1588,8 @@ export default function POSSales() {
       method: sale.payment_method,
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
+      paidAmount: Number(sale.paid_amount) || 0,
+      previousBalance: 0, // Will be refreshed when customer balance hook updates
     });
 
     toast({
@@ -2777,6 +2783,8 @@ export default function POSSales() {
                 cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={paymentMethod}
+                paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
+                previousBalance={customerBalance || 0}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
@@ -2954,6 +2962,8 @@ export default function POSSales() {
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
                 notes={savedInvoiceData.notes}
+                paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
+                previousBalance={savedInvoiceData.previousBalance ?? 0}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -3021,6 +3031,8 @@ export default function POSSales() {
               upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
               paymentMethod={savedInvoiceData?.method || paymentMethod}
               notes={savedInvoiceData?.notes || saleNotes}
+              paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
+              previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             />
           )}
         </div>

@@ -60,6 +60,7 @@ interface InvoiceWrapperProps {
   cardAmount?: number;
   upiAmount?: number;
   paidAmount?: number;
+  previousBalance?: number;
   
   // Optional overrides
   template?: string;
@@ -248,6 +249,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,
       paidAmount: props.paidAmount,
+      previousBalance: props.previousBalance || 0,
       
       qrCodeUrl,
       upiId: settings?.bill_barcode_settings?.upi_id,
