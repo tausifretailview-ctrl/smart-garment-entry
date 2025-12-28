@@ -13,6 +13,7 @@ interface Variant {
   stock_qty?: number;
   sale_price?: number;
   pur_price?: number;
+  mrp?: number;
   color?: string;
   barcode?: string;
   isCustomSize?: boolean;
@@ -35,6 +36,7 @@ interface CustomSizeEntry {
   qty: number;
   pur_price: number;
   sale_price: number;
+  mrp: number;
 }
 
 interface SizeGridDialogProps {
@@ -50,6 +52,8 @@ interface SizeGridDialogProps {
   allowAddColor?: boolean;
   defaultPurPrice?: number;
   defaultSalePrice?: number;
+  defaultMrp?: number;
+  showMrp?: boolean;
   onColorAdded?: (color: string) => void;
 }
 
@@ -66,6 +70,8 @@ export function SizeGridDialog({
   allowAddColor = false,
   defaultPurPrice,
   defaultSalePrice,
+  defaultMrp,
+  showMrp = false,
   onColorAdded,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
@@ -77,6 +83,7 @@ export function SizeGridDialog({
   const [newQty, setNewQty] = useState("");
   const [newPurPrice, setNewPurPrice] = useState("");
   const [newSalePrice, setNewSalePrice] = useState("");
+  const [newMrp, setNewMrp] = useState("");
   const [showAddColor, setShowAddColor] = useState(false);
   const [newColorName, setNewColorName] = useState("");
   const [addedColors, setAddedColors] = useState<string[]>([]);
@@ -110,6 +117,7 @@ export function SizeGridDialog({
   // Get default prices
   const effectivePurPrice = defaultPurPrice || product?.default_pur_price || filteredVariants[0]?.pur_price || 0;
   const effectiveSalePrice = defaultSalePrice || product?.default_sale_price || filteredVariants[0]?.sale_price || 0;
+  const effectiveMrp = defaultMrp || effectiveSalePrice;
 
   // Reset quantities and color selection when dialog opens with new product
   useEffect(() => {
@@ -123,6 +131,7 @@ export function SizeGridDialog({
       setNewQty("");
       setNewPurPrice("");
       setNewSalePrice("");
+      setNewMrp("");
       setNewColorName("");
       setAddedColors([]);
       // If only one color, auto-select it
@@ -198,6 +207,7 @@ export function SizeGridDialog({
 
     const purPrice = Number(newPurPrice) || effectivePurPrice;
     const salePrice = Number(newSalePrice) || effectiveSalePrice;
+    const mrpValue = Number(newMrp) || effectiveMrp;
 
     // Check if size already exists in variants or custom sizes
     const existsInVariants = filteredVariants.some(v => v.size.toLowerCase() === newSize.trim().toLowerCase());
@@ -223,6 +233,7 @@ export function SizeGridDialog({
         qty: Number(newQty),
         pur_price: purPrice,
         sale_price: salePrice,
+        mrp: mrpValue,
       }]);
     }
 
@@ -231,6 +242,7 @@ export function SizeGridDialog({
     setNewQty("");
     setNewPurPrice("");
     setNewSalePrice("");
+    setNewMrp("");
     setShowAddCustom(false);
   };
 
@@ -297,6 +309,7 @@ export function SizeGridDialog({
         stock_qty: 0,
         pur_price: custom.pur_price,
         sale_price: custom.sale_price,
+        mrp: custom.mrp,
         color: selectedColor || uniqueColors[0] || undefined,
         barcode: undefined,
         isCustomSize: true,
@@ -494,7 +507,10 @@ export function SizeGridDialog({
                         <Badge variant="secondary" className="text-xs bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200">New</Badge>
                       </div>
                       <span className="text-lg font-semibold">{custom.qty}</span>
-                      <span className="text-xs text-muted-foreground">₹{custom.pur_price} / ₹{custom.sale_price}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ₹{custom.pur_price} / ₹{custom.sale_price}
+                        {showMrp && ` / MRP ₹${custom.mrp}`}
+                      </span>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -567,6 +583,18 @@ export function SizeGridDialog({
                           className="w-24"
                         />
                       </div>
+                      {showMrp && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">MRP</Label>
+                          <Input
+                            type="number"
+                            placeholder={`₹${effectiveMrp}`}
+                            value={newMrp}
+                            onChange={(e) => setNewMrp(e.target.value)}
+                            className="w-24"
+                          />
+                        </div>
+                      )}
                       <Button size="sm" onClick={handleAddCustomSize}>
                         Add
                       </Button>
@@ -578,6 +606,7 @@ export function SizeGridDialog({
                           setNewQty("");
                           setNewPurPrice("");
                           setNewSalePrice("");
+                          setNewMrp("");
                         }}>
                           Cancel
                         </Button>
