@@ -1891,12 +1891,6 @@ const PurchaseEntry = () => {
                     <span className="text-foreground">{lastPurchaseBill.supplier_invoice_no}</span>
                   </>
                 )}
-                {lastPurchaseBill.supplier_name && (
-                  <>
-                    {" | "}
-                    <span className="text-foreground">{lastPurchaseBill.supplier_name}</span>
-                  </>
-                )}
               </div>
             )}
           </CardHeader>
