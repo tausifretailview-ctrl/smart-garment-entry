@@ -973,7 +973,7 @@ const PurchaseEntry = () => {
               color: newColor || variant.color || selectedProduct.color || null,
               pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
               sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
-              mrp: variant.sale_price || selectedProduct.default_sale_price || 0,
+              mrp: variant.mrp || variant.sale_price || selectedProduct.default_sale_price || 0,
               barcode: barcode,
               stock_qty: 0,
               active: true,
