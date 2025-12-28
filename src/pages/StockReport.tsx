@@ -24,6 +24,7 @@ interface StockItem {
   stock_qty: number;
   opening_qty: number;
   purchase_qty: number;
+  purchase_return_qty: number;
   sales_qty: number;
   sale_price: number;
   pur_price: number | null;
@@ -260,25 +261,34 @@ export default function StockReport() {
         return acc;
       }, {});
 
-      // Calculate purchase and sales quantities per variant
+      // Calculate purchase, purchase returns, and sales quantities per variant
       const variantMovements = (movementsData || []).reduce((acc: any, movement: any) => {
         if (!acc[movement.variant_id]) {
-          acc[movement.variant_id] = { purchase: 0, sales: 0 };
+          acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
         }
         
         if (movement.movement_type === 'purchase') {
           acc[movement.variant_id].purchase += movement.quantity;
+        } else if (movement.movement_type === 'purchase_return') {
+          // Purchase returns are stored as negative, we want positive display
+          acc[movement.variant_id].purchaseReturn += Math.abs(movement.quantity);
         } else if (movement.movement_type === 'sale') {
           // Sales are stored as negative in stock_movements
           acc[movement.variant_id].sales += Math.abs(movement.quantity);
+        } else if (movement.movement_type === 'sale_delete') {
+          // Sale delete reverses a sale (stored as positive), subtract from sales
+          acc[movement.variant_id].sales -= Math.abs(movement.quantity);
         }
         
         return acc;
       }, {});
 
       const formattedData = data?.map((item: any) => {
-        const movements = variantMovements[item.id] || { purchase: 0, sales: 0 };
+        const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
         const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
+        
+        // Ensure sales_qty is never negative (in case of more sale_deletes than sales)
+        const netSalesQty = Math.max(0, movements.sales);
         
         return {
           id: item.id,
@@ -289,7 +299,8 @@ export default function StockReport() {
           stock_qty: item.stock_qty,
           opening_qty: item.opening_qty || 0,
           purchase_qty: movements.purchase,
-          sales_qty: movements.sales,
+          purchase_return_qty: movements.purchaseReturn,
+          sales_qty: netSalesQty,
           sale_price: item.sale_price,
           pur_price: item.pur_price || null,
           barcode: item.barcode || "",
@@ -832,7 +843,7 @@ export default function StockReport() {
                 <div>
                   <CardTitle>Current Stock Levels</CardTitle>
                   <CardDescription>
-                    Stock breakdown: Opening Qty + Purchase Qty - Sales Qty = Current Stock Qty
+                    Stock breakdown: Opening Qty + Purchase Qty - Pur Return - Sales Qty = Current Stock Qty
                   </CardDescription>
                 </div>
                 <div className="text-sm text-muted-foreground">
@@ -854,6 +865,7 @@ export default function StockReport() {
                       <TableHead>Barcode</TableHead>
                       <TableHead className="text-right bg-blue-50 dark:bg-blue-950">Opening Qty</TableHead>
                       <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
+                      <TableHead className="text-right bg-orange-50 dark:bg-orange-950">Pur Return</TableHead>
                       <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
                       <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
                       <TableHead className="text-right">Pur Price</TableHead>
@@ -865,7 +877,7 @@ export default function StockReport() {
                   <TableBody>
                     {paginatedStockItems.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
                           No products found matching your search
                         </TableCell>
                       </TableRow>
@@ -887,8 +899,11 @@ export default function StockReport() {
                           <TableCell className="text-right bg-green-50 dark:bg-green-950 font-medium text-green-700 dark:text-green-400">
                             +{item.purchase_qty}
                           </TableCell>
+                          <TableCell className="text-right bg-orange-50 dark:bg-orange-950 font-medium text-orange-700 dark:text-orange-400">
+                            {item.purchase_return_qty > 0 ? `-${item.purchase_return_qty}` : '0'}
+                          </TableCell>
                           <TableCell className="text-right bg-red-50 dark:bg-red-950 font-medium text-red-700 dark:text-red-400">
-                            -{item.sales_qty}
+                            {item.sales_qty > 0 ? `-${item.sales_qty}` : '0'}
                           </TableCell>
                           <TableCell className="text-right bg-primary/10 font-bold text-primary">
                             {item.stock_qty}
