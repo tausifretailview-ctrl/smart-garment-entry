@@ -235,6 +235,23 @@ const PurchaseEntry = () => {
   //   };
   // }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, saveDraft]);
 
+  // Fetch settings
+  const { data: settings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization?.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+
   // Fetch suppliers
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
@@ -2482,6 +2499,7 @@ const PurchaseEntry = () => {
           allowAddColor={true}
           defaultPurPrice={selectedProduct?.default_pur_price}
           defaultSalePrice={selectedProduct?.default_sale_price}
+          showMrp={showMrp}
         />
 
         {/* Print Barcode Dialog */}
