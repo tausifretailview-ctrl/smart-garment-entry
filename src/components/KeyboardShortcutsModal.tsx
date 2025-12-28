@@ -27,6 +27,7 @@ const generalShortcuts: ShortcutGroup[] = [
   {
     title: "Navigation",
     shortcuts: [
+      { keys: ["Ctrl", "G"], description: "Open Size-wise Stock Report" },
       { keys: ["Ctrl", "P"], description: "Print current document" },
       { keys: ["Esc"], description: "Close dialog / Clear form" },
     ],
