@@ -1311,6 +1311,11 @@ const PurchaseEntry = () => {
 
     setLoading(true);
     try {
+      // Calculate totals directly from lineItems to avoid stale state issues
+      const calculatedGross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
+      const calculatedGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
+      const calculatedNet = calculatedGross + calculatedGst + roundOff;
+
       if (isEditMode && editingBillId) {
         // Update existing bill
         const { error: billError } = await supabase
@@ -1320,10 +1325,10 @@ const PurchaseEntry = () => {
             supplier_name: billData.supplier_name,
             supplier_invoice_no: billData.supplier_invoice_no,
             bill_date: format(billDate, "yyyy-MM-dd"),
-      gross_amount: grossAmount,
-      gst_amount: gstAmount,
-      net_amount: netAmount,
-      round_off: roundOff,
+            gross_amount: calculatedGross,
+            gst_amount: calculatedGst,
+            net_amount: calculatedNet,
+            round_off: roundOff,
           })
           .eq("id", editingBillId);
 
@@ -1470,9 +1475,9 @@ const PurchaseEntry = () => {
               supplier_name: billData.supplier_name,
               supplier_invoice_no: billData.supplier_invoice_no,
               bill_date: format(billDate, "yyyy-MM-dd"),
-              gross_amount: grossAmount,
-              gst_amount: gstAmount,
-              net_amount: netAmount,
+              gross_amount: calculatedGross,
+              gst_amount: calculatedGst,
+              net_amount: calculatedNet,
               round_off: roundOff,
               organization_id: currentOrganization.id,
             },
