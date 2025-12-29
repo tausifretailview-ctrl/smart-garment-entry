@@ -749,7 +749,9 @@ export default function POSSales() {
       
       // Check if last_purchase prices differ from master prices
       const masterSalePrice = parseFloat(variant.sale_price || 0);
-      const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
+      // Use sale_price as MRP fallback when MRP is 0 or null
+      const rawMrp = variant.mrp ? parseFloat(variant.mrp) : 0;
+      const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
       
@@ -788,7 +790,8 @@ export default function POSSales() {
         description += ',' + extraParts.join('-');
       }
       
-      const displayMrp = mrpToUse > salePrice ? mrpToUse : salePrice;
+      // Ensure displayMrp is never 0 - always fall back to salePrice
+      const displayMrp = (mrpToUse && mrpToUse > 0) ? (mrpToUse > salePrice ? mrpToUse : salePrice) : salePrice;
       
       const newItem: CartItem = {
         id: variant.id,
