@@ -150,6 +150,7 @@ export default function SalesInvoice() {
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
+  const [flatDiscountRupees, setFlatDiscountRupees] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
   const [nextInvoicePreview, setNextInvoicePreview] = useState<string>("");
   
@@ -199,6 +200,7 @@ export default function SalesInvoice() {
     setTaxType(data.taxType || "inclusive");
     setSalesman(data.salesman || "");
     setFlatDiscountPercent(data.flatDiscountPercent || 0);
+    setFlatDiscountRupees(data.flatDiscountRupees || 0);
     setRoundOff(data.roundOff || 0);
     toast({
       title: "Draft Loaded",
@@ -231,10 +233,11 @@ export default function SalesInvoice() {
         taxType,
         salesman,
         flatDiscountPercent,
+        flatDiscountRupees,
         roundOff,
       });
     }
-  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
 
   // Start auto-save when not in edit mode
   useEffect(() => {
@@ -259,12 +262,13 @@ export default function SalesInvoice() {
           taxType,
           salesman,
           flatDiscountPercent,
+          flatDiscountRupees,
           roundOff,
         }, false);
       }
       stopAutoSave();
     };
-  }, [editingInvoiceId, savedInvoiceData, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, roundOff, saveDraft]);
+  }, [editingInvoiceId, savedInvoiceData, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, roundOff, saveDraft]);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -1471,6 +1475,7 @@ Thank you for choosing us!`;
       setShippingInstructions("");
       setSalesman("");
       setFlatDiscountPercent(0);
+      setFlatDiscountRupees(0);
       setRoundOff(0);
     } else {
       // Navigate back to dashboard if editing
@@ -1485,7 +1490,8 @@ Thank you for choosing us!`;
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
   const lineItemDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
-  const flatDiscountAmount = (grossAmount * flatDiscountPercent) / 100;
+  // Flat discount: use rupees if set, otherwise calculate from percent
+  const flatDiscountAmount = flatDiscountRupees > 0 ? flatDiscountRupees : (grossAmount * flatDiscountPercent) / 100;
   const totalDiscount = lineItemDiscount + flatDiscountAmount;
   const amountAfterDiscount = grossAmount - totalDiscount;
   
@@ -1877,8 +1883,9 @@ Thank you for choosing us!`;
                 <TableHead className="w-20">Qty</TableHead>
                 <TableHead className="w-20">MRP</TableHead>
                 <TableHead className="w-24">Price</TableHead>
-                <TableHead className="w-20">Disc %</TableHead>
-                <TableHead className="w-20">GST %</TableHead>
+                <TableHead className="w-16">Disc %</TableHead>
+                <TableHead className="w-20">Disc ₹</TableHead>
+                <TableHead className="w-16">GST %</TableHead>
                 <TableHead className="w-24 text-right">Total</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -1937,7 +1944,19 @@ Thank you for choosing us!`;
                         value={item.discountPercent}
                         onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                         onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-16 h-8"
+                        className="w-14 h-8"
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Input
+                        type="number"
+                        min="0"
+                        value={item.discountAmount}
+                        onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-20 h-8"
                       />
                     )}
                   </TableCell>
@@ -1974,14 +1993,31 @@ Thank you for choosing us!`;
             <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
             <div className="flex justify-between"><span>Line Discount:</span><span>-₹{lineItemDiscount.toFixed(2)}</span></div>
             <div className="flex justify-between items-center">
-              <span>Flat Discount %:</span>
+              <span>Flat Disc %:</span>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={flatDiscountPercent}
+                onChange={(e) => {
+                  setFlatDiscountPercent(parseFloat(e.target.value) || 0);
+                  setFlatDiscountRupees(0); // Clear rupees when percent is set
+                }}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-20 h-8"
+              />
+            </div>
+            <div className="flex justify-between items-center">
+              <span>Flat Disc ₹:</span>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   min="0"
-                  max="100"
-                  value={flatDiscountPercent}
-                  onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
+                  value={flatDiscountRupees}
+                  onChange={(e) => {
+                    setFlatDiscountRupees(parseFloat(e.target.value) || 0);
+                    setFlatDiscountPercent(0); // Clear percent when rupees is set
+                  }}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   className="w-20 h-8"
                 />
