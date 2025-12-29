@@ -2127,7 +2127,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-20">QTY</TableHead>
                     <TableHead className="w-28">PUR.RATE</TableHead>
                     <TableHead className="w-28">SALE.RATE</TableHead>
-                    <TableHead className="w-28">MRP</TableHead>
+                    {showMrp && <TableHead className="w-28">MRP</TableHead>}
                     <TableHead className="w-24">SUB TOTAL</TableHead>
                     <TableHead className="w-20">DISC %</TableHead>
                     <TableHead className="w-16">GST %</TableHead>
@@ -2211,23 +2211,25 @@ const PurchaseEntry = () => {
                             className="w-28"
                           />
                         </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.mrp || 0}
-                            onChange={(e) =>
-                              updateLineItem(
-                                item.temp_id,
-                                "mrp",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                            className="w-28"
-                          />
-                        </TableCell>
+                        {showMrp && (
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.mrp || 0}
+                              onChange={(e) =>
+                                updateLineItem(
+                                  item.temp_id,
+                                  "mrp",
+                                  parseFloat(e.target.value) || 0
+                                )
+                              }
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-28"
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="font-semibold">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
@@ -2408,7 +2410,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={11} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={showMrp ? 11 : 10} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -2425,7 +2427,7 @@ const PurchaseEntry = () => {
                       <TableCell></TableCell>
                       <TableCell colSpan={3} className="text-right">Total:</TableCell>
                       <TableCell className="text-center">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={9}></TableCell>
+                      <TableCell colSpan={showMrp ? 9 : 8}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>

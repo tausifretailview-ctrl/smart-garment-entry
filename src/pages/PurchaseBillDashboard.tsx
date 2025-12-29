@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +119,23 @@ const PurchaseBillDashboard = () => {
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Fetch settings to check if MRP is enabled
+  const { data: purchaseSettings } = useQuery({
+    queryKey: ["settings", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization?.id)
+        .single();
+      if (error && error.code !== "PGRST116") throw error;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+  
+  const showMrp = (purchaseSettings?.purchase_settings as any)?.show_mrp || false;
 
   useEffect(() => {
     fetchBills();
@@ -1064,7 +1082,7 @@ const PurchaseBillDashboard = () => {
                                         <TableHead className="text-right">Quantity</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
-                                        <TableHead className="text-right">MRP</TableHead>
+                                        {showMrp && <TableHead className="text-right">MRP</TableHead>}
                                         <TableHead className="text-right">GST %</TableHead>
                                         <TableHead className="text-right">Line Total</TableHead>
                                       </TableRow>
@@ -1086,7 +1104,7 @@ const PurchaseBillDashboard = () => {
                                           <TableCell className="text-right">{item.qty}</TableCell>
                                           <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
                                           <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
-                                          <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>
+                                          {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
                                           <TableCell className="text-right">{item.gst_per}%</TableCell>
                                           <TableCell className="text-right font-semibold">
                                             ₹{item.line_total.toFixed(2)}
