@@ -59,6 +59,9 @@ interface ModernWholesaleTemplateProps {
   sizeDisplayFormat?: 'size/qty' | 'size×qty';
   colorScheme?: string;
   fontFamily?: string;
+  qrCodeUrl?: string;
+  upiId?: string;
+  format?: 'a5-vertical' | 'a5-horizontal' | 'a4';
 }
 
 const colorSchemes: Record<string, { primary: string; light: string; gradient: string }> = {
@@ -103,6 +106,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   sizeDisplayFormat = 'size/qty',
   colorScheme = 'blue',
   fontFamily = 'inter',
+  qrCodeUrl,
+  upiId,
+  format = 'a4',
 }) => {
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
@@ -194,7 +200,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <style>
         {`
           @media print {
-            @page { size: A4; margin: 10mm; }
+            @page { size: A4; margin: 5mm; }
             body { margin: 0; padding: 0; }
             .invoice-container { box-shadow: none !important; border: none !important; }
           }
@@ -204,10 +210,10 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       <div
         className="invoice-container"
         style={{
-          width: "190mm",
-          minHeight: "277mm",
+          width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
+          minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
           margin: "0 auto",
-          padding: "0",
+          padding: "5mm",
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
@@ -362,6 +368,23 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 </div>
               )}
             </div>
+
+            {/* QR Code Section */}
+            {qrCodeUrl && (
+              <div style={{ 
+                width: "100px", 
+                padding: "8px", 
+                display: "flex", 
+                flexDirection: "column", 
+                alignItems: "center",
+                justifyContent: "center",
+                borderRight: "1px solid #374151"
+              }}>
+                <img src={qrCodeUrl} alt="UPI QR" style={{ width: "80px", height: "80px" }} />
+                <div style={{ fontSize: "6pt", textAlign: "center", marginTop: "2px" }}>Scan to Pay</div>
+                {upiId && <div style={{ fontSize: "5pt", textAlign: "center", color: "#666" }}>{upiId}</div>}
+              </div>
+            )}
 
             <div style={{ width: "220px", padding: "8px", background: colors.light }}>
               <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600" }}>
