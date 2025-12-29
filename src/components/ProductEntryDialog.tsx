@@ -98,6 +98,12 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [creatingSizeGroup, setCreatingSizeGroup] = useState(false);
   
+  // Previous values for dropdowns
+  const [categories, setCategories] = useState<string[]>([]);
+  const [brands, setBrands] = useState<string[]>([]);
+  const [hsnCodes, setHsnCodes] = useState<string[]>([]);
+  const [styles, setStyles] = useState<string[]>([]);
+  
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
@@ -122,9 +128,33 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
       fetchSizeGroups();
       fetchFieldSettings();
       fetchDefaultSizeGroup();
+      fetchPreviousValues();
       setTimeout(() => productNameInputRef.current?.focus(), 100);
     }
   }, [open]);
+
+  // Fetch unique categories, brands, HSN codes, and styles from existing products
+  const fetchPreviousValues = async () => {
+    if (!currentOrganization) return;
+    
+    const { data, error } = await supabase
+      .from("products")
+      .select("category, brand, hsn_code, style")
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null);
+
+    if (!error && data) {
+      const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
+      const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
+      const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
+      const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
+      
+      setCategories(uniqueCategories);
+      setBrands(uniqueBrands);
+      setHsnCodes(uniqueHsnCodes);
+      setStyles(uniqueStyles);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -676,47 +706,83 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                 {isFieldEnabled("category") && (
                   <div className="space-y-2">
                     <Label htmlFor="category">{getFieldLabel("category", "Category")}</Label>
-                    <Input
-                      id="category"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="Category"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="category"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                        placeholder="Category"
+                        list="category-list"
+                        autoComplete="off"
+                      />
+                      <datalist id="category-list">
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat} />
+                        ))}
+                      </datalist>
+                    </div>
                   </div>
                 )}
 
                 {isFieldEnabled("brand") && (
                   <div className="space-y-2">
                     <Label htmlFor="brand">{getFieldLabel("brand", "Brand")}</Label>
-                    <Input
-                      id="brand"
-                      value={formData.brand}
-                      onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                      placeholder="Brand"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="brand"
+                        value={formData.brand}
+                        onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                        placeholder="Brand"
+                        list="brand-list"
+                        autoComplete="off"
+                      />
+                      <datalist id="brand-list">
+                        {brands.map((brand) => (
+                          <option key={brand} value={brand} />
+                        ))}
+                      </datalist>
+                    </div>
                   </div>
                 )}
 
                 {isFieldEnabled("style") && (
                   <div className="space-y-2">
                     <Label htmlFor="style">{getFieldLabel("style", "Style")}</Label>
-                    <Input
-                      id="style"
-                      value={formData.style}
-                      onChange={(e) => setFormData({ ...formData, style: e.target.value })}
-                      placeholder="Style"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="style"
+                        value={formData.style}
+                        onChange={(e) => setFormData({ ...formData, style: e.target.value })}
+                        placeholder="Style"
+                        list="style-list"
+                        autoComplete="off"
+                      />
+                      <datalist id="style-list">
+                        {styles.map((style) => (
+                          <option key={style} value={style} />
+                        ))}
+                      </datalist>
+                    </div>
                   </div>
                 )}
 
                 <div className="space-y-2">
                   <Label htmlFor="hsn_code">HSN Code</Label>
-                  <Input
-                    id="hsn_code"
-                    value={formData.hsn_code}
-                    onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
-                    placeholder="HSN Code"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="hsn_code"
+                      value={formData.hsn_code}
+                      onChange={(e) => setFormData({ ...formData, hsn_code: e.target.value })}
+                      placeholder="HSN Code"
+                      list="hsn-list"
+                      autoComplete="off"
+                    />
+                    <datalist id="hsn-list">
+                      {hsnCodes.map((hsn) => (
+                        <option key={hsn} value={hsn} />
+                      ))}
+                    </datalist>
+                  </div>
                 </div>
 
                 <div className="space-y-2">
