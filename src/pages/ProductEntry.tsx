@@ -101,6 +101,12 @@ const ProductEntry = () => {
   const [deletingSizeGroup, setDeletingSizeGroup] = useState<SizeGroup | null>(null);
   const [deletingSizeGroupLoading, setDeletingSizeGroupLoading] = useState(false);
   
+  // Previous values for dropdowns
+  const [categories, setCategories] = useState<string[]>([]);
+  const [brands, setBrands] = useState<string[]>([]);
+  const [hsnCodes, setHsnCodes] = useState<string[]>([]);
+  const [styles, setStyles] = useState<string[]>([]);
+  
   const [formData, setFormData] = useState<ProductForm>({
     product_type: "goods",
     product_name: "",
@@ -122,6 +128,7 @@ const ProductEntry = () => {
     fetchSizeGroups();
     fetchFieldSettings();
     fetchDefaultSizeGroup();
+    fetchPreviousValues();
     
     // Check if we're editing an existing product
     const searchParams = new URLSearchParams(location.search);
@@ -131,6 +138,29 @@ const ProductEntry = () => {
       fetchProductForEdit(productId);
     }
   }, [location.search]);
+
+  // Fetch unique categories, brands, HSN codes, and styles from existing products
+  const fetchPreviousValues = async () => {
+    if (!currentOrganization) return;
+    
+    const { data, error } = await supabase
+      .from("products")
+      .select("category, brand, hsn_code, style")
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null);
+
+    if (!error && data) {
+      const uniqueCategories = [...new Set(data.map(p => p.category).filter(Boolean) as string[])].sort();
+      const uniqueBrands = [...new Set(data.map(p => p.brand).filter(Boolean) as string[])].sort();
+      const uniqueHsnCodes = [...new Set(data.map(p => p.hsn_code).filter(Boolean) as string[])].sort();
+      const uniqueStyles = [...new Set(data.map(p => p.style).filter(Boolean) as string[])].sort();
+      
+      setCategories(uniqueCategories);
+      setBrands(uniqueBrands);
+      setHsnCodes(uniqueHsnCodes);
+      setStyles(uniqueStyles);
+    }
+  };
 
   const fetchFieldSettings = async () => {
     if (!currentOrganization) return;
@@ -1356,7 +1386,14 @@ const ProductEntry = () => {
                     }
                     placeholder={`e.g., T-Shirt, Jeans`}
                     className="h-7 text-xs"
+                    list="category-list"
+                    autoComplete="off"
                   />
+                  <datalist id="category-list">
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
                 </div>
               )}
 
@@ -1373,7 +1410,14 @@ const ProductEntry = () => {
                     }
                     placeholder="Brand name"
                     className="h-7 text-xs"
+                    list="brand-list"
+                    autoComplete="off"
                   />
+                  <datalist id="brand-list">
+                    {brands.map((brand) => (
+                      <option key={brand} value={brand} />
+                    ))}
+                  </datalist>
                 </div>
               )}
 
@@ -1390,7 +1434,14 @@ const ProductEntry = () => {
                     }
                     placeholder="Style description"
                     className="h-7 text-xs"
+                    list="style-list"
+                    autoComplete="off"
                   />
+                  <datalist id="style-list">
+                    {styles.map((style) => (
+                      <option key={style} value={style} />
+                    ))}
+                  </datalist>
                 </div>
               )}
 
@@ -1528,7 +1579,14 @@ const ProductEntry = () => {
                     }
                     placeholder="HSN Code"
                     className="h-7 text-xs"
+                    list="hsn-list"
+                    autoComplete="off"
                   />
+                  <datalist id="hsn-list">
+                    {hsnCodes.map((hsn) => (
+                      <option key={hsn} value={hsn} />
+                    ))}
+                  </datalist>
                 </div>
               )}
 
