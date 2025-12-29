@@ -2293,7 +2293,7 @@ const PurchaseEntry = () => {
                           value={inlineSearchQuery}
                           onChange={(e) => setInlineSearchQuery(e.target.value)}
                           onFocus={() => {
-                            if (inlineSearchQuery.length >= 3) {
+                            if (inlineSearchQuery.length >= 1) {
                               setShowInlineSearch(true);
                             }
                           }}
@@ -2331,11 +2331,7 @@ const PurchaseEntry = () => {
                         {/* Inline Search Dropdown */}
                         {showInlineSearch && (
                           <div className="absolute top-full left-0 mt-1 w-full min-w-[400px] bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
-                            {inlineSearchQuery.length > 0 && inlineSearchQuery.length < 3 ? (
-                              <div className="px-4 py-3 text-sm text-muted-foreground">
-                                Please enter 3 or more characters
-                              </div>
-                            ) : inlineSearchResults.length > 0 ? (
+                            {inlineSearchResults.length > 0 ? (
                               <>
                                 {inlineSearchResults.map((result, idx) => (
                                   <button
@@ -2386,7 +2382,7 @@ const PurchaseEntry = () => {
                                   Add New Product
                                 </button>
                               </>
-                            ) : inlineSearchQuery.length >= 3 ? (
+                            ) : inlineSearchQuery.length >= 1 ? (
                               <>
                                 <div className="px-4 py-3 text-sm text-muted-foreground">
                                   No products found for "{inlineSearchQuery}"
