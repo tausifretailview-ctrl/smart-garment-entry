@@ -212,59 +212,75 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         style={{
           width: format === 'a4' ? "210mm" : format === 'a5-horizontal' ? "210mm" : "148mm",
           minHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
+          maxHeight: format === 'a4' ? "297mm" : format === 'a5-horizontal' ? "148mm" : "210mm",
           margin: "0 auto",
           padding: "5mm",
           fontFamily: font,
           backgroundColor: "#fff",
           boxSizing: "border-box",
+          overflow: "hidden",
         }}
       >
-        <div style={{ border: "1.5px solid #374151", height: "100%" }}>
-          {/* Header */}
-          <div style={{ display: "flex", borderBottom: "1.5px solid #374151", background: colors.light }}>
-            <div
-              style={{
-                width: "80px",
-                padding: "10px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRight: "1px solid #374151",
-              }}
-            >
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%" }} />
-              ) : (
-                <div style={{ fontSize: "8pt" }}>LOGO</div>
-              )}
-            </div>
-            <div style={{ flex: 1, padding: "10px", textAlign: "center" }}>
-              <h1 style={{ fontSize: "18pt", fontWeight: "800", color: colors.primary, margin: 0 }}>{businessName}</h1>
-              <p style={{ fontSize: "9pt", margin: "2px 0" }}>{address}</p>
-              <p style={{ fontSize: "9pt", fontWeight: "600" }}>
-                {gstNumber && `GSTIN: ${gstNumber} | `}Mob: {mobile}
-              </p>
-            </div>
-            <div
-              style={{
-                width: "100px",
-                borderLeft: "1px solid #374151",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontWeight: "800", fontSize: "10pt", color: colors.primary }}>
-                TAX
-                <br />
-                INVOICE
+        {/* Main Border Wrapper */}
+        <div style={{ 
+          border: "1.5px solid #374151", 
+          height: "100%",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+        }}>
+          {/* Top Line / Header Border */}
+          <div style={{ 
+            borderBottom: "1.5px solid #374151", 
+            background: colors.light,
+            flexShrink: 0,
+          }}>
+            {/* Header Content */}
+            <div style={{ display: "flex" }}>
+              <div
+                style={{
+                  width: "80px",
+                  padding: "10px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRight: "1px solid #374151",
+                }}
+              >
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" style={{ maxWidth: "100%" }} />
+                ) : (
+                  <div style={{ fontSize: "8pt" }}>LOGO</div>
+                )}
+              </div>
+              <div style={{ flex: 1, padding: "10px", textAlign: "center" }}>
+                <h1 style={{ fontSize: "18pt", fontWeight: "800", color: colors.primary, margin: 0 }}>{businessName}</h1>
+                <p style={{ fontSize: "9pt", margin: "2px 0" }}>{address}</p>
+                <p style={{ fontSize: "9pt", fontWeight: "600" }}>
+                  {gstNumber && `GSTIN: ${gstNumber} | `}Mob: {mobile}
+                </p>
+              </div>
+              <div
+                style={{
+                  width: "100px",
+                  borderLeft: "1px solid #374151",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontWeight: "800", fontSize: "10pt", color: colors.primary }}>
+                  TAX
+                  <br />
+                  INVOICE
+                </div>
               </div>
             </div>
           </div>
 
           {/* Customer Row */}
-          <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: "9pt" }}>
+          <div style={{ display: "flex", borderBottom: "1px solid #374151", fontSize: "9pt", flexShrink: 0 }}>
             <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151" }}>
               <div style={{ fontWeight: "700", color: colors.primary, fontSize: "7pt" }}>BILL TO:</div>
               <div style={{ fontWeight: "700", fontSize: "11pt" }}>{customerName}</div>
@@ -275,7 +291,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 </div>
               )}
             </div>
-            <div style={{ width: "180px", padding: "8px", background: colors.light }}>
+            <div style={{ width: "180px", padding: "8px", background: colors.light, boxSizing: "border-box" }}>
               <table style={{ width: "100%", fontSize: "9pt" }}>
                 <tbody>
                   <tr>
