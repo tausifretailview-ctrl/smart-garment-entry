@@ -601,6 +601,7 @@ const PurchaseEntry = () => {
         size: v.size,
         sale_price: v.sale_price,
         pur_price: v.pur_price,
+        mrp: v.mrp || v.sale_price || 0,
         barcode: v.barcode,
         color: v.color || product.color || "",
         stock_qty: v.stock_qty || 0,
@@ -2527,6 +2528,7 @@ const PurchaseEntry = () => {
           allowAddColor={true}
           defaultPurPrice={selectedProduct?.default_pur_price}
           defaultSalePrice={selectedProduct?.default_sale_price}
+          defaultMrp={sizeGridVariants[0]?.mrp || selectedProduct?.default_sale_price}
           showMrp={showMrp}
         />
 
