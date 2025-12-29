@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertCircle, Package, TrendingDown, History, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -14,6 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import { format } from "date-fns";
 
 interface StockItem {
   id: string;
@@ -605,6 +608,113 @@ export default function StockReport() {
 
   const hasActiveFilters = brandFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
+  // Export Size-wise to Excel
+  const exportSizeWiseToExcel = () => {
+    const headers = ["Product", "Brand", "Color", ...sizeWiseData.sizes, "Total Stock"];
+    const data = sizeWiseData.rows.map(row => [
+      row.productName,
+      row.brand,
+      row.color,
+      ...sizeWiseData.sizes.map(size => row.sizeStocks[size] || 0),
+      row.totalStock
+    ]);
+    
+    // Add totals row
+    data.push([
+      "TOTAL", "", "",
+      ...sizeWiseData.sizes.map(size => sizeWiseTotals.sizeTotals[size] || 0),
+      sizeWiseTotals.grandTotal
+    ]);
+    
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+    
+    // Set column widths
+    const colWidths = [
+      { wch: 40 }, // Product
+      { wch: 15 }, // Brand
+      { wch: 15 }, // Color
+      ...sizeWiseData.sizes.map(() => ({ wch: 8 })), // Size columns
+      { wch: 12 }, // Total
+    ];
+    ws['!cols'] = colWidths;
+    
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Size-wise Stock");
+    XLSX.writeFile(wb, `SizeWise_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+  };
+
+  // Export Size-wise to PDF
+  const exportSizeWiseToPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    
+    // Header
+    doc.setFontSize(16);
+    doc.text("Size-wise Stock Report", pageWidth / 2, 15, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${format(new Date(), "dd-MM-yyyy")}`, pageWidth / 2, 22, { align: "center" });
+    
+    // Table setup
+    let y = 35;
+    const startX = 10;
+    const sizes = sizeWiseData.sizes;
+    const productColWidth = 70;
+    const sizeColWidth = Math.min(15, (pageWidth - productColWidth - 30) / (sizes.length + 1));
+    
+    // Draw headers
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setFillColor(240, 240, 240);
+    doc.rect(startX, y - 5, pageWidth - 20, 8, "F");
+    doc.text("Product (Brand)", startX + 2, y);
+    sizes.forEach((size, i) => {
+      doc.text(size, productColWidth + startX + (i * sizeColWidth), y);
+    });
+    doc.text("Total", productColWidth + startX + (sizes.length * sizeColWidth), y);
+    
+    // Draw data rows
+    doc.setFont("helvetica", "normal");
+    sizeWiseData.rows.forEach((row, idx) => {
+      y += 6;
+      if (y > pageHeight - 25) {
+        doc.addPage();
+        y = 20;
+      }
+      
+      // Alternating row background
+      if (idx % 2 === 0) {
+        doc.setFillColor(250, 250, 250);
+        doc.rect(startX, y - 4, pageWidth - 20, 6, "F");
+      }
+      
+      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''}`.substring(0, 50);
+      doc.text(productLabel, startX + 2, y);
+      sizes.forEach((size, i) => {
+        const qty = row.sizeStocks[size] || 0;
+        doc.text(String(qty), productColWidth + startX + (i * sizeColWidth), y);
+      });
+      doc.text(String(row.totalStock), productColWidth + startX + (sizes.length * sizeColWidth), y);
+    });
+    
+    // Totals row
+    y += 8;
+    if (y > pageHeight - 15) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFillColor(255, 220, 220);
+    doc.rect(startX, y - 4, pageWidth - 20, 7, "F");
+    doc.text("TOTAL", startX + 2, y);
+    sizes.forEach((size, i) => {
+      doc.text(String(sizeWiseTotals.sizeTotals[size] || 0), productColWidth + startX + (i * sizeColWidth), y);
+    });
+    doc.text(String(sizeWiseTotals.grandTotal), productColWidth + startX + (sizes.length * sizeColWidth), y);
+    
+    doc.save(`SizeWise_Stock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto py-8 space-y-6">
@@ -1020,13 +1130,37 @@ export default function StockReport() {
         <TabsContent value="sizewise" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Grid3X3 className="h-5 w-5" />
-                Size-wise Item Stock Report
-              </CardTitle>
-              <CardDescription>
-                Product stock grouped by sizes - shows quantity per size with total
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Grid3X3 className="h-5 w-5" />
+                    Size-wise Item Stock Report
+                  </CardTitle>
+                  <CardDescription>
+                    Product stock grouped by sizes - shows quantity per size with total
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={exportSizeWiseToExcel}
+                    disabled={sizeWiseData.rows.length === 0}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-1" />
+                    Excel
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={exportSizeWiseToPDF}
+                    disabled={sizeWiseData.rows.length === 0}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    PDF
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {sizeWiseData.rows.length === 0 ? (
