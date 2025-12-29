@@ -2098,6 +2098,138 @@ export type Database = {
           },
         ]
       }
+      sms_logs: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          id: string
+          message: string
+          organization_id: string
+          phone_number: string
+          provider_response: Json | null
+          reference_id: string | null
+          reference_type: string | null
+          status: string
+          template_type: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message: string
+          organization_id: string
+          phone_number: string
+          provider_response?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: string
+          template_type?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          message?: string
+          organization_id?: string
+          phone_number?: string
+          provider_response?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: string
+          template_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          organization_id: string
+          provider: string
+          sender_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id: string
+          provider?: string
+          sender_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string
+          provider?: string
+          sender_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_templates: {
+        Row: {
+          created_at: string | null
+          dlt_template_id: string | null
+          id: string
+          is_active: boolean | null
+          message_template: string
+          organization_id: string
+          template_name: string
+          template_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dlt_template_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          message_template: string
+          organization_id: string
+          template_name: string
+          template_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dlt_template_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          message_template?: string
+          organization_id?: string
+          template_name?: string
+          template_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_movements: {
         Row: {
           bill_number: string | null

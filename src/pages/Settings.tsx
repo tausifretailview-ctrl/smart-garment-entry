@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { WhatsAppTemplateSettings } from "@/components/WhatsAppTemplateSettings";
+import { SMSTemplateSettings } from "@/components/SMSTemplateSettings";
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
@@ -742,7 +743,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
@@ -751,6 +752,7 @@ export default function Settings() {
             <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
+            <TabsTrigger value="sms">SMS</TabsTrigger>
             <TabsTrigger value="backup">Backup</TabsTrigger>
           </TabsList>
 
@@ -948,6 +950,10 @@ export default function Settings() {
             <div className="mt-6">
               <WhatsAppTemplateSettings />
             </div>
+          </TabsContent>
+
+          <TabsContent value="sms">
+            <SMSTemplateSettings />
           </TabsContent>
 
           <TabsContent value="product">
