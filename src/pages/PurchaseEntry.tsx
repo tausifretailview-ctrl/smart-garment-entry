@@ -1361,11 +1361,12 @@ const PurchaseEntry = () => {
           const original = originalItemsMap.get(item.temp_id);
           if (!original) return false; // Not in original, so it's new
           
-          // Check if any relevant fields changed
+        // Check if any relevant fields changed
           return (
             original.qty !== item.qty ||
             original.pur_price !== item.pur_price ||
             original.sale_price !== item.sale_price ||
+            original.mrp !== item.mrp ||
             original.gst_per !== item.gst_per
           );
         });
