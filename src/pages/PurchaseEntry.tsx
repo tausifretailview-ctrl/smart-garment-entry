@@ -2565,21 +2565,22 @@ const PurchaseEntry = () => {
                       }
 
                       // Transform items to barcode format
-                      const barcodeItems = savedPurchaseItems.map(item => ({
-                        sku_id: item.sku_id,
-                        product_name: item.product_name || "",
-                        brand: item.brand || "",
-                        category: item.category || "",
-                        color: item.color || "",
-                        style: item.style || "",
-                        size: item.size,
-                        sale_price: item.sale_price,
-                        pur_price: item.pur_price,
-                        barcode: item.barcode,
-                        qty: item.qty,
-                        bill_number: softwareBillNo || "",
-                        supplier_code: supplierCode,
-                      }));
+                        const barcodeItems = savedPurchaseItems.map(item => ({
+                          sku_id: item.sku_id,
+                          product_name: item.product_name || "",
+                          brand: item.brand || "",
+                          category: item.category || "",
+                          color: item.color || "",
+                          style: item.style || "",
+                          size: item.size,
+                          sale_price: item.sale_price,
+                          mrp: item.mrp,
+                          pur_price: item.pur_price,
+                          barcode: item.barcode,
+                          qty: item.qty,
+                          bill_number: softwareBillNo || "",
+                          supplier_code: supplierCode,
+                        }));
 
                       setShowPrintDialog(false);
 
