@@ -715,7 +715,19 @@ const PurchaseEntry = () => {
     }
   };
 
+  // AbortController ref to cancel in-flight search requests
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+
   const searchProducts = async (query: string) => {
+    // Cancel any previous search request
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller for this search
+    searchAbortControllerRef.current = new AbortController();
+    const currentController = searchAbortControllerRef.current;
+
     if (!query || query.length < 1) {
       setSearchResults([]);
       setSelectedSearchIndex(0);
@@ -729,6 +741,9 @@ const PurchaseEntry = () => {
         .select("id, size_group_id")
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
+      // Check if aborted before continuing
+      if (currentController.signal.aborted) return;
+
       const productIds = matchingProducts?.map(p => p.id) || [];
       const sizeGroupIds = [...new Set(matchingProducts?.map(p => p.size_group_id).filter(Boolean) || [])];
 
@@ -739,6 +754,8 @@ const PurchaseEntry = () => {
           .from("size_groups")
           .select("id, group_name, sizes")
           .in("id", sizeGroupIds);
+        
+        if (currentController.signal.aborted) return;
         
         if (sizeGroups) {
           sizeGroups.forEach((sg: any) => {
@@ -785,6 +802,9 @@ const PurchaseEntry = () => {
 
       const { data, error } = await variantsQuery;
 
+      // Check if aborted before setting state
+      if (currentController.signal.aborted) return;
+
       if (error) throw error;
 
       // Also fetch size groups for barcode-matched products that weren't in the initial search
@@ -799,6 +819,8 @@ const PurchaseEntry = () => {
           .from("size_groups")
           .select("id, group_name, sizes")
           .in("id", additionalSizeGroupIds);
+        
+        if (currentController.signal.aborted) return;
         
         if (additionalSizeGroups) {
           additionalSizeGroups.forEach((sg: any) => {
@@ -840,10 +862,15 @@ const PurchaseEntry = () => {
         productName: 'product_name',
       });
 
+      // Final abort check before setting state
+      if (currentController.signal.aborted) return;
+
       setSearchResults(sortedResults);
       setSelectedSearchIndex(0);
       setShowSearch(true);
     } catch (error: any) {
+      // Ignore abort errors
+      if (error.name === 'AbortError') return;
       console.error(error);
       toast({
         title: "Error",
@@ -854,6 +881,17 @@ const PurchaseEntry = () => {
   };
 
   const handleProductSelect = async (variant: ProductVariant) => {
+    // CRITICAL: Abort any pending search requests first to prevent race condition
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+      searchAbortControllerRef.current = null;
+    }
+    
+    // Clear search state immediately before opening dialogs
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowSearch(false);
+
     if (entryMode === "grid") {
       openSizeGridModal(variant.product_id);
     } else {
@@ -864,8 +902,6 @@ const PurchaseEntry = () => {
         lastQtyInputRef.current?.focus();
       }, 100);
     }
-    setSearchQuery("");
-    setShowSearch(false);
   };
 
   const openSizeGridModal = async (productId: string) => {
