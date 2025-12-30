@@ -424,7 +424,7 @@ const PurchaseBillDashboard = () => {
   };
 
   const handleRecordPayment = async () => {
-    if (!selectedBillForPayment) return;
+    if (!selectedBillForPayment || !currentOrganization) return;
 
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -452,7 +452,7 @@ const PurchaseBillDashboard = () => {
     try {
       // Determine new payment status
       let newStatus = 'unpaid';
-      if (newTotalPaid >= selectedBillForPayment.net_amount) {
+      if (Math.abs(newTotalPaid - selectedBillForPayment.net_amount) < 1) {
         newStatus = 'paid';
       } else if (newTotalPaid > 0) {
         newStatus = 'partial';
@@ -469,8 +469,31 @@ const PurchaseBillDashboard = () => {
 
       if (updateError) throw updateError;
 
-      // TODO: Create voucher entry for this payment in accounts
-      // This can be integrated with the accounts module later
+      // Generate voucher number for payment
+      const { data: voucherNumber, error: voucherNumberError } = await supabase.rpc(
+        "generate_voucher_number",
+        { p_type: "payment", p_date: paymentDate }
+      );
+
+      if (voucherNumberError) throw voucherNumberError;
+
+      // Create voucher entry for supplier payment
+      const paymentDescription = `Payment for Bill: ${selectedBillForPayment.software_bill_no || selectedBillForPayment.supplier_invoice_no} | Supplier: ${selectedBillForPayment.supplier_name}${paymentNotes ? ` | ${paymentNotes}` : ''}`;
+      
+      const { error: voucherError } = await supabase
+        .from("voucher_entries")
+        .insert({
+          organization_id: currentOrganization.id,
+          voucher_number: voucherNumber,
+          voucher_type: "payment",
+          voucher_date: paymentDate,
+          reference_type: "supplier",
+          reference_id: selectedBillForPayment.supplier_id || null,
+          description: paymentDescription,
+          total_amount: amount,
+        });
+
+      if (voucherError) throw voucherError;
 
       toast({
         title: "Payment Recorded",
