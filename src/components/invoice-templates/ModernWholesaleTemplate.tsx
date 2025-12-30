@@ -12,6 +12,7 @@ interface WholesaleItem {
   rate: number;
   mrp?: number;
   gstPercent?: number;
+  gst_percent?: number; // Alternative field name from database
   total: number;
 }
 
@@ -23,7 +24,8 @@ interface GroupedItem {
   hsn?: string;
   rate: number;
   mrp?: number;
-  gstPercent?: number;
+  gstPercent: number;
+  gstAmount: number;
   sizeQtyList: Array<{ size: string; qty: number }>;
   totalQty: number;
   totalAmount: number;
@@ -120,26 +122,37 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     })}`;
   };
 
+  const getItemGstPercent = (item: WholesaleItem): number => {
+    // Try both field names - gstPercent (camelCase) and gst_percent (snake_case from DB)
+    return item.gstPercent ?? (item as any).gst_percent ?? 0;
+  };
+
   const groupItems = (itemsList: WholesaleItem[]): GroupedItem[] => {
     if (!enableWholesaleGrouping) {
-      return itemsList.map((item) => ({
-        particulars: item.particulars,
-        brand: item.brand,
-        color: item.color,
-        style: item.style,
-        hsn: item.hsn,
-        rate: item.rate,
-        mrp: item.mrp,
-        gstPercent: item.gstPercent,
-        sizeQtyList: [{ size: item.size, qty: item.qty }],
-        totalQty: item.qty,
-        totalAmount: item.total,
-      }));
+      return itemsList.map((item) => {
+        const gstPct = getItemGstPercent(item);
+        const gstAmt = (item.total * gstPct) / (100 + gstPct); // GST is included in total
+        return {
+          particulars: item.particulars,
+          brand: item.brand,
+          color: item.color,
+          style: item.style,
+          hsn: item.hsn,
+          rate: item.rate,
+          mrp: item.mrp,
+          gstPercent: gstPct,
+          gstAmount: gstAmt,
+          sizeQtyList: [{ size: item.size, qty: item.qty }],
+          totalQty: item.qty,
+          totalAmount: item.total,
+        };
+      });
     }
 
     const grouped: Record<string, GroupedItem> = {};
     itemsList.forEach((item) => {
-      const key = `${item.particulars}-${item.rate}`;
+      const gstPct = getItemGstPercent(item);
+      const key = `${item.particulars}-${item.rate}-${gstPct}`;
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
@@ -149,7 +162,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           hsn: item.hsn,
           rate: item.rate,
           mrp: item.mrp,
-          gstPercent: item.gstPercent,
+          gstPercent: gstPct,
+          gstAmount: 0,
           sizeQtyList: [],
           totalQty: 0,
           totalAmount: 0,
@@ -163,6 +177,9 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       }
       grouped[key].totalQty += item.qty;
       grouped[key].totalAmount += item.total;
+      // Calculate GST amount (GST is included in total, so we extract it)
+      const itemGstAmt = (item.total * gstPct) / (100 + gstPct);
+      grouped[key].gstAmount += itemGstAmt;
     });
     return Object.values(grouped);
   };
@@ -311,13 +328,14 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <thead>
               <tr>
-                <th style={{ ...headerCellStyle, width: "30px" }}>SR</th>
-                <th style={{ ...headerCellStyle, width: "180px" }}>PARTICULARS</th>
-                <th style={{ ...headerCellStyle, width: "130px" }}>SIZE / QTY</th>
-                <th style={{ ...headerCellStyle, width: "40px" }}>QTY</th>
-                <th style={{ ...headerCellStyle, width: "70px" }}>RATE</th>
-                {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "40px" }}>GST%</th>}
-                <th style={{ ...headerCellStyle, width: "80px" }}>AMOUNT</th>
+                <th style={{ ...headerCellStyle, width: "25px" }}>SR</th>
+                <th style={{ ...headerCellStyle, width: "150px" }}>PARTICULARS</th>
+                <th style={{ ...headerCellStyle, width: "110px" }}>SIZE / QTY</th>
+                <th style={{ ...headerCellStyle, width: "35px" }}>QTY</th>
+                <th style={{ ...headerCellStyle, width: "60px" }}>RATE</th>
+                {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "35px" }}>GST%</th>}
+                {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "55px" }}>GST AMT</th>}
+                <th style={{ ...headerCellStyle, width: "70px" }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -335,7 +353,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   </td>
                   <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
                   <td style={{ ...cellStyle, textAlign: "right" }}>{item.rate.toFixed(2)}</td>
-                  {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center" }}>{item.gstPercent || 0}%</td>}
+                  {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center" }}>{item.gstPercent}%</td>}
+                  {showGSTBreakdown && (
+                    <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>
+                      {item.gstAmount > 0 ? `₹${item.gstAmount.toFixed(2)}` : '-'}
+                    </td>
+                  )}
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700" }}>
                     {formatCurrency(item.totalAmount)}
                   </td>
@@ -349,6 +372,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   <td style={cellStyle}>&nbsp;</td>
                   <td style={cellStyle}>&nbsp;</td>
                   {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
+                  {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
                   <td style={cellStyle}>&nbsp;</td>
                 </tr>
               ))}
@@ -359,7 +383,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   TOTAL QTY:
                 </td>
                 <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
-                <td colSpan={showGSTBreakdown ? 2 : 1} style={{ ...cellStyle, textAlign: "right" }}>
+                <td colSpan={showGSTBreakdown ? 3 : 1} style={{ ...cellStyle, textAlign: "right" }}>
                   SUB TOTAL:
                 </td>
                 <td style={{ ...cellStyle, textAlign: "right" }}>{formatCurrency(subtotal)}</td>

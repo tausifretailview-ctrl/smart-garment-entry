@@ -1673,12 +1673,13 @@ const POSDashboard = () => {
                 particulars: item.product_name,
                 size: item.size,
                 barcode: item.barcode || '',
-                hsn: '',
+                hsn: item.hsn_code || '',
                 sp: item.mrp,
                 mrp: item.mrp,
                 qty: item.quantity,
                 rate: item.unit_price,
                 total: item.line_total,
+                gstPercent: item.gst_percent || 0,
               }))}
               subTotal={previewSale.gross_amount}
               discount={previewSale.discount_amount + previewSale.flat_discount_amount}
