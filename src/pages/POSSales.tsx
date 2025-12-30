@@ -728,11 +728,13 @@ export default function POSSales() {
         return;
       }
       
-      // Increment quantity if already in cart
-      const updatedItems = [...items];
-      updatedItems[existingItemIndex].quantity = newQty;
-      updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
-      setItems(updatedItems);
+      // Increment quantity if already in cart - use functional update to prevent race conditions
+      setItems(prev => {
+        const updatedItems = [...prev];
+        updatedItems[existingItemIndex].quantity = newQty;
+        updatedItems[existingItemIndex].netAmount = calculateNetAmount(updatedItems[existingItemIndex]);
+        return updatedItems;
+      });
     } else {
       // Real-time stock validation before adding new item
       const stockCheck = await checkStock(variant.id, 1);
@@ -811,7 +813,7 @@ export default function POSSales() {
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
       };
-      setItems([...items, newItem]);
+      setItems(prev => [...prev, newItem]);
     }
     
     // Close search dropdown and clear input
@@ -836,7 +838,7 @@ export default function POSSales() {
   };
 
   const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
+    setItems(prev => prev.filter((_, i) => i !== index));
     // Keep focus on barcode search bar
     setTimeout(() => barcodeInputRef.current?.focus(), 50);
   };
@@ -858,41 +860,51 @@ export default function POSSales() {
       return;
     }
     
-    const updatedItems = [...items];
-    updatedItems[index].quantity = newQty;
-    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
-    setItems(updatedItems);
+    setItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems[index].quantity = newQty;
+      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      return updatedItems;
+    });
   };
 
   const updateDiscountPercent = (index: number, discountPercent: number) => {
     if (discountPercent < 0 || discountPercent > 100) return;
-    const updatedItems = [...items];
-    updatedItems[index].discountPercent = discountPercent;
-    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
-    setItems(updatedItems);
+    setItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems[index].discountPercent = discountPercent;
+      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      return updatedItems;
+    });
   };
 
   const updateDiscountAmount = (index: number, discountAmount: number) => {
     if (discountAmount < 0) return;
-    const updatedItems = [...items];
-    updatedItems[index].discountAmount = discountAmount;
-    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
-    setItems(updatedItems);
+    setItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems[index].discountAmount = discountAmount;
+      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      return updatedItems;
+    });
   };
 
   const updateMrp = (index: number, newMrp: number) => {
     if (newMrp < 0) return;
-    const updatedItems = [...items];
-    updatedItems[index].mrp = newMrp;
-    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
-    setItems(updatedItems);
+    setItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems[index].mrp = newMrp;
+      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      return updatedItems;
+    });
   };
 
   const updateGstPer = (index: number, newGstPer: number) => {
-    const updatedItems = [...items];
-    updatedItems[index].gstPer = newGstPer;
-    updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
-    setItems(updatedItems);
+    setItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems[index].gstPer = newGstPer;
+      updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
+      return updatedItems;
+    });
   };
 
   // Calculate totals
