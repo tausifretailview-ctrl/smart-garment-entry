@@ -159,13 +159,14 @@ const PurchaseBillDashboard = () => {
 
       setBills(data || []);
       
-      // Fetch item counts for all bills
+      // Fetch item counts for all bills (excluding soft-deleted items)
       if (data && data.length > 0) {
         const billIds = data.map(b => b.id);
         const { data: allItems, error: itemsError } = await supabase
           .from("purchase_items")
           .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
-          .in("bill_id", billIds);
+          .in("bill_id", billIds)
+          .is("deleted_at", null);
         
         if (!itemsError && allItems) {
           const itemsByBill: Record<string, PurchaseItem[]> = {};
@@ -660,8 +661,10 @@ const PurchaseBillDashboard = () => {
   const getPaymentStatusBadge = (bill: PurchaseBill) => {
     const status = bill.payment_status || 'unpaid';
     const paidAmount = bill.paid_amount || 0;
+    // Use tolerance for floating point comparison (within 1 rupee is considered fully paid)
+    const isFullyPaid = status === 'paid' || Math.abs(paidAmount - bill.net_amount) < 1;
     
-    if (status === 'paid' || paidAmount >= bill.net_amount) {
+    if (isFullyPaid) {
       return <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">Paid</Badge>;
     } else if (status === 'partial' || (paidAmount > 0 && paidAmount < bill.net_amount)) {
       return <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">Partial</Badge>;
