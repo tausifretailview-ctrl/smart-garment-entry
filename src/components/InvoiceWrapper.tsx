@@ -29,6 +29,7 @@ interface InvoiceItem {
   category?: string;
   color?: string;
   style?: string;
+  gstPercent?: number;
 }
 
 interface InvoiceWrapperProps {

@@ -1842,21 +1842,22 @@ export default function SalesInvoiceDashboard() {
                 template={invoiceTemplate}
                 showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
                 showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
-                items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
-                  sr: index + 1,
-                  particulars: item.product_name,
-                  size: item.size,
-                  barcode: item.barcode || "",
-                  hsn: item.hsn_code || "",
-                  sp: item.mrp,
-                  mrp: item.mrp,
-                  qty: item.quantity,
-                  rate: item.unit_price,
-                  total: item.line_total,
-                  color: item.color || item.products?.color || "",
-                  brand: item.products?.brand || "",
-                  style: item.products?.style || "",
-                })) || []}
+              items={invoiceToPrint.sale_items?.map((item: any, index: number) => ({
+                sr: index + 1,
+                particulars: item.product_name,
+                size: item.size,
+                barcode: item.barcode || "",
+                hsn: item.hsn_code || "",
+                sp: item.mrp,
+                mrp: item.mrp,
+                qty: item.quantity,
+                rate: item.unit_price,
+                total: item.line_total,
+                color: item.color || item.products?.color || "",
+                brand: item.products?.brand || "",
+                style: item.products?.style || "",
+                gstPercent: item.gst_percent || 0,
+              })) || []}
                 subTotal={invoiceToPrint.gross_amount}
                 discount={invoiceToPrint.discount_amount}
                 grandTotal={invoiceToPrint.net_amount}
@@ -1917,6 +1918,7 @@ export default function SalesInvoiceDashboard() {
                 color: item.color || item.products?.color || "",
                 brand: item.products?.brand || "",
                 style: item.products?.style || "",
+                gstPercent: item.gst_percent || 0,
               })) || []}
               subTotal={invoiceToPrint.gross_amount}
               discount={invoiceToPrint.discount_amount}

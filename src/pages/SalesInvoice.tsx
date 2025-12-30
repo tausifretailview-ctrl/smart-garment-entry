@@ -2256,6 +2256,7 @@ Thank you for choosing us!`;
               rate: item.salePrice,
               total: item.lineTotal,
               color: item.color || "",
+              gstPercent: item.gstPercent || 0,
             }))}
             subTotal={grossAmount}
             discount={totalDiscount}
