@@ -893,6 +893,8 @@ export default function POSSales() {
     setItems(prev => {
       const updatedItems = [...prev];
       updatedItems[index].mrp = newMrp;
+      // CRITICAL: Sync unitCost with MRP to ensure correct unit_price is saved to database
+      updatedItems[index].unitCost = newMrp;
       updatedItems[index].netAmount = calculateNetAmount(updatedItems[index]);
       return updatedItems;
     });
