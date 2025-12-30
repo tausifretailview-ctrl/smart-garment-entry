@@ -439,7 +439,8 @@ const PurchaseBillDashboard = () => {
     const currentPaid = selectedBillForPayment.paid_amount || 0;
     const newTotalPaid = currentPaid + amount;
 
-    if (newTotalPaid > selectedBillForPayment.net_amount) {
+    // Allow small tolerance (₹1) for floating-point differences
+    if (newTotalPaid > selectedBillForPayment.net_amount + 1) {
       toast({
         title: "Amount Exceeds Bill Total",
         description: "Payment amount exceeds the remaining bill amount",
