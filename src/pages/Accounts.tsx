@@ -21,6 +21,7 @@ import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { CustomerLedger } from "@/components/CustomerLedger";
+import { SupplierLedger } from "@/components/SupplierLedger";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
@@ -985,6 +986,7 @@ export default function Accounts() {
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
             <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
+            <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
             <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
             <TabsTrigger value="supplier-payment">Supplier Payment</TabsTrigger>
             <TabsTrigger value="employee-salary">Employee Salary</TabsTrigger>
@@ -992,7 +994,6 @@ export default function Accounts() {
             <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
             <TabsTrigger value="pl-report">P&L Report</TabsTrigger>
-            <TabsTrigger value="balance-sheet">Balance Sheet</TabsTrigger>
           </TabsList>
 
           {/* Customer Ledger Tab */}
@@ -1002,6 +1003,13 @@ export default function Accounts() {
                 organizationId={currentOrganization.id} 
                 paymentFilter={paymentCardFilter}
               />
+            )}
+          </TabsContent>
+
+          {/* Supplier Ledger Tab */}
+          <TabsContent value="supplier-ledger" className="space-y-6">
+            {currentOrganization?.id && (
+              <SupplierLedger organizationId={currentOrganization.id} />
             )}
           </TabsContent>
 
@@ -2251,22 +2259,6 @@ export default function Accounts() {
             </Card>
           </TabsContent>
 
-          {/* Balance Sheet Tab */}
-          <TabsContent value="balance-sheet" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Balance Sheet</CardTitle>
-                <CardDescription>View assets, liabilities and equity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center text-muted-foreground">
-                    Balance Sheet will show current financial position
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
 
         {/* Receipt Dialog */}
