@@ -26,6 +26,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
   Sidebar,
   SidebarContent,
@@ -45,7 +46,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 export function AppSidebar() {
   const { open } = useSidebar();
   const location = useLocation();
-  const { canAccessSettings, canAccessPurchases, isPlatformAdmin } = useUserRoles();
+  const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
+  const { hasMenuAccess, hasMainMenuAccess, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
 
   // Check if path matches accounting for org-scoped URLs
   // URL format: /:orgSlug/path or /path
@@ -121,7 +123,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* Master */}
-        {canAccessPurchases && (
+        {(isAdminPermissions || hasMainMenuAccess("master")) && (
           <SidebarGroup>
             <Collapsible defaultOpen={isGroupActive(masterPaths)} className="group/collapsible">
               <SidebarGroupLabel asChild>
@@ -138,30 +140,36 @@ export function AppSidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/customers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/customers" className="flex items-center gap-3 group">
-                              <UserCircle className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Customer</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/suppliers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/suppliers" className="flex items-center gap-3 group">
-                              <Truck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Supplier</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/employees")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/employees" className="flex items-center gap-3 group">
-                              <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Employee Master</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        {(isAdminPermissions || hasMenuAccess("customer_master")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/customers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/customers" className="flex items-center gap-3 group">
+                                <UserCircle className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Customer</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("supplier_master")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/suppliers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/suppliers" className="flex items-center gap-3 group">
+                                <Truck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Supplier</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("employee_master")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/employees")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/employees" className="flex items-center gap-3 group">
+                                <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Employee Master</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                       </SidebarMenuSub>
                     </SidebarMenuItem>
                   </SidebarMenu>
@@ -172,24 +180,24 @@ export function AppSidebar() {
         )}
 
         {/* Inventory */}
-        <SidebarGroup>
-          <Collapsible defaultOpen={isGroupActive(inventoryPaths)} className="group/collapsible">
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                  {open && <span className="font-semibold dark:text-white">Inventory</span>}
-                </div>
-                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuSub>
-                      {canAccessPurchases && (
-                        <>
+        {(isAdminPermissions || hasMainMenuAccess("inventory")) && (
+          <SidebarGroup>
+            <Collapsible defaultOpen={isGroupActive(inventoryPaths)} className="group/collapsible">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold dark:text-white">Inventory</span>}
+                  </div>
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSub>
+                        {(isAdminPermissions || hasMenuAccess("purchase_dashboard")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-bills")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/purchase-bills" className="flex items-center gap-3 group">
@@ -198,6 +206,8 @@ export function AppSidebar() {
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("purchase_return_dashboard")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-returns")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/purchase-returns" className="flex items-center gap-3 group">
@@ -206,14 +216,18 @@ export function AppSidebar() {
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("purchase_return")) && (
                           <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/purchase-return-entry" className="flex items-center gap-3 group">
-                              <Plus className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Purchase Return</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
+                            <SidebarMenuSubButton asChild isActive={isActive("/purchase-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/purchase-return-entry" className="flex items-center gap-3 group">
+                                <Plus className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Purchase Return</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("purchase_bill")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/purchase-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                               <NavLink to="/purchase-entry" className="flex items-center gap-3 group">
@@ -222,264 +236,306 @@ export function AppSidebar() {
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
-                        </>
-                      )}
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/product-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/product-entry" className="flex items-center gap-3 group">
-                            <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Product Entry</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/products")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/products" className="flex items-center gap-3 group">
-                            <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Product Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </SidebarGroup>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("product_entry")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/product-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/product-entry" className="flex items-center gap-3 group">
+                                <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Product Entry</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("product_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/products")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/products" className="flex items-center gap-3 group">
+                                <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Product Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                      </SidebarMenuSub>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        )}
 
         {/* Sales */}
-        <SidebarGroup>
-          <Collapsible defaultOpen={isGroupActive(salesPaths)} className="group/collapsible">
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                  {open && <span className="font-semibold dark:text-white">Sales</span>}
-                </div>
-                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/quotation-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/quotation-entry" className="flex items-center gap-3 group">
-                            <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Quotation Entry</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/quotation-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/quotation-dashboard" className="flex items-center gap-3 group">
-                            <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Quotation Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sale-order-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sale-order-entry" className="flex items-center gap-3 group">
-                            <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sale Order Entry</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sale-order-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sale-order-dashboard" className="flex items-center gap-3 group">
-                            <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sale Order Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/pos-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/pos-sales" className="flex items-center gap-3 group">
-                            <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">POS</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/pos-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/pos-dashboard" className="flex items-center gap-3 group">
-                            <ShoppingBag className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">POS Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sales-invoice" className="flex items-center gap-3 group">
-                            <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sales Bill</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-3 group">
-                            <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Invoice Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sale-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sale-return-entry" className="flex items-center gap-3 group">
-                            <TrendingDown className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sale Return</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sale-returns")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sale-returns" className="flex items-center gap-3 group">
-                            <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Return Dashboard</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </SidebarGroup>
+        {(isAdminPermissions || hasMainMenuAccess("sales")) && (
+          <SidebarGroup>
+            <Collapsible defaultOpen={isGroupActive(salesPaths)} className="group/collapsible">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold dark:text-white">Sales</span>}
+                  </div>
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSub>
+                        {(isAdminPermissions || hasMenuAccess("quotation_entry")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/quotation-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/quotation-entry" className="flex items-center gap-3 group">
+                                <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Quotation Entry</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("quotation_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/quotation-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/quotation-dashboard" className="flex items-center gap-3 group">
+                                <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Quotation Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sale_order_entry")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sale-order-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sale-order-entry" className="flex items-center gap-3 group">
+                                <PackageCheck className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sale Order Entry</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sale_order_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sale-order-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sale-order-dashboard" className="flex items-center gap-3 group">
+                                <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sale Order Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("pos_sales")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/pos-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/pos-sales" className="flex items-center gap-3 group">
+                                <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">POS</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("pos_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/pos-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/pos-dashboard" className="flex items-center gap-3 group">
+                                <ShoppingBag className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">POS Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sales_invoice")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sales-invoice" className="flex items-center gap-3 group">
+                                <FileText className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sales Bill</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-3 group">
+                                <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Invoice Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sale_return")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sale-return-entry")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sale-return-entry" className="flex items-center gap-3 group">
+                                <TrendingDown className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sale Return</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sale_return_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sale-returns")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sale-returns" className="flex items-center gap-3 group">
+                                <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Return Dashboard</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                      </SidebarMenuSub>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        )}
 
         {/* Reports */}
-        <SidebarGroup>
-          <Collapsible defaultOpen={isGroupActive(reportsPaths)} className="group/collapsible">
-            <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                  {open && <span className="font-semibold dark:text-white">Reports</span>}
-                </div>
-                {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
-              </CollapsibleTrigger>
-            </SidebarGroupLabel>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/stock-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/stock-report" className="flex items-center gap-3 group">
-                            <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Stock Report</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sales-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sales-report" className="flex items-center gap-3 group">
-                            <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sales</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      {canAccessPurchases && (
+        {(isAdminPermissions || hasMainMenuAccess("reports")) && (
+          <SidebarGroup>
+            <Collapsible defaultOpen={isGroupActive(reportsPaths)} className="group/collapsible">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold dark:text-white">Reports</span>}
+                  </div>
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSub>
+                        {(isAdminPermissions || hasMenuAccess("stock_report")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/stock-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/stock-report" className="flex items-center gap-3 group">
+                                <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Stock Report</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("sales_report_customer")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sales-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sales-report" className="flex items-center gap-3 group">
+                                <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sales</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("purchase_report_supplier")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/purchase-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/purchase-report" className="flex items-center gap-3 group">
+                                <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Purchase</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("product_tracking")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/product-tracking")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/product-tracking" className="flex items-center gap-3 group">
+                                <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Product Tracking</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("daily_cashier_report")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/daily-cashier-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/daily-cashier-report" className="flex items-center gap-3 group">
+                                <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Daily Cashier</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("item_wise_sales")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/item-wise-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/item-wise-sales" className="flex items-center gap-3 group">
+                                <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Item-wise Sales</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("price_history")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/price-history")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/price-history" className="flex items-center gap-3 group">
+                                <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Price History</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("gst_register")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/gst-register")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/gst-register" className="flex items-center gap-3 group">
+                                <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">GST Register</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                         <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/purchase-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/purchase-report" className="flex items-center gap-3 group">
-                              <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Purchase</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )}
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/product-tracking")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/product-tracking" className="flex items-center gap-3 group">
-                            <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Product Tracking</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/daily-cashier-report")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/daily-cashier-report" className="flex items-center gap-3 group">
-                            <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Daily Cashier</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/item-wise-sales")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/item-wise-sales" className="flex items-center gap-3 group">
-                            <Barcode className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Item-wise Sales</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      {canAccessPurchases && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/price-history")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/price-history" className="flex items-center gap-3 group">
-                              <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Price History</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      )}
-                      {canAccessPurchases && (
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/gst-register")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/gst-register" className="flex items-center gap-3 group">
+                          <SidebarMenuSubButton asChild isActive={isActive("/tally-export")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/tally-export" className="flex items-center gap-3 group">
                               <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">GST Register</span>
+                              <span className="dark:text-white">Tally Export</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
-                      )}
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/tally-export")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/tally-export" className="flex items-center gap-3 group">
-                            <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Tally Export</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton asChild isActive={isActive("/sales-analytics")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                          <NavLink to="/sales-analytics" className="flex items-center gap-3 group">
-                            <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                            <span className="dark:text-white">Sales Analytics</span>
-                          </NavLink>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </SidebarGroup>
+                        {(isAdminPermissions || hasMenuAccess("sales_analytics")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/sales-analytics")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/sales-analytics" className="flex items-center gap-3 group">
+                                <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Sales Analytics</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                      </SidebarMenuSub>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        )}
 
         {/* Delivery Status */}
-        <SidebarGroup>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={isActive("/delivery-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                <NavLink to="/delivery-dashboard" className="flex items-center gap-3 group">
-                  <PackageCheck className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                  {open && <span className="font-medium dark:text-white">Delivery Status</span>}
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+        {(isAdminPermissions || hasMainMenuAccess("delivery")) && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/delivery-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                  <NavLink to="/delivery-dashboard" className="flex items-center gap-3 group">
+                    <PackageCheck className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-medium dark:text-white">Delivery Status</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
 
         {/* Accounts */}
-        {canAccessPurchases && (
+        {(isAdminPermissions || hasMainMenuAccess("accounts")) && (
           <SidebarGroup>
             <Collapsible defaultOpen={isGroupActive(accountsPaths)} className="group/collapsible">
               <SidebarGroupLabel asChild>
@@ -496,22 +552,26 @@ export function AppSidebar() {
                   <SidebarMenu>
                     <SidebarMenuItem>
                       <SidebarMenuSub>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/accounts")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/accounts" className="flex items-center gap-3 group">
-                              <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Account Ledgers</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/payments-dashboard" className="flex items-center gap-3 group">
-                              <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Payments</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        {(isAdminPermissions || hasMenuAccess("accounts_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/accounts")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/accounts" className="flex items-center gap-3 group">
+                                <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Account Ledgers</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("payments_dashboard")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/payments-dashboard")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/payments-dashboard" className="flex items-center gap-3 group">
+                                <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Payments</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                       </SidebarMenuSub>
                     </SidebarMenuItem>
                   </SidebarMenu>
