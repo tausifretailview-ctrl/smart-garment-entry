@@ -24,6 +24,7 @@ import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
+import { ChequeFormatManagement } from "@/components/ChequeFormatManagement";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -3223,6 +3224,11 @@ export default function Settings() {
                       ))}
                     </div>
                   )}
+                </div>
+
+                {/* Cheque Printing Section */}
+                <div className="pt-6 border-t">
+                  <ChequeFormatManagement />
                 </div>
               </CardContent>
             </Card>
