@@ -138,6 +138,7 @@ const PurchaseEntry = () => {
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>([]); // Store original items for comparison
+  const initialDraftCheckDone = useRef(false); // Track if initial draft check was done
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
   // Inline search state for table row
@@ -188,9 +189,10 @@ const PurchaseEntry = () => {
     });
   }, [toast]);
 
-  // Check for draft on mount (only if not in edit mode)
+  // Check for draft on mount (only once, not in edit mode)
   useEffect(() => {
-    if (!location.state?.editBillId && hasDraft && draftData) {
+    if (!location.state?.editBillId && hasDraft && draftData && !initialDraftCheckDone.current) {
+      initialDraftCheckDone.current = true;
       setShowDraftDialog(true);
     }
   }, [hasDraft, draftData, location.state?.editBillId]);
@@ -1582,6 +1584,13 @@ const PurchaseEntry = () => {
 
         // Clear draft after successful save
         await deleteDraft();
+
+        // Reset edit mode if we were editing
+        if (isEditMode) {
+          setIsEditMode(false);
+          setEditingBillId(null);
+          setOriginalLineItems([]);
+        }
 
         // Reset form and generate new bill number
         setBillData({
