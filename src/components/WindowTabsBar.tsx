@@ -1,5 +1,5 @@
-import React from "react";
-import { X, Plus, ChevronUp, ChevronDown, Home } from "lucide-react";
+import React, { useState } from "react";
+import { X, Plus, ChevronUp, ChevronDown, Home, Grid3X3 } from "lucide-react";
 import { useWindowTabs, getTabIcon } from "@/contexts/WindowTabsContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 const QUICK_OPEN_PAGES = [
   { path: "dashboard", label: "Dashboard", icon: "Home", category: "Main" },
@@ -51,6 +52,7 @@ export function WindowTabsBar() {
     toggleTabsBarVisibility 
   } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
+  const [sizeStockOpen, setSizeStockOpen] = useState(false);
 
   if (openWindows.length === 0) return null;
 
@@ -109,6 +111,24 @@ export function WindowTabsBar() {
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <p>Go to Dashboard</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Size Stock Quick Button */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="h-6 gap-1 px-1.5 shrink-0 text-primary"
+              onClick={() => setSizeStockOpen(true)}
+            >
+              <Grid3X3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline text-[11px]">Size Stock</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Quick Size Stock Check (Ctrl+G)</p>
           </TooltipContent>
         </Tooltip>
 
@@ -209,6 +229,9 @@ export function WindowTabsBar() {
           </TooltipContent>
         </Tooltip>
       </div>
+
+      {/* Size Stock Dialog */}
+      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
     </div>
   );
 }
