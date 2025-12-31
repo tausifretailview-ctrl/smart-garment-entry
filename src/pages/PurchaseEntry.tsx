@@ -30,7 +30,6 @@ import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface PriceChange {
   sku_id: string;
@@ -146,7 +145,7 @@ const PurchaseEntry = () => {
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  
   
   // Price update confirmation state
   const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
@@ -189,13 +188,14 @@ const PurchaseEntry = () => {
     });
   }, [toast]);
 
-  // Check for draft on mount (only once, not in edit mode)
+  // Load draft automatically if navigated from dashboard with loadDraft flag
   useEffect(() => {
-    if (!location.state?.editBillId && hasDraft && draftData && !initialDraftCheckDone.current) {
+    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
-      setShowDraftDialog(true);
+      loadDraftData(draftData);
+      deleteDraft(); // Clear the draft from database after loading
     }
-  }, [hasDraft, draftData, location.state?.editBillId]);
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -2667,20 +2667,6 @@ const PurchaseEntry = () => {
           sampleFileName="Purchase_Bill_Sample.xlsx"
         />
 
-        {/* Draft Resume Dialog */}
-        <DraftResumeDialog
-          open={showDraftDialog}
-          onOpenChange={setShowDraftDialog}
-          draftType="purchase"
-          onResume={() => {
-            loadDraftData(draftData);
-            setShowDraftDialog(false);
-          }}
-          onStartFresh={async () => {
-            await deleteDraft();
-            setShowDraftDialog(false);
-          }}
-        />
 
         {/* Product Entry Dialog */}
         <ProductEntryDialog
