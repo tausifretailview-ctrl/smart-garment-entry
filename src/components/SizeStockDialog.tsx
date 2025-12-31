@@ -1,7 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Search, Grid3X3, X, Check } from "lucide-react";
@@ -124,13 +122,13 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             id,
             size,
             stock_qty,
+            color,
             barcode,
             product_id,
             products!inner(
               id,
               product_name,
-              brand,
-              color
+              brand
             )
           `)
           .eq("organization_id", currentOrganization.id)
@@ -139,7 +137,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
         if (error) throw error;
 
-        // Process into size-wise format
+        // Process into size-wise format - each color as separate row
         const productMap = new Map<string, SizeWiseRow>();
         const allSizes = new Set<string>();
 
@@ -147,7 +145,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           const product = variant.products;
           if (!product) return;
 
-          const productKey = `${product.product_name}-${product.brand || ""}-${product.color || ""}`;
+          const variantColor = variant.color || "";
+          const productKey = `${product.id}-${variantColor}`;
           allSizes.add(variant.size);
 
           if (!productMap.has(productKey)) {
@@ -155,7 +154,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
               productKey,
               productName: product.product_name,
               brand: product.brand || "",
-              color: product.color || "",
+              color: variantColor,
               sizeStocks: {},
               totalStock: 0,
             });
@@ -176,7 +175,11 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
         setSizeWiseData({
           sizes: sortedSizes,
-          rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName)),
+          rows: Array.from(productMap.values()).sort((a, b) => {
+            const nameCompare = a.productName.localeCompare(b.productName);
+            if (nameCompare !== 0) return nameCompare;
+            return a.color.localeCompare(b.color);
+          }),
         });
       } catch (error) {
         console.error("Error loading stock:", error);
@@ -200,190 +203,210 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[1200px] max-h-[85vh] flex flex-col p-0">
-        <DialogHeader className="px-4 pt-4 pb-2 border-b shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Grid3X3 className="h-5 w-5 text-primary" />
-              <DialogTitle className="text-lg">Quick Size Stock Lookup</DialogTitle>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+      <DialogContent className="max-w-[95vw] sm:max-w-[600px] md:max-w-[800px] max-h-[80vh] flex flex-col p-0 gap-0">
+        {/* Compact Header */}
+        <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
+          <div className="flex items-center gap-1.5">
+            <Grid3X3 className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">Size Stock</span>
           </div>
-          
-          {/* Product Search Dropdown */}
-          <div className="mt-2">
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={popoverOpen}
-                  className="w-full justify-start text-left font-normal"
-                >
-                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-                  <span className="text-muted-foreground">Search and select products...</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[500px] p-0" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput 
-                    placeholder="Type product name or brand..." 
-                    value={productSearch}
-                    onValueChange={handleProductSearchChange}
-                  />
-                  <CommandList>
-                    {productsLoading ? (
-                      <div className="py-6 text-center text-sm text-muted-foreground">
-                        Searching...
-                      </div>
-                    ) : productSearch.length < 1 ? (
-                      <div className="py-6 text-center text-sm text-muted-foreground">
-                        Type to search products...
-                      </div>
-                    ) : products.length === 0 ? (
-                      <CommandEmpty>No products found.</CommandEmpty>
-                    ) : (
-                      <CommandGroup heading="Products">
-                        {products.map((product) => {
-                          const isSelected = selectedProducts.some(p => p.id === product.id);
-                          return (
-                            <CommandItem
-                              key={product.id}
-                              value={product.id}
-                              onSelect={() => handleSelectProduct(product)}
-                              className="cursor-pointer"
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  isSelected ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <div className="flex flex-col">
-                                <span className="font-medium">{product.product_name}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  {[product.brand, product.color].filter(Boolean).join(" • ") || "No details"}
-                                </span>
-                              </div>
-                            </CommandItem>
-                          );
-                        })}
-                      </CommandGroup>
-                    )}
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        
+        {/* Compact Search */}
+        <div className="px-3 py-2 border-b bg-background">
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                role="combobox"
+                aria-expanded={popoverOpen}
+                className="w-full justify-start h-8 text-xs font-normal"
+              >
+                <Search className="mr-1.5 h-3 w-3 shrink-0 opacity-50" />
+                <span className="text-muted-foreground">Search products...</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput 
+                  placeholder="Type product name or brand..." 
+                  value={productSearch}
+                  onValueChange={handleProductSearchChange}
+                  className="h-8 text-xs"
+                />
+                <CommandList className="max-h-48">
+                  {productsLoading ? (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      Searching...
+                    </div>
+                  ) : productSearch.length < 1 ? (
+                    <div className="py-4 text-center text-xs text-muted-foreground">
+                      Type to search...
+                    </div>
+                  ) : products.length === 0 ? (
+                    <CommandEmpty className="text-xs py-4">No products found.</CommandEmpty>
+                  ) : (
+                    <CommandGroup>
+                      {products.map((product) => {
+                        const isSelected = selectedProducts.some(p => p.id === product.id);
+                        return (
+                          <CommandItem
+                            key={product.id}
+                            value={product.id}
+                            onSelect={() => handleSelectProduct(product)}
+                            className="cursor-pointer py-1.5"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-1.5 h-3 w-3",
+                                isSelected ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-medium">{product.product_name}</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {[product.brand, product.color].filter(Boolean).join(" • ") || "-"}
+                              </span>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
 
-          {/* Selected Products Tags */}
+          {/* Selected Products Tags - Compact */}
           {selectedProducts.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
+            <div className="flex flex-wrap gap-1 mt-2">
               {selectedProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-sm"
+                  className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-medium"
                 >
                   <span>{product.product_name}</span>
                   <button
                     onClick={() => handleRemoveProduct(product.id)}
-                    className="ml-1 hover:bg-primary/20 rounded p-0.5"
+                    className="ml-0.5 hover:bg-primary/20 rounded p-0.5"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
               ))}
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs"
+                className="h-5 px-1.5 text-[10px]"
                 onClick={() => setSelectedProducts([])}
               >
-                Clear All
+                Clear
               </Button>
             </div>
           )}
-        </DialogHeader>
+        </div>
 
-        <div className="flex-1 overflow-hidden px-4 pb-4">
+        {/* Content Area */}
+        <div className="flex-1 overflow-hidden">
           {selectedProducts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-              <Grid3X3 className="h-16 w-16 mb-4 opacity-30" />
-              <p className="text-lg">Select products to view stock</p>
-              <p className="text-sm">Use the search dropdown above to find and select products</p>
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+              <Grid3X3 className="h-8 w-8 mb-2 opacity-30" />
+              <p className="text-xs">Select products to view stock</p>
             </div>
           ) : loading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3">Loading stock...</span>
+            <div className="flex items-center justify-center h-40">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+              <span className="ml-2 text-xs">Loading...</span>
             </div>
           ) : sizeWiseData.rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-              <Search className="h-16 w-16 mb-4 opacity-30" />
-              <p className="text-lg">No stock data found</p>
-              <p className="text-sm">The selected products have no variants</p>
+            <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
+              <Search className="h-8 w-8 mb-2 opacity-30" />
+              <p className="text-xs">No stock data found</p>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(85vh-200px)]">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-muted z-10">
-                    <TableRow>
-                      <TableHead className="sticky left-0 bg-muted z-20 min-w-[200px]">Product</TableHead>
-                      <TableHead className="min-w-[80px]">Brand</TableHead>
-                      <TableHead className="min-w-[80px]">Color</TableHead>
+            <ScrollArea className="h-[calc(80vh-150px)]">
+              <div className="px-2 py-1">
+                <table className="w-full text-[11px] border-collapse">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-primary/5">
+                      <th className="text-left py-1.5 px-2 font-semibold text-primary border-b">Product</th>
                       {sizeWiseData.sizes.map((size) => (
-                        <TableHead key={size} className="text-center min-w-[50px] font-semibold">
+                        <th key={size} className="text-center py-1.5 px-1 font-semibold text-primary border-b min-w-[28px]">
                           {size}
-                        </TableHead>
+                        </th>
                       ))}
-                      <TableHead className="text-center min-w-[60px] bg-primary/10 font-bold">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sizeWiseData.rows.map((row, idx) => (
-                      <TableRow key={row.productKey} className={idx % 2 === 0 ? "bg-background" : "bg-muted/30"}>
-                        <TableCell className="sticky left-0 bg-inherit font-medium">{row.productName}</TableCell>
-                        <TableCell className="text-muted-foreground">{row.brand}</TableCell>
-                        <TableCell className="text-muted-foreground">{row.color}</TableCell>
-                        {sizeWiseData.sizes.map((size) => {
-                          const qty = row.sizeStocks[size] || 0;
-                          return (
-                            <TableCell
-                              key={size}
-                              className={`text-center ${qty === 0 ? "text-muted-foreground" : qty < 0 ? "text-destructive font-semibold" : ""}`}
-                            >
-                              {qty || "-"}
-                            </TableCell>
-                          );
-                        })}
-                        <TableCell className="text-center font-bold bg-primary/5">{row.totalStock}</TableCell>
-                      </TableRow>
-                    ))}
+                      <th className="text-center py-1.5 px-2 font-bold text-primary bg-primary/10 border-b min-w-[40px]">
+                        Stock
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sizeWiseData.rows.map((row, idx) => {
+                      const hasStock = row.totalStock > 0;
+                      return (
+                        <tr 
+                          key={row.productKey} 
+                          className={cn(
+                            "border-b border-border/50",
+                            hasStock ? "bg-green-50 dark:bg-green-950/20" : "bg-background"
+                          )}
+                        >
+                          <td className="py-1 px-2">
+                            <div className="font-medium text-foreground">{row.productName}</div>
+                            <div className="text-[9px] text-red-500">
+                              {row.brand}{row.brand && row.color ? " - " : ""}{row.color}
+                            </div>
+                          </td>
+                          {sizeWiseData.sizes.map((size) => {
+                            const qty = row.sizeStocks[size] || 0;
+                            return (
+                              <td
+                                key={size}
+                                className={cn(
+                                  "text-center py-1 px-0.5",
+                                  qty === 0 ? "text-muted-foreground/50" : 
+                                  qty < 0 ? "text-red-600 font-semibold bg-red-50 dark:bg-red-950/30" : 
+                                  "text-foreground font-medium bg-green-100 dark:bg-green-900/30"
+                                )}
+                              >
+                                {qty === 0 ? "" : qty}
+                              </td>
+                            );
+                          })}
+                          <td className={cn(
+                            "text-center py-1 px-1 font-bold",
+                            hasStock ? "bg-green-200 dark:bg-green-800/50 text-green-800 dark:text-green-200" : "bg-muted/50 text-muted-foreground"
+                          )}>
+                            {row.totalStock}
+                          </td>
+                        </tr>
+                      );
+                    })}
                     {/* Totals Row */}
-                    <TableRow className="bg-primary/10 font-bold border-t-2 border-primary/20">
-                      <TableCell className="sticky left-0 bg-primary/10">TOTAL</TableCell>
-                      <TableCell></TableCell>
-                      <TableCell></TableCell>
+                    <tr className="bg-red-500 text-white font-bold">
+                      <td className="py-1.5 px-2">Total Stock</td>
                       {sizeWiseData.sizes.map((size) => (
-                        <TableCell key={size} className="text-center">
+                        <td key={size} className="text-center py-1.5 px-0.5">
                           {sizeTotals[size] || 0}
-                        </TableCell>
+                        </td>
                       ))}
-                      <TableCell className="text-center bg-primary/20 text-primary">{grandTotal}</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground text-right">
-                {sizeWiseData.rows.length} product{sizeWiseData.rows.length !== 1 ? "s" : ""} found
+                      <td className="text-center py-1.5 px-1 bg-red-600">{grandTotal}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="mt-1 text-[10px] text-muted-foreground text-right pr-2">
+                  {sizeWiseData.rows.length} item{sizeWiseData.rows.length !== 1 ? "s" : ""}
+                </div>
               </div>
             </ScrollArea>
           )}
