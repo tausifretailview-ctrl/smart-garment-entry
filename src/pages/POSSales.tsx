@@ -13,12 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins } from "lucide-react";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -111,6 +112,10 @@ export default function POSSales() {
     customerId || null,
     currentOrganization?.id || null
   );
+  
+  // Customer points hooks
+  const { calculatePoints, isPointsEnabled } = useCustomerPoints();
+  const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
@@ -2189,6 +2194,16 @@ export default function POSSales() {
                           {customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Credit' : ''}
                           {customerOpeningBalance > 0 && ` (Op: ₹${customerOpeningBalance.toLocaleString('en-IN')})`}
                         </span>
+                      </div>
+                    )}
+                    {/* Points Display */}
+                    {isPointsEnabled && customerId && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/30">
+                        <Coins className="h-3 w-3" />
+                        <span>{customerPointsData?.balance || 0} pts</span>
+                        {items.length > 0 && (
+                          <span className="text-green-600">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                        )}
                       </div>
                     )}
                   </div>
