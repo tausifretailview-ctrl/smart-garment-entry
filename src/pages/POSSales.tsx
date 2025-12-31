@@ -1176,8 +1176,8 @@ export default function POSSales() {
         await applyCredit(customerId, creditApplied);
       }
       
-      // Store invoice data and show print dialog
-      setSavedInvoiceData({
+      // Store invoice data for print dialog BEFORE clearing the form
+      const invoiceDataForPrint = {
         invoiceNumber: result.sale_number,
         saleId: result.id,
         items: items,
@@ -1193,18 +1193,36 @@ export default function POSSales() {
         notes: saleNotes || null,
         paidAmount: method === 'pay_later' ? 0 : finalAmount,
         previousBalance: customerBalance || 0,
-      });
-      setShowPrintConfirmDialog(true);
+      };
       
-      // Reset credit applied
+      // Clear the form immediately after successful save (reset to new blank invoice)
+      setItems([]);
+      setCustomerId("");
+      setCustomerName("");
+      setCustomerPhone("");
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
+      setSaleReturnAdjust(0);
+      setRoundOff(0);
+      setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setSearchInput("");
+      setCurrentSaleId(null);
+      setOriginalItemsForEdit([]);
+      setSelectedSalesman("");
+      setSaleNotes("");
+      setIsHeldSale(false);
+      setPointsToRedeem(0);
       
-      // Reset edit mode after successful save
-      if (wasEditing) {
-        setCurrentSaleId(null);
-        setOriginalItemsForEdit([]);
-      }
+      // Now show print dialog with saved data
+      setSavedInvoiceData(invoiceDataForPrint);
+      setShowPrintConfirmDialog(true);
+      
+      // Focus on barcode input for next sale
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -1331,38 +1349,57 @@ export default function POSSales() {
         await applyCredit(customerId, creditApplied);
       }
       
-      // Store invoice data and show print dialog (only for non-credit note cases)
-      if (!isCreditNote) {
-        setSavedInvoiceData({
-          invoiceNumber: result.sale_number,
-          saleId: result.id,
-          items: items,
-          totals: totals,
-          flatDiscountAmount: flatDiscountAmount,
-          saleReturnAdjust: saleReturnAdjust,
-          finalAmount: finalAmount,
-          method: isRefund ? 'refund' : 'multiple',
-          customerName: customerName,
-          customerPhone: customerPhone,
-          roundOff: roundOff,
-          paymentBreakdown: paymentData,
-          refundAmount: paymentData.refundAmount,
-          creditApplied: creditApplied,
-          notes: saleNotes || null,
-          paidAmount: paymentData.totalPaid,
-          previousBalance: customerBalance || 0,
-        });
+      // Store invoice data BEFORE clearing the form (only for non-credit note cases)
+      const invoiceDataForPrint = !isCreditNote ? {
+        invoiceNumber: result.sale_number,
+        saleId: result.id,
+        items: items,
+        totals: totals,
+        flatDiscountAmount: flatDiscountAmount,
+        saleReturnAdjust: saleReturnAdjust,
+        finalAmount: finalAmount,
+        method: isRefund ? 'refund' : 'multiple',
+        customerName: customerName,
+        customerPhone: customerPhone,
+        roundOff: roundOff,
+        paymentBreakdown: paymentData,
+        refundAmount: paymentData.refundAmount,
+        creditApplied: creditApplied,
+        notes: saleNotes || null,
+        paidAmount: paymentData.totalPaid,
+        previousBalance: customerBalance || 0,
+      } : null;
+      
+      // Clear the form immediately after successful save (reset to new blank invoice)
+      setItems([]);
+      setCustomerId("");
+      setCustomerName("");
+      setCustomerPhone("");
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
+      setSaleReturnAdjust(0);
+      setRoundOff(0);
+      setIsManualRoundOff(false);
+      setCreditApplied(0);
+      setAvailableCreditBalance(0);
+      setSearchInput("");
+      setCurrentSaleId(null);
+      setOriginalItemsForEdit([]);
+      setSelectedSalesman("");
+      setSaleNotes("");
+      setIsHeldSale(false);
+      setPointsToRedeem(0);
+      
+      // Show print dialog with saved data (only for non-credit note cases)
+      if (invoiceDataForPrint) {
+        setSavedInvoiceData(invoiceDataForPrint);
         setShowPrintConfirmDialog(true);
       }
       
-      // Reset credit applied
-      setCreditApplied(0);
-      setAvailableCreditBalance(0);
-      
-      // Reset edit mode after successful save
-      if (wasEditing) {
-        setCurrentSaleId(null);
-      }
+      // Focus on barcode input for next sale
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -1440,23 +1477,12 @@ export default function POSSales() {
 
   const handleClosePrintConfirmDialog = () => {
     setShowPrintConfirmDialog(false);
-    
-    // Clear cart
-    setItems([]);
-    setCustomerId("");
-    setCustomerName("");
-    setCustomerPhone("");
-    setFlatDiscountValue(0);
-    setFlatDiscountMode('percent');
-    setSaleReturnAdjust(0);
-    setRoundOff(0);
-    setIsManualRoundOff(false);
-    setSearchInput("");
-    setCurrentInvoiceIndex(0);
-    setSelectedSalesman("");
-    setSaleNotes("");
-    
     setSavedInvoiceData(null);
+    
+    // Focus on barcode input for next sale
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 100);
   };
 
   const { sendWhatsApp } = useWhatsAppSend();
