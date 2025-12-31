@@ -832,14 +832,8 @@ const PurchaseBillDashboard = () => {
                   <Button
                     size="sm"
                     onClick={() => {
-                      // Handle edit mode draft differently
-                      if (draftData?.isEditMode && draftData?.editingBillId) {
-                        navigate("/purchase-entry", { 
-                          state: { loadDraft: true, editBillId: draftData.editingBillId } 
-                        });
-                      } else {
-                        navigate("/purchase-entry", { state: { loadDraft: true } });
-                      }
+                      // Resume always loads from the saved draft payload (it may already include edit mode info)
+                      navigate("/purchase-entry", { state: { loadDraft: true } });
                     }}
                     className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
                   >
