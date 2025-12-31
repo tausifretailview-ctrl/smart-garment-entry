@@ -323,13 +323,18 @@ const PurchaseEntry = () => {
   // Load existing bill data if in edit mode or generate new bill number
   useEffect(() => {
     const loadOrGenerateBill = async () => {
+      // Skip loading bill from DB when resuming from a draft (draft already contains the latest state)
+      if (location.state?.loadDraft) {
+        return;
+      }
+
       // Skip if we already restored edit mode from sessionStorage
       if (isEditMode && editingBillId && !location.state?.editBillId) {
         return; // Edit mode was restored from sessionStorage, don't reload
       }
-      
+
       const billId = location.state?.editBillId;
-      
+
       if (billId) {
         // Edit mode - load existing bill
         setIsEditMode(true);
