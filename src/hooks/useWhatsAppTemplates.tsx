@@ -18,6 +18,11 @@ interface Invoice {
   upi_amount?: number;
   customer_id?: string;
   organization_id?: string;
+  // Points information
+  points_earned?: number;
+  points_redeemed?: number;
+  points_discount?: number;
+  points_balance?: number;
 }
 
 interface Quotation {
@@ -102,6 +107,20 @@ export const useWhatsAppTemplates = () => {
     return links.length > 0 ? `Follow us:\n${links.join('\n')}` : '';
   };
 
+  const buildPointsText = (invoice: Invoice) => {
+    const parts: string[] = [];
+    if (invoice.points_earned && invoice.points_earned > 0) {
+      parts.push(`🎁 Points Earned: ${invoice.points_earned} pts`);
+    }
+    if (invoice.points_redeemed && invoice.points_redeemed > 0) {
+      parts.push(`💫 Points Redeemed: ${invoice.points_redeemed} pts (₹${Number(invoice.points_discount || invoice.points_redeemed).toLocaleString("en-IN")} discount)`);
+    }
+    if (invoice.points_balance !== undefined && invoice.points_balance >= 0) {
+      parts.push(`💰 Points Balance: ${invoice.points_balance} pts`);
+    }
+    return parts.length > 0 ? parts.join("\n") : "";
+  };
+
   const formatMessage = (templateType: string, invoice: Invoice, items?: string, customerBalance?: number) => {
     const template = getTemplate(templateType);
     if (!template) {
@@ -120,6 +139,9 @@ export const useWhatsAppTemplates = () => {
 
     // Build payment breakdown text
     const paymentBreakdown = buildPaymentBreakdown(invoice);
+
+    // Build points text
+    const pointsText = buildPointsText(invoice);
 
     // Outstanding amount (customer balance)
     const outstandingAmount = customerBalance || 0;
@@ -140,7 +162,12 @@ export const useWhatsAppTemplates = () => {
       .replace(/{website_link}/g, settings?.website_link || "")
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
-      .replace(/{outstanding_amount}/g, `₹${Number(outstandingAmount).toLocaleString("en-IN")}`);
+      .replace(/{outstanding_amount}/g, `₹${Number(outstandingAmount).toLocaleString("en-IN")}`)
+      .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
+      .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
+      .replace(/{points_discount}/g, `₹${Number(invoice.points_discount || 0).toLocaleString("en-IN")}`)
+      .replace(/{points_balance}/g, invoice.points_balance?.toString() || "0")
+      .replace(/{points_info}/g, pointsText);
 
     return message;
   };
@@ -168,6 +195,7 @@ export const useWhatsAppTemplates = () => {
 
     const socialLinksText = buildSocialLinksText();
     const paymentBreakdown = buildPaymentBreakdown(invoice);
+    const pointsText = buildPointsText(invoice);
     const outstandingAmount = customerBalance || 0;
 
     let paymentInfo = `Payment Status: ${invoice.payment_status}`;
@@ -186,7 +214,7 @@ Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
 ${paymentInfo}
 ${invoice.delivery_status ? `Delivery Status: ${deliveryStatusText}` : ""}
-
+${pointsText ? `\n${pointsText}` : ""}
 ${items || ""}${socialLinksText ? `\n${socialLinksText}` : ''}
 Thank you for your business!`;
   };
