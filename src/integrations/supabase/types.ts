@@ -420,6 +420,67 @@ export type Database = {
           },
         ]
       }
+      customer_points_history: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          customer_id: string
+          description: string | null
+          id: string
+          invoice_amount: number | null
+          organization_id: string
+          points: number
+          sale_id: string | null
+          transaction_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id: string
+          description?: string | null
+          id?: string
+          invoice_amount?: number | null
+          organization_id: string
+          points?: number
+          sale_id?: string | null
+          transaction_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string
+          description?: string | null
+          id?: string
+          invoice_amount?: number | null
+          organization_id?: string
+          points?: number
+          sale_id?: string | null
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_points_history_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_points_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_points_history_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -434,6 +495,9 @@ export type Database = {
           opening_balance: number | null
           organization_id: string | null
           phone: string | null
+          points_balance: number | null
+          points_redeemed: number | null
+          total_points_earned: number | null
           updated_at: string | null
         }
         Insert: {
@@ -449,6 +513,9 @@ export type Database = {
           opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
+          points_balance?: number | null
+          points_redeemed?: number | null
+          total_points_earned?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -464,6 +531,9 @@ export type Database = {
           opening_balance?: number | null
           organization_id?: string | null
           phone?: string | null
+          points_balance?: number | null
+          points_redeemed?: number | null
+          total_points_earned?: number | null
           updated_at?: string | null
         }
         Relationships: [

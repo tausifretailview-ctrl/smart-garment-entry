@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 
 interface CartItem {
   id: string;
@@ -44,6 +45,7 @@ export const useSaveSale = () => {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
 
   const generateInvoiceNumber = async (format: string) => {
     const now = new Date();
@@ -308,12 +310,25 @@ export const useSaveSale = () => {
 
       if (itemsError) throw itemsError;
 
+      // Award loyalty points if enabled and customer exists
+      let pointsAwarded = 0;
+      if (isPointsEnabled && saleData.customerId && paymentMethod !== 'pay_later') {
+        const result = await awardPoints(
+          saleData.customerId,
+          sale.id,
+          saleData.netAmount,
+          saleNumber
+        );
+        pointsAwarded = result.pointsAwarded;
+      }
+
+      const pointsMessage = pointsAwarded > 0 ? ` (+${pointsAwarded} points)` : '';
       toast({
         title: "Sale saved successfully",
-        description: `Sale ${saleNumber} has been recorded`,
+        description: `Sale ${saleNumber} has been recorded${pointsMessage}`,
       });
 
-      return sale;
+      return { ...sale, pointsAwarded };
     } catch (error: any) {
       console.error('Error saving sale:', error);
       toast({

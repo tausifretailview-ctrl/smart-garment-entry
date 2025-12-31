@@ -2577,6 +2577,152 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
+
+                {/* Customer Points System */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🎯</span>
+                    <h3 className="text-lg font-semibold">Customer Points System</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Reward your customers with loyalty points based on their purchases
+                  </p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="enable_points_system"
+                      checked={(settings.sale_settings as any)?.enable_points_system ?? false}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            enable_points_system: checked as boolean,
+                          } as any,
+                        })
+                      }
+                    />
+                    <div>
+                      <Label htmlFor="enable_points_system" className="font-normal cursor-pointer">
+                        Enable Customer Points System
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        When enabled, customers earn points on their purchases
+                      </p>
+                    </div>
+                  </div>
+
+                  {(settings.sale_settings as any)?.enable_points_system && (
+                    <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="points_ratio_amount">Amount per Point (₹)</Label>
+                          <Input
+                            id="points_ratio_amount"
+                            type="number"
+                            min="1"
+                            value={(settings.sale_settings as any)?.points_ratio_amount || 100}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  points_ratio_amount: parseInt(e.target.value) || 100,
+                                } as any,
+                              })
+                            }
+                            placeholder="100"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Amount in rupees required to earn points
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="points_per_ratio">Points Awarded</Label>
+                          <Input
+                            id="points_per_ratio"
+                            type="number"
+                            min="1"
+                            value={(settings.sale_settings as any)?.points_per_ratio || 1}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  points_per_ratio: parseInt(e.target.value) || 1,
+                                } as any,
+                              })
+                            }
+                            placeholder="1"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Points earned per ratio amount
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="p-3 bg-primary/5 rounded-lg">
+                        <p className="text-sm font-medium">
+                          Example: ₹{(settings.sale_settings as any)?.points_ratio_amount || 100} purchase = {(settings.sale_settings as any)?.points_per_ratio || 1} point(s)
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Customer buying ₹2,500 worth of products will earn {Math.floor(2500 / ((settings.sale_settings as any)?.points_ratio_amount || 100)) * ((settings.sale_settings as any)?.points_per_ratio || 1)} points
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="points_rounding">Points Rounding</Label>
+                          <Select
+                            value={(settings.sale_settings as any)?.points_rounding || "floor"}
+                            onValueChange={(value) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  points_rounding: value,
+                                } as any,
+                              })
+                            }
+                          >
+                            <SelectTrigger id="points_rounding">
+                              <SelectValue placeholder="Select rounding" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="floor">Round Down (Floor)</SelectItem>
+                              <SelectItem value="round">Round to Nearest</SelectItem>
+                              <SelectItem value="ceil">Round Up (Ceiling)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="min_purchase_for_points">Minimum Purchase (₹)</Label>
+                          <Input
+                            id="min_purchase_for_points"
+                            type="number"
+                            min="0"
+                            value={(settings.sale_settings as any)?.min_purchase_for_points || 0}
+                            onChange={(e) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  min_purchase_for_points: parseInt(e.target.value) || 0,
+                                } as any,
+                              })
+                            }
+                            placeholder="0"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Minimum invoice amount to earn points (0 = no minimum)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </CardContent>
               </Card>
               
