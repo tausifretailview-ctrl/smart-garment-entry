@@ -831,7 +831,16 @@ const PurchaseBillDashboard = () => {
                   </Button>
                   <Button
                     size="sm"
-                    onClick={() => navigate("/purchase-entry", { state: { loadDraft: true } })}
+                    onClick={() => {
+                      // Handle edit mode draft differently
+                      if (draftData?.isEditMode && draftData?.editingBillId) {
+                        navigate("/purchase-entry", { 
+                          state: { loadDraft: true, editBillId: draftData.editingBillId } 
+                        });
+                      } else {
+                        navigate("/purchase-entry", { state: { loadDraft: true } });
+                      }
+                    }}
                     className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
                   >
                     <Edit className="h-4 w-4" />
