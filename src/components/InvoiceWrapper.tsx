@@ -205,10 +205,21 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       'Subject to jurisdiction'
     ];
     
-    // Calculate tax amounts (simplified - you may need more complex logic)
-    const taxableAmount = props.subTotal - props.discount;
-    const gstRate = settings?.sale_settings?.sales_tax_rate || 0;
-    const totalTax = (taxableAmount * gstRate) / 100;
+    // Calculate tax amounts - GST is INCLUSIVE in item totals
+    // For each item: GST amount = (item.total * gstPercent) / (100 + gstPercent)
+    const totalGstFromItems = props.items.reduce((sum, item) => {
+      const gstPct = item.gstPercent || 0;
+      if (gstPct <= 0) return sum;
+      // GST is included in total, so extract it
+      const gstAmt = (item.total * gstPct) / (100 + gstPct);
+      return sum + gstAmt;
+    }, 0);
+    
+    // Taxable amount = Total - GST (since GST is inclusive)
+    const taxableAmount = props.subTotal - props.discount - totalGstFromItems;
+    const totalTax = totalGstFromItems;
+    
+    // CGST and SGST are each exactly half of total GST
     const cgstAmount = totalTax / 2;
     const sgstAmount = totalTax / 2;
     const roundOff = props.grandTotal - (taxableAmount + totalTax);
