@@ -15,7 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -23,7 +24,20 @@ export const Header = () => {
   const navigate = useNavigate();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sizeStockOpen, setSizeStockOpen] = useState(false);
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
+
+  // Ctrl+G keyboard shortcut to open Size Stock dialog
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === "g") {
+        e.preventDefault();
+        setSizeStockOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSignOut = async () => {
     // Get the organization slug (prefer current, fallback to localStorage)
@@ -47,11 +61,19 @@ export const Header = () => {
   const initials = user?.email?.substring(0, 2).toUpperCase() || "U";
 
   const quickActions = [
-    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales" },
-    { icon: Package, label: "New Purchase", path: "/purchase-entry" },
-    { icon: Grid3X3, label: "Size Stock", path: "/stock-report?tab=sizewise", shortcut: "Ctrl+G" },
-    { icon: TrendingUp, label: "Reports", path: "/stock-report" },
+    { icon: ShoppingCart, label: "New Sale", path: "/pos-sales", isDialog: false },
+    { icon: Package, label: "New Purchase", path: "/purchase-entry", isDialog: false },
+    { icon: Grid3X3, label: "Size Stock", path: "", isDialog: true, shortcut: "Ctrl+G" },
+    { icon: TrendingUp, label: "Reports", path: "/stock-report", isDialog: false },
   ];
+
+  const handleQuickAction = (action: typeof quickActions[0]) => {
+    if (action.isDialog) {
+      setSizeStockOpen(true);
+    } else {
+      orgNavigate(action.path);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground dark:bg-[hsl(213,32%,17%)] dark:text-white dark:border-[hsl(213,32%,25%)]">
@@ -69,11 +91,11 @@ export const Header = () => {
               <nav className="flex flex-col gap-4 mt-8">
                 {quickActions.map((action) => (
                   <Button
-                    key={action.path}
+                    key={action.label}
                     variant="ghost"
                     className="justify-start text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary"
                     onClick={() => {
-                      orgNavigate(action.path);
+                      handleQuickAction(action);
                       setMobileMenuOpen(false);
                     }}
                   >
@@ -108,10 +130,10 @@ export const Header = () => {
         <div className="hidden lg:flex items-center gap-1">
           {quickActions.map((action) => (
             <Button
-              key={action.path}
+              key={action.label}
               variant="ghost"
               size="sm"
-              onClick={() => orgNavigate(action.path)}
+              onClick={() => handleQuickAction(action)}
               className="text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary transition-all"
             >
               <action.icon className="h-4 w-4 mr-2 text-primary dark:text-[hsl(187,100%,42%)]" />
@@ -194,6 +216,9 @@ export const Header = () => {
           </DropdownMenu>
         </div>
       </div>
+      
+      {/* Size Stock Floating Dialog */}
+      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
     </header>
   );
 };
