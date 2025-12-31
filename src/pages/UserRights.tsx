@@ -122,6 +122,67 @@ const defaultBasicPermissions: Record<string, boolean> = {
   pos_dashboard: true,
 };
 
+// Default permissions for managers - more comprehensive access
+const defaultManagerPermissions: Record<string, boolean> = {
+  dashboard_view: true,
+  dashboard_customize: true,
+  customer_master: true,
+  supplier_master: true,
+  employee_master: true,
+  product_dashboard: true,
+  product_entry: true,
+  purchase_bill: true,
+  purchase_dashboard: true,
+  purchase_return: true,
+  purchase_return_dashboard: true,
+  stock_report: true,
+  barcode_printing: true,
+  pos_sales: true,
+  pos_dashboard: true,
+  sales_invoice: true,
+  sales_invoice_dashboard: true,
+  quotation_entry: true,
+  quotation_dashboard: true,
+  sale_order_entry: true,
+  sale_order_dashboard: true,
+  sale_return: true,
+  sale_return_dashboard: true,
+  daily_cashier_report: true,
+  sales_report_customer: true,
+  purchase_report_supplier: true,
+  item_wise_sales: true,
+  gst_register: true,
+  product_tracking: true,
+  price_history: true,
+  sales_analytics: true,
+  delivery_dashboard: true,
+  delivery_update: true,
+  delivery_whatsapp: true,
+  accounts_dashboard: true,
+  customer_ledger: true,
+  payments_dashboard: true,
+  payment_recording: true,
+};
+
+const defaultManagerMainMenu: Record<string, boolean> = {
+  dashboard: true,
+  master: true,
+  inventory: true,
+  sales: true,
+  reports: true,
+  delivery: true,
+  accounts: true,
+};
+
+const defaultManagerSpecialRights: Record<string, boolean> = {
+  modify_records: true,
+  delete_records: false,
+  whatsapp_send: true,
+  detail_accounting: true,
+  export_data: true,
+  audit_logs: false,
+};
+
 interface OrgMember {
   id: string;
   user_id: string;
@@ -192,26 +253,36 @@ const UserRights = () => {
     enabled: !!currentOrganization?.id && !!selectedUserId,
   });
 
+  // Get selected user's role
+  const selectedUserRole = members.find(m => m.user_id === selectedUserId)?.role;
+
   // Update permissions when user selection changes
   useEffect(() => {
     if (userPermissions?.permissions) {
       const perms = userPermissions.permissions as Record<string, any>;
-      const menuPerms = perms.menu || defaultBasicPermissions;
-      const mainMenus = perms.mainMenu || {};
+      const menuPerms = perms.menu || (selectedUserRole === 'manager' ? defaultManagerPermissions : defaultBasicPermissions);
+      const mainMenus = perms.mainMenu || (selectedUserRole === 'manager' ? defaultManagerMainMenu : {});
       
       setPermissions(menuPerms);
       setMainMenuEnabled(mainMenus);
-      setSpecialPermissions(perms.special || {});
+      setSpecialPermissions(perms.special || (selectedUserRole === 'manager' ? defaultManagerSpecialRights : {}));
     } else if (selectedUserId) {
-      setPermissions(defaultBasicPermissions);
-      setMainMenuEnabled({
-        dashboard: true,
-        master: true,
-        sales: true,
-      });
-      setSpecialPermissions({});
+      // Use manager defaults if user is a manager, otherwise use basic defaults
+      if (selectedUserRole === 'manager') {
+        setPermissions(defaultManagerPermissions);
+        setMainMenuEnabled(defaultManagerMainMenu);
+        setSpecialPermissions(defaultManagerSpecialRights);
+      } else {
+        setPermissions(defaultBasicPermissions);
+        setMainMenuEnabled({
+          dashboard: true,
+          master: true,
+          sales: true,
+        });
+        setSpecialPermissions({});
+      }
     }
-  }, [userPermissions, selectedUserId]);
+  }, [userPermissions, selectedUserId, selectedUserRole]);
 
   // Save permissions mutation
   const saveMutation = useMutation({
@@ -226,16 +297,36 @@ const UserRights = () => {
         special: specialPermissions,
       };
 
-      const { error } = await supabase
+      // First check if permission record exists
+      const { data: existing } = await supabase
         .from("user_permissions")
-        .upsert({
-          organization_id: currentOrganization.id,
-          user_id: selectedUserId,
-          permissions: permissionData,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: "organization_id,user_id",
-        });
+        .select("id")
+        .eq("organization_id", currentOrganization.id)
+        .eq("user_id", selectedUserId)
+        .maybeSingle();
+
+      let error;
+      if (existing?.id) {
+        // Update existing record
+        const result = await supabase
+          .from("user_permissions")
+          .update({
+            permissions: permissionData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+        error = result.error;
+      } else {
+        // Insert new record
+        const result = await supabase
+          .from("user_permissions")
+          .insert({
+            organization_id: currentOrganization.id,
+            user_id: selectedUserId,
+            permissions: permissionData,
+          });
+        error = result.error;
+      }
 
       if (error) throw error;
     },
@@ -244,6 +335,7 @@ const UserRights = () => {
       queryClient.invalidateQueries({ queryKey: ["user-permissions"] });
     },
     onError: (error: any) => {
+      console.error("Save error:", error);
       toast.error(error.message || "Failed to save permissions");
     },
   });
