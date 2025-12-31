@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import {
   Package,
   ShoppingCart,
@@ -112,7 +113,10 @@ const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
+  const { isAdmin, hasSpecialPermission } = useUserPermissions();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
+  
+  const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
@@ -625,14 +629,16 @@ const DashboardContent = () => {
             onClick={() => navigate("/stock-report")}
             tooltip="Total value of current inventory at sale price. Click to view details."
           />
-          <MetricCard
-            title="Gross Profit"
-            value={formatCurrency(profitData || 0)}
-            icon={TrendingUp}
-            bgColor="bg-gradient-to-br from-green-400 to-green-500"
-            onClick={() => navigate("/daily-cashier-report")}
-            tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
-          />
+          {canViewGrossProfit && (
+            <MetricCard
+              title="Gross Profit"
+              value={formatCurrency(profitData || 0)}
+              icon={TrendingUp}
+              bgColor="bg-gradient-to-br from-green-400 to-green-500"
+              onClick={() => navigate("/daily-cashier-report")}
+              tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
+            />
+          )}
           <MetricCard
             title="Receivables"
             value={formatCurrency(receivablesData?.total || 0)}
