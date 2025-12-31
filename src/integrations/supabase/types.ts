@@ -335,6 +335,92 @@ export type Database = {
           },
         ]
       }
+      cheque_formats: {
+        Row: {
+          account_number: string | null
+          amount_left_mm: number
+          amount_top_mm: number
+          bank_name: string
+          cheque_height_mm: number
+          cheque_width_mm: number
+          created_at: string | null
+          date_format: string
+          date_left_mm: number
+          date_spacing_mm: number
+          date_top_mm: number
+          font_size_pt: number
+          id: string
+          is_default: boolean
+          name_left_mm: number
+          name_top_mm: number
+          name_width_mm: number
+          organization_id: string
+          show_ac_payee: boolean
+          updated_at: string | null
+          words_left_mm: number
+          words_line2_offset_mm: number
+          words_top_mm: number
+        }
+        Insert: {
+          account_number?: string | null
+          amount_left_mm?: number
+          amount_top_mm?: number
+          bank_name: string
+          cheque_height_mm?: number
+          cheque_width_mm?: number
+          created_at?: string | null
+          date_format?: string
+          date_left_mm?: number
+          date_spacing_mm?: number
+          date_top_mm?: number
+          font_size_pt?: number
+          id?: string
+          is_default?: boolean
+          name_left_mm?: number
+          name_top_mm?: number
+          name_width_mm?: number
+          organization_id: string
+          show_ac_payee?: boolean
+          updated_at?: string | null
+          words_left_mm?: number
+          words_line2_offset_mm?: number
+          words_top_mm?: number
+        }
+        Update: {
+          account_number?: string | null
+          amount_left_mm?: number
+          amount_top_mm?: number
+          bank_name?: string
+          cheque_height_mm?: number
+          cheque_width_mm?: number
+          created_at?: string | null
+          date_format?: string
+          date_left_mm?: number
+          date_spacing_mm?: number
+          date_top_mm?: number
+          font_size_pt?: number
+          id?: string
+          is_default?: boolean
+          name_left_mm?: number
+          name_top_mm?: number
+          name_width_mm?: number
+          organization_id?: string
+          show_ac_payee?: boolean
+          updated_at?: string | null
+          words_left_mm?: number
+          words_line2_offset_mm?: number
+          words_top_mm?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cheque_formats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_notes: {
         Row: {
           created_at: string | null

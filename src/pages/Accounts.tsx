@@ -29,6 +29,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -59,6 +60,9 @@ export default function Accounts() {
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  
+  // Cheque print state
+  const [showChequePrintDialog, setShowChequePrintDialog] = useState(false);
 
   // Customer search state
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -1450,6 +1454,21 @@ export default function Accounts() {
                     </div>
 
                     <div className="space-y-2">
+                      <Label>Payment Method</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="cash">Cash</SelectItem>
+                          <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                          <SelectItem value="cheque">Cheque</SelectItem>
+                          <SelectItem value="upi">UPI</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
                       <Label>Amount</Label>
                       <Input
                         type="number"
@@ -1461,6 +1480,44 @@ export default function Accounts() {
                       />
                     </div>
 
+                    {paymentMethod === "cheque" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Cheque Number</Label>
+                          <Input
+                            placeholder="Enter cheque number"
+                            value={chequeNumber}
+                            onChange={(e) => setChequeNumber(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Cheque Date</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !chequeDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {chequeDate ? format(chequeDate, "PPP") : <span>Pick date</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                              <Calendar
+                                mode="single"
+                                selected={chequeDate}
+                                onSelect={setChequeDate}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                      </>
+                    )}
+
                     <div className="space-y-2">
                       <Label>Description</Label>
                       <Textarea
@@ -1471,10 +1528,22 @@ export default function Accounts() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full md:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Record Payment
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button type="submit" className="w-full md:w-auto">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Record Payment
+                    </Button>
+                    {paymentMethod === "cheque" && parseFloat(amount) > 0 && referenceId && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setShowChequePrintDialog(true)}
+                      >
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print Cheque
+                      </Button>
+                    )}
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -1513,6 +1582,16 @@ export default function Accounts() {
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Cheque Print Dialog */}
+            <ChequePrintDialog
+              open={showChequePrintDialog}
+              onOpenChange={setShowChequePrintDialog}
+              payeeName={suppliers?.find(s => s.id === referenceId)?.supplier_name || ""}
+              amount={parseFloat(amount) || 0}
+              chequeDate={chequeDate || new Date()}
+              chequeNumber={chequeNumber}
+            />
           </TabsContent>
 
           {/* Employee Salary Tab */}
