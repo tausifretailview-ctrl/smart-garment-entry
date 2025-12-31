@@ -133,6 +133,10 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Update current data reference for auto-save
   const updateCurrentData = useCallback((data: any) => {
     currentDataRef.current = data;
+    // Reset cleared flag when user starts adding new data (allows auto-save for new entries)
+    if (data && draftClearedRef.current) {
+      draftClearedRef.current = false;
+    }
   }, []);
 
   // Start auto-save timer
