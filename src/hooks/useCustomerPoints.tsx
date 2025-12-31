@@ -10,6 +10,12 @@ export interface PointsSettings {
   points_rounding: 'floor' | 'round' | 'ceil';
   min_purchase_for_points: number;
   points_expiry_days: number;
+  // Redemption settings
+  enable_points_redemption: boolean;
+  points_redemption_value: number; // 1 point = X rupees
+  max_redemption_percent: number; // max % of invoice that can be paid via points
+  min_points_for_redemption: number;
+  min_purchase_for_redemption: number;
 }
 
 export interface PointsHistory {
@@ -30,6 +36,12 @@ const defaultPointsSettings: PointsSettings = {
   points_rounding: 'floor',
   min_purchase_for_points: 0,
   points_expiry_days: 0,
+  // Redemption defaults
+  enable_points_redemption: false,
+  points_redemption_value: 1, // 1 point = ₹1
+  max_redemption_percent: 50, // max 50% of invoice via points
+  min_points_for_redemption: 10,
+  min_purchase_for_redemption: 0,
 };
 
 export function useCustomerPoints() {
@@ -58,6 +70,12 @@ export function useCustomerPoints() {
         points_rounding: saleSettings?.points_rounding ?? 'floor',
         min_purchase_for_points: saleSettings?.min_purchase_for_points ?? 0,
         points_expiry_days: saleSettings?.points_expiry_days ?? 0,
+        // Redemption settings
+        enable_points_redemption: saleSettings?.enable_points_redemption ?? false,
+        points_redemption_value: saleSettings?.points_redemption_value ?? 1,
+        max_redemption_percent: saleSettings?.max_redemption_percent ?? 50,
+        min_points_for_redemption: saleSettings?.min_points_for_redemption ?? 10,
+        min_purchase_for_redemption: saleSettings?.min_purchase_for_redemption ?? 0,
       } as PointsSettings;
     },
     enabled: !!currentOrganization?.id,
@@ -184,6 +202,184 @@ export function useCustomerPoints() {
     }
   };
 
+  // Calculate redemption value (points to rupees)
+  const calculateRedemptionValue = (points: number): number => {
+    const settings = pointsSettings || defaultPointsSettings;
+    return points * settings.points_redemption_value;
+  };
+
+  // Calculate max redeemable points for a given invoice amount and balance
+  const calculateMaxRedeemablePoints = (invoiceAmount: number, pointsBalance: number): number => {
+    const settings = pointsSettings || defaultPointsSettings;
+    
+    if (!settings.enable_points_redemption) return 0;
+    if (pointsBalance < settings.min_points_for_redemption) return 0;
+    if (invoiceAmount < settings.min_purchase_for_redemption) return 0;
+    
+    // Max amount that can be redeemed based on percentage limit
+    const maxRedeemableAmount = (invoiceAmount * settings.max_redemption_percent) / 100;
+    
+    // Convert to points
+    const maxPointsFromPercentage = Math.floor(maxRedeemableAmount / settings.points_redemption_value);
+    
+    // Return the lesser of: max from percentage OR available balance
+    return Math.min(maxPointsFromPercentage, pointsBalance);
+  };
+
+  // Redeem points during a sale
+  const redeemPoints = async (
+    customerId: string,
+    saleId: string,
+    pointsToRedeem: number,
+    saleNumber: string
+  ): Promise<{ success: boolean; amountRedeemed: number; error?: string }> => {
+    const settings = pointsSettings || defaultPointsSettings;
+    
+    if (!settings.enable_points_redemption || !customerId || !currentOrganization?.id || pointsToRedeem <= 0) {
+      return { success: true, amountRedeemed: 0 };
+    }
+
+    try {
+      const amountRedeemed = calculateRedemptionValue(pointsToRedeem);
+      
+      // Insert points history record for redemption
+      const { error: historyError } = await supabase
+        .from('customer_points_history' as any)
+        .insert({
+          organization_id: currentOrganization.id,
+          customer_id: customerId,
+          sale_id: saleId,
+          transaction_type: 'redeemed',
+          points: -pointsToRedeem, // Negative for redemption
+          invoice_amount: amountRedeemed,
+          description: `Points redeemed for invoice ${saleNumber} (₹${amountRedeemed} discount)`,
+          created_by: user?.id,
+        });
+
+      if (historyError) throw historyError;
+
+      // Update customer's points balance
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('points_balance, points_redeemed')
+        .eq('id', customerId)
+        .single();
+
+      if (customer) {
+        await supabase
+          .from('customers')
+          .update({
+            points_balance: Math.max(0, (customer.points_balance || 0) - pointsToRedeem),
+            points_redeemed: (customer.points_redeemed || 0) + pointsToRedeem,
+          })
+          .eq('id', customerId);
+      }
+
+      return { success: true, amountRedeemed };
+    } catch (error: any) {
+      console.error('Error redeeming points:', error);
+      return { success: false, amountRedeemed: 0, error: error.message };
+    }
+  };
+
+  // Fetch available gift rewards
+  const getGiftRewards = async (): Promise<any[]> => {
+    if (!currentOrganization?.id) return [];
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data, error } = await supabase
+        .from('gift_rewards' as any)
+        .select('*')
+        .eq('organization_id', currentOrganization.id)
+        .eq('is_active', true)
+        .lte('valid_from', today)
+        .or(`valid_until.is.null,valid_until.gte.${today}`)
+        .gt('stock_qty', 0)
+        .order('points_required', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch {
+      return [];
+    }
+  };
+
+  // Redeem a gift reward
+  const redeemGiftReward = async (
+    customerId: string,
+    giftRewardId: string,
+    pointsRequired: number
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!currentOrganization?.id || !customerId) {
+      return { success: false, error: 'Invalid parameters' };
+    }
+
+    try {
+      // Insert gift redemption record
+      const { error: redemptionError } = await supabase
+        .from('gift_redemptions' as any)
+        .insert({
+          organization_id: currentOrganization.id,
+          customer_id: customerId,
+          gift_reward_id: giftRewardId,
+          points_used: pointsRequired,
+          redeemed_by: user?.id,
+        });
+
+      if (redemptionError) throw redemptionError;
+
+      // Decrement gift stock - fetch current and update
+      const { data: gift } = await supabase
+        .from('gift_rewards' as any)
+        .select('stock_qty')
+        .eq('id', giftRewardId)
+        .single();
+      
+      if (gift) {
+        const giftData = gift as any;
+        await supabase
+          .from('gift_rewards' as any)
+          .update({ stock_qty: Math.max(0, (giftData.stock_qty || 0) - 1) })
+          .eq('id', giftRewardId);
+      }
+
+      // Update customer points
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('points_balance, points_redeemed')
+        .eq('id', customerId)
+        .single();
+
+      if (customer) {
+        await supabase
+          .from('customers')
+          .update({
+            points_balance: Math.max(0, (customer.points_balance || 0) - pointsRequired),
+            points_redeemed: (customer.points_redeemed || 0) + pointsRequired,
+          })
+          .eq('id', customerId);
+
+        // Insert points history for gift redemption
+        await supabase
+          .from('customer_points_history' as any)
+          .insert({
+            organization_id: currentOrganization.id,
+            customer_id: customerId,
+            transaction_type: 'redeemed',
+            points: -pointsRequired,
+            description: 'Gift reward redeemed',
+            created_by: user?.id,
+          });
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('Error redeeming gift:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   return {
     pointsSettings: pointsSettings || defaultPointsSettings,
     isSettingsLoading,
@@ -192,6 +388,13 @@ export function useCustomerPoints() {
     getCustomerPoints,
     getPointsHistory,
     isPointsEnabled: pointsSettings?.enable_points_system ?? false,
+    // Redemption exports
+    isRedemptionEnabled: pointsSettings?.enable_points_redemption ?? false,
+    calculateRedemptionValue,
+    calculateMaxRedeemablePoints,
+    redeemPoints,
+    getGiftRewards,
+    redeemGiftReward,
   };
 }
 

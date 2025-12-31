@@ -694,6 +694,111 @@ export type Database = {
           },
         ]
       }
+      gift_redemptions: {
+        Row: {
+          customer_id: string
+          gift_reward_id: string
+          id: string
+          notes: string | null
+          organization_id: string
+          points_used: number
+          redeemed_at: string | null
+          redeemed_by: string | null
+        }
+        Insert: {
+          customer_id: string
+          gift_reward_id: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          points_used: number
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+        }
+        Update: {
+          customer_id?: string
+          gift_reward_id?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          points_used?: number
+          redeemed_at?: string | null
+          redeemed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_redemptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_redemptions_gift_reward_id_fkey"
+            columns: ["gift_reward_id"]
+            isOneToOne: false
+            referencedRelation: "gift_rewards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gift_redemptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gift_rewards: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          gift_name: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          points_required: number
+          stock_qty: number
+          updated_at: string | null
+          valid_from: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          gift_name: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          points_required?: number
+          stock_qty?: number
+          updated_at?: string | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          gift_name?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          points_required?: number
+          stock_qty?: number
+          updated_at?: string | null
+          valid_from?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gift_rewards_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legacy_invoices: {
         Row: {
           amount: number

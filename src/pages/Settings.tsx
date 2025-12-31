@@ -23,6 +23,7 @@ import { useEffect as useEffectForSizeGroups } from "react";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
+import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -2718,6 +2719,151 @@ export default function Settings() {
                           <p className="text-xs text-muted-foreground">
                             Minimum invoice amount to earn points (0 = no minimum)
                           </p>
+                        </div>
+                      </div>
+
+                      {/* Points Redemption Settings */}
+                      <div className="space-y-4 pt-4 border-t border-dashed">
+                        <h4 className="font-medium text-primary flex items-center gap-2">
+                          <span>🎁</span> Points Redemption Settings
+                        </h4>
+                        
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="enable_points_redemption"
+                            checked={(settings.sale_settings as any)?.enable_points_redemption ?? false}
+                            onCheckedChange={(checked) =>
+                              setSettings({
+                                ...settings,
+                                sale_settings: {
+                                  ...settings.sale_settings,
+                                  enable_points_redemption: checked as boolean,
+                                } as any,
+                              })
+                            }
+                          />
+                          <div>
+                            <Label htmlFor="enable_points_redemption" className="font-normal cursor-pointer">
+                              Enable Points Redemption at Billing
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                              Allow customers to redeem points for instant discount
+                            </p>
+                          </div>
+                        </div>
+
+                        {(settings.sale_settings as any)?.enable_points_redemption && (
+                          <div className="grid grid-cols-2 gap-4 pl-6 border-l-2 border-green-500/20">
+                            <div className="space-y-2">
+                              <Label htmlFor="points_redemption_value">1 Point = ₹</Label>
+                              <Input
+                                id="points_redemption_value"
+                                type="number"
+                                min="0.1"
+                                step="0.1"
+                                value={(settings.sale_settings as any)?.points_redemption_value || 1}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      points_redemption_value: parseFloat(e.target.value) || 1,
+                                    } as any,
+                                  })
+                                }
+                                placeholder="1"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Rupee value of 1 point
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="max_redemption_percent">Max Redemption %</Label>
+                              <Input
+                                id="max_redemption_percent"
+                                type="number"
+                                min="1"
+                                max="100"
+                                value={(settings.sale_settings as any)?.max_redemption_percent || 50}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      max_redemption_percent: parseInt(e.target.value) || 50,
+                                    } as any,
+                                  })
+                                }
+                                placeholder="50"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Max % of invoice payable via points
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="min_points_for_redemption">Min Points to Redeem</Label>
+                              <Input
+                                id="min_points_for_redemption"
+                                type="number"
+                                min="1"
+                                value={(settings.sale_settings as any)?.min_points_for_redemption || 10}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      min_points_for_redemption: parseInt(e.target.value) || 10,
+                                    } as any,
+                                  })
+                                }
+                                placeholder="10"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Minimum points required to redeem
+                              </p>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="min_purchase_for_redemption">Min Purchase for Redemption (₹)</Label>
+                              <Input
+                                id="min_purchase_for_redemption"
+                                type="number"
+                                min="0"
+                                value={(settings.sale_settings as any)?.min_purchase_for_redemption || 0}
+                                onChange={(e) =>
+                                  setSettings({
+                                    ...settings,
+                                    sale_settings: {
+                                      ...settings.sale_settings,
+                                      min_purchase_for_redemption: parseInt(e.target.value) || 0,
+                                    } as any,
+                                  })
+                                }
+                                placeholder="0"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Min invoice amount for redemption (0 = no minimum)
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {(settings.sale_settings as any)?.enable_points_redemption && (
+                          <div className="p-3 bg-green-500/5 rounded-lg border border-green-500/20">
+                            <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                              Example: Customer with 100 points can redeem up to ₹{((settings.sale_settings as any)?.points_redemption_value || 1) * 100} discount
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              On ₹2,000 invoice, max redeemable: ₹{Math.floor(2000 * ((settings.sale_settings as any)?.max_redemption_percent || 50) / 100)} ({(settings.sale_settings as any)?.max_redemption_percent || 50}% limit)
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Gift Rewards Management */}
+                        <div className="pt-4 border-t border-dashed">
+                          <GiftRewardsManagement />
                         </div>
                       </div>
                     </div>
