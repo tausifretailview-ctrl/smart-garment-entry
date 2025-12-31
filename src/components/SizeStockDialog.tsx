@@ -4,13 +4,23 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Search, Grid3X3, X } from "lucide-react";
+import { Search, Grid3X3, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface SizeStockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface Product {
+  id: string;
+  product_name: string;
+  brand: string | null;
+  color: string | null;
 }
 
 interface SizeWiseRow {
@@ -24,110 +34,159 @@ interface SizeWiseRow {
 
 export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const { currentOrganization } = useOrganization();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [productSearch, setProductSearch] = useState("");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
-  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Focus search input when dialog opens
+  // Clear data when dialog closes
   useEffect(() => {
-    if (open) {
-      setTimeout(() => searchInputRef.current?.focus(), 100);
-    } else {
-      // Clear data when dialog closes
-      setSearchTerm("");
+    if (!open) {
+      setProductSearch("");
+      setProducts([]);
+      setSelectedProducts([]);
       setSizeWiseData({ sizes: [], rows: [] });
     }
   }, [open]);
 
-  const searchStock = useCallback(async (query: string) => {
-    if (!currentOrganization?.id || query.length < 2) {
-      setSizeWiseData({ sizes: [], rows: [] });
+  // Search products when typing
+  const searchProducts = useCallback(async (query: string) => {
+    if (!currentOrganization?.id || query.length < 1) {
+      setProducts([]);
       return;
     }
 
-    setLoading(true);
+    setProductsLoading(true);
     try {
       const { data, error } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          size,
-          stock_qty,
-          barcode,
-          products!inner(
-            id,
-            product_name,
-            brand,
-            color
-          )
-        `)
+        .from("products")
+        .select("id, product_name, brand, color")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .or(`barcode.ilike.%${query}%,products.product_name.ilike.%${query}%,products.brand.ilike.%${query}%`)
-        .limit(500);
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`)
+        .order("product_name")
+        .limit(50);
 
       if (error) throw error;
-
-      // Process into size-wise format
-      const productMap = new Map<string, SizeWiseRow>();
-      const allSizes = new Set<string>();
-
-      (data || []).forEach((variant: any) => {
-        const product = variant.products;
-        if (!product) return;
-
-        const productKey = `${product.product_name}-${product.brand || ""}-${product.color || ""}`;
-        allSizes.add(variant.size);
-
-        if (!productMap.has(productKey)) {
-          productMap.set(productKey, {
-            productKey,
-            productName: product.product_name,
-            brand: product.brand || "",
-            color: product.color || "",
-            sizeStocks: {},
-            totalStock: 0,
-          });
-        }
-
-        const row = productMap.get(productKey)!;
-        row.sizeStocks[variant.size] = (row.sizeStocks[variant.size] || 0) + variant.stock_qty;
-        row.totalStock += variant.stock_qty;
-      });
-
-      // Sort sizes naturally
-      const sortedSizes = Array.from(allSizes).sort((a, b) => {
-        const numA = parseInt(a);
-        const numB = parseInt(b);
-        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-        return a.localeCompare(b);
-      });
-
-      setSizeWiseData({
-        sizes: sortedSizes,
-        rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName)),
-      });
+      setProducts(data || []);
     } catch (error) {
-      console.error("Error searching stock:", error);
+      console.error("Error searching products:", error);
     } finally {
-      setLoading(false);
+      setProductsLoading(false);
     }
   }, [currentOrganization?.id]);
 
-  const handleSearchChange = (value: string) => {
-    setSearchTerm(value);
+  const handleProductSearchChange = (value: string) => {
+    setProductSearch(value);
 
-    // Debounce search
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
     searchTimeoutRef.current = setTimeout(() => {
-      searchStock(value);
-    }, 300);
+      searchProducts(value);
+    }, 200);
   };
+
+  // Add product to selection
+  const handleSelectProduct = (product: Product) => {
+    if (!selectedProducts.find(p => p.id === product.id)) {
+      setSelectedProducts(prev => [...prev, product]);
+    }
+    setPopoverOpen(false);
+    setProductSearch("");
+  };
+
+  // Remove product from selection
+  const handleRemoveProduct = (productId: string) => {
+    setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+  };
+
+  // Load stock data when products are selected
+  useEffect(() => {
+    const loadStockData = async () => {
+      if (selectedProducts.length === 0 || !currentOrganization?.id) {
+        setSizeWiseData({ sizes: [], rows: [] });
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const productIds = selectedProducts.map(p => p.id);
+        
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            id,
+            size,
+            stock_qty,
+            barcode,
+            product_id,
+            products!inner(
+              id,
+              product_name,
+              brand,
+              color
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .in("product_id", productIds);
+
+        if (error) throw error;
+
+        // Process into size-wise format
+        const productMap = new Map<string, SizeWiseRow>();
+        const allSizes = new Set<string>();
+
+        (data || []).forEach((variant: any) => {
+          const product = variant.products;
+          if (!product) return;
+
+          const productKey = `${product.product_name}-${product.brand || ""}-${product.color || ""}`;
+          allSizes.add(variant.size);
+
+          if (!productMap.has(productKey)) {
+            productMap.set(productKey, {
+              productKey,
+              productName: product.product_name,
+              brand: product.brand || "",
+              color: product.color || "",
+              sizeStocks: {},
+              totalStock: 0,
+            });
+          }
+
+          const row = productMap.get(productKey)!;
+          row.sizeStocks[variant.size] = (row.sizeStocks[variant.size] || 0) + variant.stock_qty;
+          row.totalStock += variant.stock_qty;
+        });
+
+        // Sort sizes naturally
+        const sortedSizes = Array.from(allSizes).sort((a, b) => {
+          const numA = parseInt(a);
+          const numB = parseInt(b);
+          if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+          return a.localeCompare(b);
+        });
+
+        setSizeWiseData({
+          sizes: sortedSizes,
+          rows: Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName)),
+        });
+      } catch (error) {
+        console.error("Error loading stock:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadStockData();
+  }, [selectedProducts, currentOrganization?.id]);
 
   // Calculate totals
   const sizeTotals: Record<string, number> = {};
@@ -157,39 +216,122 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="relative mt-2">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={searchInputRef}
-              placeholder="Search by product name, brand, or barcode... (min 2 characters)"
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-10"
-              autoFocus
-            />
+          
+          {/* Product Search Dropdown */}
+          <div className="mt-2">
+            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={popoverOpen}
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                  <span className="text-muted-foreground">Search and select products...</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[500px] p-0" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput 
+                    placeholder="Type product name or brand..." 
+                    value={productSearch}
+                    onValueChange={handleProductSearchChange}
+                  />
+                  <CommandList>
+                    {productsLoading ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Searching...
+                      </div>
+                    ) : productSearch.length < 1 ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Type to search products...
+                      </div>
+                    ) : products.length === 0 ? (
+                      <CommandEmpty>No products found.</CommandEmpty>
+                    ) : (
+                      <CommandGroup heading="Products">
+                        {products.map((product) => {
+                          const isSelected = selectedProducts.some(p => p.id === product.id);
+                          return (
+                            <CommandItem
+                              key={product.id}
+                              value={product.id}
+                              onSelect={() => handleSelectProduct(product)}
+                              className="cursor-pointer"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  isSelected ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{product.product_name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {[product.brand, product.color].filter(Boolean).join(" • ") || "No details"}
+                                </span>
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
+
+          {/* Selected Products Tags */}
+          {selectedProducts.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {selectedProducts.map((product) => (
+                <div
+                  key={product.id}
+                  className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-sm"
+                >
+                  <span>{product.product_name}</span>
+                  <button
+                    onClick={() => handleRemoveProduct(product.id)}
+                    className="ml-1 hover:bg-primary/20 rounded p-0.5"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setSelectedProducts([])}
+              >
+                Clear All
+              </Button>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden px-4 pb-4">
-          {searchTerm.length < 2 ? (
+          {selectedProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
               <Grid3X3 className="h-16 w-16 mb-4 opacity-30" />
-              <p className="text-lg">Enter at least 2 characters to search</p>
-              <p className="text-sm">Search by product name, brand, or barcode</p>
+              <p className="text-lg">Select products to view stock</p>
+              <p className="text-sm">Use the search dropdown above to find and select products</p>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <span className="ml-3">Searching...</span>
+              <span className="ml-3">Loading stock...</span>
             </div>
           ) : sizeWiseData.rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
               <Search className="h-16 w-16 mb-4 opacity-30" />
-              <p className="text-lg">No products found</p>
-              <p className="text-sm">Try a different search term</p>
+              <p className="text-lg">No stock data found</p>
+              <p className="text-sm">The selected products have no variants</p>
             </div>
           ) : (
-            <ScrollArea className="h-[calc(85vh-160px)]">
+            <ScrollArea className="h-[calc(85vh-200px)]">
               <div className="rounded-md border">
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted z-10">
