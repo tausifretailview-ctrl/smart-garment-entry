@@ -182,6 +182,12 @@ const PurchaseEntry = () => {
     setLineItems(data.lineItems || []);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
+    // Restore edit mode if draft was from an edit
+    if (data.isEditMode && data.editingBillId) {
+      setIsEditMode(true);
+      setEditingBillId(data.editingBillId);
+      setOriginalLineItems(data.originalLineItems || []);
+    }
     toast({
       title: "Draft Loaded",
       description: "Your previous work has been restored",
@@ -197,9 +203,9 @@ const PurchaseEntry = () => {
     }
   }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
-  // Update current data for auto-save whenever form data changes
+  // Update current data for auto-save whenever form data changes (works in both new and edit mode)
   useEffect(() => {
-    if (!isEditMode && lineItems.length > 0) {
+    if (lineItems.length > 0) {
       updateCurrentData({
         billData,
         softwareBillNo,
@@ -207,18 +213,22 @@ const PurchaseEntry = () => {
         lineItems,
         roundOff,
         entryMode,
+        isEditMode,
+        editingBillId,
+        originalLineItems,
       });
+    } else {
+      // Clear data when no items (prevents stale draft)
+      updateCurrentData(null);
     }
-  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, updateCurrentData]);
+  }, [billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, updateCurrentData]);
 
-  // Start auto-save when not in edit mode
+  // Start auto-save (works for both new and edit mode)
   useEffect(() => {
-    if (!isEditMode && !location.state?.editBillId) {
-      startAutoSave();
-    }
+    startAutoSave();
     return () => {
       // Don't save draft if navigating to product entry (sessionStorage handles this)
-      if (!isEditMode && lineItems.length > 0 && !isNavigatingForProductRef.current) {
+      if (lineItems.length > 0 && !isNavigatingForProductRef.current) {
         saveDraft({
           billData,
           softwareBillNo,
@@ -226,11 +236,14 @@ const PurchaseEntry = () => {
           lineItems,
           roundOff,
           entryMode,
+          isEditMode,
+          editingBillId,
+          originalLineItems,
         }, false);
       }
       stopAutoSave();
     };
-  }, [isEditMode, startAutoSave, stopAutoSave, location.state?.editBillId, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, saveDraft]);
+  }, [startAutoSave, stopAutoSave, billData, softwareBillNo, billDate, lineItems, roundOff, entryMode, isEditMode, editingBillId, originalLineItems, saveDraft]);
 
   // Fetch settings
   const { data: settings } = useQuery({
@@ -1582,8 +1595,9 @@ const PurchaseEntry = () => {
         setSavedPurchaseItems(itemsWithDetails);
         setShowPrintDialog(true);
 
-        // Clear draft after successful save
+        // Clear draft after successful save and prevent re-save on cleanup
         await deleteDraft();
+        updateCurrentData(null);
 
         // Reset edit mode if we were editing
         if (isEditMode) {
