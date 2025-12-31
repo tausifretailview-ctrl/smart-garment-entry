@@ -20,8 +20,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee } from "lucide-react";
-import { format } from "date-fns";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete, StockDependency } from "@/hooks/useSoftDelete";
+import { useDraftSave } from "@/hooks/useDraftSave";
 
 interface PurchaseItem {
   id: string;
@@ -103,6 +104,9 @@ const PurchaseBillDashboard = () => {
   const [showDependencyWarning, setShowDependencyWarning] = useState(false);
   const [stockDependencies, setStockDependencies] = useState<StockDependency[]>([]);
   const [isCheckingDependencies, setIsCheckingDependencies] = useState(false);
+  
+  // Draft save hook
+  const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase');
   // Column visibility settings with database persistence
   const defaultPurchaseColumns = {
     status: true,
@@ -788,6 +792,56 @@ const PurchaseBillDashboard = () => {
             </Button>
           </div>
         </div>
+
+        {/* Unsaved Draft Card */}
+        {hasDraft && draftData && (
+          <Card className="mb-6 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                    <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base text-amber-800 dark:text-amber-200">
+                      Unsaved Purchase Bill Found
+                    </CardTitle>
+                    <CardDescription className="text-amber-600 dark:text-amber-400">
+                      {lastSaved ? `Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
+                      {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
+                      {draftData.billData?.supplier_name && ` • ${draftData.billData.supplier_name}`}
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      await deleteDraft();
+                      toast({
+                        title: "Draft Discarded",
+                        description: "The unsaved purchase bill has been removed",
+                      });
+                    }}
+                    className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                  >
+                    <X className="h-4 w-4" />
+                    Discard
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate("/purchase-entry", { state: { loadDraft: true } })}
+                    className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Resume Draft
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+          </Card>
+        )}
 
         {/* Summary Statistics - Vasy ERP Style Vibrant Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
