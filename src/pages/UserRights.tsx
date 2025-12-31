@@ -19,6 +19,7 @@ const menuStructure = [
     name: "Dashboard",
     icon: LayoutDashboard,
     submenus: [
+      { id: "main_dashboard", name: "Main Dashboard" },
       { id: "dashboard_view", name: "View Dashboard" },
       { id: "dashboard_customize", name: "Customize Dashboard" },
     ],
@@ -78,6 +79,7 @@ const menuStructure = [
       { id: "product_tracking", name: "Product Tracking Report" },
       { id: "price_history", name: "Price History Report" },
       { id: "sales_analytics", name: "Sales Analytics Dashboard" },
+      { id: "tally_export", name: "Tally Export" },
     ],
   },
   {
@@ -115,6 +117,7 @@ const specialRights = [
 
 // Default basic permissions for new users
 const defaultBasicPermissions: Record<string, boolean> = {
+  main_dashboard: true,
   dashboard_view: true,
   customer_master: true,
   product_dashboard: true,
@@ -124,6 +127,7 @@ const defaultBasicPermissions: Record<string, boolean> = {
 
 // Default permissions for managers - more comprehensive access
 const defaultManagerPermissions: Record<string, boolean> = {
+  main_dashboard: true,
   dashboard_view: true,
   dashboard_customize: true,
   customer_master: true,
@@ -155,6 +159,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   product_tracking: true,
   price_history: true,
   sales_analytics: true,
+  tally_export: true,
   delivery_dashboard: true,
   delivery_update: true,
   delivery_whatsapp: true,

@@ -109,18 +109,20 @@ export function AppSidebar() {
         )}
 
         {/* Dashboard */}
-        <SidebarGroup>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild isActive={isActive("/")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                <NavLink to="/" className="flex items-center gap-3 group">
-                  <LayoutDashboard className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                  {open && <span className="font-medium dark:text-white">Dashboard</span>}
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+        {(isAdminPermissions || hasMenuAccess("main_dashboard")) && (
+          <SidebarGroup>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={isActive("/")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                  <NavLink to="/" className="flex items-center gap-3 group">
+                    <LayoutDashboard className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-medium dark:text-white">Dashboard</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
+        )}
 
         {/* Master */}
         {(isAdminPermissions || hasMainMenuAccess("master")) && (
@@ -491,14 +493,16 @@ export function AppSidebar() {
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                         )}
-                        <SidebarMenuSubItem>
-                          <SidebarMenuSubButton asChild isActive={isActive("/tally-export")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
-                            <NavLink to="/tally-export" className="flex items-center gap-3 group">
-                              <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                              <span className="dark:text-white">Tally Export</span>
-                            </NavLink>
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
+                        {(isAdminPermissions || hasMenuAccess("tally_export")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/tally-export")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/tally-export" className="flex items-center gap-3 group">
+                                <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Tally Export</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
                         {(isAdminPermissions || hasMenuAccess("sales_analytics")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-analytics")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
