@@ -3224,52 +3224,6 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="show_product_details">Show Product Details on Invoice</Label>
-                    <input
-                      id="show_product_details"
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={settings.bill_barcode_settings?.show_product_details ?? true}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          bill_barcode_settings: {
-                            ...settings.bill_barcode_settings,
-                            show_product_details: e.target.checked,
-                          },
-                        })
-                      }
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Enable to show detailed product information on invoice
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="print_format">Barcode Print Format</Label>
-                  <select
-                    id="print_format"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={settings.bill_barcode_settings?.print_format || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          print_format: e.target.value,
-                        },
-                      })
-                    }
-                  >
-                    <option value="">Select barcode print format</option>
-                    <option value="a4">A4 (210 x 297 mm)</option>
-                    <option value="thermal">Thermal (80mm)</option>
-                    <option value="thermal-small">Thermal Small (58mm)</option>
-                    <option value="custom">Custom Size</option>
-                  </select>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
