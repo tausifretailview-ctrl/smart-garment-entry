@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle } from "lucide-react";
+import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 const SalesmanLayout = () => {
   const { getOrgPath } = useOrgNavigation();
@@ -15,6 +17,7 @@ const SalesmanLayout = () => {
   const { signOut } = useAuth();
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
+  const [sizeStockOpen, setSizeStockOpen] = useState(false);
 
   const navItems = [
     { icon: Home, label: "Home", path: "/salesman" },
@@ -104,6 +107,15 @@ const SalesmanLayout = () => {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSizeStockOpen(true)}
+            className="text-primary-foreground hover:bg-primary-foreground/20"
+            title="Size Stock"
+          >
+            <Package className="h-5 w-5" />
+          </Button>
           {!isInstalled && (
             <Button
               variant="ghost"
@@ -126,6 +138,9 @@ const SalesmanLayout = () => {
           </Button>
         </div>
       </header>
+
+      {/* Size Stock Dialog */}
+      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto pb-20">
