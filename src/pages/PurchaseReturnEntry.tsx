@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, CalendarIcon, Trash2, Plus, Search } from "lucide-react";
+import { Loader2, CalendarIcon, Trash2, Plus, Search, Barcode } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -70,6 +70,10 @@ const PurchaseReturnEntry = () => {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("exclusive");
   const [discountPercent, setDiscountPercent] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastBarcodeRef = useRef<string>("");
 
   const [returnData, setReturnData] = useState({
     supplier_id: "",
@@ -200,14 +204,116 @@ const PurchaseReturnEntry = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fast barcode scanning - check for exact match first
+  const handleBarcodeSearch = useCallback(async (barcode: string) => {
+    if (!barcode || barcode.length < 1 || !currentOrganization?.id) return null;
+    
+    try {
+      // Try exact barcode match first for fast scanning
+      const { data: exactMatch, error } = await supabase
+        .from("product_variants")
+        .select(`
+          id,
+          size,
+          pur_price,
+          barcode,
+          active,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            hsn_code,
+            gst_per,
+            organization_id
+          )
+        `)
+        .eq("barcode", barcode)
+        .eq("active", true)
+        .limit(1);
+
+      if (!error && exactMatch && exactMatch.length > 0) {
+        const v = exactMatch[0] as any;
+        // Verify organization
+        if (v.products?.organization_id === currentOrganization.id) {
+          return {
+            id: v.id,
+            product_id: v.products?.id || "",
+            size: v.size,
+            pur_price: v.pur_price,
+            barcode: v.barcode || "",
+            product_name: v.products?.product_name || "",
+            brand: v.products?.brand || "",
+            gst_per: v.products?.gst_per || 0,
+            hsn_code: v.products?.hsn_code || "",
+          } as ProductVariant;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error("Barcode search error:", error);
+      return null;
+    }
+  }, [currentOrganization?.id]);
+
+  // Handle search with debounce for text search, instant for barcode
   useEffect(() => {
-    if (searchQuery.length >= 1) {
-      searchProducts(searchQuery);
-    } else {
+    if (!searchQuery || searchQuery.length < 1) {
       setSearchResults([]);
       setShowSearch(false);
+      return;
     }
-  }, [searchQuery]);
+
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Check if input looks like a barcode scan (fast typing, numeric, etc.)
+    const isBarcodeInput = /^\d+$/.test(searchQuery) && searchQuery.length >= 6;
+
+    if (isBarcodeInput && searchQuery !== lastBarcodeRef.current) {
+      // Fast barcode scan - try exact match immediately
+      handleBarcodeSearch(searchQuery).then((variant) => {
+        if (variant) {
+          lastBarcodeRef.current = searchQuery;
+          // Auto-add or increment quantity
+          const existingItem = lineItems.find(item => item.sku_id === variant.id);
+          if (existingItem) {
+            updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+            toast({
+              title: "Quantity Updated",
+              description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+            });
+          } else {
+            handleProductSelect(variant);
+            toast({
+              title: "Item Added",
+              description: `${variant.product_name} - ${variant.size}`,
+            });
+          }
+          setSearchQuery("");
+          setShowSearch(false);
+          // Focus back on search input for continuous scanning
+          setTimeout(() => searchInputRef.current?.focus(), 100);
+        } else {
+          // No exact match, fall back to regular search
+          searchProducts(searchQuery);
+        }
+      });
+    } else {
+      // Regular search with debounce
+      searchTimeoutRef.current = setTimeout(() => {
+        searchProducts(searchQuery);
+      }, 300);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, handleBarcodeSearch, lineItems]);
 
   useEffect(() => {
     if (taxType === "exclusive") {
@@ -259,15 +365,17 @@ const PurchaseReturnEntry = () => {
   };
 
   const searchProducts = async (query: string) => {
-    if (!query || query.length < 1) {
+    if (!query || query.length < 1 || !currentOrganization?.id) {
       setSearchResults([]);
       return;
     }
 
+    setIsSearching(true);
     try {
       const { data: matchingProducts } = await supabase
         .from("products")
         .select("id")
+        .eq("organization_id", currentOrganization.id)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`);
 
       const productIds = matchingProducts?.map(p => p.id) || [];
@@ -286,7 +394,8 @@ const PurchaseReturnEntry = () => {
             product_name,
             brand,
             hsn_code,
-            gst_per
+            gst_per,
+            organization_id
           )
         `)
         .eq("active", true);
@@ -297,21 +406,24 @@ const PurchaseReturnEntry = () => {
         variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
       }
 
-      const { data, error } = await variantsQuery;
+      const { data, error } = await variantsQuery.limit(50);
 
       if (error) throw error;
 
-      const results = (data || []).map((v: any) => ({
-        id: v.id,
-        product_id: v.products?.id || "",
-        size: v.size,
-        pur_price: v.pur_price,
-        barcode: v.barcode || "",
-        product_name: v.products?.product_name || "",
-        brand: v.products?.brand || "",
-        gst_per: v.products?.gst_per || 0,
-        hsn_code: v.products?.hsn_code || "",
-      }));
+      // Filter by organization and map results
+      const results = (data || [])
+        .filter((v: any) => v.products?.organization_id === currentOrganization.id)
+        .map((v: any) => ({
+          id: v.id,
+          product_id: v.products?.id || "",
+          size: v.size,
+          pur_price: v.pur_price,
+          barcode: v.barcode || "",
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          gst_per: v.products?.gst_per || 0,
+          hsn_code: v.products?.hsn_code || "",
+        }));
 
       // Apply smart sorting
       const sortedResults = sortSearchResults(results, query, {
@@ -320,7 +432,7 @@ const PurchaseReturnEntry = () => {
       });
 
       setSearchResults(sortedResults);
-      setShowSearch(true);
+      setShowSearch(sortedResults.length > 0);
     } catch (error: any) {
       console.error(error);
       toast({
@@ -328,6 +440,8 @@ const PurchaseReturnEntry = () => {
         description: "Failed to search products",
         variant: "destructive",
       });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -710,22 +824,39 @@ const PurchaseReturnEntry = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            {isSearching ? (
+              <Loader2 className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+            ) : (
+              <Barcode className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            )}
             <Input
-              placeholder="Search products by name, brand, or barcode..."
+              ref={searchInputRef}
+              placeholder="Scan barcode or search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchResults.length > 0) {
+                  handleProductSelect(searchResults[0]);
+                }
+              }}
               className="pl-10"
+              autoComplete="off"
             />
             {showSearch && searchResults.length > 0 && (
               <div className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                {searchResults.map((variant) => (
+                {searchResults.map((variant, idx) => (
                   <div
                     key={variant.id}
-                    className="p-3 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                    className={cn(
+                      "p-3 hover:bg-muted cursor-pointer border-b last:border-b-0",
+                      idx === 0 && "bg-primary/5"
+                    )}
                     onClick={() => handleProductSelect(variant)}
                   >
-                    <div className="font-medium">{variant.product_name}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium">{variant.product_name}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{variant.barcode}</div>
+                    </div>
                     <div className="text-sm text-muted-foreground">
                       {variant.brand} | Size: {variant.size} | ₹{variant.pur_price}
                     </div>
