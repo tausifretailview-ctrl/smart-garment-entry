@@ -117,7 +117,7 @@ export default function POSSales() {
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
-  const { getBrandDiscount } = useCustomerBrandDiscounts(customerId || null);
+  const { getBrandDiscount, hasBrandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
@@ -671,6 +671,22 @@ export default function POSSales() {
     fetchCreditBalance();
   }, [customerId]);
 
+  // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
+  useEffect(() => {
+    if (customerId && customers) {
+      const customer = customers.find((c: any) => c.id === customerId);
+      if (customer && !hasBrandDiscounts) {
+        // Customer has NO brand discounts, so apply master discount as flat discount
+        if (customer.discount_percent && customer.discount_percent > 0) {
+          setFlatDiscountValue(customer.discount_percent);
+          setFlatDiscountMode('percent');
+        }
+      }
+      // If customer has brand discounts, don't auto-apply flat discount
+      // Brand discounts will be applied per-item when products are added
+    }
+  }, [customerId, customers, hasBrandDiscounts]);
+
   // Handle barcode/product search on Enter
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchInput.trim()) {
@@ -803,8 +819,12 @@ export default function POSSales() {
       // Ensure displayMrp is never 0 - always fall back to salePrice
       const displayMrp = (mrpToUse && mrpToUse > 0) ? (mrpToUse > salePrice ? mrpToUse : salePrice) : salePrice;
       
-      // Check for brand-wise customer discount
-      const brandDiscount = getBrandDiscount(product.brand);
+      // Mutually exclusive discount logic:
+      // Only apply brand discount if customer has NO master discount
+      // If customer has master discount, it's applied as flat discount instead
+      const customer = customers?.find((c: any) => c.id === customerId);
+      const customerHasMasterDiscount = customer?.discount_percent && customer.discount_percent > 0;
+      const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
       const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
       const discountAmount = 0;
       
@@ -2326,11 +2346,10 @@ export default function POSSales() {
                                 setCustomerId(customer.id);
                                 setCustomerName(customer.customer_name);
                                 setCustomerPhone(customer.phone || "");
-                                // Auto-apply customer discount
-                                if (customer.discount_percent && customer.discount_percent > 0) {
-                                  setFlatDiscountValue(customer.discount_percent);
-                                  setFlatDiscountMode('percent');
-                                }
+                                // Mutually exclusive discount logic:
+                                // If customer has master discount AND no brand discounts, apply master discount
+                                // If customer has brand discounts, those will be applied per-item instead
+                                // Note: hasBrandDiscounts will update when customerId changes
                                 setOpenCustomerSearch(false);
                               }}
                               className="cursor-pointer"
