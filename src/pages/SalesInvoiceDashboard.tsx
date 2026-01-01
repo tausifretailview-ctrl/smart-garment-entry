@@ -1423,24 +1423,35 @@ export default function SalesInvoiceDashboard() {
                                           {showItemMrp && <TableHead>MRP</TableHead>}
                                           <TableHead>Price</TableHead>
                                           <TableHead className="text-right">Total</TableHead>
+                                          <TableHead className="text-right">Discount</TableHead>
+                                          <TableHead className="text-right">After Disc</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
-                                        {invoice.sale_items?.map((item: any) => (
-                                          <TableRow key={item.id}>
-                                            <TableCell>{item.product_name}</TableCell>
-                                            {showItemBrand && <TableCell>{productsById?.[item.product_id]?.brand || '-'}</TableCell>}
-                                            {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
-                                            {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
-                                            <TableCell>{item.size}</TableCell>
-                                            {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
-                                            {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
-                                            <TableCell>{item.quantity}</TableCell>
-                                            {showItemMrp && <TableCell>₹{item.mrp?.toFixed(2) || '-'}</TableCell>}
-                                            <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
-                                            <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
-                                          </TableRow>
-                                        ))}
+                                        {invoice.sale_items?.map((item: any) => {
+                                          const itemGrossTotal = item.unit_price * item.quantity;
+                                          const itemDiscount = item.discount_percent > 0 ? (itemGrossTotal * item.discount_percent / 100) : 0;
+                                          const itemAfterDiscount = itemGrossTotal - itemDiscount;
+                                          return (
+                                            <TableRow key={item.id}>
+                                              <TableCell>{item.product_name}</TableCell>
+                                              {showItemBrand && <TableCell>{productsById?.[item.product_id]?.brand || '-'}</TableCell>}
+                                              {showItemColor && <TableCell>{item.color || productsById?.[item.product_id]?.color || '-'}</TableCell>}
+                                              {showItemStyle && <TableCell>{productsById?.[item.product_id]?.style || '-'}</TableCell>}
+                                              <TableCell>{item.size}</TableCell>
+                                              {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
+                                              <TableCell>{item.quantity}</TableCell>
+                                              {showItemMrp && <TableCell>₹{item.mrp?.toFixed(2) || '-'}</TableCell>}
+                                              <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right">₹{itemGrossTotal.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right text-destructive">
+                                                {itemDiscount > 0 ? `₹${itemDiscount.toFixed(2)} (${item.discount_percent}%)` : '-'}
+                                              </TableCell>
+                                              <TableCell className="text-right font-medium">₹{itemAfterDiscount.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                          );
+                                        })}
                                       </TableBody>
                                     </Table>
                                   </div>
