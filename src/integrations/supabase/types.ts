@@ -506,6 +506,51 @@ export type Database = {
           },
         ]
       }
+      customer_brand_discounts: {
+        Row: {
+          brand: string
+          created_at: string | null
+          customer_id: string
+          discount_percent: number
+          id: string
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          brand: string
+          created_at?: string | null
+          customer_id: string
+          discount_percent?: number
+          id?: string
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          brand?: string
+          created_at?: string | null
+          customer_id?: string
+          discount_percent?: number
+          id?: string
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_brand_discounts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_brand_discounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_points_history: {
         Row: {
           created_at: string | null

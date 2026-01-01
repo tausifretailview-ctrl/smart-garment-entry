@@ -65,6 +65,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 
 interface LineItem {
   id: string;
@@ -105,6 +106,8 @@ export default function SalesInvoice() {
     selectedCustomerId || null,
     currentOrganization?.id || null
   );
+  // Customer brand discounts hook
+  const { getBrandDiscount } = useCustomerBrandDiscounts(selectedCustomerId || null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
@@ -683,6 +686,11 @@ export default function SalesInvoice() {
       } else {
         // Find empty row in working array or add new
         const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
+        
+        // Check for brand-wise customer discount
+        const brandDiscount = getBrandDiscount(product.brand);
+        const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+        
         const newItem: LineItem = calculateLineTotal({
           id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
           productId: product.id,
@@ -694,7 +702,7 @@ export default function SalesInvoice() {
           quantity: qty,
           mrp: variant.mrp || variant.sale_price || 0,
           salePrice: variant.sale_price || 0,
-          discountPercent: 0,
+          discountPercent,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
@@ -846,6 +854,10 @@ export default function SalesInvoice() {
       const salePrice = overridePrice?.sale_price ?? masterSalePrice;
       const mrpToUse = overridePrice?.mrp ?? masterMrp;
       
+      // Check for brand-wise customer discount
+      const brandDiscount = getBrandDiscount(product.brand);
+      const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+      
       // Find first empty row and fill it
       const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
       
@@ -862,13 +874,21 @@ export default function SalesInvoice() {
           quantity: 1,
           mrp: mrpToUse,
           salePrice: salePrice,
-          discountPercent: 0,
+          discountPercent,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
         });
         setLineItems(prev => [...prev, newItem]);
+        
+        // Show toast if brand discount was applied
+        if (brandDiscount > 0) {
+          toast({
+            title: `Brand discount applied: ${brandDiscount}%`,
+            description: `${product.brand} discount for this customer`,
+          });
+        }
       } else {
         const updatedItems = [...lineItems];
         const newItem: LineItem = {
@@ -882,7 +902,7 @@ export default function SalesInvoice() {
           quantity: 1,
           mrp: mrpToUse,
           salePrice: salePrice,
-          discountPercent: 0,
+          discountPercent,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
           lineTotal: 0,
@@ -890,6 +910,14 @@ export default function SalesInvoice() {
         };
         updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
         setLineItems(updatedItems);
+        
+        // Show toast if brand discount was applied
+        if (brandDiscount > 0) {
+          toast({
+            title: `Brand discount applied: ${brandDiscount}%`,
+            description: `${product.brand} discount for this customer`,
+          });
+        }
       }
     }
     
