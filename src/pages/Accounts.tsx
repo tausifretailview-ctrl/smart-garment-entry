@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -498,6 +498,16 @@ export default function Accounts() {
     setPaymentCardFilter(filter);
     setSelectedTab("customer-ledger");
   };
+
+  // Auto-fill amount when invoices are selected
+  useEffect(() => {
+    if (selectedInvoiceIds.length > 0 && customerInvoices) {
+      const totalOutstanding = customerInvoices
+        .filter(inv => selectedInvoiceIds.includes(inv.id))
+        .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0);
+      setAmount(totalOutstanding.toFixed(2));
+    }
+  }, [selectedInvoiceIds, customerInvoices]);
 
   // Create voucher mutation with receipt generation
   const createVoucher = useMutation({
