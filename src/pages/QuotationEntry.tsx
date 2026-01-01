@@ -640,7 +640,7 @@ export default function QuotationEntry() {
         customer_email: selectedCustomer?.email || null,
         customer_address: selectedCustomer?.address || null,
         gross_amount: grossAmount,
-        discount_amount: totalDiscount,
+        discount_amount: totalLineDiscount,
         flat_discount_percent: flatDiscountPercent,
         flat_discount_amount: calculatedFlatDiscount,
         gst_amount: totalGST,

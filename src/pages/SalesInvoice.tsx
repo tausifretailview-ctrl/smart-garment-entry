@@ -497,6 +497,10 @@ export default function SalesInvoice() {
       setNotes(invoiceData.notes || "");
       setShippingAddress(invoiceData.shipping_address || "");
       setShippingInstructions(invoiceData.shipping_instructions || "");
+      setSalesman(invoiceData.salesman || "");
+      setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
+      setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+      setRoundOff(invoiceData.round_off || 0);
       
       // Transform sale items back to line items
       if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
@@ -1352,7 +1356,7 @@ Thank you for choosing us!`;
             customer_email: selectedCustomer.email || null,
             customer_address: selectedCustomer.address || null,
             gross_amount: grossAmount,
-            discount_amount: totalDiscount,
+            discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
             round_off: roundOff,
@@ -1416,7 +1420,7 @@ Thank you for choosing us!`;
             customer_email: selectedCustomer.email || null,
             customer_address: selectedCustomer.address || null,
             gross_amount: grossAmount,
-            discount_amount: totalDiscount,
+            discount_amount: lineItemDiscount,
             flat_discount_percent: flatDiscountPercent,
             flat_discount_amount: flatDiscountAmount,
             round_off: roundOff,
