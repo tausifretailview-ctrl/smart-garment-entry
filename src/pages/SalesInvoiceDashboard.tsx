@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
@@ -406,6 +406,7 @@ export default function SalesInvoiceDashboard() {
   const summaryStats = useMemo(() => ({
     totalInvoices: filteredInvoices.length,
     totalAmount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
+    totalDiscount: filteredInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
     totalQty: filteredInvoices.reduce((sum: number, inv: any) => 
       sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
     pendingAmount: filteredInvoices
@@ -429,6 +430,7 @@ export default function SalesInvoiceDashboard() {
   const pageTotals = useMemo(() => ({
     qty: paginatedInvoices.reduce((sum: number, inv: any) => 
       sum + (inv.sale_items?.reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0) || 0), 0),
+    discount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
     amount: paginatedInvoices.reduce((sum: number, inv: any) => sum + (inv.net_amount || 0), 0),
     balance: paginatedInvoices.reduce((sum: number, inv: any) => sum + ((inv.net_amount || 0) - (inv.paid_amount || 0)), 0),
   }), [paginatedInvoices]);
@@ -999,6 +1001,20 @@ export default function SalesInvoiceDashboard() {
           </Card>
 
           <Card 
+            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-lg"
+            onClick={() => setDeliveryFilter("all")}
+          >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-xs font-medium text-white/80">Total Discount</CardDescription>
+              <Percent className="h-4 w-4 text-white" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-white">₹{summaryStats.totalDiscount.toFixed(0)}</div>
+              <p className="text-xs text-white/70">Given</p>
+            </CardContent>
+          </Card>
+
+          <Card 
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
@@ -1219,6 +1235,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead>Phone</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead className="text-center">Qty</TableHead>
+                      <TableHead className="text-right">Discount</TableHead>
                       <TableHead>Amount</TableHead>
                       {columnSettings.status && <TableHead>Pay Status</TableHead>}
                       {columnSettings.status && <TableHead className="text-right">Balance</TableHead>}
@@ -1274,6 +1291,9 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
+                            </TableCell>
+                            <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              ₹{((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toFixed(2)}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
@@ -1498,6 +1518,7 @@ export default function SalesInvoiceDashboard() {
                       <TableRow className="bg-muted/70 font-semibold border-t-2">
                         <TableCell colSpan={6} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
+                        <TableCell className="text-right">₹{pageTotals.discount.toFixed(2)}</TableCell>
                         <TableCell>₹{pageTotals.amount.toFixed(2)}</TableCell>
                         {columnSettings.status && <TableCell></TableCell>}
                         {columnSettings.status && <TableCell className="text-right">₹{pageTotals.balance.toFixed(2)}</TableCell>}
