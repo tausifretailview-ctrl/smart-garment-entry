@@ -107,7 +107,7 @@ export default function SalesInvoice() {
     currentOrganization?.id || null
   );
   // Customer brand discounts hook
-  const { getBrandDiscount, hasBrandDiscounts } = useCustomerBrandDiscounts(selectedCustomerId || null);
+  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(selectedCustomerId || null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
@@ -1768,6 +1768,31 @@ Thank you for choosing us!`;
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
+            {/* Customer Discount Indicator */}
+            {selectedCustomer && (
+              <div className="mt-1.5">
+                {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                  <div className="flex flex-wrap gap-1 items-center">
+                    <span className="text-xs text-muted-foreground">Brand Discounts:</span>
+                    {brandDiscounts.map((bd, idx) => (
+                      <span 
+                        key={idx} 
+                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
+                      >
+                        {bd.brand}: {bd.discount_percent}%
+                      </span>
+                    ))}
+                  </div>
+                ) : selectedCustomer.discount_percent > 0 ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted-foreground">Customer Discount:</span>
+                    <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
+                      {selectedCustomer.discount_percent}%
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </div>
 
           {/* Invoice No */}

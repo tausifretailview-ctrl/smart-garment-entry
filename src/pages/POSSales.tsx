@@ -117,7 +117,7 @@ export default function POSSales() {
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
-  const { getBrandDiscount, hasBrandDiscounts } = useCustomerBrandDiscounts(customerId || null);
+  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
@@ -2383,6 +2383,39 @@ export default function POSSales() {
               </Command>
             </PopoverContent>
           </Popover>
+          
+          {/* Customer Discount Indicator */}
+          {customerId && (() => {
+            const customer = customers?.find((c: any) => c.id === customerId);
+            const customerMasterDiscount = customer?.discount_percent || 0;
+            return (
+              <div className="flex items-center gap-1 self-end pb-3">
+                {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">Brand:</span>
+                    {brandDiscounts.slice(0, 3).map((bd, idx) => (
+                      <span 
+                        key={idx} 
+                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
+                      >
+                        {bd.brand}: {bd.discount_percent}%
+                      </span>
+                    ))}
+                    {brandDiscounts.length > 3 && (
+                      <span className="text-xs text-muted-foreground">+{brandDiscounts.length - 3} more</span>
+                    )}
+                  </>
+                ) : customerMasterDiscount > 0 ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">Discount:</span>
+                    <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
+                      {customerMasterDiscount}%
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            );
+          })()}
           
           {/* Salesperson Search - After Customer Name */}
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
