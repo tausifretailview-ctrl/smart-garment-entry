@@ -284,7 +284,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
               {enableWholesaleGrouping ? 'Sizes' : 'HSN'}
             </th>
             <th style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}`, width: '30px' }}>Qty</th>
-            {showMRP && <th style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, width: '45px' }}>MRP</th>}
+            <th style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, width: '45px' }}>MRP</th>
             <th style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, width: '50px' }}>Rate</th>
             <th style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, width: '60px' }}>Amount</th>
           </tr>
@@ -311,11 +311,9 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
                   {enableWholesaleGrouping ? formatSizeQty(item.sizeQtyList) : items[index]?.hsn}
                 </td>
                 <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>{item.totalQty}</td>
-                {showMRP && (
-                  <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
-                    {formatCurrency(items[index]?.mrp || item.rate)}
-                  </td>
-                )}
+                <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>
+                  {formatCurrency(items[index]?.mrp || item.rate)}
+                </td>
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>{formatCurrency(item.rate)}</td>
                 <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}`, fontWeight: 'bold' }}>{formatCurrency(item.totalAmount)}</td>
               </tr>
@@ -328,7 +326,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
               <td style={{ padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
               <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
               <td style={{ textAlign: 'center', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
-              {showMRP && <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>}
+              <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
               <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
               <td style={{ textAlign: 'right', padding: '4px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
             </tr>
@@ -382,23 +380,35 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
         {/* Amount Summary */}
         <div style={{ width: '45%', border: `1px solid ${colors.primary}`, padding: '6px', fontSize: '9px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
-            <span>Subtotal:</span>
+            <span>Sub Total:</span>
             <span>{formatCurrency(subtotal)}</span>
           </div>
-          {discount > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
-              <span>Discount:</span>
-              <span>- {formatCurrency(discount)}</span>
-            </div>
-          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
-            <span>Taxable Amount:</span>
+            <span>Total Discount:</span>
+            <span>- {formatCurrency(discount)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
+            <span>Taxable Amt:</span>
             <span>{formatCurrency(taxableAmount)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
-            <span>Total Tax:</span>
-            <span>{formatCurrency(totalTax)}</span>
-          </div>
+          {cgstAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
+              <span>CGST:</span>
+              <span>{formatCurrency(cgstAmount)}</span>
+            </div>
+          )}
+          {sgstAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
+              <span>SGST:</span>
+              <span>{formatCurrency(sgstAmount)}</span>
+            </div>
+          )}
+          {igstAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
+              <span>IGST:</span>
+              <span>{formatCurrency(igstAmount)}</span>
+            </div>
+          )}
           {roundOff !== 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
               <span>Round Off:</span>
