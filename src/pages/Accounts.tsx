@@ -1528,6 +1528,17 @@ export default function Accounts() {
                       </>
                     )}
 
+                    {(paymentMethod === "bank_transfer" || paymentMethod === "upi") && (
+                      <div className="space-y-2">
+                        <Label>Transaction Number</Label>
+                        <Input
+                          placeholder="Enter UTR / Reference ID"
+                          value={transactionId}
+                          onChange={(e) => setTransactionId(e.target.value)}
+                        />
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label>Description</Label>
                       <Textarea
