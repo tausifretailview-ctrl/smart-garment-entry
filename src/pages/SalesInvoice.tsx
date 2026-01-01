@@ -394,6 +394,35 @@ export default function SalesInvoice() {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch last saved invoice
+  const { data: lastInvoice } = useQuery({
+    queryKey: ['last-invoice', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('sales')
+        .select('sale_number, customer_name, sale_items(quantity)')
+        .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'invoice')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) throw error;
+      if (!data) return null;
+      
+      const totalQty = data.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
+      return {
+        sale_number: data.sale_number,
+        customer_name: data.customer_name,
+        total_qty: totalQty,
+      };
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   // Generate next invoice number preview
   useEffect(() => {
     const previewNextInvoice = async () => {
@@ -1699,6 +1728,14 @@ Thank you for choosing us!`;
               className="bg-muted font-mono"
               placeholder="Auto-generated"
             />
+            {/* Last saved invoice info */}
+            {lastInvoice && !editingInvoiceId && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Last: <span className="font-medium">{lastInvoice.sale_number}</span> | 
+                Qty: <span className="font-medium">{lastInvoice.total_qty}</span> | 
+                <span className="font-medium"> {lastInvoice.customer_name}</span>
+              </p>
+            )}
           </div>
 
           {/* Invoice Date */}
