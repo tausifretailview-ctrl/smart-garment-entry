@@ -22,7 +22,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -32,6 +32,7 @@ import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialo
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDialog";
 import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
+import { BrandDiscountDialog } from "@/components/BrandDiscountDialog";
 
 interface Customer {
   id: string;
@@ -70,6 +71,8 @@ const CustomerMaster = () => {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{ id: string; name: string } | null>(null);
   const [showRelinkDialog, setShowRelinkDialog] = useState(false);
+  const [showBrandDiscountDialog, setShowBrandDiscountDialog] = useState(false);
+  const [selectedCustomerForBrandDiscount, setSelectedCustomerForBrandDiscount] = useState<{ id: string; name: string } | null>(null);
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
 
   // Fetch ALL customers using pagination to bypass 1000 row limit
@@ -640,6 +643,20 @@ const CustomerMaster = () => {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => {
+                        setSelectedCustomerForBrandDiscount({
+                          id: customer.id,
+                          name: customer.customer_name
+                        });
+                        setShowBrandDiscountDialog(true);
+                      }}
+                      title="Brand-wise Discount"
+                    >
+                      <Tag className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleEdit(customer)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -726,6 +743,13 @@ const CustomerMaster = () => {
       <UpdateLegacyPhonesDialog
         open={showUpdatePhonesDialog}
         onOpenChange={setShowUpdatePhonesDialog}
+      />
+
+      {/* Brand Discount Dialog */}
+      <BrandDiscountDialog
+        open={showBrandDiscountDialog}
+        onOpenChange={setShowBrandDiscountDialog}
+        customer={selectedCustomerForBrandDiscount}
       />
     </div>
   );

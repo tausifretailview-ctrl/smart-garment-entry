@@ -20,6 +20,7 @@ import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
+import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -116,6 +117,7 @@ export default function POSSales() {
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
+  const { getBrandDiscount } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [items, setItems] = useState<CartItem[]>([]);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
@@ -801,6 +803,11 @@ export default function POSSales() {
       // Ensure displayMrp is never 0 - always fall back to salePrice
       const displayMrp = (mrpToUse && mrpToUse > 0) ? (mrpToUse > salePrice ? mrpToUse : salePrice) : salePrice;
       
+      // Check for brand-wise customer discount
+      const brandDiscount = getBrandDiscount(product.brand);
+      const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
+      const discountAmount = 0;
+      
       const newItem: CartItem = {
         id: variant.id,
         barcode: variant.barcode || '',
@@ -811,15 +818,23 @@ export default function POSSales() {
         mrp: displayMrp,
         originalMrp: mrpToUse,
         gstPer: product.gst_per || 0,
-        discountPercent: 0,
-        discountAmount: 0,
+        discountPercent,
+        discountAmount,
         unitCost: salePrice,
-        netAmount: salePrice,
+        netAmount: displayMrp - (displayMrp * discountPercent / 100),
         productId: product.id,
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
       };
       setItems(prev => [...prev, newItem]);
+      
+      // Show toast if brand discount was applied
+      if (brandDiscount > 0) {
+        toast({
+          title: `Brand discount applied: ${brandDiscount}%`,
+          description: `${product.brand} discount for this customer`,
+        });
+      }
     }
     
     // Close search dropdown and clear input
