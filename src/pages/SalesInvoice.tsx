@@ -1586,8 +1586,9 @@ Thank you for choosing us!`;
   // Calculate totals
   const grossAmount = lineItems.reduce((sum, item) => sum + (item.salePrice * item.quantity), 0);
   const lineItemDiscount = lineItems.reduce((sum, item) => sum + item.discountAmount, 0);
-  // Flat discount: use rupees if set, otherwise calculate from percent
-  const flatDiscountAmount = flatDiscountRupees > 0 ? flatDiscountRupees : (grossAmount * flatDiscountPercent) / 100;
+  // Flat discount: Stack both percent and rupees discounts together
+  const flatDiscountPercentAmount = (grossAmount * flatDiscountPercent) / 100;
+  const flatDiscountAmount = flatDiscountPercentAmount + flatDiscountRupees;
   const totalDiscount = lineItemDiscount + flatDiscountAmount;
   const amountAfterDiscount = grossAmount - totalDiscount;
   
@@ -2124,36 +2125,38 @@ Thank you for choosing us!`;
             <div className="flex justify-between"><span>Line Discount:</span><span>-₹{lineItemDiscount.toFixed(2)}</span></div>
             <div className="flex justify-between items-center">
               <span>Flat Disc %:</span>
-              <Input
-                type="number"
-                min="0"
-                max="100"
-                value={flatDiscountPercent}
-                onChange={(e) => {
-                  setFlatDiscountPercent(parseFloat(e.target.value) || 0);
-                  setFlatDiscountRupees(0); // Clear rupees when percent is set
-                }}
-                onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-20 h-8"
-              />
-            </div>
-            <div className="flex justify-between items-center">
-              <span>Flat Disc ₹:</span>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
                   min="0"
-                  value={flatDiscountRupees}
-                  onChange={(e) => {
-                    setFlatDiscountRupees(parseFloat(e.target.value) || 0);
-                    setFlatDiscountPercent(0); // Clear percent when rupees is set
-                  }}
+                  max="100"
+                  value={flatDiscountPercent}
+                  onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   className="w-20 h-8"
                 />
-                <span className="text-muted-foreground">(-₹{flatDiscountAmount.toFixed(2)})</span>
+                {flatDiscountPercent > 0 && (
+                  <span className="text-xs text-muted-foreground">(-₹{flatDiscountPercentAmount.toFixed(2)})</span>
+                )}
               </div>
             </div>
+            <div className="flex justify-between items-center">
+              <span>Flat Disc ₹:</span>
+              <Input
+                type="number"
+                min="0"
+                value={flatDiscountRupees}
+                onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
+                onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                className="w-20 h-8"
+              />
+            </div>
+            {(flatDiscountPercent > 0 || flatDiscountRupees > 0) && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Total Flat Discount:</span>
+                <span className="font-medium text-destructive">-₹{flatDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
             {taxType === "exclusive" && (
               <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
             )}
