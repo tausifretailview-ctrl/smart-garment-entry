@@ -107,7 +107,7 @@ export default function SalesInvoice() {
     currentOrganization?.id || null
   );
   // Customer brand discounts hook
-  const { getBrandDiscount } = useCustomerBrandDiscounts(selectedCustomerId || null);
+  const { getBrandDiscount, hasBrandDiscounts } = useCustomerBrandDiscounts(selectedCustomerId || null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
@@ -301,6 +301,20 @@ export default function SalesInvoice() {
       window.removeEventListener("keydown", handleKeyPress);
     };
   }, [savedInvoiceData]);
+
+  // Mutually exclusive discount: Apply customer master discount ONLY if no brand discounts exist
+  useEffect(() => {
+    if (selectedCustomer && !hasBrandDiscounts) {
+      // Customer has NO brand discounts, so apply master discount as flat discount
+      if (selectedCustomer.discount_percent && selectedCustomer.discount_percent > 0) {
+        setFlatDiscountPercent(selectedCustomer.discount_percent);
+      }
+    } else if (selectedCustomer && hasBrandDiscounts) {
+      // Customer has brand discounts, so don't auto-apply flat discount
+      // Only reset if this was an auto-applied customer discount (not manually set)
+      // For simplicity, we just don't set flat discount when brand discounts exist
+    }
+  }, [selectedCustomer, hasBrandDiscounts]);
 
   const customerForm = useForm<z.infer<typeof customerSchema>>({
     resolver: zodResolver(customerSchema),
@@ -858,8 +872,11 @@ export default function SalesInvoice() {
       const salePrice = overridePrice?.sale_price ?? masterSalePrice;
       const mrpToUse = overridePrice?.mrp ?? masterMrp;
       
-      // Check for brand-wise customer discount
-      const brandDiscount = getBrandDiscount(product.brand);
+      // Mutually exclusive discount logic:
+      // Only apply brand discount if customer has NO master discount
+      // If customer has master discount, it's applied as flat discount instead
+      const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+      const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
       const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
       
       // Find first empty row and fill it
@@ -1710,10 +1727,10 @@ Thank you for choosing us!`;
                                     setSelectedCustomerId(customer.id);
                                     setSelectedCustomer(customer);
                                     setCustomerSearchInput("");
-                                    // Auto-apply customer discount
-                                    if (customer.discount_percent && customer.discount_percent > 0) {
-                                      setFlatDiscountPercent(customer.discount_percent);
-                                    }
+                                    // Mutually exclusive discount logic:
+                                    // If customer has master discount AND no brand discounts, apply master discount
+                                    // If customer has brand discounts, those will be applied per-item instead
+                                    // Note: hasBrandDiscounts will update when selectedCustomerId changes
                                     setOpenCustomerSearch(false);
                                   }}
                                   className="cursor-pointer"

@@ -37,9 +37,13 @@ export function useCustomerBrandDiscounts(customerId: string | null) {
     return discount?.discount_percent || 0;
   };
 
+  // Check if customer has any brand discounts configured
+  const hasBrandDiscounts = brandDiscounts.length > 0;
+
   return {
     brandDiscounts,
     getBrandDiscount,
+    hasBrandDiscounts,
     isLoading,
   };
 }
