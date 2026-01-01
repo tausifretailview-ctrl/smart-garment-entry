@@ -107,6 +107,7 @@ export default function SalesInvoice() {
   );
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
+  const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -241,13 +242,24 @@ export default function SalesInvoice() {
 
   // Start auto-save when not in edit mode
   useEffect(() => {
-    if (!editingInvoiceId && !savedInvoiceData && !location.state?.editInvoiceId) {
+    if (!editingInvoiceId && !location.state?.editInvoiceId) {
       startAutoSave();
     }
     return () => {
+      stopAutoSave();
+    };
+  }, [editingInvoiceId, startAutoSave, stopAutoSave, location.state?.editInvoiceId]);
+
+  // Separate effect for saving draft on unmount - uses ref to avoid stale closure issues
+  useEffect(() => {
+    return () => {
+      // Don't save draft if invoice was successfully saved
+      if (invoiceSavedRef.current) {
+        return;
+      }
       // Save draft immediately when component unmounts (tab switch, navigation)
       const filledItems = lineItems.filter(item => item.productId !== '');
-      if (!editingInvoiceId && !savedInvoiceData && filledItems.length > 0) {
+      if (!editingInvoiceId && filledItems.length > 0) {
         saveDraft({
           invoiceDate: invoiceDate.toISOString(),
           dueDate: dueDate.toISOString(),
@@ -266,9 +278,9 @@ export default function SalesInvoice() {
           roundOff,
         }, false);
       }
-      stopAutoSave();
     };
-  }, [editingInvoiceId, savedInvoiceData, startAutoSave, stopAutoSave, location.state?.editInvoiceId, lineItems, invoiceDate, dueDate, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, roundOff, saveDraft]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -1304,6 +1316,8 @@ Thank you for choosing us!`;
           description: "Invoice has been updated successfully",
         });
 
+        // Mark invoice as saved to prevent draft re-save on unmount
+        invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
         await deleteDraft();
         stopAutoSave();
@@ -1392,6 +1406,8 @@ Thank you for choosing us!`;
           description: `Invoice ${saleNumber} has been created successfully`,
         });
 
+        // Mark invoice as saved to prevent draft re-save on unmount
+        invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
         await deleteDraft();
         stopAutoSave();
