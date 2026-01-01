@@ -1422,9 +1422,8 @@ export default function SalesInvoiceDashboard() {
                                           <TableHead>Qty</TableHead>
                                           {showItemMrp && <TableHead>MRP</TableHead>}
                                           <TableHead>Price</TableHead>
-                                          <TableHead className="text-right">Total</TableHead>
                                           <TableHead className="text-right">Discount</TableHead>
-                                          <TableHead className="text-right">After Disc</TableHead>
+                                          <TableHead className="text-right">Total</TableHead>
                                         </TableRow>
                                       </TableHeader>
                                       <TableBody>
@@ -1443,10 +1442,9 @@ export default function SalesInvoiceDashboard() {
                                               {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
                                               {showItemMrp && <TableCell>₹{item.mrp?.toFixed(2) || '-'}</TableCell>}
-                                              <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
-                                              <TableCell className="text-right">₹{itemGrossTotal.toFixed(2)}</TableCell>
+                                              <TableCell>₹{itemGrossTotal.toFixed(2)}</TableCell>
                                               <TableCell className="text-right text-destructive">
-                                                {itemDiscount > 0 ? `₹${itemDiscount.toFixed(2)} (${item.discount_percent}%)` : '-'}
+                                                {itemDiscount > 0 ? `₹${itemDiscount.toFixed(2)}` : '-'}
                                               </TableCell>
                                               <TableCell className="text-right font-medium">₹{itemAfterDiscount.toFixed(2)}</TableCell>
                                             </TableRow>
