@@ -329,13 +329,14 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <thead>
               <tr>
                 <th style={{ ...headerCellStyle, width: "25px" }}>SR</th>
-                <th style={{ ...headerCellStyle, width: "150px" }}>PARTICULARS</th>
-                <th style={{ ...headerCellStyle, width: "110px" }}>SIZE / QTY</th>
+                <th style={{ ...headerCellStyle, width: "130px" }}>PARTICULARS</th>
+                <th style={{ ...headerCellStyle, width: "100px" }}>SIZE / QTY</th>
                 <th style={{ ...headerCellStyle, width: "35px" }}>QTY</th>
-                <th style={{ ...headerCellStyle, width: "60px" }}>RATE</th>
+                <th style={{ ...headerCellStyle, width: "50px" }}>MRP</th>
+                <th style={{ ...headerCellStyle, width: "50px" }}>RATE</th>
                 {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "35px" }}>GST%</th>}
-                {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "55px" }}>GST AMT</th>}
-                <th style={{ ...headerCellStyle, width: "70px" }}>AMOUNT</th>
+                {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "50px" }}>GST AMT</th>}
+                <th style={{ ...headerCellStyle, width: "65px" }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -352,6 +353,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                     {formatSizeQty(item.sizeQtyList)}
                   </td>
                   <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
+                  <td style={{ ...cellStyle, textAlign: "right" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
                   <td style={{ ...cellStyle, textAlign: "right" }}>{item.rate.toFixed(2)}</td>
                   {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center" }}>{item.gstPercent}%</td>}
                   {showGSTBreakdown && (
@@ -371,6 +373,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   <td style={cellStyle}>&nbsp;</td>
                   <td style={cellStyle}>&nbsp;</td>
                   <td style={cellStyle}>&nbsp;</td>
+                  <td style={cellStyle}>&nbsp;</td>
                   {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
                   {showGSTBreakdown && <td style={cellStyle}>&nbsp;</td>}
                   <td style={cellStyle}>&nbsp;</td>
@@ -383,7 +386,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                   TOTAL QTY:
                 </td>
                 <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
-                <td colSpan={showGSTBreakdown ? 3 : 1} style={{ ...cellStyle, textAlign: "right" }}>
+                <td colSpan={showGSTBreakdown ? 4 : 2} style={{ ...cellStyle, textAlign: "right" }}>
                   SUB TOTAL:
                 </td>
                 <td style={{ ...cellStyle, textAlign: "right" }}>{formatCurrency(subtotal)}</td>
@@ -429,6 +432,16 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <div style={{ width: "220px", padding: "8px", background: colors.light }}>
               <table style={{ width: "100%", fontSize: "9pt", fontWeight: "600" }}>
                 <tbody>
+                  <tr>
+                    <td>Sub Total:</td>
+                    <td style={{ textAlign: "right" }}>{formatCurrency(subtotal)}</td>
+                  </tr>
+                  {discount > 0 && (
+                    <tr>
+                      <td>Total Discount:</td>
+                      <td style={{ textAlign: "right" }}>-{formatCurrency(discount)}</td>
+                    </tr>
+                  )}
                   <tr>
                     <td>Taxable Amt:</td>
                     <td style={{ textAlign: "right" }}>{formatCurrency(calculatedTaxableAmount)}</td>
