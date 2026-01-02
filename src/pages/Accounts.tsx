@@ -1330,8 +1330,16 @@ export default function Accounts() {
                         <>
                           <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-muted/30">
                             {customerInvoices?.map((invoice) => {
-                              const balance = invoice.net_amount - (invoice.paid_amount || 0);
+                              const netAmount = Number(invoice.net_amount || 0);
+                              const paidAmount = Number(invoice.paid_amount || 0);
+                              const balance = netAmount - paidAmount;
                               const isSelected = selectedInvoiceIds.includes(invoice.id);
+
+                              const invoiceDate = invoice.sale_date ? new Date(invoice.sale_date) : null;
+                              const invoiceDateText = invoiceDate && !Number.isNaN(invoiceDate.getTime())
+                                ? format(invoiceDate, "dd/MM/yy")
+                                : "-";
+
                               return (
                                 <div 
                                   key={invoice.id} 
@@ -1356,7 +1364,7 @@ export default function Accounts() {
                                   <div className="flex-1 flex justify-between items-center">
                                     <span className="font-medium">{invoice.sale_number}</span>
                                     <span className="text-sm text-muted-foreground">
-                                      {format(new Date(invoice.sale_date), 'dd/MM/yy')}
+                                      {invoiceDateText}
                                     </span>
                                     <Badge variant={balance > 0 ? "destructive" : "secondary"}>
                                       ₹{balance.toFixed(2)}
