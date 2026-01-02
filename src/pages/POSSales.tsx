@@ -1015,7 +1015,10 @@ export default function POSSales() {
     setRoundOff(parseFloat(calculatedRoundOff.toFixed(2)));
   };
   
-  const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff;
+  // Calculate points redemption value
+  const pointsRedemptionValue = calculateRedemptionValue(pointsToRedeem);
+  
+  const amountBeforeCredit = totals.subtotal - flatDiscountAmount - saleReturnAdjust + roundOff - pointsRedemptionValue;
   const finalAmount = amountBeforeCredit - creditApplied;
   
   // Calculate effective discount percentage for customer display (after final amount adjustment)
@@ -1211,6 +1214,13 @@ export default function POSSales() {
         await applyCredit(customerId, creditApplied);
       }
       
+      // Redeem points if any
+      if (pointsToRedeem > 0 && customerId) {
+        await redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number);
+        // Invalidate customer points query to refresh balance
+        await queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
+      }
+      
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
         invoiceNumber: result.sale_number,
@@ -1382,6 +1392,13 @@ export default function POSSales() {
       // Apply credit if any (for non-credit note cases)
       if (!isCreditNote && creditApplied > 0 && customerId) {
         await applyCredit(customerId, creditApplied);
+      }
+      
+      // Redeem points if any (for non-credit note cases)
+      if (!isCreditNote && pointsToRedeem > 0 && customerId) {
+        await redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number);
+        // Invalidate customer points query to refresh balance
+        await queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
       }
       
       // Store invoice data BEFORE clearing the form (only for non-credit note cases)
