@@ -336,30 +336,27 @@ export default function DeliveryChallanEntry() {
     setSearchInput("");
   };
 
-  const handleSizeGridConfirm = (quantities: Record<string, number>) => {
+  const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
     if (!sizeGridProduct) return;
-    Object.entries(quantities).forEach(([variantId, qty]) => {
+    items.forEach(({ variant, qty }) => {
       if (qty > 0) {
-        const variant = sizeGridVariants.find(v => v.id === variantId);
-        if (variant) {
-          const existingIdx = lineItems.findIndex(item => item.variantId === variantId);
-          if (existingIdx !== -1) {
-            const newItems = [...lineItems];
-            newItems[existingIdx].quantity += qty;
-            newItems[existingIdx].lineTotal = newItems[existingIdx].quantity * newItems[existingIdx].salePrice * (1 - newItems[existingIdx].discountPercent / 100);
-            setLineItems(newItems);
-          } else {
-            addProductToLine(sizeGridProduct, variant);
-            setLineItems(prev => {
-              const newItems = [...prev];
-              const idx = newItems.findIndex(item => item.variantId === variantId);
-              if (idx !== -1) {
-                newItems[idx].quantity = qty;
-                newItems[idx].lineTotal = qty * newItems[idx].salePrice * (1 - newItems[idx].discountPercent / 100);
-              }
-              return newItems;
-            });
-          }
+        const existingIdx = lineItems.findIndex(item => item.variantId === variant.id);
+        if (existingIdx !== -1) {
+          const newItems = [...lineItems];
+          newItems[existingIdx].quantity += qty;
+          newItems[existingIdx].lineTotal = newItems[existingIdx].quantity * newItems[existingIdx].salePrice * (1 - newItems[existingIdx].discountPercent / 100);
+          setLineItems(newItems);
+        } else {
+          addProductToLine(sizeGridProduct, variant);
+          setLineItems(prev => {
+            const newItems = [...prev];
+            const idx = newItems.findIndex(item => item.variantId === variant.id);
+            if (idx !== -1) {
+              newItems[idx].quantity = qty;
+              newItems[idx].lineTotal = qty * newItems[idx].salePrice * (1 - newItems[idx].discountPercent / 100);
+            }
+            return newItems;
+          });
         }
       }
     });
@@ -559,14 +556,24 @@ export default function DeliveryChallanEntry() {
         // Update sale order fulfilled quantities if created from order
         if (selectedSaleOrderId) {
           for (const item of filledItems) {
-            await supabase
+            // Get current values first
+            const { data: orderItem } = await supabase
               .from('sale_order_items')
-              .update({ 
-                fulfilled_qty: supabase.rpc('add_int', { a: item.quantity }),
-                pending_qty: supabase.rpc('subtract_int', { a: item.quantity }),
-              })
+              .select('fulfilled_qty, pending_qty')
               .eq('order_id', selectedSaleOrderId)
-              .eq('variant_id', item.variantId);
+              .eq('variant_id', item.variantId)
+              .maybeSingle();
+            
+            if (orderItem) {
+              await supabase
+                .from('sale_order_items')
+                .update({ 
+                  fulfilled_qty: (orderItem.fulfilled_qty || 0) + item.quantity,
+                  pending_qty: Math.max(0, (orderItem.pending_qty || 0) - item.quantity),
+                })
+                .eq('order_id', selectedSaleOrderId)
+                .eq('variant_id', item.variantId);
+            }
           }
         }
 
@@ -879,7 +886,7 @@ export default function DeliveryChallanEntry() {
       {/* Size Grid Dialog */}
       <SizeGridDialog 
         open={showSizeGrid} 
-        onOpenChange={setShowSizeGrid}
+        onClose={() => setShowSizeGrid(false)}
         product={sizeGridProduct}
         variants={sizeGridVariants}
         onConfirm={handleSizeGridConfirm}
