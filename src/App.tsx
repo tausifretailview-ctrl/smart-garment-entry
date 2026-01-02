@@ -61,6 +61,8 @@ import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
+import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
+import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
 import SalesmanLayout from "./layouts/SalesmanLayout";
 import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
 import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
@@ -378,6 +380,28 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <SaleReturnDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Delivery Challan */}
+                <Route
+                  path="delivery-challan-entry"
+                  element={
+                    <ProtectedRoute>
+                      <FullScreenLayout>
+                        <DeliveryChallanEntry />
+                      </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="delivery-challan-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DeliveryChallanDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }
