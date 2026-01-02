@@ -2370,6 +2370,7 @@ export type Database = {
           payment_method: string
           payment_status: string
           payment_term: string | null
+          points_redeemed_amount: number | null
           refund_amount: number | null
           round_off: number
           sale_date: string
@@ -2420,6 +2421,7 @@ export type Database = {
           payment_method: string
           payment_status?: string
           payment_term?: string | null
+          points_redeemed_amount?: number | null
           refund_amount?: number | null
           round_off?: number
           sale_date?: string
@@ -2470,6 +2472,7 @@ export type Database = {
           payment_method?: string
           payment_status?: string
           payment_term?: string | null
+          points_redeemed_amount?: number | null
           refund_amount?: number | null
           round_off?: number
           sale_date?: string
