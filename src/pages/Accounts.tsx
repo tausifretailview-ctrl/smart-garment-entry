@@ -193,6 +193,12 @@ export default function Accounts() {
 
       // Get all payments made for these bills
       const billIds = bills?.map(b => b.id) || [];
+      
+      // If no bills exist, return 0 (avoid .in() with empty array)
+      if (billIds.length === 0) {
+        return 0;
+      }
+      
       const { data: payments, error: paymentsError } = await supabase
         .from("voucher_entries")
         .select("total_amount, reference_id")
