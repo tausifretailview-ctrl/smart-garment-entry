@@ -1656,11 +1656,24 @@ Thank you for choosing us!`;
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Home className="h-6 w-6" />
             {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
           </h1>
+          {/* Last Invoice Info at Top */}
+          {lastInvoice && !editingInvoiceId && (
+            <div className="bg-muted/50 border rounded-lg px-3 py-1.5 text-sm">
+              <span className="text-muted-foreground">Last: </span>
+              <span className="font-semibold">{lastInvoice.sale_number}</span>
+              <span className="text-muted-foreground"> | Qty: </span>
+              <span className="font-semibold">{lastInvoice.total_qty}</span>
+              <span className="text-muted-foreground"> | Disc: </span>
+              <span className="font-semibold">₹{lastInvoice.total_discount?.toFixed(2) || '0.00'}</span>
+              <span className="text-muted-foreground"> | </span>
+              <span className="font-semibold">{lastInvoice.customer_name}</span>
+            </div>
+          )}
         </div>
 
         {/* Simplified Form - matching Quotation/Sale Order layout */}
@@ -1852,15 +1865,6 @@ Thank you for choosing us!`;
               className="bg-muted font-mono"
               placeholder="Auto-generated"
             />
-            {/* Last saved invoice info */}
-            {lastInvoice && !editingInvoiceId && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Last: <span className="font-medium">{lastInvoice.sale_number}</span> | 
-                Qty: <span className="font-medium">{lastInvoice.total_qty}</span> | 
-                Disc: <span className="font-medium">₹{lastInvoice.total_discount?.toFixed(2) || '0.00'}</span> | 
-                <span className="font-medium"> {lastInvoice.customer_name}</span>
-              </p>
-            )}
           </div>
 
           {/* Invoice Date */}
