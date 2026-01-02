@@ -2836,27 +2836,6 @@ export default function POSSales() {
               />
               <div className="text-xs md:text-sm mt-1">S/R Adjust</div>
             </div>
-            {/* Points Redemption Field */}
-            {isRedemptionEnabled && customerId && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-              <div className="text-center bg-amber-600 rounded-md py-1">
-                <Input 
-                  type="number"
-                  className="w-20 h-8 bg-white text-amber-700 text-center text-base font-semibold mx-auto" 
-                  value={pointsToRedeem}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 0;
-                    const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
-                    setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                  }}
-                  min={0}
-                  max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
-                  disabled={!customerId}
-                />
-                <div className="text-xs md:text-sm mt-1">
-                  Pts (₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)})
-                </div>
-              </div>
-            )}
             {/* Credit Applied Field - Only show if customer has credit balance */}
             {(availableCreditBalance > 0 || creditApplied > 0) && (
               <div className="text-center bg-purple-600 rounded-md py-1">
