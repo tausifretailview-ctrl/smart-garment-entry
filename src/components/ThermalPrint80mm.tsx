@@ -34,6 +34,9 @@ interface ThermalPrint80mmProps {
   refundCash?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
+  pointsRedeemed?: number;
+  pointsRedemptionValue?: number;
+  pointsBalance?: number;
 }
 
 export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80mmProps>(
@@ -56,6 +59,9 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       refundCash = 0,
       documentType = 'invoice',
       termsConditions,
+      pointsRedeemed = 0,
+      pointsRedemptionValue = 0,
+      pointsBalance = 0,
     } = props;
 
     const getDocumentTitle = () => {
@@ -341,6 +347,31 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 <span>{formatCurrency(refundCash)}</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Points Information */}
+        {(pointsRedeemed > 0 || pointsBalance > 0) && (
+          <div style={{ 
+            fontSize: '9px', 
+            marginBottom: '6px', 
+            paddingBottom: '4px', 
+            borderBottom: '1px dotted #ccc',
+            background: '#fef3c7',
+            padding: '4px',
+            borderRadius: '2px'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>🎁 Loyalty Points</div>
+            {pointsRedeemed > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Points Redeemed</span>
+                <span>{pointsRedeemed} pts (₹{pointsRedemptionValue.toFixed(0)})</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
+              <span>Points Balance</span>
+              <span>{pointsBalance} pts</span>
+            </div>
           </div>
         )}
 

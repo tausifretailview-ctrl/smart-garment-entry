@@ -63,6 +63,11 @@ interface InvoiceWrapperProps {
   paidAmount?: number;
   previousBalance?: number;
   
+  // Points
+  pointsRedeemed?: number;
+  pointsRedemptionValue?: number;
+  pointsBalance?: number;
+  
   // Optional overrides
   template?: string;
   colorScheme?: string;
@@ -302,6 +307,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       showProductColor,
       showProductBrand,
       showProductStyle,
+      
+      // Points information
+      pointsRedeemed: props.pointsRedeemed || 0,
+      pointsRedemptionValue: props.pointsRedemptionValue || 0,
+      pointsBalance: props.pointsBalance || 0,
     };
 
     // Select template component based on settings
@@ -336,6 +346,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             refundCash={props.refundCash}
             documentType="invoice"
             termsConditions={termsConditions?.join('\n')}
+            pointsRedeemed={props.pointsRedeemed}
+            pointsRedemptionValue={props.pointsRedemptionValue}
+            pointsBalance={props.pointsBalance}
           />
         );
       }
