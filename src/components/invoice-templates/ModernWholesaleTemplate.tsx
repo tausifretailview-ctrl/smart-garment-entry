@@ -152,7 +152,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     const grouped: Record<string, GroupedItem> = {};
     itemsList.forEach((item) => {
       const gstPct = getItemGstPercent(item);
-      const key = `${item.particulars}-${item.rate}-${gstPct}`;
+      const key = `${item.particulars}-${item.color || ''}-${item.rate}-${gstPct}`;
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,

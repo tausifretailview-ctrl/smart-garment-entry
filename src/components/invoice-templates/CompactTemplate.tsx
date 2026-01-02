@@ -158,7 +158,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
 
     const grouped: Record<string, GroupedItem> = {};
     items.forEach(item => {
-      const key = `${item.particulars}-${item.rate}`;
+      const key = `${item.particulars}-${item.color || ''}-${item.rate}`;
       if (!grouped[key]) {
         grouped[key] = {
           particulars: item.particulars,
