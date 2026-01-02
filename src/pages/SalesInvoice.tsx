@@ -107,7 +107,7 @@ export default function SalesInvoice() {
     currentOrganization?.id || null
   );
   // Customer brand discounts hook
-  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(selectedCustomerId || null);
+  const { getBrandDiscount, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(selectedCustomerId || null);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
@@ -552,6 +552,48 @@ export default function SalesInvoice() {
       setLineItems(prevItems => prevItems.map(item => calculateLineTotal(item)));
     }
   }, [taxType]);
+
+  // Apply brand discounts to existing line items when brand discounts load
+  useEffect(() => {
+    if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
+    if (!productsData) return;
+    
+    // Check if customer has master discount (brand discounts should not apply in that case)
+    const customerHasMasterDiscount = selectedCustomer?.discount_percent && selectedCustomer.discount_percent > 0;
+    if (customerHasMasterDiscount) return;
+    
+    // Check if any line items need discount updates
+    let hasChanges = false;
+    const updatedItems = lineItems.map(item => {
+      if (!item.productId) return item;
+      
+      // Find the product to get its brand
+      const product = productsData.find((p: any) => p.id === item.productId);
+      if (!product?.brand) return item;
+      
+      // Get the brand discount
+      const brandDiscount = getBrandDiscount(product.brand);
+      
+      // Only update if current discount is 0 and brand discount exists
+      if (item.discountPercent === 0 && brandDiscount > 0) {
+        hasChanges = true;
+        return calculateLineTotal({
+          ...item,
+          discountPercent: brandDiscount,
+        });
+      }
+      
+      return item;
+    });
+    
+    if (hasChanges) {
+      setLineItems(updatedItems);
+      toast({
+        title: "Brand discounts applied",
+        description: "Discounts have been updated for matching products",
+      });
+    }
+  }, [brandDiscounts, hasBrandDiscounts, isBrandDiscountsLoading, productsData, selectedCustomer?.discount_percent]);
 
   // Product search with server-side filtering and smart sorting
   useEffect(() => {
@@ -1772,7 +1814,12 @@ Thank you for choosing us!`;
             {/* Customer Discount Indicator */}
             {selectedCustomer && (
               <div className="mt-1.5">
-                {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                {isBrandDiscountsLoading ? (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading brand discounts...
+                  </span>
+                ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
                   <div className="flex flex-wrap gap-1 items-center">
                     <span className="text-xs text-muted-foreground">Brand Discounts:</span>
                     {brandDiscounts.map((bd, idx) => (
