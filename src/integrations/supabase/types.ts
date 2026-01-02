@@ -677,6 +677,207 @@ export type Database = {
           },
         ]
       }
+      delivery_challan_items: {
+        Row: {
+          barcode: string | null
+          challan_id: string
+          color: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          discount_percent: number
+          hsn_code: string | null
+          id: string
+          line_total: number
+          mrp: number
+          product_id: string
+          product_name: string
+          quantity: number
+          size: string
+          unit_price: number
+          variant_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          challan_id: string
+          color?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_percent?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          mrp?: number
+          product_id: string
+          product_name: string
+          quantity?: number
+          size: string
+          unit_price?: number
+          variant_id: string
+        }
+        Update: {
+          barcode?: string | null
+          challan_id?: string
+          color?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_percent?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          mrp?: number
+          product_id?: string
+          product_name?: string
+          quantity?: number
+          size?: string
+          unit_price?: number
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_challan_items_challan_id_fkey"
+            columns: ["challan_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_challans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challan_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challan_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_challans: {
+        Row: {
+          challan_date: string
+          challan_number: string
+          converted_to_invoice_id: string | null
+          created_at: string
+          created_by: string | null
+          customer_address: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          discount_amount: number
+          flat_discount_amount: number
+          flat_discount_percent: number
+          gross_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          organization_id: string
+          round_off: number
+          sale_order_id: string | null
+          salesman: string | null
+          shipping_address: string | null
+          status: string
+          terms_conditions: string | null
+          updated_at: string
+        }
+        Insert: {
+          challan_date?: string
+          challan_number: string
+          converted_to_invoice_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id: string
+          round_off?: number
+          sale_order_id?: string | null
+          salesman?: string | null
+          shipping_address?: string | null
+          status?: string
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Update: {
+          challan_date?: string
+          challan_number?: string
+          converted_to_invoice_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_amount?: number
+          flat_discount_amount?: number
+          flat_discount_percent?: number
+          gross_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          organization_id?: string
+          round_off?: number
+          sale_order_id?: string | null
+          salesman?: string | null
+          shipping_address?: string | null
+          status?: string
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_challans_converted_to_invoice_id_fkey"
+            columns: ["converted_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_challans_sale_order_id_fkey"
+            columns: ["sale_order_id"]
+            isOneToOne: false
+            referencedRelation: "sale_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_tracking: {
         Row: {
           created_at: string | null
@@ -2897,6 +3098,10 @@ export type Database = {
           fixed_count: number
         }[]
       }
+      generate_challan_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_credit_note_number: {
         Args: { p_organization_id: string }
         Returns: string
@@ -3013,6 +3218,10 @@ export type Database = {
       restore_sale_order: { Args: { p_order_id: string }; Returns: undefined }
       restore_sale_return: { Args: { p_return_id: string }; Returns: undefined }
       restore_voucher: { Args: { p_voucher_id: string }; Returns: undefined }
+      soft_delete_delivery_challan: {
+        Args: { p_challan_id: string; p_user_id: string }
+        Returns: undefined
+      }
       soft_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
         Returns: undefined
