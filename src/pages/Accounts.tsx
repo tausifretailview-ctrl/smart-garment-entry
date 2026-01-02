@@ -68,6 +68,11 @@ export default function Accounts() {
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
   const [customerSearchTerm, setCustomerSearchTerm] = useState("");
 
+  // Supplier search and bill selection state
+  const [supplierSearchOpen, setSupplierSearchOpen] = useState(false);
+  const [supplierSearchTerm, setSupplierSearchTerm] = useState("");
+  const [selectedSupplierBillIds, setSelectedSupplierBillIds] = useState<string[]>([]);
+
   // Reconciliation filters
   const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
   const [reconEndDate, setReconEndDate] = useState<Date>(endOfMonth(new Date()));
@@ -205,7 +210,78 @@ export default function Accounts() {
     enabled: !!referenceId && referenceType === "supplier",
   });
 
-  // Fetch customers with outstanding balance using pagination (bypasses 1000-row limit)
+  // Fetch supplier outstanding bills (pending/partial)
+  const { data: supplierBills } = useQuery({
+    queryKey: ["supplier-bills", referenceId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select("*")
+        .eq("supplier_id", referenceId)
+        .is("deleted_at", null)
+        .order("bill_date", { ascending: false });
+      
+      if (error) throw error;
+      
+      // Filter bills with outstanding balance
+      return data?.filter(bill => {
+        const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
+        return outstanding > 0;
+      }) || [];
+    },
+    enabled: !!referenceId && referenceType === "supplier",
+  });
+
+  // Fetch suppliers with outstanding balance
+  const { data: suppliersWithBalance } = useQuery({
+    queryKey: ["suppliers-with-balance", currentOrganization?.id],
+    queryFn: async () => {
+      // Fetch all suppliers
+      const { data: allSuppliers, error: suppError } = await supabase
+        .from("suppliers")
+        .select("*")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
+        .order("supplier_name");
+      
+      if (suppError) throw suppError;
+      
+      // Fetch all purchase bills
+      const { data: allBills, error: billsError } = await supabase
+        .from("purchase_bills")
+        .select("supplier_id, net_amount, paid_amount")
+        .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null);
+      
+      if (billsError) throw billsError;
+      
+      // Calculate outstanding balance per supplier
+      const supplierBalances = new Map<string, number>();
+      allBills?.forEach((bill: any) => {
+        if (bill.supplier_id) {
+          const outstanding = Math.max(0, (bill.net_amount || 0) - (bill.paid_amount || 0));
+          supplierBalances.set(
+            bill.supplier_id,
+            (supplierBalances.get(bill.supplier_id) || 0) + outstanding
+          );
+        }
+      });
+      
+      // Filter suppliers with balance > 0 and add outstandingBalance field
+      return allSuppliers
+        ?.filter((s: any) => {
+          const openingBalance = s.opening_balance || 0;
+          const billBalance = supplierBalances.get(s.id) || 0;
+          return (openingBalance + billBalance) > 0;
+        })
+        .map((s: any) => ({
+          ...s,
+          outstandingBalance: (s.opening_balance || 0) + (supplierBalances.get(s.id) || 0),
+        })) || [];
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   const { data: customersWithBalance } = useQuery({
     queryKey: ["customers-with-balance", currentOrganization?.id],
     queryFn: async () => {
@@ -499,7 +575,7 @@ export default function Accounts() {
     setSelectedTab("customer-ledger");
   };
 
-  // Auto-fill amount when invoices are selected
+  // Auto-fill amount when customer invoices are selected
   useEffect(() => {
     if (selectedInvoiceIds.length > 0 && customerInvoices) {
       const totalOutstanding = customerInvoices
@@ -509,20 +585,38 @@ export default function Accounts() {
     }
   }, [selectedInvoiceIds, customerInvoices]);
 
+  // Auto-fill amount when supplier bills are selected
+  useEffect(() => {
+    if (selectedSupplierBillIds.length > 0 && supplierBills) {
+      const totalOutstanding = supplierBills
+        .filter(bill => selectedSupplierBillIds.includes(bill.id))
+        .reduce((sum, bill) => sum + ((bill.net_amount || 0) - (bill.paid_amount || 0)), 0);
+      setAmount(totalOutstanding.toFixed(2));
+    }
+  }, [selectedSupplierBillIds, supplierBills]);
+
   // Create voucher mutation with receipt generation
   const createVoucher = useMutation({
     mutationFn: async (voucherData: any) => {
       const invoicesToProcess = selectedInvoiceIds.length > 0 ? selectedInvoiceIds : (selectedInvoiceId ? [selectedInvoiceId] : []);
+      const billsToProcess = selectedSupplierBillIds;
       
       // Allow opening balance payments without invoice - just need a customer selected
       if (voucherType === "receipt" && !referenceId) {
         throw new Error("Please select a customer to record payment");
       }
 
+      // For supplier payments, need supplier selected
+      if (voucherType === "payment" && referenceType === "supplier" && !referenceId) {
+        throw new Error("Please select a supplier to record payment");
+      }
+
       const paymentAmount = parseFloat(amount);
       let remainingAmount = paymentAmount;
       const processedInvoices: any[] = [];
+      const processedBills: any[] = [];
       const isOpeningBalancePayment = voucherType === "receipt" && invoicesToProcess.length === 0;
+      const isSupplierOpeningBalancePayment = voucherType === "payment" && referenceType === "supplier" && billsToProcess.length === 0;
 
       // For customer payments with invoices, update the sales invoices (distribute payment across selected invoices)
       if (voucherType === "receipt" && invoicesToProcess.length > 0) {
@@ -567,6 +661,49 @@ export default function Accounts() {
         }
       }
 
+      // For supplier payments with bills, update the purchase bills (distribute payment across selected bills)
+      if (voucherType === "payment" && referenceType === "supplier" && billsToProcess.length > 0) {
+        remainingAmount = paymentAmount; // Reset for supplier bills
+        
+        for (const billId of billsToProcess) {
+          if (remainingAmount <= 0) break;
+          
+          const bill = supplierBills?.find(b => b.id === billId);
+          if (!bill) continue;
+
+          const currentPaid = bill.paid_amount || 0;
+          const outstanding = (bill.net_amount || 0) - currentPaid;
+          const amountToApply = Math.min(remainingAmount, outstanding);
+          
+          if (amountToApply <= 0) continue;
+
+          const newPaidAmount = currentPaid + amountToApply;
+          const newStatus = newPaidAmount >= (bill.net_amount || 0) ? 'completed' : 
+                           newPaidAmount > 0 ? 'partial' : 'unpaid';
+
+          // Update purchase bill
+          const { error: updateError } = await supabase
+            .from('purchase_bills')
+            .update({
+              paid_amount: newPaidAmount,
+              payment_status: newStatus,
+            })
+            .eq('id', billId);
+
+          if (updateError) throw updateError;
+          
+          processedBills.push({
+            bill,
+            amountApplied: amountToApply,
+            newPaidAmount,
+            previousBalance: outstanding,
+            currentBalance: outstanding - amountToApply,
+          });
+          
+          remainingAmount -= amountToApply;
+        }
+      }
+
       // Generate voucher number
       const { data: voucherNumber, error: numberError } = await supabase.rpc(
         "generate_voucher_number",
@@ -574,32 +711,43 @@ export default function Accounts() {
       );
       if (numberError) throw numberError;
 
-      // Build description with invoice numbers and payment details
+      // Build description with invoice/bill numbers and payment details
       const invoiceNumbers = processedInvoices.map(p => p.invoice.sale_number).join(', ');
+      const billNumbers = processedBills.map(p => p.bill.software_bill_no || p.bill.supplier_invoice_no || p.bill.id.slice(0,8)).join(', ');
+      
       let paymentDetails = '';
       if (paymentMethod === 'cheque' && chequeNumber) {
         paymentDetails = ` | Cheque No: ${chequeNumber}`;
         if (chequeDate) {
           paymentDetails += `, Date: ${format(chequeDate, 'dd/MM/yyyy')}`;
         }
-      } else if (paymentMethod === 'other' && transactionId) {
+      } else if ((paymentMethod === 'other' || paymentMethod === 'bank_transfer' || paymentMethod === 'upi') && transactionId) {
         paymentDetails = ` | Transaction ID: ${transactionId}`;
       }
       
-      // For opening balance payments, use different description
+      // Build final description based on payment type
       let finalDescription: string;
       if (isOpeningBalancePayment) {
         const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
         finalDescription = description 
           ? `${description}${paymentDetails}` 
           : `Opening Balance Payment from ${customerName}${paymentDetails}`;
+      } else if (isSupplierOpeningBalancePayment) {
+        const supplierName = suppliersWithBalance?.find(s => s.id === referenceId)?.supplier_name || 'Supplier';
+        finalDescription = description 
+          ? `${description}${paymentDetails}` 
+          : `Opening Balance Payment to ${supplierName}${paymentDetails}`;
+      } else if (processedBills.length > 0) {
+        finalDescription = description 
+          ? `${description}${paymentDetails}` 
+          : `Payment for Bills: ${billNumbers}${paymentDetails}`;
       } else {
         finalDescription = description 
           ? `${description}${paymentDetails}` 
           : `Payment for: ${invoiceNumbers}${paymentDetails}`;
       }
 
-      // Create voucher entry - use first invoice as reference_id, or customer_id for opening balance
+      // Create voucher entry
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher_entries")
         .insert({
@@ -607,8 +755,11 @@ export default function Accounts() {
           voucher_number: voucherNumber,
           voucher_type: voucherType,
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: isOpeningBalancePayment ? "customer" : referenceType,
-          reference_id: isOpeningBalancePayment ? referenceId : (invoicesToProcess[0] || referenceId || null),
+          reference_type: (isOpeningBalancePayment || isSupplierOpeningBalancePayment) ? referenceType : referenceType,
+          reference_id: isOpeningBalancePayment ? referenceId : 
+                        isSupplierOpeningBalancePayment ? referenceId :
+                        processedBills.length > 0 ? referenceId :
+                        (invoicesToProcess[0] || referenceId || null),
           description: finalDescription,
           total_amount: paymentAmount,
         })
@@ -617,7 +768,7 @@ export default function Accounts() {
 
       if (voucherError) throw voucherError;
 
-      return { voucher, voucherNumber, processedInvoices, isOpeningBalancePayment, paymentMethod };
+      return { voucher, voucherNumber, processedInvoices, processedBills, isOpeningBalancePayment, isSupplierOpeningBalancePayment, paymentMethod };
     },
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
@@ -626,6 +777,10 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
       
       // Generate receipt for customer payments
       if (voucherType === "receipt") {
@@ -759,10 +914,14 @@ export default function Accounts() {
     setReferenceId("");
     setSelectedInvoiceId("");
     setSelectedInvoiceIds([]);
+    setSelectedSupplierBillIds([]);
     setDescription("");
     setAmount("");
     setAccountId("");
     setPaymentMethod("cash");
+    setChequeNumber("");
+    setChequeDate(undefined);
+    setTransactionId("");
     // Refetch next receipt number
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
@@ -1405,7 +1564,7 @@ export default function Accounts() {
             <Card>
               <CardHeader>
                 <CardTitle>Supplier Payment (PAY)</CardTitle>
-                <CardDescription>Record payment made to suppliers</CardDescription>
+                <CardDescription>Record payment made to suppliers - select bills or pay against opening balance</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -1438,31 +1597,223 @@ export default function Accounts() {
 
                     <div className="space-y-2">
                       <Label>Supplier</Label>
-                      <Select value={referenceId || undefined} onValueChange={(val) => {
-                        setReferenceId(val);
-                        setReferenceType("supplier");
-                        setVoucherType("payment");
-                      }}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select supplier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers?.map((supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
-                              {supplier.supplier_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Popover open={supplierSearchOpen} onOpenChange={setSupplierSearchOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={supplierSearchOpen}
+                            className="w-full justify-between"
+                          >
+                            {referenceId && referenceType === "supplier"
+                              ? (() => {
+                                  const supplier = suppliersWithBalance?.find(s => s.id === referenceId) || 
+                                                   suppliers?.find(s => s.id === referenceId);
+                                  return supplier ? (
+                                    <span className="flex items-center gap-2">
+                                      {supplier.supplier_name}
+                                      {supplier.outstandingBalance && (
+                                        <Badge variant="destructive" className="ml-2">
+                                          ₹{supplier.outstandingBalance.toFixed(2)}
+                                        </Badge>
+                                      )}
+                                    </span>
+                                  ) : "Select supplier";
+                                })()
+                              : "Select supplier..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[400px] p-0">
+                          <Command>
+                            <CommandInput 
+                              placeholder="Search suppliers..." 
+                              value={supplierSearchTerm}
+                              onValueChange={setSupplierSearchTerm}
+                            />
+                            <CommandList>
+                              <CommandEmpty>No supplier found.</CommandEmpty>
+                              <CommandGroup heading="Suppliers with Balance">
+                                {suppliersWithBalance?.filter(s => 
+                                  s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())
+                                ).map((supplier) => (
+                                  <CommandItem
+                                    key={supplier.id}
+                                    value={supplier.supplier_name}
+                                    onSelect={() => {
+                                      setReferenceId(supplier.id);
+                                      setReferenceType("supplier");
+                                      setVoucherType("payment");
+                                      setSelectedSupplierBillIds([]);
+                                      setAmount("");
+                                      setSupplierSearchOpen(false);
+                                      setSupplierSearchTerm("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        referenceId === supplier.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <span className="flex-1">{supplier.supplier_name}</span>
+                                    <Badge variant="destructive" className="ml-2">
+                                      ₹{supplier.outstandingBalance.toFixed(2)}
+                                    </Badge>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                              <CommandGroup heading="All Suppliers">
+                                {suppliers?.filter(s => 
+                                  s.supplier_name.toLowerCase().includes(supplierSearchTerm.toLowerCase()) &&
+                                  !suppliersWithBalance?.find(sw => sw.id === s.id)
+                                ).map((supplier) => (
+                                  <CommandItem
+                                    key={supplier.id}
+                                    value={supplier.supplier_name}
+                                    onSelect={() => {
+                                      setReferenceId(supplier.id);
+                                      setReferenceType("supplier");
+                                      setVoucherType("payment");
+                                      setSelectedSupplierBillIds([]);
+                                      setAmount("");
+                                      setSupplierSearchOpen(false);
+                                      setSupplierSearchTerm("");
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        referenceId === supplier.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <span className="flex-1">{supplier.supplier_name}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                       {referenceId && referenceType === "supplier" && supplierBalance !== undefined && (
                         <div className="mt-2 p-3 bg-gradient-to-r from-rose-50 to-rose-100 dark:from-rose-950 dark:to-rose-900 border border-rose-200 dark:border-rose-800 rounded-md">
                           <p className="text-sm font-medium text-rose-900 dark:text-rose-100">
-                            Outstanding Balance: <span className="text-lg font-bold">₹{supplierBalance.toFixed(2)}</span>
+                            Total Outstanding: <span className="text-lg font-bold">₹{supplierBalance.toFixed(2)}</span>
                           </p>
                         </div>
                       )}
                     </div>
+                  </div>
 
+                  {/* Bill Selection Section */}
+                  {referenceId && referenceType === "supplier" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-base font-semibold">Select Bills (Optional)</Label>
+                        {selectedSupplierBillIds.length > 0 && (
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedSupplierBillIds([]);
+                              setAmount("");
+                            }}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Clear Selection
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {supplierBills && supplierBills.length > 0 ? (
+                        <div className="border rounded-lg max-h-[250px] overflow-y-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-muted/50">
+                                <TableHead className="w-[50px]">Select</TableHead>
+                                <TableHead>Bill No</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead className="text-right">Bill Amt</TableHead>
+                                <TableHead className="text-right">Paid</TableHead>
+                                <TableHead className="text-right">Outstanding</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {supplierBills.map((bill) => {
+                                const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
+                                const isSelected = selectedSupplierBillIds.includes(bill.id);
+                                return (
+                                  <TableRow 
+                                    key={bill.id} 
+                                    className={cn(
+                                      "cursor-pointer transition-colors",
+                                      isSelected && "bg-primary/5"
+                                    )}
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setSelectedSupplierBillIds(prev => prev.filter(id => id !== bill.id));
+                                      } else {
+                                        setSelectedSupplierBillIds(prev => [...prev, bill.id]);
+                                      }
+                                    }}
+                                  >
+                                    <TableCell>
+                                      <Checkbox 
+                                        checked={isSelected}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            setSelectedSupplierBillIds(prev => [...prev, bill.id]);
+                                          } else {
+                                            setSelectedSupplierBillIds(prev => prev.filter(id => id !== bill.id));
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell className="font-medium">
+                                      {bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}
+                                    </TableCell>
+                                    <TableCell>{format(new Date(bill.bill_date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell className="text-right">₹{(bill.net_amount || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-muted-foreground">₹{(bill.paid_amount || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">
+                                      ₹{outstanding.toFixed(2)}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      ) : (
+                        <div className="border rounded-lg p-4 text-center text-muted-foreground bg-muted/30">
+                          No outstanding bills found for this supplier
+                        </div>
+                      )}
+
+                      {/* Selection Summary */}
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="text-sm">
+                          {selectedSupplierBillIds.length > 0 ? (
+                            <span className="font-medium">
+                              {selectedSupplierBillIds.length} bill(s) selected • 
+                              Total: <span className="text-primary font-bold">
+                                ₹{supplierBills?.filter(b => selectedSupplierBillIds.includes(b.id))
+                                  .reduce((sum, b) => sum + ((b.net_amount || 0) - (b.paid_amount || 0)), 0).toFixed(2)}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground flex items-center gap-1">
+                              <AlertCircle className="h-4 w-4" />
+                              No bills selected = Opening Balance / Advance payment
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Payment Method</Label>
                       <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -1479,7 +1830,7 @@ export default function Accounts() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Amount</Label>
+                      <Label>Amount {selectedSupplierBillIds.length > 0 && <span className="text-xs text-muted-foreground">(Auto-filled)</span>}</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -1539,10 +1890,10 @@ export default function Accounts() {
                       </div>
                     )}
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>Description</Label>
                       <Textarea
-                        placeholder="Payment description"
+                        placeholder="Payment description (optional)"
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
                       />
@@ -1550,9 +1901,9 @@ export default function Accounts() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button type="submit" className="w-full md:w-auto">
+                    <Button type="submit" className="w-full md:w-auto" disabled={createVoucher.isPending}>
                       <Plus className="mr-2 h-4 w-4" />
-                      Record Payment
+                      {createVoucher.isPending ? "Recording..." : "Record Payment"}
                     </Button>
                     {paymentMethod === "cheque" && parseFloat(amount) > 0 && referenceId && (
                       <Button
