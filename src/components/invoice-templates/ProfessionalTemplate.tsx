@@ -101,6 +101,10 @@ interface ProfessionalTemplateProps {
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
+  // Points props
+  pointsRedeemed?: number;
+  pointsRedemptionValue?: number;
+  pointsBalance?: number;
 }
 
 export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
@@ -167,6 +171,9 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   showProductColor = true,
   showProductBrand = false,
   showProductStyle = false,
+  pointsRedeemed = 0,
+  pointsRedemptionValue = 0,
+  pointsBalance = 0,
 }) => {
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -671,6 +678,12 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
               <span>- {formatCurrency(discount)}</span>
             </div>
           )}
+          {pointsRedeemed > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc', color: '#d97706' }}>
+              <span>Points Redeemed ({pointsRedeemed} pts):</span>
+              <span>- {formatCurrency(pointsRedemptionValue)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
             <span>Taxable Amount:</span>
             <span>{formatCurrency(taxableAmount)}</span>
@@ -741,6 +754,27 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       }}>
         <strong>Amount in Words:</strong> {numberToWords(grandTotal)} Only
       </div>
+      
+      {/* Points Balance Info */}
+      {(pointsRedeemed > 0 || pointsBalance > 0) && (
+        <div style={{ 
+          border: '1px solid #d97706', 
+          padding: '4px 6px', 
+          marginBottom: '6px',
+          fontSize: fontSizes.small,
+          borderRadius: '3px',
+          background: '#fef3c7',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <span>🎁 <strong>Loyalty Points</strong></span>
+          <span>
+            {pointsRedeemed > 0 && <span style={{ marginRight: '10px' }}>Redeemed: {pointsRedeemed} pts</span>}
+            <strong>Balance: {pointsBalance} pts</strong>
+          </span>
+        </div>
+      )}
 
       {/* Bank Details & QR Code */}
       {(showBankDetails || qrCodeUrl) && (
