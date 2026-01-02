@@ -1749,6 +1749,12 @@ export default function Accounts() {
                               {supplierBills.map((bill) => {
                                 const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
                                 const isSelected = selectedSupplierBillIds.includes(bill.id);
+
+                                const billDate = bill.bill_date ? new Date(bill.bill_date) : null;
+                                const billDateText = billDate && !Number.isNaN(billDate.getTime())
+                                  ? format(billDate, "dd/MM/yyyy")
+                                  : "-";
+
                                 return (
                                   <TableRow 
                                     key={bill.id} 
@@ -1768,7 +1774,7 @@ export default function Accounts() {
                                       <Checkbox 
                                         checked={isSelected}
                                         onCheckedChange={(checked) => {
-                                          if (checked) {
+                                          if (checked === true) {
                                             setSelectedSupplierBillIds(prev => [...prev, bill.id]);
                                           } else {
                                             setSelectedSupplierBillIds(prev => prev.filter(id => id !== bill.id));
@@ -1779,7 +1785,7 @@ export default function Accounts() {
                                     <TableCell className="font-medium">
                                       {bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}
                                     </TableCell>
-                                    <TableCell>{format(new Date(bill.bill_date), "dd/MM/yyyy")}</TableCell>
+                                    <TableCell>{billDateText}</TableCell>
                                     <TableCell className="text-right">₹{(bill.net_amount || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-right text-muted-foreground">₹{(bill.paid_amount || 0).toFixed(2)}</TableCell>
                                     <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">
