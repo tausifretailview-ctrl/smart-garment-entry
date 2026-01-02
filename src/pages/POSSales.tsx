@@ -1087,6 +1087,7 @@ export default function POSSales() {
       creditApplied,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
+      pointsRedeemedAmount: pointsRedemptionValue,
     };
 
     // Use updateSale if editing existing sale, otherwise create new
@@ -1187,6 +1188,7 @@ export default function POSSales() {
       creditApplied,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
+      pointsRedeemedAmount: pointsRedemptionValue,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -1350,6 +1352,7 @@ export default function POSSales() {
       creditApplied,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
+      pointsRedeemedAmount: pointsRedemptionValue,
     };
 
     const paymentMethodType = paymentData.refundAmount > 0 ? (paymentData.issueCreditNote ? 'credit_note' : 'refund') : 'multiple';

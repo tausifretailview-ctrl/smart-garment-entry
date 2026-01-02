@@ -821,7 +821,7 @@ const POSDashboard = () => {
       return sum + items.reduce((itemSum, item) => itemSum + item.quantity, 0);
     }, 0),
     totalAmount: filteredSales.reduce((sum, sale) => sum + sale.gross_amount, 0),
-    totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount, 0),
+    totalDiscount: filteredSales.reduce((sum, sale) => sum + sale.discount_amount + sale.flat_discount_amount + ((sale as any).points_redeemed_amount || 0), 0),
     completedCount: filteredSales.filter(sale => sale.payment_status === 'completed').length,
     completedAmount: filteredSales.filter(sale => sale.payment_status === 'completed').reduce((sum, sale) => sum + sale.net_amount, 0),
     pendingCount: filteredSales.filter(sale => sale.payment_status === 'pending' || sale.payment_status === 'partial').length,

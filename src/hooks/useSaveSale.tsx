@@ -38,6 +38,7 @@ interface SaleData {
   refundAmount?: number;
   salesman?: string | null;
   notes?: string | null;
+  pointsRedeemedAmount?: number;
 }
 
 export const useSaveSale = () => {
@@ -276,6 +277,7 @@ export const useSaveSale = () => {
           card_amount: cardAmt,
           upi_amount: upiAmt,
           refund_amount: refundAmt,
+          points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           created_by: user.id,
@@ -480,6 +482,7 @@ export const useSaveSale = () => {
           card_amount: cardAmt,
           upi_amount: upiAmt,
           refund_amount: refundAmt,
+          points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           updated_at: new Date().toISOString(),
