@@ -2258,16 +2258,6 @@ export default function POSSales() {
                         </span>
                       </div>
                     )}
-                    {/* Points Display */}
-                    {isPointsEnabled && customerId && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/30">
-                        <Coins className="h-3 w-3" />
-                        <span>{customerPointsData?.balance || 0} pts</span>
-                        {items.length > 0 && (
-                          <span className="text-green-600">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <Input
