@@ -419,7 +419,7 @@ export default function SalesInvoice() {
       
       const { data, error } = await supabase
         .from('sales')
-        .select('sale_number, customer_name, discount_amount, flat_discount_amount, sale_items(quantity)')
+        .select('sale_number, customer_name, net_amount, sale_items(quantity)')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -431,12 +431,11 @@ export default function SalesInvoice() {
       if (!data) return null;
       
       const totalQty = data.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
-      const totalDiscount = (data.discount_amount || 0) + (data.flat_discount_amount || 0);
       return {
         sale_number: data.sale_number,
         customer_name: data.customer_name,
         total_qty: totalQty,
-        total_discount: totalDiscount,
+        net_amount: data.net_amount || 0,
       };
     },
     enabled: !!currentOrganization?.id,
@@ -1668,8 +1667,8 @@ Thank you for choosing us!`;
               <span className="font-semibold">{lastInvoice.sale_number}</span>
               <span className="text-muted-foreground"> | Qty: </span>
               <span className="font-semibold">{lastInvoice.total_qty}</span>
-              <span className="text-muted-foreground"> | Disc: </span>
-              <span className="font-semibold">₹{lastInvoice.total_discount?.toFixed(2) || '0.00'}</span>
+              <span className="text-muted-foreground"> | Amt: </span>
+              <span className="font-semibold">₹{lastInvoice.net_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}</span>
               <span className="text-muted-foreground"> | </span>
               <span className="font-semibold">{lastInvoice.customer_name}</span>
             </div>
