@@ -1755,7 +1755,9 @@ export default function Accounts() {
                             </TableHeader>
                             <TableBody>
                               {supplierBills.map((bill) => {
-                                const outstanding = (bill.net_amount || 0) - (bill.paid_amount || 0);
+                                const netAmount = Number(bill.net_amount || 0);
+                                const paidAmount = Number(bill.paid_amount || 0);
+                                const outstanding = netAmount - paidAmount;
                                 const isSelected = selectedSupplierBillIds.includes(bill.id);
 
                                 const billDate = bill.bill_date ? new Date(bill.bill_date) : null;
@@ -1794,8 +1796,8 @@ export default function Accounts() {
                                       {bill.software_bill_no || bill.supplier_invoice_no || bill.id.slice(0, 8)}
                                     </TableCell>
                                     <TableCell>{billDateText}</TableCell>
-                                    <TableCell className="text-right">₹{(bill.net_amount || 0).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right text-muted-foreground">₹{(bill.paid_amount || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">₹{netAmount.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-muted-foreground">₹{paidAmount.toFixed(2)}</TableCell>
                                     <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">
                                       ₹{outstanding.toFixed(2)}
                                     </TableCell>
@@ -1819,7 +1821,8 @@ export default function Accounts() {
                               {selectedSupplierBillIds.length} bill(s) selected • 
                               Total: <span className="text-primary font-bold">
                                 ₹{supplierBills?.filter(b => selectedSupplierBillIds.includes(b.id))
-                                  .reduce((sum, b) => sum + ((b.net_amount || 0) - (b.paid_amount || 0)), 0).toFixed(2)}
+                                  .reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0)
+                                  .toFixed(2)}
                               </span>
                             </span>
                           ) : (
