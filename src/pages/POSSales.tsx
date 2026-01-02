@@ -675,7 +675,11 @@ export default function POSSales() {
   useEffect(() => {
     if (customerId && customers) {
       const customer = customers.find((c: any) => c.id === customerId);
-      if (customer && !hasBrandDiscounts) {
+      if (customer && hasBrandDiscounts) {
+        // Customer HAS brand discounts - reset flat discount to avoid double discount
+        setFlatDiscountValue(0);
+        setFlatDiscountMode('percent');
+      } else if (customer && !hasBrandDiscounts) {
         // Customer has NO brand discounts, so apply master discount as flat discount
         if (customer.discount_percent && customer.discount_percent > 0) {
           setFlatDiscountValue(customer.discount_percent);
