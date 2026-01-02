@@ -2407,37 +2407,59 @@ export default function POSSales() {
             );
           })()}
           
-          {/* Customer Points Display & Redeem - Before Salesperson, Horizontal */}
+          {/* Floating Customer Points Window - Appears after customer selection */}
           {isPointsEnabled && customerId && (
-            <div className="flex items-center gap-1">
-              <div className="flex items-center gap-1 px-2 py-1.5 rounded-l text-xs font-semibold bg-amber-500/10 text-amber-600 border border-amber-500/30 h-12">
-                <Coins className="h-3.5 w-3.5" />
-                <span>{customerPointsData?.balance || 0} pts</span>
-                {items.length > 0 && (
-                  <span className="text-green-600">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                )}
-              </div>
-              {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                <div className="flex items-center bg-amber-600 rounded-r px-2 py-1.5 gap-1 h-12">
-                  <Input 
-                    type="number"
-                    className="w-12 h-8 bg-white text-amber-700 text-center text-sm font-semibold" 
-                    value={pointsToRedeem}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
-                      setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                    }}
-                    min={0}
-                    max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
-                    disabled={!customerId}
-                  />
-                  <span className="text-white text-xs font-medium whitespace-nowrap">
-                    Pts (₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)})
-                  </span>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="h-10 px-3 flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-md"
+                >
+                  <Coins className="h-4 w-4" />
+                  <span className="font-semibold">{customerPointsData?.balance || 0} pts</span>
+                  {items.length > 0 && (
+                    <span className="text-amber-100 text-xs">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent 
+                className="w-auto p-0 border-0 shadow-xl z-[100]" 
+                align="start"
+                sideOffset={8}
+              >
+                <div className="flex items-center rounded-lg overflow-hidden">
+                  {/* Points Display Section */}
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-500 text-white">
+                    <Coins className="h-4 w-4" />
+                    <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
+                    {items.length > 0 && (
+                      <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                    )}
+                  </div>
+                  {/* Redeem Section */}
+                  {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                    <div className="flex items-center bg-amber-600 px-3 py-2.5 gap-2">
+                      <Input 
+                        type="number"
+                        className="w-14 h-7 bg-white text-amber-700 text-center text-sm font-semibold rounded border-0" 
+                        value={pointsToRedeem}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
+                          setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
+                        }}
+                        min={0}
+                        max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
+                        disabled={!customerId}
+                      />
+                      <span className="text-white text-sm font-medium whitespace-nowrap">
+                        Pts (₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)})
+                      </span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* Salesperson Search - After Customer Name */}
