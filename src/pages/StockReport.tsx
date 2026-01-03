@@ -91,6 +91,7 @@ export default function StockReport() {
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
   const [includeZeroStock, setIncludeZeroStock] = useState(false);
+  const [oldBarcodeVariantMap, setOldBarcodeVariantMap] = useState<Map<string, string>>(new Map());
   
   // Pagination for All Stock tab
   const [currentPage, setCurrentPage] = useState(1);
@@ -118,12 +119,60 @@ export default function StockReport() {
   }, [currentOrganization?.id]);
 
   // When user starts searching and we haven't loaded zero stock items, load all items
+  // Also search for old barcodes in purchase_items/sale_items
   useEffect(() => {
     if (searchTerm && !includeZeroStock && currentOrganization?.id) {
       setIncludeZeroStock(true);
       fetchStockData(true);
     }
+    
+    // Search for old barcodes in purchase_items/sale_items when searching
+    if (searchTerm && searchTerm.length >= 4 && currentOrganization?.id) {
+      searchOldBarcodes(searchTerm);
+    }
   }, [searchTerm, includeZeroStock, currentOrganization?.id]);
+
+  // Search for variant IDs by barcode in purchase_items and sale_items (for old/changed barcodes)
+  const searchOldBarcodes = async (barcode: string) => {
+    if (!currentOrganization?.id) return;
+    
+    try {
+      // Search in purchase_items
+      const { data: purchaseData } = await supabase
+        .from("purchase_items")
+        .select("sku_id, barcode")
+        .ilike("barcode", `%${barcode}%`)
+        .not("sku_id", "is", null)
+        .limit(50);
+
+      // Search in sale_items
+      const { data: saleData } = await supabase
+        .from("sale_items")
+        .select("variant_id, barcode")
+        .ilike("barcode", `%${barcode}%`)
+        .limit(50);
+
+      const newMap = new Map<string, string>();
+      
+      // Add purchase_items mappings
+      (purchaseData || []).forEach((item: any) => {
+        if (item.sku_id && item.barcode) {
+          newMap.set(item.barcode.toLowerCase(), item.sku_id);
+        }
+      });
+      
+      // Add sale_items mappings
+      (saleData || []).forEach((item: any) => {
+        if (item.variant_id && item.barcode) {
+          newMap.set(item.barcode.toLowerCase(), item.variant_id);
+        }
+      });
+      
+      setOldBarcodeVariantMap(newMap);
+    } catch (error) {
+      console.error("Error searching old barcodes:", error);
+    }
+  };
 
   const fetchSettings = async () => {
     if (!currentOrganization?.id) return;
@@ -476,6 +525,17 @@ export default function StockReport() {
 
   // Filter data based on search term and filters
   const filteredStockItems = useMemo(() => {
+    // Get variant IDs that match old barcodes
+    const variantIdsFromOldBarcodes = new Set<string>();
+    if (searchTerm && searchTerm.length >= 4) {
+      const search = searchTerm.toLowerCase();
+      oldBarcodeVariantMap.forEach((variantId, barcode) => {
+        if (barcode.includes(search)) {
+          variantIdsFromOldBarcodes.add(variantId);
+        }
+      });
+    }
+
     return stockItems.filter(item => {
       // Search filter
       if (searchTerm) {
@@ -487,7 +547,8 @@ export default function StockReport() {
           item.size.toLowerCase().includes(search) ||
           item.barcode.toLowerCase().includes(search) ||
           item.supplier_name.toLowerCase().includes(search) ||
-          item.supplier_invoice_no.toLowerCase().includes(search)
+          item.supplier_invoice_no.toLowerCase().includes(search) ||
+          variantIdsFromOldBarcodes.has(item.id) // Also match by old barcode via variant ID
         );
         if (!matchesSearch) return false;
       }
@@ -511,9 +572,20 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold]);
+  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
 
   const filteredBatchStock = useMemo(() => {
+    // Get variant IDs that match old barcodes
+    const variantIdsFromOldBarcodes = new Set<string>();
+    if (searchTerm && searchTerm.length >= 4) {
+      const search = searchTerm.toLowerCase();
+      oldBarcodeVariantMap.forEach((variantId, barcode) => {
+        if (barcode.includes(search)) {
+          variantIdsFromOldBarcodes.add(variantId);
+        }
+      });
+    }
+
     return batchStock.filter(item => {
       // Search filter
       if (searchTerm) {
@@ -525,7 +597,8 @@ export default function StockReport() {
           item.barcode.toLowerCase().includes(search) ||
           item.bill_number.toLowerCase().includes(search) ||
           item.supplier_name.toLowerCase().includes(search) ||
-          item.supplier_invoice_no.toLowerCase().includes(search)
+          item.supplier_invoice_no.toLowerCase().includes(search) ||
+          variantIdsFromOldBarcodes.has(item.variant_id) // Also match by old barcode via variant ID
         );
         if (!matchesSearch) return false;
       }
@@ -535,9 +608,20 @@ export default function StockReport() {
       
       return true;
     });
-  }, [batchStock, searchTerm, supplierInvoiceFilter]);
+  }, [batchStock, searchTerm, supplierInvoiceFilter, oldBarcodeVariantMap]);
 
   const filteredMovements = useMemo(() => {
+    // Get variant IDs that match old barcodes
+    const variantIdsFromOldBarcodes = new Set<string>();
+    if (searchTerm && searchTerm.length >= 4) {
+      const search = searchTerm.toLowerCase();
+      oldBarcodeVariantMap.forEach((variantId, barcode) => {
+        if (barcode.includes(search)) {
+          variantIdsFromOldBarcodes.add(variantId);
+        }
+      });
+    }
+
     return movements.filter(item => {
       if (!searchTerm) return true;
       const search = searchTerm.toLowerCase();
@@ -545,10 +629,11 @@ export default function StockReport() {
         item.product_name.toLowerCase().includes(search) ||
         item.size.toLowerCase().includes(search) ||
         item.movement_type.toLowerCase().includes(search) ||
-        item.notes?.toLowerCase().includes(search)
+        item.notes?.toLowerCase().includes(search) ||
+        variantIdsFromOldBarcodes.has(item.variant_id) // Also match by old barcode via variant ID
       );
     });
-  }, [movements, searchTerm]);
+  }, [movements, searchTerm, oldBarcodeVariantMap]);
 
   // Size-wise stock report data
   const sizeWiseData = useMemo(() => {
