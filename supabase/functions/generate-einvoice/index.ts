@@ -205,21 +205,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch organization settings
-    const { data: settings, error: settingsError } = await supabase
-      .from('settings')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .maybeSingle();
+    // Fetch organization settings from organizations table
+    const { data: orgData, error: orgError } = await supabase
+      .from('organizations')
+      .select('settings, name')
+      .eq('id', organizationId)
+      .single();
 
-    if (settingsError) {
-      console.log('Settings fetch warning:', settingsError.message);
+    if (orgError) {
+      console.error('Organization fetch error:', orgError.message);
+      throw new Error(`Failed to fetch organization: ${orgError.message}`);
     }
 
+    const orgSettings = orgData?.settings as Record<string, any> || {};
+    console.log('Organization settings loaded:', Object.keys(orgSettings));
+
     // Get seller GSTIN from organization settings
-    const sellerGstin = settings?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
+    const sellerGstin = orgSettings?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
     if (!sellerGstin) {
-      throw new Error('Seller GSTIN not configured in organization settings');
+      throw new Error('Seller GSTIN not configured. Please add GST Number in Settings → Business Details');
     }
 
     // Get buyer GSTIN
@@ -338,15 +342,15 @@ Deno.serve(async (req) => {
       },
       SellerDtls: {
         Gstin: sellerGstin,
-        LglNm: settings?.business_name || 'Business Name',
-        TrdNm: settings?.business_name || 'Business Name',
-        Addr1: settings?.address?.substring(0, 100) || 'Address Line 1',
+        LglNm: orgSettings?.business_name || orgData?.name || 'Business Name',
+        TrdNm: orgSettings?.business_name || orgData?.name || 'Business Name',
+        Addr1: (orgSettings?.address as string)?.substring(0, 100) || 'Address Line 1',
         Addr2: '',
-        Loc: settings?.address?.split(',').pop()?.trim() || 'City',
-        Pin: parseInt(settings?.address?.match(/\d{6}/)?.[0] || '560001'),
+        Loc: (orgSettings?.address as string)?.split(',').pop()?.trim() || 'City',
+        Pin: parseInt((orgSettings?.address as string)?.match(/\d{6}/)?.[0] || '560001'),
         Stcd: sellerStateCode,
-        Ph: settings?.mobile_number || '',
-        Em: settings?.email_id || '',
+        Ph: orgSettings?.mobile_number || '',
+        Em: orgSettings?.email_id || '',
       },
       BuyerDtls: {
         Gstin: buyerGstin,
