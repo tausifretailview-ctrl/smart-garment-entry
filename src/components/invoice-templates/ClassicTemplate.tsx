@@ -11,6 +11,7 @@ interface ClassicTemplateProps {
   invoiceDate: Date;
   customerName: string;
   customerMobile?: string;
+  customerGSTIN?: string;
   salesman?: string;
   notes?: string;
   items: Array<{
@@ -83,6 +84,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   invoiceDate,
   customerName,
   customerMobile,
+  customerGSTIN,
   salesman,
   notes,
   items,
@@ -280,7 +282,8 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
             <h3 style={{ margin: '0 0 10px 0', fontSize: isA4 ? '12pt' : '10pt', color: colors.primary }}>Bill To:</h3>
             <p style={{ margin: 0 }}>
               <strong>{customerName}</strong><br />
-              {customerMobile && `Phone: ${customerMobile}`}
+              {customerMobile && <>Phone: {customerMobile}<br /></>}
+              {customerGSTIN && <><strong>GSTIN:</strong> {customerGSTIN}</>}
             </p>
           </div>
           {salesman && (
