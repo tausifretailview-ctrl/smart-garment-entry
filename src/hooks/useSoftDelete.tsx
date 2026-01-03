@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProductProtection } from "@/hooks/useProductProtection";
 
 export type SoftDeleteEntity = 
   | "customers"
@@ -31,6 +32,7 @@ export interface StockDependency {
 export function useSoftDelete() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
   const softDelete = async (entity: SoftDeleteEntity, id: string) => {
     if (!user?.id) {
@@ -196,6 +198,19 @@ export function useSoftDelete() {
     }
 
     try {
+      // For products, check if it has transactions before allowing hard delete
+      if (entity === "products") {
+        const { hasTransactions, usedIn } = await checkProductHasTransactions(id);
+        if (hasTransactions) {
+          toast({
+            title: "Cannot Delete Product",
+            description: `This product is used in ${usedIn.join(", ")} and cannot be permanently deleted.`,
+            variant: "destructive",
+          });
+          return false;
+        }
+      }
+
       // For entities with child items, delete children first
       switch (entity) {
         case "purchase_bills":
