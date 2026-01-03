@@ -51,7 +51,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     }
   }, [open]);
 
-  // Search products when typing
+  // Search products when typing - includes barcode search
   const searchProducts = useCallback(async (query: string) => {
     if (!currentOrganization?.id || query.length < 1) {
       setProducts([]);
@@ -60,17 +60,60 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
     setProductsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, product_name, brand, color")
+      // First try to find by barcode in product_variants
+      const { data: variantData, error: variantError } = await supabase
+        .from("product_variants")
+        .select(`
+          product_id,
+          products!inner(id, product_name, brand, color)
+        `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`)
+        .ilike("barcode", `%${query}%`)
+        .limit(50);
+
+      if (variantError) throw variantError;
+
+      // Extract unique products from barcode search
+      const barcodeProducts = new Map<string, Product>();
+      (variantData || []).forEach((v: any) => {
+        if (v.products && !barcodeProducts.has(v.products.id)) {
+          barcodeProducts.set(v.products.id, {
+            id: v.products.id,
+            product_name: v.products.product_name,
+            brand: v.products.brand,
+            color: v.products.color,
+          });
+        }
+      });
+
+      // Also search by product name, brand, style
+      const { data: productData, error: productError } = await supabase
+        .from("products")
+        .select("id, product_name, brand, color, style")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`)
         .order("product_name")
         .limit(50);
 
-      if (error) throw error;
-      setProducts(data || []);
+      if (productError) throw productError;
+
+      // Merge results - barcode matches first, then product matches
+      const allProducts = new Map<string, Product>();
+      barcodeProducts.forEach((p, id) => allProducts.set(id, p));
+      (productData || []).forEach((p: any) => {
+        if (!allProducts.has(p.id)) {
+          allProducts.set(p.id, {
+            id: p.id,
+            product_name: p.product_name,
+            brand: p.brand,
+            color: p.color,
+          });
+        }
+      });
+
+      setProducts(Array.from(allProducts.values()).slice(0, 50));
     } catch (error) {
       console.error("Error searching products:", error);
     } finally {
@@ -238,7 +281,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start">
               <Command shouldFilter={false}>
                 <CommandInput 
-                  placeholder="Type product name or brand..." 
+                  placeholder="Search by barcode, product name, brand, style..." 
                   value={productSearch}
                   onValueChange={handleProductSearchChange}
                   className="h-8 text-xs"
