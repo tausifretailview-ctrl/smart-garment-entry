@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
@@ -19,6 +19,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
+import { EInvoicePrint } from "@/components/EInvoicePrint";
 import { useReactToPrint } from "react-to-print";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Label } from "@/components/ui/label";
@@ -129,6 +130,9 @@ export default function SalesInvoiceDashboard() {
   
   // E-Invoice state
   const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
+  const [isDownloadingEInvoice, setIsDownloadingEInvoice] = useState<string | null>(null);
+  const [eInvoiceToPrint, setEInvoiceToPrint] = useState<any>(null);
+  const eInvoicePrintRef = useRef<HTMLDivElement>(null);
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -997,6 +1001,70 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  // E-Invoice PDF Download handler
+  const handleDownloadEInvoicePDF = async (invoice: any) => {
+    if (!invoice.irn) {
+      toast({
+        title: "E-Invoice Not Generated",
+        description: "Please generate e-Invoice first before downloading PDF.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsDownloadingEInvoice(invoice.id);
+    setEInvoiceToPrint(invoice);
+
+    // Wait for the component to render
+    setTimeout(async () => {
+      try {
+        if (!eInvoicePrintRef.current) {
+          throw new Error("Print component not ready");
+        }
+
+        const canvas = await html2canvas(eInvoicePrintRef.current, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4",
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const imgWidth = canvas.width;
+        const imgHeight = canvas.height;
+        const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+        const imgX = (pdfWidth - imgWidth * ratio) / 2;
+        const imgY = 0;
+
+        pdf.addImage(imgData, "PNG", imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+        pdf.save(`e-Invoice_${invoice.sale_number}.pdf`);
+
+        toast({
+          title: "Download Complete",
+          description: `e-Invoice PDF saved as e-Invoice_${invoice.sale_number}.pdf`,
+        });
+      } catch (error: any) {
+        console.error("E-Invoice PDF download error:", error);
+        toast({
+          title: "Download Failed",
+          description: error.message || "Failed to download e-Invoice PDF",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDownloadingEInvoice(null);
+        setEInvoiceToPrint(null);
+      }
+    }, 100);
+  };
+
   // Check if e-invoice is enabled
   const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
 
@@ -1402,22 +1470,41 @@ export default function SalesInvoiceDashboard() {
                               <div className="flex justify-end gap-2">
                                 {/* E-Invoice Button - Only show if enabled and customer has GSTIN */}
                                 {isEInvoiceEnabled && invoice.customers?.gst_number && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handleGenerateEInvoice(invoice)}
-                                    title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"}
-                                    disabled={isGeneratingEInvoice === invoice.id}
-                                    className={invoice.irn ? "text-green-600" : "text-orange-600"}
-                                  >
-                                    {isGeneratingEInvoice === invoice.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : invoice.irn ? (
-                                      <CheckCircle2 className="h-4 w-4" />
-                                    ) : (
-                                      <Zap className="h-4 w-4" />
+                                  <>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon"
+                                      onClick={() => handleGenerateEInvoice(invoice)}
+                                      title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"}
+                                      disabled={isGeneratingEInvoice === invoice.id}
+                                      className={invoice.irn ? "text-green-600" : "text-orange-600"}
+                                    >
+                                      {isGeneratingEInvoice === invoice.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : invoice.irn ? (
+                                        <CheckCircle2 className="h-4 w-4" />
+                                      ) : (
+                                        <Zap className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                    {/* Download E-Invoice PDF - Only show if IRN exists */}
+                                    {invoice.irn && (
+                                      <Button 
+                                        variant="ghost" 
+                                        size="icon"
+                                        onClick={() => handleDownloadEInvoicePDF(invoice)}
+                                        title="Download E-Invoice PDF"
+                                        disabled={isDownloadingEInvoice === invoice.id}
+                                        className="text-teal-600"
+                                      >
+                                        {isDownloadingEInvoice === invoice.id ? (
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <FileDown className="h-4 w-4" />
+                                        )}
+                                      </Button>
                                     )}
-                                  </Button>
+                                  </>
                                 )}
                                 {invoice.payment_status !== 'completed' && (
                                   <Button 
@@ -2060,6 +2147,31 @@ export default function SalesInvoiceDashboard() {
           customerName={selectedCustomerForHistory?.name || ''}
           organizationId={currentOrganization?.id || ''}
         />
+
+        {/* Hidden E-Invoice Print Component for PDF Generation */}
+        {eInvoiceToPrint && (
+          <div style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -9999,
+          }}>
+            <EInvoicePrint
+              ref={eInvoicePrintRef}
+              invoice={eInvoiceToPrint}
+              settings={{
+                company_name: settings?.business_name || currentOrganization?.name || '',
+                company_address: settings?.address || '',
+                company_phone: settings?.mobile_number || '',
+                company_email: settings?.email_id || '',
+                gst_number: settings?.gst_number || '',
+                logo_url: (settings as any)?.logo_url || '',
+              }}
+            />
+          </div>
+        )}
       </div>
   );
 }
