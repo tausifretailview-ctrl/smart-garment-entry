@@ -114,6 +114,7 @@ const specialRights = [
   { id: "export_data", name: "Export Data", description: "Export data to Excel/PDF" },
   { id: "audit_logs", name: "View Audit Logs", description: "Access audit log history" },
   { id: "view_gross_profit", name: "View Gross Profit", description: "View profit margins and cost data on dashboard" },
+  { id: "ai_chatbot", name: "AI Chatbot", description: "Access AI assistant for queries" },
 ];
 
 // Default basic permissions for new users
@@ -188,6 +189,7 @@ const defaultManagerSpecialRights: Record<string, boolean> = {
   export_data: true,
   audit_logs: false,
   view_gross_profit: false,
+  ai_chatbot: true,
 };
 
 interface OrgMember {
