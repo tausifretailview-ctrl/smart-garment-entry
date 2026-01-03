@@ -270,15 +270,32 @@ export default function StockReport() {
           acc[movement.variant_id] = { purchase: 0, purchaseReturn: 0, sales: 0 };
         }
         
-        if (movement.movement_type === 'purchase') {
+        // Handle purchase additions
+        if (movement.movement_type === 'purchase' || movement.movement_type === 'purchase_increase') {
           acc[movement.variant_id].purchase += movement.quantity;
-        } else if (movement.movement_type === 'purchase_return') {
+        } 
+        // Handle purchase reversals/deletions (these are stored as negative values)
+        else if (movement.movement_type === 'purchase_delete' || 
+                 movement.movement_type === 'soft_delete_purchase' ||
+                 movement.movement_type === 'purchase_decrease') {
+          acc[movement.variant_id].purchase += movement.quantity; // Already negative
+        }
+        // Handle purchase returns
+        else if (movement.movement_type === 'purchase_return') {
           // Purchase returns are stored as negative, we want positive display
           acc[movement.variant_id].purchaseReturn += Math.abs(movement.quantity);
-        } else if (movement.movement_type === 'sale') {
+        } 
+        // Handle purchase return deletions (reverses a return)
+        else if (movement.movement_type === 'purchase_return_delete') {
+          acc[movement.variant_id].purchaseReturn -= Math.abs(movement.quantity);
+        }
+        // Handle sales
+        else if (movement.movement_type === 'sale') {
           // Sales are stored as negative in stock_movements
           acc[movement.variant_id].sales += Math.abs(movement.quantity);
-        } else if (movement.movement_type === 'sale_delete') {
+        } 
+        // Handle sale deletions
+        else if (movement.movement_type === 'sale_delete' || movement.movement_type === 'soft_delete_sale') {
           // Sale delete reverses a sale (stored as positive), subtract from sales
           acc[movement.variant_id].sales -= Math.abs(movement.quantity);
         }
@@ -301,8 +318,8 @@ export default function StockReport() {
           size: item.size,
           stock_qty: item.stock_qty,
           opening_qty: item.opening_qty || 0,
-          purchase_qty: movements.purchase,
-          purchase_return_qty: movements.purchaseReturn,
+          purchase_qty: Math.max(0, movements.purchase),
+          purchase_return_qty: Math.max(0, movements.purchaseReturn),
           sales_qty: netSalesQty,
           sale_price: item.sale_price,
           pur_price: item.pur_price || null,
