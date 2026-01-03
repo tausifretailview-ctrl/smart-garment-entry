@@ -2355,6 +2355,7 @@ export type Database = {
           discount_amount: number
           due_date: string | null
           einvoice_error: string | null
+          einvoice_qr_code: string | null
           einvoice_status: string | null
           flat_discount_amount: number
           flat_discount_percent: number
@@ -2380,6 +2381,7 @@ export type Database = {
           salesman: string | null
           shipping_address: string | null
           shipping_instructions: string | null
+          signed_invoice: string | null
           signed_qr_code: string | null
           terms_conditions: string | null
           updated_at: string
@@ -2406,6 +2408,7 @@ export type Database = {
           discount_amount?: number
           due_date?: string | null
           einvoice_error?: string | null
+          einvoice_qr_code?: string | null
           einvoice_status?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
@@ -2431,6 +2434,7 @@ export type Database = {
           salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
+          signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
           updated_at?: string
@@ -2457,6 +2461,7 @@ export type Database = {
           discount_amount?: number
           due_date?: string | null
           einvoice_error?: string | null
+          einvoice_qr_code?: string | null
           einvoice_status?: string | null
           flat_discount_amount?: number
           flat_discount_percent?: number
@@ -2482,6 +2487,7 @@ export type Database = {
           salesman?: string | null
           shipping_address?: string | null
           shipping_instructions?: string | null
+          signed_invoice?: string | null
           signed_qr_code?: string | null
           terms_conditions?: string | null
           updated_at?: string
