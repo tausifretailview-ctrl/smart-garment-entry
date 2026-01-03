@@ -205,26 +205,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch organization settings from organizations table
+    // Fetch organization name
     const { data: orgData, error: orgError } = await supabase
       .from('organizations')
-      .select('settings, name')
+      .select('name')
       .eq('id', organizationId)
       .single();
 
     if (orgError) {
       console.error('Organization fetch error:', orgError.message);
-      throw new Error(`Failed to fetch organization: ${orgError.message}`);
     }
 
-    const orgSettings = orgData?.settings as Record<string, any> || {};
-    console.log('Organization settings loaded:', Object.keys(orgSettings));
+    // Fetch settings from the settings table (where GST number is actually stored)
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('settings')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
 
-    // Get seller GSTIN from organization settings
-    const sellerGstin = orgSettings?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
+    if (settingsError) {
+      console.error('Settings fetch error:', settingsError.message);
+    }
+
+    const saleSettings = (settingsData?.sale_settings as Record<string, any>) || {};
+    const einvoiceSettings = saleSettings?.einvoice_settings || {};
+    
+    console.log('Settings loaded - GST:', settingsData?.gst_number, 'Business:', settingsData?.business_name);
+
+    // Get seller GSTIN with priority:
+    // 1. e-Invoice settings override (for sandbox testing)
+    // 2. Business details GST number from settings table
+    // 3. Environment variable fallback
+    const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
+    
     if (!sellerGstin) {
-      throw new Error('Seller GSTIN not configured. Please add GST Number in Settings → Business Details');
+      // Return validation error with HTTP 200 for better UI handling
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Seller GSTIN not configured. Please add GST Number in Settings → Business Details',
+          code: 'MISSING_SELLER_GSTIN'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+    
+    console.log('Using Seller GSTIN:', sellerGstin);
 
     // Get buyer GSTIN
     const buyerGstin = sale.customers?.gst_number || '';
@@ -342,15 +368,15 @@ Deno.serve(async (req) => {
       },
       SellerDtls: {
         Gstin: sellerGstin,
-        LglNm: orgSettings?.business_name || orgData?.name || 'Business Name',
-        TrdNm: orgSettings?.business_name || orgData?.name || 'Business Name',
-        Addr1: (orgSettings?.address as string)?.substring(0, 100) || 'Address Line 1',
+        LglNm: settingsData?.business_name || orgData?.name || 'Business Name',
+        TrdNm: settingsData?.business_name || orgData?.name || 'Business Name',
+        Addr1: (settingsData?.address as string)?.substring(0, 100) || 'Address Line 1',
         Addr2: '',
-        Loc: (orgSettings?.address as string)?.split(',').pop()?.trim() || 'City',
-        Pin: parseInt((orgSettings?.address as string)?.match(/\d{6}/)?.[0] || '560001'),
+        Loc: (settingsData?.address as string)?.split(',').pop()?.trim() || 'City',
+        Pin: parseInt((settingsData?.address as string)?.match(/\d{6}/)?.[0] || '560001'),
         Stcd: sellerStateCode,
-        Ph: orgSettings?.mobile_number || '',
-        Em: orgSettings?.email_id || '',
+        Ph: settingsData?.mobile_number || '',
+        Em: settingsData?.email_id || '',
       },
       BuyerDtls: {
         Gstin: buyerGstin,

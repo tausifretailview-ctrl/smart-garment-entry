@@ -87,6 +87,7 @@ interface EInvoiceSettings {
   client_secret: string;
   test_mode: boolean;
   auto_generate: boolean;
+  seller_gstin?: string; // Optional override for sandbox testing
 }
 
 interface SaleSettings {
@@ -2435,6 +2436,34 @@ export default function Settings() {
                             </p>
                           </div>
                         </div>
+
+                        {/* Seller GSTIN Override - only show when test mode is enabled */}
+                        {settings.sale_settings?.einvoice_settings?.test_mode && (
+                          <div className="space-y-2">
+                            <Label htmlFor="seller_gstin_override">Seller GSTIN Override (Sandbox)</Label>
+                            <Input
+                              id="seller_gstin_override"
+                              value={settings.sale_settings?.einvoice_settings?.seller_gstin || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      seller_gstin: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="29AAGCB1286Q000"
+                              className="font-mono"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Use WhiteBooks sandbox GSTIN for testing. Leave empty to use your Business Details GSTIN.
+                            </p>
+                          </div>
+                        )}
 
                         <div className="flex items-center space-x-2">
                           <Checkbox
