@@ -2366,10 +2366,10 @@ export default function Settings() {
                 <div className="space-y-4 pt-6 border-t">
                   <div className="flex items-center gap-2">
                     <Shield className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">E-Invoice Settings (NIC GST Portal)</h3>
+                    <h3 className="text-lg font-semibold">E-Invoice Settings (WhiteBooks API)</h3>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Configure credentials for E-Invoice generation via NIC API
+                    Configure WhiteBooks e-Invoice integration for B2B invoices
                   </p>
                   
                   <div className="flex items-center space-x-2">
@@ -2394,121 +2394,18 @@ export default function Settings() {
                         Enable E-Invoice Generation
                       </Label>
                       <p className="text-xs text-muted-foreground">
-                        When enabled, allows generating IRN for B2B invoices
+                        When enabled, allows generating IRN for B2B invoices via WhiteBooks API
                       </p>
                     </div>
                   </div>
 
                   {settings.sale_settings?.einvoice_settings?.enabled && (
                     <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="einvoice_username">API Username</Label>
-                          <Input
-                            id="einvoice_username"
-                            value={settings.sale_settings?.einvoice_settings?.username || ""}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  einvoice_settings: {
-                                    ...settings.sale_settings?.einvoice_settings,
-                                    username: e.target.value,
-                                  } as any,
-                                },
-                              })
-                            }
-                            placeholder="NIC API Username"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="einvoice_password">API Password</Label>
-                          <div className="relative">
-                            <Input
-                              id="einvoice_password"
-                              type={showApiPassword ? "text" : "password"}
-                              value={settings.sale_settings?.einvoice_settings?.password || ""}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      password: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="NIC API Password"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                              onClick={() => setShowApiPassword(!showApiPassword)}
-                            >
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="einvoice_client_id">Client ID</Label>
-                          <Input
-                            id="einvoice_client_id"
-                            value={settings.sale_settings?.einvoice_settings?.client_id || ""}
-                            onChange={(e) =>
-                              setSettings({
-                                ...settings,
-                                sale_settings: {
-                                  ...settings.sale_settings,
-                                  einvoice_settings: {
-                                    ...settings.sale_settings?.einvoice_settings,
-                                    client_id: e.target.value,
-                                  } as any,
-                                },
-                              })
-                            }
-                            placeholder="OAuth Client ID"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="einvoice_client_secret">Client Secret</Label>
-                          <div className="relative">
-                            <Input
-                              id="einvoice_client_secret"
-                              type={showClientSecret ? "text" : "password"}
-                              value={settings.sale_settings?.einvoice_settings?.client_secret || ""}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  sale_settings: {
-                                    ...settings.sale_settings,
-                                    einvoice_settings: {
-                                      ...settings.sale_settings?.einvoice_settings,
-                                      client_secret: e.target.value,
-                                    } as any,
-                                  },
-                                })
-                              }
-                              placeholder="OAuth Client Secret"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                              onClick={() => setShowClientSecret(!showClientSecret)}
-                            >
-                              <Eye className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                          </div>
-                        </div>
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg text-sm">
+                        <p className="font-medium text-green-800 dark:text-green-400 mb-1">✅ API Credentials Configured</p>
+                        <p className="text-green-700 dark:text-green-500 text-xs">
+                          WhiteBooks API credentials are securely stored in Lovable Cloud secrets.
+                        </p>
                       </div>
 
                       <div className="space-y-3 pt-2">
@@ -2534,7 +2431,7 @@ export default function Settings() {
                               Test Mode (Sandbox)
                             </Label>
                             <p className="text-xs text-muted-foreground">
-                              Use NIC Sandbox environment for testing
+                              Use WhiteBooks Sandbox environment for testing
                             </p>
                           </div>
                         </div>
@@ -2570,10 +2467,11 @@ export default function Settings() {
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
                         <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
                         <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
-                          <li>Credentials are stored in database settings</li>
-                          <li>Register at <a href="https://einvoice.gst.gov.in" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">einvoice.gst.gov.in</a> for API access</li>
+                          <li>API credentials are securely stored in Lovable Cloud</li>
+                          <li>Ensure seller GSTIN is configured in Business Settings above</li>
                           <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
                           <li>Test in Sandbox mode before going live</li>
+                          <li>Customer must have a valid GSTIN for B2B e-Invoice</li>
                         </ul>
                       </div>
                     </div>

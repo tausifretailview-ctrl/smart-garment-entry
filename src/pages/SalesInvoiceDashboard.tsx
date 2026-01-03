@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
@@ -127,6 +127,9 @@ export default function SalesInvoiceDashboard() {
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<{id: string | null; name: string} | null>(null);
   
+  // E-Invoice state
+  const [isGeneratingEInvoice, setIsGeneratingEInvoice] = useState<string | null>(null);
+  
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -184,7 +187,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*), customers:customer_id (gst_number)`)
+        .select(`*, sale_items (*), customers:customer_id (gst_number), irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -928,6 +931,75 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
+  // E-Invoice generation handler
+  const handleGenerateEInvoice = async (invoice: any) => {
+    // Check if customer has GST number
+    const customerGstin = invoice.customers?.gst_number;
+    if (!customerGstin) {
+      toast({
+        title: "GSTIN Required",
+        description: "Customer GSTIN is required for e-Invoice generation. This is a B2B invoice requirement.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if e-invoice already generated
+    if (invoice.irn) {
+      toast({
+        title: "Already Generated",
+        description: `E-Invoice already exists. IRN: ${invoice.irn.substring(0, 20)}...`,
+      });
+      return;
+    }
+
+    setIsGeneratingEInvoice(invoice.id);
+
+    try {
+      const testMode = (settings?.sale_settings as any)?.einvoice_settings?.test_mode ?? true;
+      
+      const response = await supabase.functions.invoke('generate-einvoice', {
+        body: {
+          saleId: invoice.id,
+          organizationId: currentOrganization?.id,
+          testMode,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const result = response.data;
+      
+      if (result.success) {
+        toast({
+          title: "E-Invoice Generated",
+          description: `IRN: ${result.irn?.substring(0, 30)}...`,
+        });
+        refetch();
+      } else {
+        toast({
+          title: "E-Invoice Failed",
+          description: result.error || "Failed to generate e-Invoice",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      console.error('E-Invoice generation error:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate e-Invoice",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingEInvoice(null);
+    }
+  };
+
+  // Check if e-invoice is enabled
+  const isEInvoiceEnabled = (settings?.sale_settings as any)?.einvoice_settings?.enabled ?? false;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background p-4 md:p-6">
       
@@ -1328,6 +1400,25 @@ export default function SalesInvoiceDashboard() {
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-2">
+                                {/* E-Invoice Button - Only show if enabled and customer has GSTIN */}
+                                {isEInvoiceEnabled && invoice.customers?.gst_number && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleGenerateEInvoice(invoice)}
+                                    title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"}
+                                    disabled={isGeneratingEInvoice === invoice.id}
+                                    className={invoice.irn ? "text-green-600" : "text-orange-600"}
+                                  >
+                                    {isGeneratingEInvoice === invoice.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : invoice.irn ? (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    ) : (
+                                      <Zap className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
                                 {invoice.payment_status !== 'completed' && (
                                   <Button 
                                     variant="ghost" 
