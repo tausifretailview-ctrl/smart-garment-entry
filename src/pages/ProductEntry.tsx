@@ -4,6 +4,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { useProductProtection } from "@/hooks/useProductProtection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2 } from "lucide-react";
+import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2, Lock } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
@@ -100,6 +101,11 @@ const ProductEntry = () => {
   const [showDeleteSizeGroup, setShowDeleteSizeGroup] = useState(false);
   const [deletingSizeGroup, setDeletingSizeGroup] = useState<SizeGroup | null>(null);
   const [deletingSizeGroupLoading, setDeletingSizeGroupLoading] = useState(false);
+  
+  // Protection for variants with transactions
+  const { checkVariantHasTransactions } = useProductProtection();
+  const [originalBarcodes, setOriginalBarcodes] = useState<Map<string, string>>(new Map());
+  const [protectedVariants, setProtectedVariants] = useState<Set<string>>(new Set());
   
   // Previous values for dropdowns
   const [categories, setCategories] = useState<string[]>([]);
@@ -464,6 +470,27 @@ const ProductEntry = () => {
           }));
           setVariants(loadedVariants);
           setShowVariants(true);
+          
+          // Store original barcodes for protection check
+          const barcodeMap = new Map<string, string>();
+          for (const v of product.product_variants) {
+            if (v.id && v.barcode) {
+              barcodeMap.set(v.id, v.barcode);
+            }
+          }
+          setOriginalBarcodes(barcodeMap);
+          
+          // Check which variants have transactions (protect them)
+          const protectedIds = new Set<string>();
+          for (const v of product.product_variants) {
+            if (v.id) {
+              const { hasTransactions } = await checkVariantHasTransactions(v.id);
+              if (hasTransactions) {
+                protectedIds.add(v.id);
+              }
+            }
+          }
+          setProtectedVariants(protectedIds);
         }
       }
     } catch (error: any) {
@@ -854,6 +881,22 @@ const ProductEntry = () => {
         if (variants.length > 0) {
           const existingVariants = variants.filter(v => v.id);
           const newVariants = variants.filter(v => !v.id);
+
+          // Check for barcode changes on protected variants
+          for (const v of existingVariants) {
+            if (v.id && protectedVariants.has(v.id)) {
+              const originalBarcode = originalBarcodes.get(v.id);
+              if (originalBarcode && originalBarcode !== v.barcode) {
+                toast({
+                  title: "Cannot Change Barcode",
+                  description: `Barcode "${originalBarcode}" is used in transactions and cannot be modified.`,
+                  variant: "destructive",
+                });
+                setLoading(false);
+                return;
+              }
+            }
+          }
 
           // Update existing variants by ID (don't overwrite stock_qty with opening_qty)
           for (const v of existingVariants) {
@@ -1815,18 +1858,27 @@ const ProductEntry = () => {
                               </TableCell>
                             )}
                             <TableCell className="py-1">
-                              <Input
-                                value={variant.barcode}
-                                onChange={(e) =>
-                                  handleVariantChange(
-                                    index,
-                                    "barcode",
-                                    e.target.value
-                                  )
-                                }
-                                className="w-28 h-6 text-xs"
-                                placeholder="Barcode"
-                              />
+                              {variant.id && protectedVariants.has(variant.id) ? (
+                                <div className="flex items-center gap-1 w-28">
+                                  <Lock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                                  <span className="text-xs text-muted-foreground truncate" title={variant.barcode}>
+                                    {variant.barcode || '-'}
+                                  </span>
+                                </div>
+                              ) : (
+                                <Input
+                                  value={variant.barcode}
+                                  onChange={(e) =>
+                                    handleVariantChange(
+                                      index,
+                                      "barcode",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-28 h-6 text-xs"
+                                  placeholder="Barcode"
+                                />
+                              )}
                             </TableCell>
                             {formData.product_type !== 'service' && (
                               <TableCell className="py-1">

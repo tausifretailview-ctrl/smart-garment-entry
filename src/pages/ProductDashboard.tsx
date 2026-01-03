@@ -315,14 +315,15 @@ const ProductDashboard = () => {
     const product = productRows.find(p => p.product_id === productId);
     const productName = product?.product_name || 'Unknown Product';
 
-    // Check all transaction tables in parallel
-    const [saleItems, purchaseItems, saleReturns, purchaseReturns, quotations, saleOrders] = await Promise.all([
+    // Check all transaction tables in parallel (including delivery challans)
+    const [saleItems, purchaseItems, saleReturns, purchaseReturns, quotations, saleOrders, challans] = await Promise.all([
       supabase.from("sale_items").select("id").eq("product_id", productId).limit(1),
       supabase.from("purchase_items").select("id").eq("product_id", productId).limit(1),
       supabase.from("sale_return_items").select("id").eq("product_id", productId).limit(1),
       supabase.from("purchase_return_items").select("id").eq("product_id", productId).limit(1),
       supabase.from("quotation_items").select("id").eq("product_id", productId).limit(1),
       supabase.from("sale_order_items").select("id").eq("product_id", productId).limit(1),
+      supabase.from("delivery_challan_items").select("id").eq("product_id", productId).limit(1),
     ]);
 
     const hasTransactions = 
@@ -331,7 +332,8 @@ const ProductDashboard = () => {
       (saleReturns.data?.length ?? 0) > 0 ||
       (purchaseReturns.data?.length ?? 0) > 0 ||
       (quotations.data?.length ?? 0) > 0 ||
-      (saleOrders.data?.length ?? 0) > 0;
+      (saleOrders.data?.length ?? 0) > 0 ||
+      (challans.data?.length ?? 0) > 0;
 
     return { hasTransactions, productName };
   };
