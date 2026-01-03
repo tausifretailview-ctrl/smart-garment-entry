@@ -23,6 +23,7 @@ interface InvoicePrintProps {
   customerName: string;
   customerAddress: string;
   customerMobile: string;
+  customerGSTIN?: string;
   items: InvoiceItem[];
   subTotal: number;
   discount: number;
@@ -57,6 +58,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
       customerName,
       customerAddress,
       customerMobile,
+      customerGSTIN,
       items,
       subTotal,
       discount,
@@ -203,12 +205,12 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             <div className="customer-details">
               <p><strong>NAME :</strong> {customerName}</p>
               <p><strong>MOB NO :</strong> {customerMobile}</p>
+              {customerGSTIN && <p><strong>GSTIN :</strong> {customerGSTIN}</p>}
             </div>
           </div>
 
           {/* Right Section */}
           <div className="bill-details">
-            {gstin && <p><strong>GSTIN:</strong></p>}
             <p><strong>BILL NO :</strong> {billNo}</p>
             <p><strong>DATE :</strong> {format(date, 'dd-MM-yyyy')}</p>
             <p><strong>TIME :</strong> {format(date, 'hh:mm:ss a')}</p>

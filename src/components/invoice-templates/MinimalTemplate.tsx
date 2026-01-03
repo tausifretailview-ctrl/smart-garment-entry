@@ -11,6 +11,7 @@ interface MinimalTemplateProps {
   invoiceDate: Date;
   customerName: string;
   customerMobile?: string;
+  customerGSTIN?: string;
   salesman?: string;
   notes?: string;
   items: Array<{
@@ -79,6 +80,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   invoiceDate,
   customerName,
   customerMobile,
+  customerGSTIN,
   salesman,
   notes,
   items,
@@ -245,6 +247,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
         <div style={{ fontSize: '10pt' }}>
           <strong>{customerName}</strong><br />
           {customerMobile && <>Phone: {customerMobile}<br /></>}
+          {customerGSTIN && <>GSTIN: {customerGSTIN}<br /></>}
           {salesman && <>Salesman: {salesman}</>}
         </div>
       </div>

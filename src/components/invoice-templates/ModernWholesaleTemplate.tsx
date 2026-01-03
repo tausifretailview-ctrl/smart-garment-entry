@@ -301,10 +301,10 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151" }}>
               <div style={{ fontWeight: "700", color: colors.primary, fontSize: "7pt" }}>BILL TO:</div>
               <div style={{ fontWeight: "700", fontSize: "11pt" }}>{customerName}</div>
-              <div>{customerAddress}</div>
+              {customerAddress && <div>{customerAddress}</div>}
               {customerGSTIN && (
-                <div>
-                  <strong>GSTIN: {customerGSTIN}</strong>
+                <div style={{ marginTop: "2px", fontWeight: "600" }}>
+                  GSTIN: {customerGSTIN}
                 </div>
               )}
             </div>
