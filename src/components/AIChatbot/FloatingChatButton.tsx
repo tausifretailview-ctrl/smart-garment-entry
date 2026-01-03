@@ -3,9 +3,16 @@ import { Button } from "@/components/ui/button";
 import { useChat } from "@/contexts/ChatContext";
 import { ChatDialog } from "./ChatDialog";
 import { cn } from "@/lib/utils";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 
 export const FloatingChatButton = () => {
   const { isOpen, setIsOpen } = useChat();
+  const { hasSpecialPermission, loading } = useUserPermissions();
+
+  // Don't show chatbot if user doesn't have permission (admins always have access)
+  if (loading || !hasSpecialPermission("ai_chatbot")) {
+    return null;
+  }
 
   return (
     <>
