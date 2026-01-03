@@ -81,13 +81,15 @@ interface PurchaseSettings {
 
 interface EInvoiceSettings {
   enabled: boolean;
-  username: string;
-  password: string;
-  client_id: string;
-  client_secret: string;
   test_mode: boolean;
   auto_generate: boolean;
   seller_gstin?: string; // Optional override for sandbox testing
+  // API Credentials (per-organization)
+  api_email?: string;      // User Email for API calls
+  api_username?: string;   // Username / User ID
+  api_password?: string;   // Password
+  api_client_id?: string;  // Client ID
+  api_client_secret?: string; // Client Secret
 }
 
 interface SaleSettings {
@@ -2402,11 +2404,126 @@ export default function Settings() {
 
                   {settings.sale_settings?.einvoice_settings?.enabled && (
                     <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg text-sm">
-                        <p className="font-medium text-green-800 dark:text-green-400 mb-1">✅ API Credentials Configured</p>
-                        <p className="text-green-700 dark:text-green-500 text-xs">
-                          WhiteBooks API credentials are securely stored in Lovable Cloud secrets.
+                      {/* WhiteBooks API Credentials Section */}
+                      <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+                        <h4 className="font-medium flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          WhiteBooks API Credentials
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Enter your WhiteBooks API credentials. These are stored securely per organization.
                         </p>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="api_email">API Email</Label>
+                            <Input
+                              id="api_email"
+                              type="email"
+                              value={settings.sale_settings?.einvoice_settings?.api_email || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      api_email: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="user@whitebooks.in"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="api_username">Username / User ID</Label>
+                            <Input
+                              id="api_username"
+                              value={settings.sale_settings?.einvoice_settings?.api_username || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      api_username: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="Enter username"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="api_password">Password</Label>
+                            <Input
+                              id="api_password"
+                              type="password"
+                              value={settings.sale_settings?.einvoice_settings?.api_password || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      api_password: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="••••••••"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <Label htmlFor="api_client_id">Client ID</Label>
+                            <Input
+                              id="api_client_id"
+                              value={settings.sale_settings?.einvoice_settings?.api_client_id || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      api_client_id: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="Enter Client ID"
+                            />
+                          </div>
+                          
+                          <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="api_client_secret">Client Secret</Label>
+                            <Input
+                              id="api_client_secret"
+                              type="password"
+                              value={settings.sale_settings?.einvoice_settings?.api_client_secret || ''}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  sale_settings: {
+                                    ...settings.sale_settings,
+                                    einvoice_settings: {
+                                      ...settings.sale_settings?.einvoice_settings,
+                                      api_client_secret: e.target.value,
+                                    } as any,
+                                  },
+                                })
+                              }
+                              placeholder="••••••••••••••••"
+                              className="font-mono"
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-3 pt-2">
@@ -2496,7 +2613,7 @@ export default function Settings() {
                       <div className="mt-4 p-3 bg-muted/50 rounded-lg text-sm">
                         <p className="font-medium text-muted-foreground mb-1">⚠️ Important Notes:</p>
                         <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
-                          <li>API credentials are securely stored in Lovable Cloud</li>
+                          <li>API credentials are stored securely per organization</li>
                           <li>Ensure seller GSTIN is configured in Business Settings above</li>
                           <li>E-Invoice is mandatory for turnover {">"} ₹5 Crore</li>
                           <li>Test in Sandbox mode before going live</li>

@@ -165,16 +165,6 @@ Deno.serve(async (req) => {
 
     console.log(`Generating e-Invoice for sale: ${saleId}, org: ${organizationId}, testMode: ${testMode}`);
 
-    // Get WhiteBooks credentials from environment
-    const clientId = Deno.env.get('WHITEBOOKS_CLIENT_ID');
-    const clientSecret = Deno.env.get('WHITEBOOKS_CLIENT_SECRET');
-    const username = Deno.env.get('WHITEBOOKS_USERNAME');
-    const password = Deno.env.get('WHITEBOOKS_PASSWORD');
-
-    if (!clientId || !clientSecret || !username || !password) {
-      throw new Error('WhiteBooks API credentials not configured. Please add WHITEBOOKS_CLIENT_ID, WHITEBOOKS_CLIENT_SECRET, WHITEBOOKS_USERNAME, WHITEBOOKS_PASSWORD secrets.');
-    }
-
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -216,7 +206,7 @@ Deno.serve(async (req) => {
       console.error('Organization fetch error:', orgError.message);
     }
 
-    // Fetch settings from the settings table (where GST number is actually stored)
+    // Fetch settings from the settings table (where GST number and API credentials are stored)
     const { data: settingsData, error: settingsError } = await supabase
       .from('settings')
       .select('*')
@@ -232,6 +222,59 @@ Deno.serve(async (req) => {
     
     console.log('Settings loaded - GST:', settingsData?.gst_number, 'Business:', settingsData?.business_name);
 
+    // Get WhiteBooks API credentials with priority:
+    // 1. Per-organization settings (from UI)
+    // 2. Global Supabase secrets (fallback)
+    const clientId = einvoiceSettings?.api_client_id || Deno.env.get('WHITEBOOKS_CLIENT_ID') || '';
+    const clientSecret = einvoiceSettings?.api_client_secret || Deno.env.get('WHITEBOOKS_CLIENT_SECRET') || '';
+    const username = einvoiceSettings?.api_username || Deno.env.get('WHITEBOOKS_USERNAME') || '';
+    const password = einvoiceSettings?.api_password || Deno.env.get('WHITEBOOKS_PASSWORD') || '';
+    const apiEmail = einvoiceSettings?.api_email || (username ? `${username}@whitebooks.in` : '');
+
+    console.log('API credentials source:', einvoiceSettings?.api_username ? 'UI Settings' : 'Environment Secrets');
+
+    // Validate required credentials
+    if (!clientId) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'WhiteBooks Client ID not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          code: 'MISSING_CLIENT_ID'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!clientSecret) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'WhiteBooks Client Secret not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          code: 'MISSING_CLIENT_SECRET'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!username) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'WhiteBooks Username not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          code: 'MISSING_USERNAME'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    if (!password) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'WhiteBooks Password not configured. Please add it in Settings → Sale → E-Invoice Settings',
+          code: 'MISSING_PASSWORD'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get seller GSTIN with priority:
     // 1. e-Invoice settings override (for sandbox testing)
     // 2. Business details GST number from settings table
@@ -239,7 +282,6 @@ Deno.serve(async (req) => {
     const sellerGstin = einvoiceSettings?.seller_gstin || settingsData?.gst_number || Deno.env.get('SELLER_GSTIN') || '';
     
     if (!sellerGstin) {
-      // Return validation error with HTTP 200 for better UI handling
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -269,7 +311,8 @@ Deno.serve(async (req) => {
 
     // Step 1: Authenticate with WhiteBooks API
     console.log('Authenticating with WhiteBooks API...');
-    const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(username + '@whitebooks.in')}`;
+    console.log('Using email:', apiEmail, 'username:', username);
+    const authUrl = `${baseUrl}/einvoice/authenticate?email=${encodeURIComponent(apiEmail)}`;
     
     const authResponse = await fetch(authUrl, {
       method: 'GET',
@@ -286,9 +329,13 @@ Deno.serve(async (req) => {
 
     const authData: WhiteBooksAuthResponse = await authResponse.json();
     console.log('Auth response status:', authData.Status);
+    console.log('Auth response details:', JSON.stringify(authData));
 
     if (authData.Status !== 1 || !authData.Data?.AuthToken) {
-      const errorMsg = authData.ErrorDetails?.ErrorMessage || 'Authentication failed';
+      const errorMsg = authData.ErrorDetails?.ErrorMessage || 
+                       authData.ErrorDetails?.message ||
+                       (typeof authData.ErrorDetails === 'string' ? authData.ErrorDetails : null) ||
+                       'Authentication failed - check credentials';
       console.error('Authentication failed:', errorMsg);
       
       // Update sale with error
@@ -300,7 +347,15 @@ Deno.serve(async (req) => {
         })
         .eq('id', saleId);
 
-      throw new Error(`WhiteBooks authentication failed: ${errorMsg}`);
+      // Return 200 with error details for better UI handling
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `WhiteBooks authentication failed: ${errorMsg}`,
+          code: 'AUTH_FAILED'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const authToken = authData.Data.AuthToken;
@@ -436,12 +491,12 @@ Deno.serve(async (req) => {
     console.log('E-Invoice payload built, generating...');
 
     // Step 3: Generate e-Invoice
-    const generateUrl = `${baseUrl}/einvoice/type/GENERATE/version/V1_03?email=${encodeURIComponent(username + '@whitebooks.in')}`;
+    const generateUrl = `${baseUrl}/einvoice/type/GENERATE/version/V1_03?email=${encodeURIComponent(apiEmail)}`;
     
     const generateResponse = await fetch(generateUrl, {
       method: 'POST',
       headers: {
-        'email': username + '@whitebooks.in',
+        'email': apiEmail,
         'username': username,
         'ip_address': ipAddress,
         'client_id': clientId,
