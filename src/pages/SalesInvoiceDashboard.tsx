@@ -184,7 +184,7 @@ export default function SalesInvoiceDashboard() {
       
       let query = supabase
         .from('sales')
-        .select(`*, sale_items (*)`)
+        .select(`*, sale_items (*), customers:customer_id (gst_number)`)
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'invoice')
         .is('deleted_at', null)
@@ -1869,6 +1869,7 @@ export default function SalesInvoiceDashboard() {
                 customerName={invoiceToPrint.customer_name}
                 customerAddress={invoiceToPrint.customer_address || ""}
                 customerMobile={invoiceToPrint.customer_phone || ""}
+                customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
                 template={invoiceTemplate}
                 showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
                 showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
@@ -1930,7 +1931,7 @@ export default function SalesInvoiceDashboard() {
               customerName={invoiceToPrint.customer_name}
               customerAddress={invoiceToPrint.customer_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
-              customerGSTIN=""
+              customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
               template={invoiceTemplate}
               showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
               showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
