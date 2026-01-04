@@ -534,6 +534,9 @@ export default function POSSales() {
           sale_items (*)
         `)
         .eq('organization_id', currentOrganization.id)
+        .eq('sale_type', 'pos')
+        .is('deleted_at', null)
+        .neq('payment_status', 'hold')
         .gte('sale_date', today.toISOString())
         .order('created_at', { ascending: false });
       
@@ -1207,8 +1210,10 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      // Refetch today's sales
+      // Refetch today's sales and dashboard data
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
       toast({
         title: wasEditing ? "Sale Updated" : "Sale Saved",
@@ -1368,8 +1373,10 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      // Refetch today's sales
+      // Refetch today's sales and dashboard data
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       
       const isRefund = paymentData.refundAmount > 0 && !paymentData.issueCreditNote;
       const isCreditNote = paymentData.issueCreditNote && paymentData.refundAmount > 0;
@@ -1989,8 +1996,10 @@ export default function POSSales() {
       setIsHeldSale(false);
       setSaleNotes("");
       
-      // Refetch today's sales
+      // Refetch today's sales and dashboard data
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
     }
   };
 
