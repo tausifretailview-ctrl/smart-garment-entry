@@ -107,6 +107,15 @@ const SalesmanCustomerAccount = () => {
         r.reference_id && customerSaleIds.has(r.reference_id)
       );
 
+      // Build voucher payments map by sale id to detect which payments came from vouchers
+      const voucherPaymentsBySaleId: Record<string, number> = {};
+      customerReceipts.forEach(r => {
+        if (r.reference_id) {
+          voucherPaymentsBySaleId[r.reference_id] = 
+            (voucherPaymentsBySaleId[r.reference_id] || 0) + (r.total_amount || 0);
+        }
+      });
+
       // Build transaction list
       let runningBalance = customerData.opening_balance || 0;
       const txns: Transaction[] = [];
@@ -150,16 +159,20 @@ const SalesmanCustomerAccount = () => {
             balance: runningBalance,
           });
 
-          // Add immediate payment if paid_amount > 0
-          if (txn.data.paid_amount > 0) {
-            runningBalance -= txn.data.paid_amount;
+          // Add at-sale payment ONLY if it's NOT covered by voucher receipts
+          // (i.e., the paid_amount was recorded at the time of sale, not via a later voucher)
+          const saleVoucherPayments = voucherPaymentsBySaleId[txn.data.id] || 0;
+          const atSalePayment = Math.max(0, (txn.data.paid_amount || 0) - saleVoucherPayments);
+          
+          if (atSalePayment > 0) {
+            runningBalance -= atSalePayment;
             txns.push({
               id: `${txn.data.id}-payment`,
               date: txn.data.sale_date,
               type: "payment",
               reference: `${txn.data.sale_number} Payment`,
               debit: 0,
-              credit: txn.data.paid_amount,
+              credit: atSalePayment,
               balance: runningBalance,
             });
           }
@@ -179,10 +192,17 @@ const SalesmanCustomerAccount = () => {
 
       setTransactions(txns);
 
-      // Calculate summary
+      // Calculate summary using MAX logic to avoid double-counting
       const totalSales = (salesData || []).reduce((sum, s) => sum + (s.net_amount || 0), 0);
-      const totalPaid = (salesData || []).reduce((sum, s) => sum + (s.paid_amount || 0), 0) +
-        customerReceipts.reduce((sum, r) => sum + (r.total_amount || 0), 0);
+      
+      // Use MAX of paid_amount or voucher payments for each sale (same logic as useCustomerBalance)
+      let totalPaid = 0;
+      (salesData || []).forEach(sale => {
+        const salePaidAmount = sale.paid_amount || 0;
+        const voucherAmount = voucherPaymentsBySaleId[sale.id] || 0;
+        totalPaid += Math.max(salePaidAmount, voucherAmount);
+      });
+      
       const pendingInvoices = (salesData || []).filter(s => s.payment_status !== "completed").length;
 
       setSummary({
