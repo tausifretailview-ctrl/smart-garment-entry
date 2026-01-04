@@ -212,6 +212,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     
     // Calculate tax amounts - GST is INCLUSIVE in item totals
     // For each item: GST amount = (item.total * gstPercent) / (100 + gstPercent)
+    // IMPORTANT: item.total is already AFTER discount, so we extract GST from post-discount amounts
+    const totalLineAmount = props.items.reduce((sum, item) => sum + item.total, 0);
     const totalGstFromItems = props.items.reduce((sum, item) => {
       const gstPct = item.gstPercent || 0;
       if (gstPct <= 0) return sum;
@@ -220,8 +222,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       return sum + gstAmt;
     }, 0);
     
-    // Taxable amount = Total - GST (since GST is inclusive)
-    const taxableAmount = props.subTotal - props.discount - totalGstFromItems;
+    // Taxable amount = Total line items - GST (GST is extracted from already-discounted line totals)
+    // Do NOT subtract discount again since item.total already reflects the discount
+    const taxableAmount = totalLineAmount - totalGstFromItems;
     const totalTax = totalGstFromItems;
     
     // CGST and SGST are each exactly half of total GST
