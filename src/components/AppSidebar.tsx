@@ -80,7 +80,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-register", "/tally-export", "/sales-analytics"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
@@ -499,6 +499,16 @@ export function AppSidebar() {
                               <NavLink to="/price-history" className="flex items-center gap-3 group">
                                 <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                                 <span className="dark:text-white">Price History</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("gst_reports")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/gst-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/gst-reports" className="flex items-center gap-3 group">
+                                <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">GST Reports</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
