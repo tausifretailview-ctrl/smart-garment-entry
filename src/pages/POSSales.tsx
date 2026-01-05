@@ -606,33 +606,51 @@ export default function POSSales() {
     queryKey: ['pos-products', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_variants (
-            *,
-            batch_stock (
-              bill_number,
-              quantity,
-              purchase_date
-            )
-          )
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active')
-        .is('deleted_at', null);
       
-      if (productsError) throw productsError;
+      // Fetch all products using pagination to bypass 1000 row limit
+      const allProducts: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: products, error: productsError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_variants (
+              *,
+              batch_stock (
+                bill_number,
+                quantity,
+                purchase_date
+              )
+            )
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (productsError) throw productsError;
+        
+        if (products && products.length > 0) {
+          allProducts.push(...products);
+          offset += PAGE_SIZE;
+          hasMore = products.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
       
       // Filter products: service/combo always shown, goods only with available stock
       // First, filter out deleted variants from all products
-      const productsWithValidVariants = products?.map((product: any) => ({
+      const productsWithValidVariants = allProducts.map((product: any) => ({
         ...product,
         product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
       }));
       
-      return productsWithValidVariants?.filter((product: any) => {
+      return productsWithValidVariants.filter((product: any) => {
         // Service and combo products are always available (no stock tracking)
         if (product.product_type === 'service' || product.product_type === 'combo') {
           return product.product_variants?.length > 0;
