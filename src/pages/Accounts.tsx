@@ -1569,30 +1569,55 @@ export default function Accounts() {
                             <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                             {isAdmin && (
                               <TableCell>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Delete Payment Receipt?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        This will delete receipt {voucher.voucher_number} and reverse ₹{voucher.total_amount.toFixed(2)} back to the customer's outstanding balance.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        onClick={() => deleteReceipt.mutate(voucher)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Delete & Reverse
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => {
+                                      setReceiptData({
+                                        receiptNumber: voucher.voucher_number,
+                                        date: new Date(voucher.voucher_date),
+                                        customerName: customerName,
+                                        customerPhone: invoice?.customer_phone || customers?.find((c) => c.id === voucher.reference_id)?.phone || "",
+                                        amount: voucher.total_amount,
+                                        paymentMethod: voucher.payment_method || "cash",
+                                        description: voucher.description,
+                                        chequeNumber: voucher.cheque_number || "",
+                                        transactionId: voucher.transaction_id || "",
+                                        invoiceNumbers: voucher.description?.includes("Against Invoice") 
+                                          ? voucher.description.replace("Against Invoice: ", "").split(", ")
+                                          : []
+                                      });
+                                      setShowReceiptDialog(true);
+                                    }}
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Delete Payment Receipt?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will delete receipt {voucher.voucher_number} and reverse ₹{voucher.total_amount.toFixed(2)} back to the customer's outstanding balance.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => deleteReceipt.mutate(voucher)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Delete & Reverse
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
                               </TableCell>
                             )}
                           </TableRow>
