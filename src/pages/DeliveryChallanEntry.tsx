@@ -132,18 +132,36 @@ export default function DeliveryChallanEntry() {
     defaultValues: { customer_name: "", phone: "", email: "", address: "", gst_number: "" },
   });
 
-  // Fetch products
+  // Fetch products with pagination
   const { data: productsData } = useQuery({
     queryKey: ['products-with-variants', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('products')
-        .select(`*, product_variants (*), size_groups (id, group_name, sizes)`)
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active');
-      if (error) throw error;
-      return (data || []).map((product: any) => {
+      
+      const allProducts: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`*, product_variants (*), size_groups (id, group_name, sizes)`)
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allProducts.map((product: any) => {
         const sizeGroup = product.size_groups;
         let size_range: string | null = null;
         if (sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 0) {
@@ -151,7 +169,11 @@ export default function DeliveryChallanEntry() {
             ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
             : sizeGroup.sizes[0];
         }
-        return { ...product, size_range };
+        return { 
+          ...product, 
+          size_range,
+          product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
+        };
       });
     },
     enabled: !!currentOrganization?.id,

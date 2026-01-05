@@ -53,39 +53,70 @@ const StockAdjustment = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      // Get all variants with product info
-      const { data: variantsData, error: variantsError } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          barcode,
-          size,
-          opening_qty,
-          stock_qty,
-          product_id,
-          products (
-            product_name,
-            brand,
-            category
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
+      // Get all variants with product info using pagination
+      const allVariants: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data: variantsData, error: variantsError } = await supabase
+          .from("product_variants")
+          .select(`
+            id,
+            barcode,
+            size,
+            opening_qty,
+            stock_qty,
+            product_id,
+            products (
+              product_name,
+              brand,
+              category
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (variantsError) throw variantsError;
+        if (variantsError) throw variantsError;
+        
+        if (variantsData && variantsData.length > 0) {
+          allVariants.push(...variantsData);
+          offset += PAGE_SIZE;
+          hasMore = variantsData.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
 
-      // Get all stock movements grouped by variant
-      const { data: movements, error: movementsError } = await supabase
-        .from("stock_movements")
-        .select("variant_id, movement_type, quantity")
-        .eq("organization_id", currentOrganization.id);
+      // Get all stock movements with pagination
+      const allMovements: any[] = [];
+      let movementOffset = 0;
+      let movementsHasMore = true;
+      
+      while (movementsHasMore) {
+        const { data: movements, error: movementsError } = await supabase
+          .from("stock_movements")
+          .select("variant_id, movement_type, quantity")
+          .eq("organization_id", currentOrganization.id)
+          .range(movementOffset, movementOffset + PAGE_SIZE - 1);
 
-      if (movementsError) throw movementsError;
+        if (movementsError) throw movementsError;
+        
+        if (movements && movements.length > 0) {
+          allMovements.push(...movements);
+          movementOffset += PAGE_SIZE;
+          movementsHasMore = movements.length === PAGE_SIZE;
+        } else {
+          movementsHasMore = false;
+        }
+      }
 
       // Aggregate movements by variant
       const movementsByVariant: Record<string, { purchased: number; sold: number; returned: number; adjusted: number }> = {};
       
-      movements?.forEach((m) => {
+      allMovements.forEach((m) => {
         if (!movementsByVariant[m.variant_id]) {
           movementsByVariant[m.variant_id] = { purchased: 0, sold: 0, returned: 0, adjusted: 0 };
         }
@@ -110,7 +141,7 @@ const StockAdjustment = () => {
       });
 
       // Combine data
-      return variantsData?.map((v) => {
+      return allVariants.map((v) => {
         const mvt = movementsByVariant[v.id] || { purchased: 0, sold: 0, returned: 0, adjusted: 0 };
         const product = v.products as any;
         const openingQty = v.opening_qty || 0;

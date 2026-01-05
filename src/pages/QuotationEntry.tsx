@@ -275,40 +275,70 @@ export default function QuotationEntry() {
     generateQuotationNumber();
   }, [currentOrganization?.id, editingQuotationId]);
 
-  // Fetch customers
+  // Fetch customers with pagination
   const { data: customersData } = useQuery({
     queryKey: ['customers', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .order('customer_name');
-      if (error) throw error;
-      return data || [];
+      const allCustomers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .is('deleted_at', null)
+          .order('customer_name')
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allCustomers.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allCustomers;
     },
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch products - NO stock filter for quotations
+  // Fetch products with pagination - NO stock filter for quotations
   const { data: productsData } = useQuery({
     queryKey: ['products-all', currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data, error } = await supabase
-        .from('products')
-        .select(`*, product_variants (*)`)
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active')
-        .is('deleted_at', null);
-      if (error) throw error;
+      const allProducts: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`*, product_variants (*)`)
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
       // Filter out deleted variants
-      const productsWithValidVariants = (data || []).map((product: any) => ({
+      return allProducts.map((product: any) => ({
         ...product,
         product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
       }));
-      return productsWithValidVariants;
     },
     enabled: !!currentOrganization?.id,
   });

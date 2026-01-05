@@ -365,20 +365,38 @@ export default function SalesInvoice() {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_variants (*),
-          size_groups (id, group_name, sizes)
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active');
+      // Fetch all products using pagination to bypass 1000 row limit
+      const allProducts: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
       
-      if (error) throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_variants (*),
+            size_groups (id, group_name, sizes)
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .eq('status', 'active')
+          .is('deleted_at', null)
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allProducts.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
       
-      // Calculate size_range for each product
-      return (data || []).map((product: any) => {
+      // Calculate size_range for each product and filter deleted variants
+      return allProducts.map((product: any) => {
         const sizeGroup = product.size_groups;
         let size_range: string | null = null;
         if (sizeGroup && Array.isArray(sizeGroup.sizes) && sizeGroup.sizes.length > 0) {
@@ -386,7 +404,11 @@ export default function SalesInvoice() {
             ? `${sizeGroup.sizes[0]}-${sizeGroup.sizes[sizeGroup.sizes.length - 1]}`
             : sizeGroup.sizes[0];
         }
-        return { ...product, size_range };
+        return { 
+          ...product, 
+          size_range,
+          product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
+        };
       });
     },
     enabled: !!currentOrganization?.id,

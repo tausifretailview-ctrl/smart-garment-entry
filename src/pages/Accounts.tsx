@@ -337,17 +337,33 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch suppliers
+  // Fetch suppliers with pagination
   const { data: suppliers } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .order("supplier_name");
-      if (error) throw error;
-      return data;
+      const allSuppliers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .select("*")
+          .eq("organization_id", currentOrganization?.id)
+          .is("deleted_at", null)
+          .order("supplier_name")
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allSuppliers.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allSuppliers;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -382,18 +398,33 @@ export default function Accounts() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch voucher entries
+  // Fetch voucher entries with pagination
   const { data: vouchers } = useQuery({
     queryKey: ["voucher-entries", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("voucher_entries")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
+      const allVouchers: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("voucher_entries")
+          .select("*")
+          .eq("organization_id", currentOrganization?.id)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allVouchers.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      return allVouchers;
     },
     enabled: !!currentOrganization?.id,
   });

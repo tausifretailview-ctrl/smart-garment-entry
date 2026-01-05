@@ -152,36 +152,70 @@ const PurchaseBillDashboard = () => {
   const fetchBills = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("purchase_bills")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .is("deleted_at", null)
-        .order("bill_date", { ascending: false });
+      // Fetch all purchase bills using pagination to bypass 1000 row limit
+      const allBills: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("purchase_bills")
+          .select("*")
+          .eq("organization_id", currentOrganization?.id)
+          .is("deleted_at", null)
+          .order("bill_date", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (error) throw error;
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allBills.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
 
-      setBills(data || []);
+      setBills(allBills);
       
       // Fetch item counts for all bills (excluding soft-deleted items)
-      if (data && data.length > 0) {
-        const billIds = data.map(b => b.id);
-        const { data: allItems, error: itemsError } = await supabase
-          .from("purchase_items")
-          .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
-          .in("bill_id", billIds)
-          .is("deleted_at", null);
+      if (allBills.length > 0) {
+        const billIds = allBills.map(b => b.id);
         
-        if (!itemsError && allItems) {
-          const itemsByBill: Record<string, PurchaseItem[]> = {};
-          allItems.forEach(item => {
-            if (!itemsByBill[item.bill_id]) {
-              itemsByBill[item.bill_id] = [];
-            }
-            itemsByBill[item.bill_id].push(item);
-          });
-          setBillItems(itemsByBill);
+        // Also paginate items fetching for large datasets
+        const allItems: any[] = [];
+        let itemOffset = 0;
+        let itemsHasMore = true;
+        
+        while (itemsHasMore) {
+          const { data: itemsData, error: itemsError } = await supabase
+            .from("purchase_items")
+            .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
+            .in("bill_id", billIds)
+            .is("deleted_at", null)
+            .range(itemOffset, itemOffset + PAGE_SIZE - 1);
+          
+          if (itemsError) throw itemsError;
+          
+          if (itemsData && itemsData.length > 0) {
+            allItems.push(...itemsData);
+            itemOffset += PAGE_SIZE;
+            itemsHasMore = itemsData.length === PAGE_SIZE;
+          } else {
+            itemsHasMore = false;
+          }
         }
+        
+        const itemsByBill: Record<string, PurchaseItem[]> = {};
+        allItems.forEach(item => {
+          if (!itemsByBill[item.bill_id]) {
+            itemsByBill[item.bill_id] = [];
+          }
+          itemsByBill[item.bill_id].push(item);
+        });
+        setBillItems(itemsByBill);
       }
     } catch (error: any) {
       toast({

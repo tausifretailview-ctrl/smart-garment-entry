@@ -205,51 +205,53 @@ export default function RecycleBin() {
     queryFn: async (): Promise<DeletedRecord[]> => {
       if (!currentOrganization?.id) return [];
 
-      let result: { data: any; error: any } = { data: null, error: null };
+      const PAGE_SIZE = 1000;
+      const allRecords: any[] = [];
+      let offset = 0;
+      let hasMore = true;
       
-      switch (activeTab) {
-        case 'customers':
-          result = await supabase.from('customers').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'suppliers':
-          result = await supabase.from('suppliers').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'employees':
-          result = await supabase.from('employees').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'products':
-          result = await supabase.from('products').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'purchase_bills':
-          result = await supabase.from('purchase_bills').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'sales':
-          result = await supabase.from('sales').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'sale_returns':
-          result = await supabase.from('sale_returns').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'purchase_returns':
-          result = await supabase.from('purchase_returns').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'sale_orders':
-          result = await supabase.from('sale_orders').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'quotations':
-          result = await supabase.from('quotations').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'voucher_entries':
-          result = await supabase.from('voucher_entries').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        case 'credit_notes':
-          result = await supabase.from('credit_notes').select('*').eq('organization_id', currentOrganization.id).not('deleted_at', 'is', null).order('deleted_at', { ascending: false });
-          break;
-        default:
-          return [];
+      const getTableName = () => {
+        switch (activeTab) {
+          case 'customers': return 'customers';
+          case 'suppliers': return 'suppliers';
+          case 'employees': return 'employees';
+          case 'products': return 'products';
+          case 'purchase_bills': return 'purchase_bills';
+          case 'sales': return 'sales';
+          case 'sale_returns': return 'sale_returns';
+          case 'purchase_returns': return 'purchase_returns';
+          case 'sale_orders': return 'sale_orders';
+          case 'quotations': return 'quotations';
+          case 'voucher_entries': return 'voucher_entries';
+          case 'credit_notes': return 'credit_notes';
+          default: return null;
+        }
+      };
+      
+      const tableName = getTableName();
+      if (!tableName) return [];
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from(tableName as any)
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .not('deleted_at', 'is', null)
+          .order('deleted_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allRecords.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
       }
       
-      if (result.error) throw result.error;
-      return (result.data || []) as unknown as DeletedRecord[];
+      return allRecords as unknown as DeletedRecord[];
     },
     enabled: !!currentOrganization?.id,
   });
