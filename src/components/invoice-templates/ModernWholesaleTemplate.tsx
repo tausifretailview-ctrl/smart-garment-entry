@@ -303,8 +303,8 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
             <div style={{ flex: 1, padding: "8px", borderRight: "1px solid #374151" }}>
               <div style={{ fontWeight: "700", color: colors.primary, fontSize: "7pt" }}>BILL TO:</div>
               <div style={{ fontWeight: "700", fontSize: "11pt" }}>{customerName}</div>
+              {customerAddress && <div style={{ fontSize: "9pt" }}>{customerAddress}</div>}
               {customerMobile && <div style={{ fontSize: "9pt" }}>Mob: {customerMobile}</div>}
-              {customerAddress && <div>{customerAddress}</div>}
               {customerGSTIN && (
                 <div style={{ marginTop: "2px", fontWeight: "600" }}>
                   GSTIN: {customerGSTIN}
