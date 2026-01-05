@@ -189,28 +189,43 @@ export default function SalesInvoiceDashboard() {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
-      let query = supabase
-        .from('sales')
-        .select(`*, sale_items (*), customers:customer_id (gst_number), irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code`)
-        .eq('organization_id', currentOrganization.id)
-        .eq('sale_type', 'invoice')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+      // Fetch all invoices using pagination to bypass 1000 row limit
+      const allInvoices: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        let query = supabase
+          .from('sales')
+          .select(`*, sale_items (*), customers:customer_id (gst_number), irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code`)
+          .eq('organization_id', currentOrganization.id)
+          .eq('sale_type', 'invoice')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      // Note: Basic search query for sale-level fields
-      // Barcode search will be done client-side after fetching sale_items
+        if (deliveryFilter !== 'all') {
+          query = query.eq('delivery_status', deliveryFilter);
+        }
 
-      if (deliveryFilter !== 'all') {
-        query = query.eq('delivery_status', deliveryFilter);
+        const { data, error } = await query;
+        if (error) {
+          console.error('Error fetching invoices:', error);
+          throw error;
+        }
+        
+        if (data && data.length > 0) {
+          allInvoices.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
       }
-
-      const { data, error } = await query;
-      if (error) {
-        console.error('Error fetching invoices:', error);
-        throw error;
-      }
-      console.log('Fetched invoices:', data?.length);
-      return data || [];
+      
+      console.log('Fetched invoices:', allInvoices.length);
+      return allInvoices;
     },
     enabled: !!currentOrganization?.id,
   });
