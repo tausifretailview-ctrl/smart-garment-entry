@@ -620,12 +620,19 @@ export default function POSSales() {
           )
         `)
         .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .is('deleted_at', null);
       
       if (productsError) throw productsError;
       
       // Filter products: service/combo always shown, goods only with available stock
-      return products?.filter((product: any) => {
+      // First, filter out deleted variants from all products
+      const productsWithValidVariants = products?.map((product: any) => ({
+        ...product,
+        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
+      }));
+      
+      return productsWithValidVariants?.filter((product: any) => {
         // Service and combo products are always available (no stock tracking)
         if (product.product_type === 'service' || product.product_type === 'combo') {
           return product.product_variants?.length > 0;
