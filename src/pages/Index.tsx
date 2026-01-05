@@ -179,7 +179,8 @@ const DashboardContent = () => {
       const { data, error } = await supabase
         .from("product_variants")
         .select("stock_qty")
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return data?.reduce((sum, item) => sum + (item.stock_qty || 0), 0) || 0;
     },
@@ -195,7 +196,8 @@ const DashboardContent = () => {
       const { count, error } = await supabase
         .from("products")
         .select("*", { count: "exact", head: true })
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return count || 0;
     },

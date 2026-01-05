@@ -300,9 +300,15 @@ export default function QuotationEntry() {
         .from('products')
         .select(`*, product_variants (*)`)
         .eq('organization_id', currentOrganization.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .is('deleted_at', null);
       if (error) throw error;
-      return data || [];
+      // Filter out deleted variants
+      const productsWithValidVariants = (data || []).map((product: any) => ({
+        ...product,
+        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
+      }));
+      return productsWithValidVariants;
     },
     enabled: !!currentOrganization?.id,
   });

@@ -223,6 +223,7 @@ export default function StockReport() {
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
+          .is("deleted_at", null)
           .neq("products.product_type", "service");
         
         // Only fetch items with stock > 0 by default for faster loading
