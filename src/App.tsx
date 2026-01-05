@@ -57,6 +57,7 @@ import PublicInvoiceView from "./pages/PublicInvoiceView";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
+import GSTReports from "./pages/GSTReports";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import RecycleBin from "./pages/RecycleBin";
@@ -505,6 +506,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <PriceHistoryReport />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="gst-reports"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <GSTReports />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
