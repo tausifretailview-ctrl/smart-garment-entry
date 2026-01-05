@@ -446,26 +446,39 @@ const PurchaseReturnEntry = () => {
   };
 
   const handleProductSelect = (variant: ProductVariant) => {
-    const lineTotal = 1 * variant.pur_price;
-    const newItem: LineItem = {
-      temp_id: Date.now().toString() + Math.random(),
-      product_id: variant.product_id,
-      sku_id: variant.id,
-      product_name: variant.product_name,
-      size: variant.size,
-      qty: 1,
-      pur_price: variant.pur_price,
-      gst_per: variant.gst_per,
-      hsn_code: variant.hsn_code,
-      barcode: variant.barcode,
-      line_total: lineTotal,
-      brand: variant.brand,
-      discount_percent: 0,
-      discount_amount: 0,
-    };
-    setLineItems([...lineItems, newItem]);
+    // Check if item already exists - if so, increment quantity
+    const existingItem = lineItems.find(item => item.sku_id === variant.id);
+    if (existingItem) {
+      updateLineItem(existingItem.temp_id, "qty", existingItem.qty + 1);
+      toast({
+        title: "Quantity Updated",
+        description: `${variant.product_name} - ${variant.size} (Qty: ${existingItem.qty + 1})`,
+      });
+    } else {
+      const lineTotal = 1 * variant.pur_price;
+      const newItem: LineItem = {
+        temp_id: Date.now().toString() + Math.random(),
+        product_id: variant.product_id,
+        sku_id: variant.id,
+        product_name: variant.product_name,
+        size: variant.size,
+        qty: 1,
+        pur_price: variant.pur_price,
+        gst_per: variant.gst_per,
+        hsn_code: variant.hsn_code,
+        barcode: variant.barcode,
+        line_total: lineTotal,
+        brand: variant.brand,
+        discount_percent: 0,
+        discount_amount: 0,
+      };
+      setLineItems([...lineItems, newItem]);
+    }
     setSearchQuery("");
     setShowSearch(false);
+    setSearchResults([]);
+    // Focus back on search input for continuous scanning
+    setTimeout(() => searchInputRef.current?.focus(), 100);
   };
 
   const updateLineItem = (temp_id: string, field: keyof LineItem, value: any) => {
@@ -820,7 +833,17 @@ const PurchaseReturnEntry = () => {
 
       <Card>
         <CardHeader>
-          <CardTitle>Return Items</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Return Items</CardTitle>
+            <div className="flex items-center gap-4 text-sm">
+              <span className="text-muted-foreground">
+                Total Items: <span className="font-semibold text-foreground">{lineItems.length}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Total Qty: <span className="font-semibold text-foreground">{lineItems.reduce((sum, item) => sum + item.qty, 0)}</span>
+              </span>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative">
@@ -834,9 +857,24 @@ const PurchaseReturnEntry = () => {
               placeholder="Scan barcode or search products..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (searchResults.length > 0) setShowSearch(true);
+              }}
+              onBlur={() => {
+                // Delay to allow click on search results
+                setTimeout(() => {
+                  setShowSearch(false);
+                  setSearchResults([]);
+                }, 200);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && searchResults.length > 0) {
                   handleProductSelect(searchResults[0]);
+                }
+                if (e.key === "Escape") {
+                  setShowSearch(false);
+                  setSearchResults([]);
+                  setSearchQuery("");
                 }
               }}
               className="pl-10"
@@ -851,6 +889,7 @@ const PurchaseReturnEntry = () => {
                       "p-3 hover:bg-muted cursor-pointer border-b last:border-b-0",
                       idx === 0 && "bg-primary/5"
                     )}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleProductSelect(variant)}
                   >
                     <div className="flex items-center justify-between">
@@ -871,6 +910,7 @@ const PurchaseReturnEntry = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">Sr No</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Brand</TableHead>
                     <TableHead>Size</TableHead>
@@ -885,8 +925,9 @@ const PurchaseReturnEntry = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lineItems.map((item) => (
+                  {lineItems.map((item, index) => (
                     <TableRow key={item.temp_id}>
+                      <TableCell className="text-center text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="font-medium">{item.product_name}</TableCell>
                       <TableCell>{item.brand}</TableCell>
                       <TableCell>{item.size}</TableCell>
