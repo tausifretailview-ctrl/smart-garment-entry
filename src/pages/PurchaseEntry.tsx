@@ -367,27 +367,52 @@ const PurchaseEntry = () => {
             .eq("bill_id", billId);
           
           if (itemsError) throw itemsError;
+
+          // Fetch product details to fill in missing style/brand/category for older records
+          const productIds = [...new Set(itemsData.map((item: any) => item.product_id).filter(Boolean))];
+          let productDetailsMap = new Map<string, { brand: string; category: string; style: string; color: string }>();
           
-          const loadedItems: LineItem[] = itemsData.map((item: any) => ({
-            temp_id: item.id, // Use actual database ID as temp_id for tracking
-            product_id: item.product_id,
-            sku_id: item.sku_id || "",
-            product_name: item.product_name || "",
-            brand: item.brand || "",
-            category: item.category || "",
-            color: item.color || "",
-            style: item.style || "",
-            size: item.size,
-            qty: item.qty,
-            pur_price: Number(item.pur_price),
-            sale_price: Number(item.sale_price),
-            mrp: Number(item.mrp) || 0,
-            gst_per: item.gst_per,
-            hsn_code: item.hsn_code || "",
-            barcode: item.barcode || "",
-            discount_percent: 0,
-            line_total: Number(item.line_total),
-          }));
+          if (productIds.length > 0) {
+            const { data: productsData } = await supabase
+              .from("products")
+              .select("id, brand, category, style, color")
+              .in("id", productIds);
+            
+            if (productsData) {
+              productsData.forEach((p: any) => {
+                productDetailsMap.set(p.id, {
+                  brand: p.brand || "",
+                  category: p.category || "",
+                  style: p.style || "",
+                  color: p.color || "",
+                });
+              });
+            }
+          }
+          
+          const loadedItems: LineItem[] = itemsData.map((item: any) => {
+            const productDetails = productDetailsMap.get(item.product_id);
+            return {
+              temp_id: item.id, // Use actual database ID as temp_id for tracking
+              product_id: item.product_id,
+              sku_id: item.sku_id || "",
+              product_name: item.product_name || "",
+              brand: item.brand || productDetails?.brand || "",
+              category: item.category || productDetails?.category || "",
+              color: item.color || productDetails?.color || "",
+              style: item.style || productDetails?.style || "",
+              size: item.size,
+              qty: item.qty,
+              pur_price: Number(item.pur_price),
+              sale_price: Number(item.sale_price),
+              mrp: Number(item.mrp) || 0,
+              gst_per: item.gst_per,
+              hsn_code: item.hsn_code || "",
+              barcode: item.barcode || "",
+              discount_percent: 0,
+              line_total: Number(item.line_total),
+            };
+          });
           
           setLineItems(loadedItems);
           setOriginalLineItems(loadedItems); // Store original items for comparison
@@ -1437,6 +1462,11 @@ const PurchaseEntry = () => {
               mrp: item.mrp || 0,
               gst_per: item.gst_per,
               line_total: item.line_total,
+              // Also update product details that might have been missing in older records
+              brand: item.brand || null,
+              category: item.category || null,
+              color: item.color || null,
+              style: item.style || null,
             })
             .eq("id", item.temp_id);
           
