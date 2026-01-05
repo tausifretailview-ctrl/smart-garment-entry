@@ -218,6 +218,7 @@ const PurchaseReturnEntry = () => {
           pur_price,
           barcode,
           active,
+          deleted_at,
           product_id,
           products (
             id,
@@ -225,17 +226,19 @@ const PurchaseReturnEntry = () => {
             brand,
             hsn_code,
             gst_per,
-            organization_id
+            organization_id,
+            deleted_at
           )
         `)
         .eq("barcode", barcode)
         .eq("active", true)
+        .is("deleted_at", null)
         .limit(1);
 
       if (!error && exactMatch && exactMatch.length > 0) {
         const v = exactMatch[0] as any;
-        // Verify organization
-        if (v.products?.organization_id === currentOrganization.id) {
+        // Verify organization and not deleted
+        if (v.products?.organization_id === currentOrganization.id && !v.products?.deleted_at) {
           return {
             id: v.id,
             product_id: v.products?.id || "",
@@ -376,6 +379,7 @@ const PurchaseReturnEntry = () => {
         .from("products")
         .select("id")
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%`);
 
       const productIds = matchingProducts?.map(p => p.id) || [];
@@ -388,6 +392,7 @@ const PurchaseReturnEntry = () => {
           pur_price,
           barcode,
           active,
+          deleted_at,
           product_id,
           products (
             id,
@@ -395,10 +400,12 @@ const PurchaseReturnEntry = () => {
             brand,
             hsn_code,
             gst_per,
-            organization_id
+            organization_id,
+            deleted_at
           )
         `)
-        .eq("active", true);
+        .eq("active", true)
+        .is("deleted_at", null);
 
       if (productIds.length > 0) {
         variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
@@ -410,9 +417,9 @@ const PurchaseReturnEntry = () => {
 
       if (error) throw error;
 
-      // Filter by organization and map results
+      // Filter by organization, non-deleted products, and map results
       const results = (data || [])
-        .filter((v: any) => v.products?.organization_id === currentOrganization.id)
+        .filter((v: any) => v.products?.organization_id === currentOrganization.id && !v.products?.deleted_at)
         .map((v: any) => ({
           id: v.id,
           product_id: v.products?.id || "",

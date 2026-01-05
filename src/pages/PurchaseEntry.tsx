@@ -477,6 +477,7 @@ const PurchaseEntry = () => {
         .from("products")
         .select("id, size_group_id")
         .eq("organization_id", currentOrganization?.id)
+        .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
       const productIds = matchingProducts?.map(p => p.id) || [];
@@ -525,7 +526,8 @@ const PurchaseEntry = () => {
           )
         `)
         .eq("organization_id", currentOrganization?.id)
-        .eq("active", true);
+        .eq("active", true)
+        .is("deleted_at", null);
 
       // Add barcode or product_id filters
       if (productIds.length > 0) {
@@ -778,6 +780,7 @@ const PurchaseEntry = () => {
       const { data: matchingProducts } = await supabase
         .from("products")
         .select("id, size_group_id")
+        .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
 
       // Check if aborted before continuing
@@ -830,7 +833,8 @@ const PurchaseEntry = () => {
             size_group_id
           )
         `)
-        .eq("active", true);
+        .eq("active", true)
+        .is("deleted_at", null);
 
       // Add barcode or product_id filters
       if (productIds.length > 0) {

@@ -204,7 +204,9 @@ const ProductDashboard = () => {
       const data = allProducts;
 
       const rows: ProductRow[] = (data || []).map((product: any) => {
-        const variants: ProductVariant[] = (product.product_variants || []).map((v: any) => ({
+        // Filter out deleted variants
+        const activeVariants = (product.product_variants || []).filter((v: any) => !v.deleted_at);
+        const variants: ProductVariant[] = activeVariants.map((v: any) => ({
           variant_id: v.id,
           size: v.size,
           color: v.color || "",

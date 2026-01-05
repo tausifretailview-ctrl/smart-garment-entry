@@ -178,7 +178,8 @@ export default function SaleReturnEntry() {
       .select("id, product_name, brand, category, hsn_code")
       .in("id", uniqueProductIds)
       .eq("organization_id", currentOrganization?.id)
-      .eq("status", "active");
+      .eq("status", "active")
+      .is("deleted_at", null);
 
     if (productsError) {
       toast({ title: "Error", description: "Failed to load products", variant: "destructive" });
@@ -190,7 +191,8 @@ export default function SaleReturnEntry() {
       .from("product_variants")
       .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
       .in("id", uniqueVariantIds)
-      .eq("active", true);
+      .eq("active", true)
+      .is("deleted_at", null);
 
     if (variantsError) {
       toast({ title: "Error", description: "Failed to load product variants", variant: "destructive" });
