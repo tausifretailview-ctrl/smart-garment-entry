@@ -1574,19 +1574,22 @@ export default function Accounts() {
                                     variant="ghost" 
                                     size="icon"
                                     onClick={() => {
+                                      const customer = customers?.find((c) => c.id === voucher.reference_id);
                                       setReceiptData({
-                                        receiptNumber: voucher.voucher_number,
-                                        date: new Date(voucher.voucher_date),
+                                        voucherNumber: voucher.voucher_number,
+                                        voucherDate: voucher.voucher_date,
                                         customerName: customerName,
-                                        customerPhone: invoice?.customer_phone || customers?.find((c) => c.id === voucher.reference_id)?.phone || "",
-                                        amount: voucher.total_amount,
+                                        customerPhone: customer?.phone || "",
+                                        customerAddress: customer?.address || "",
+                                        invoiceNumber: voucher.description?.includes("Against Invoice") 
+                                          ? voucher.description.replace("Against Invoice: ", "")
+                                          : voucher.description || "-",
+                                        invoiceDate: voucher.voucher_date,
+                                        invoiceAmount: voucher.total_amount,
+                                        paidAmount: voucher.total_amount,
                                         paymentMethod: voucher.payment_method || "cash",
-                                        description: voucher.description,
-                                        chequeNumber: voucher.cheque_number || "",
-                                        transactionId: voucher.transaction_id || "",
-                                        invoiceNumbers: voucher.description?.includes("Against Invoice") 
-                                          ? voucher.description.replace("Against Invoice: ", "").split(", ")
-                                          : []
+                                        previousBalance: 0,
+                                        currentBalance: 0
                                       });
                                       setShowReceiptDialog(true);
                                     }}
