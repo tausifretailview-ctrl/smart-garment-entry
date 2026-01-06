@@ -2821,66 +2821,74 @@ export default function Accounts() {
         {/* Receipt Dialog */}
         <Dialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Payment Receipt</DialogTitle>
-              <DialogDescription>
-                Payment receipt for {receiptData?.customerName}
-              </DialogDescription>
-            </DialogHeader>
+            {receiptData ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Payment Receipt</DialogTitle>
+                  <DialogDescription>
+                    Payment receipt for {receiptData.customerName}
+                  </DialogDescription>
+                </DialogHeader>
 
-            <div className="hidden">
-              <PaymentReceipt
-                ref={receiptRef}
-                receiptData={receiptData}
-                companyDetails={{
-                  businessName: settings?.business_name,
-                  address: settings?.address,
-                  mobileNumber: settings?.mobile_number,
-                  emailId: settings?.email_id,
-                  gstNumber: settings?.gst_number,
-                  upiId: (settings?.sale_settings as any)?.upiId,
-                }}
-                receiptSettings={{
-                  showCompanyLogo: false,
-                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                  showSignature: true,
-                  signatureLabel: "Authorized Signature",
-                }}
-              />
-            </div>
+                <div className="hidden">
+                  <PaymentReceipt
+                    ref={receiptRef}
+                    receiptData={receiptData}
+                    companyDetails={{
+                      businessName: settings?.business_name,
+                      address: settings?.address,
+                      mobileNumber: settings?.mobile_number,
+                      emailId: settings?.email_id,
+                      gstNumber: settings?.gst_number,
+                      upiId: (settings?.sale_settings as any)?.upiId,
+                    }}
+                    receiptSettings={{
+                      showCompanyLogo: false,
+                      showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                      showSignature: true,
+                      signatureLabel: "Authorized Signature",
+                    }}
+                  />
+                </div>
 
-            <div className="border rounded-lg p-4">
-              <PaymentReceipt
-                receiptData={receiptData}
-                companyDetails={{
-                  businessName: settings?.business_name,
-                  address: settings?.address,
-                  mobileNumber: settings?.mobile_number,
-                  emailId: settings?.email_id,
-                  gstNumber: settings?.gst_number,
-                  upiId: (settings?.sale_settings as any)?.upiId,
-                }}
-                receiptSettings={{
-                  showCompanyLogo: false,
-                  showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                  showSignature: true,
-                  signatureLabel: "Authorized Signature",
-                }}
-              />
-            </div>
+                <div className="border rounded-lg p-4">
+                  <PaymentReceipt
+                    receiptData={receiptData}
+                    companyDetails={{
+                      businessName: settings?.business_name,
+                      address: settings?.address,
+                      mobileNumber: settings?.mobile_number,
+                      emailId: settings?.email_id,
+                      gstNumber: settings?.gst_number,
+                      upiId: (settings?.sale_settings as any)?.upiId,
+                    }}
+                    receiptSettings={{
+                      showCompanyLogo: false,
+                      showQrCode: !!(settings?.sale_settings as any)?.upiId,
+                      showSignature: true,
+                      signatureLabel: "Authorized Signature",
+                    }}
+                  />
+                </div>
 
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={handlePrintReceipt}>
-                <Printer className="mr-2 h-4 w-4" />
-                Print Receipt
-              </Button>
-              {receiptData?.customerPhone && (
-                <Button onClick={handleSendWhatsApp}>
-                  <Send className="mr-2 h-4 w-4" />
-                  Send via WhatsApp
-                </Button>
-              )}
-            </DialogFooter>
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={handlePrintReceipt}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Receipt
+                  </Button>
+                  {receiptData.customerPhone && (
+                    <Button onClick={handleSendWhatsApp}>
+                      <Send className="mr-2 h-4 w-4" />
+                      Send via WhatsApp
+                    </Button>
+                  )}
+                </DialogFooter>
+              </>
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">
+                Loading receipt data...
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>

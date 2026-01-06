@@ -41,17 +41,22 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
   ({ receiptData, companyDetails, receiptSettings = {} }, ref) => {
     const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
+    const invoiceAmount = receiptData?.invoiceAmount || 0;
+    const previousBalance = receiptData?.previousBalance || 0;
+    const paidAmount = receiptData?.paidAmount || 0;
+    const currentBalance = receiptData?.currentBalance || 0;
+
     useEffect(() => {
-      if (receiptSettings.showQrCode && companyDetails.upiId) {
+      if (receiptSettings.showQrCode && companyDetails.upiId && paidAmount > 0) {
         const upiString = `upi://pay?pa=${companyDetails.upiId}&pn=${encodeURIComponent(
           companyDetails.businessName || ""
-        )}&am=${receiptData.paidAmount}&cu=INR`;
+        )}&am=${paidAmount}&cu=INR`;
 
         QRCode.toDataURL(upiString, { width: 200, margin: 1, errorCorrectionLevel: 'M' })
           .then(setQrCodeUrl)
           .catch(console.error);
       }
-    }, [companyDetails.upiId, companyDetails.businessName, receiptData.paidAmount, receiptSettings.showQrCode]);
+    }, [companyDetails.upiId, companyDetails.businessName, paidAmount, receiptSettings.showQrCode]);
 
     return (
       <div
@@ -140,38 +145,38 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
           <tbody>
             <tr>
               <td className="border border-gray-300 p-2">
-                Payment for Invoice: {receiptData.invoiceNumber}
+                Payment for Invoice: {receiptData?.invoiceNumber || '-'}
                 <br />
                 <span className="text-sm text-gray-600">
-                  Invoice Date: {receiptData.invoiceDate ? format(new Date(receiptData.invoiceDate), "dd MMM yyyy") : "-"}
+                  Invoice Date: {receiptData?.invoiceDate ? format(new Date(receiptData.invoiceDate), "dd MMM yyyy") : "-"}
                 </span>
               </td>
               <td className="border border-gray-300 p-2 text-right">
-                ₹{receiptData.invoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{invoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
             </tr>
             <tr>
               <td className="border border-gray-300 p-2 font-medium">Previous Balance</td>
               <td className="border border-gray-300 p-2 text-right font-medium">
-                ₹{receiptData.previousBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{previousBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
             </tr>
             <tr className="bg-green-50">
               <td className="border border-gray-300 p-2 font-bold">Amount Received</td>
               <td className="border border-gray-300 p-2 text-right font-bold text-green-700">
-                ₹{receiptData.paidAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{paidAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
             </tr>
             <tr>
               <td className="border border-gray-300 p-2 font-medium">Payment Method</td>
               <td className="border border-gray-300 p-2 text-right">
-                {receiptData.paymentMethod?.toUpperCase() || '-'}
+                {receiptData?.paymentMethod?.toUpperCase() || '-'}
               </td>
             </tr>
             <tr className="bg-blue-50">
               <td className="border border-gray-300 p-2 font-bold">Current Balance</td>
               <td className="border border-gray-300 p-2 text-right font-bold text-blue-700">
-                ₹{receiptData.currentBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{currentBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
             </tr>
           </tbody>
@@ -181,7 +186,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
         <div className="mb-6">
           <p className="font-semibold text-gray-900">Amount in Words:</p>
           <p className="text-gray-700 italic">
-            Rupees {numberToWords(receiptData.paidAmount)} Only
+            Rupees {numberToWords(paidAmount)} Only
           </p>
         </div>
 
