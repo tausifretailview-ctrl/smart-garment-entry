@@ -13,7 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarIcon, Home, Plus, X, Search, Loader2, FileText, ArrowRight } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Loader2, FileText, ArrowRight, Scan } from "lucide-react";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -123,6 +123,7 @@ export default function DeliveryChallanEntry() {
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [selectedSaleOrderId, setSelectedSaleOrderId] = useState<string | null>(null);
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const { filteredCustomers, isLoading: isCustomersLoading, refetch: refetchCustomers } = useCustomerSearch(customerSearchInput);
@@ -340,6 +341,71 @@ export default function DeliveryChallanEntry() {
     }
     setOpenProductSearch(false);
     setSearchInput("");
+  };
+
+  // Handle barcode/product search on Enter (like POS)
+  const handleBarcodeSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchInput.trim()) {
+      searchAndAddProduct(searchInput.trim());
+    }
+  };
+
+  const searchAndAddProduct = (searchTerm: string) => {
+    if (!productsData) return;
+
+    // Search by barcode first (exact match)
+    let foundVariant: any = null;
+    let foundProduct: any = null;
+
+    for (const product of productsData) {
+      const variantMatch = product.product_variants?.find((v: any) => 
+        v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
+      );
+      
+      if (variantMatch) {
+        foundVariant = variantMatch;
+        foundProduct = product;
+        break;
+      }
+    }
+
+    if (foundVariant && foundProduct) {
+      // If in grid mode, open size grid dialog
+      if (entryMode === "grid") {
+        setSizeGridProduct(foundProduct);
+        setSizeGridVariants(foundProduct.product_variants || []);
+        setShowSizeGrid(true);
+        setSearchInput("");
+        barcodeInputRef.current?.focus();
+        return;
+      }
+      
+      // Check if product already exists in filled rows
+      const existingIndex = lineItems.findIndex(item => item.variantId === foundVariant.id && item.productId !== '');
+      
+      if (existingIndex >= 0) {
+        // Increment quantity
+        const newItems = [...lineItems];
+        newItems[existingIndex].quantity += 1;
+        newItems[existingIndex].lineTotal = newItems[existingIndex].quantity * newItems[existingIndex].salePrice * (1 - newItems[existingIndex].discountPercent / 100);
+        setLineItems(newItems);
+      } else {
+        // Add as new line
+        addProductToLine(foundProduct, foundVariant);
+      }
+      
+      setSearchInput("");
+      // Keep focus on barcode input for continuous scanning
+      setTimeout(() => barcodeInputRef.current?.focus(), 50);
+    } else {
+      toast({
+        title: "Product not found",
+        description: "No product matches the scanned barcode.",
+        variant: "destructive",
+      });
+      setSearchInput("");
+      barcodeInputRef.current?.focus();
+    }
   };
 
   const handleProductSelect = (product: any) => {
@@ -751,41 +817,58 @@ export default function DeliveryChallanEntry() {
           </Card>
         </div>
 
-        {/* Product Search */}
+        {/* Product Search with Barcode Scan */}
         <Card className="mb-4 p-3">
-          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full h-9 justify-start text-left font-normal">
-                <Search className="mr-2 h-4 w-4" /> Search products by name, style, or barcode...
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[600px] p-0">
-              <Command>
-                <CommandInput placeholder="Type to search..." value={searchInput} onValueChange={setSearchInput} />
-                <CommandList>
-                  {isSearching ? <CommandEmpty>Searching...</CommandEmpty> : 
-                   productSearchResults.length === 0 ? <CommandEmpty>No products found.</CommandEmpty> : (
-                    <CommandGroup>
-                      {productSearchResults.slice(0, 15).map((product: any) => (
-                        <CommandItem key={product.id} onSelect={() => handleProductSelect(product)}>
-                          <div className="flex justify-between w-full">
-                            <div>
-                              <span className="font-medium">{product.product_name}</span>
-                              {product.style && <span className="ml-2 text-muted-foreground text-xs">({product.style})</span>}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Barcode Scan Input - Direct scan like POS */}
+            <div className="relative w-[200px]">
+              <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={barcodeInputRef}
+                placeholder="Scan barcode..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleBarcodeSearch}
+                className="pl-10 pr-4 h-9"
+                autoFocus
+              />
+            </div>
+
+            {/* Browse Products Search Bar */}
+            <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="flex-1 min-w-[250px] h-9 justify-start text-left font-normal">
+                  <Search className="mr-2 h-4 w-4" /> Browse products by name, style...
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[600px] p-0">
+                <Command>
+                  <CommandInput placeholder="Type to search..." value={searchInput} onValueChange={setSearchInput} />
+                  <CommandList>
+                    {isSearching ? <CommandEmpty>Searching...</CommandEmpty> : 
+                     productSearchResults.length === 0 ? <CommandEmpty>No products found.</CommandEmpty> : (
+                      <CommandGroup>
+                        {productSearchResults.slice(0, 15).map((product: any) => (
+                          <CommandItem key={product.id} onSelect={() => handleProductSelect(product)}>
+                            <div className="flex justify-between w-full">
+                              <div>
+                                <span className="font-medium">{product.product_name}</span>
+                                {product.style && <span className="ml-2 text-muted-foreground text-xs">({product.style})</span>}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {product.size_range && <span className="mr-2">Sizes: {product.size_range}</span>}
+                                <span>₹{product.default_sale_price || 0}</span>
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">
-                              {product.size_range && <span className="mr-2">Sizes: {product.size_range}</span>}
-                              <span>₹{product.default_sale_price || 0}</span>
-                            </div>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </Card>
 
         {/* Items Table */}
