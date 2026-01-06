@@ -73,6 +73,9 @@ export default function Accounts() {
   const [supplierSearchTerm, setSupplierSearchTerm] = useState("");
   const [selectedSupplierBillIds, setSelectedSupplierBillIds] = useState<string[]>([]);
 
+  // Selected payment receipts for deletion
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+
   // Reconciliation filters
   const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
   const [reconEndDate, setReconEndDate] = useState<Date>(endOfMonth(new Date()));
@@ -1534,13 +1537,45 @@ export default function Accounts() {
             </Card>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Customer Payments</CardTitle>
+                {isAdmin && selectedPaymentIds.length > 0 && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Selected ({selectedPaymentIds.length})
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Selected Receipts?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will delete {selectedPaymentIds.length} receipt(s) and reverse the amounts back to the customers' outstanding balances.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => {
+                            const selectedVouchers = vouchers?.filter((v) => selectedPaymentIds.includes(v.id)) || [];
+                            selectedVouchers.forEach((voucher) => deleteReceipt.mutate(voucher));
+                            setSelectedPaymentIds([]);
+                          }}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete & Reverse All
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </CardHeader>
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {isAdmin && <TableHead className="w-10"></TableHead>}
                       <TableHead>Voucher No</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Customer</TableHead>
@@ -1559,9 +1594,24 @@ export default function Accounts() {
                         const customerName = invoice?.customer_name || 
                           customers?.find((c) => c.id === voucher.reference_id)?.customer_name || 
                           "-";
+                        const isSelected = selectedPaymentIds.includes(voucher.id);
                         
                         return (
-                          <TableRow key={voucher.id}>
+                          <TableRow key={voucher.id} className={isSelected ? "bg-muted/50" : ""}>
+                            {isAdmin && (
+                              <TableCell>
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedPaymentIds([...selectedPaymentIds, voucher.id]);
+                                    } else {
+                                      setSelectedPaymentIds(selectedPaymentIds.filter((id) => id !== voucher.id));
+                                    }
+                                  }}
+                                />
+                              </TableCell>
+                            )}
                             <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                             <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>
                             <TableCell>{customerName}</TableCell>
@@ -1569,58 +1619,32 @@ export default function Accounts() {
                             <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                             {isAdmin && (
                               <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => {
-                                      const customer = customers?.find((c) => c.id === voucher.reference_id);
-                                      setReceiptData({
-                                        voucherNumber: voucher.voucher_number,
-                                        voucherDate: voucher.voucher_date,
-                                        customerName: customerName,
-                                        customerPhone: customer?.phone || "",
-                                        customerAddress: customer?.address || "",
-                                        invoiceNumber: voucher.description?.includes("Against Invoice") 
-                                          ? voucher.description.replace("Against Invoice: ", "")
-                                          : voucher.description || "-",
-                                        invoiceDate: voucher.voucher_date,
-                                        invoiceAmount: voucher.total_amount,
-                                        paidAmount: voucher.total_amount,
-                                        paymentMethod: voucher.payment_method || "cash",
-                                        previousBalance: 0,
-                                        currentBalance: 0
-                                      });
-                                      setShowReceiptDialog(true);
-                                    }}
-                                  >
-                                    <Printer className="h-4 w-4" />
-                                  </Button>
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Delete Payment Receipt?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          This will delete receipt {voucher.voucher_number} and reverse ₹{voucher.total_amount.toFixed(2)} back to the customer's outstanding balance.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction 
-                                          onClick={() => deleteReceipt.mutate(voucher)}
-                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                          Delete & Reverse
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon"
+                                  onClick={() => {
+                                    const customer = customers?.find((c) => c.id === voucher.reference_id);
+                                    setReceiptData({
+                                      voucherNumber: voucher.voucher_number,
+                                      voucherDate: voucher.voucher_date,
+                                      customerName: customerName,
+                                      customerPhone: customer?.phone || "",
+                                      customerAddress: customer?.address || "",
+                                      invoiceNumber: voucher.description?.includes("Against Invoice") 
+                                        ? voucher.description.replace("Against Invoice: ", "")
+                                        : voucher.description || "-",
+                                      invoiceDate: voucher.voucher_date,
+                                      invoiceAmount: voucher.total_amount,
+                                      paidAmount: voucher.total_amount,
+                                      paymentMethod: voucher.payment_method || "cash",
+                                      previousBalance: 0,
+                                      currentBalance: 0
+                                    });
+                                    setShowReceiptDialog(true);
+                                  }}
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                             )}
                           </TableRow>
