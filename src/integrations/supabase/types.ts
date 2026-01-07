@@ -1469,6 +1469,7 @@ export type Database = {
           net_amount: number
           notes: string | null
           organization_id: string | null
+          other_charges: number | null
           paid_amount: number | null
           payment_status: string | null
           round_off: number | null
@@ -1489,6 +1490,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          other_charges?: number | null
           paid_amount?: number | null
           payment_status?: string | null
           round_off?: number | null
@@ -1509,6 +1511,7 @@ export type Database = {
           net_amount?: number
           notes?: string | null
           organization_id?: string | null
+          other_charges?: number | null
           paid_amount?: number | null
           payment_status?: string | null
           round_off?: number | null

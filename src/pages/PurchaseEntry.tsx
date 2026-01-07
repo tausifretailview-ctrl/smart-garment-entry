@@ -125,6 +125,7 @@ const PurchaseEntry = () => {
   const [gstAmount, setGstAmount] = useState(0);
   const [netAmount, setNetAmount] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [otherCharges, setOtherCharges] = useState(0);
   const [roundOff, setRoundOff] = useState(0);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedPurchaseItems, setSavedPurchaseItems] = useState<LineItem[]>([]);
@@ -180,6 +181,7 @@ const PurchaseEntry = () => {
     setSoftwareBillNo(data.softwareBillNo || "");
     setBillDate(data.billDate ? new Date(data.billDate) : new Date());
     setLineItems(data.lineItems || []);
+    setOtherCharges(data.otherCharges || 0);
     setRoundOff(data.roundOff || 0);
     setEntryMode(data.entryMode || "grid");
     // Restore edit mode if draft was from an edit
@@ -748,11 +750,11 @@ const PurchaseEntry = () => {
     const gross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
     const grossAfterDiscount = gross - discountAmount;
     const gst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-    const netBeforeRoundOff = grossAfterDiscount + gst;
+    const netBeforeRoundOff = grossAfterDiscount + gst + otherCharges;
     setGrossAmount(gross);
     setGstAmount(gst);
     setNetAmount(netBeforeRoundOff + roundOff);
-  }, [lineItems, roundOff, discountAmount]);
+  }, [lineItems, roundOff, discountAmount, otherCharges]);
 
   const generateCentralizedBarcode = async (): Promise<string> => {
     try {
@@ -1409,7 +1411,7 @@ const PurchaseEntry = () => {
       // Calculate totals directly from lineItems to avoid stale state issues
       const calculatedGross = lineItems.reduce((sum, r) => sum + r.line_total, 0);
       const calculatedGst = lineItems.reduce((sum, r) => sum + (r.line_total * r.gst_per / 100), 0);
-      const calculatedNet = calculatedGross + calculatedGst + roundOff;
+      const calculatedNet = calculatedGross + calculatedGst + otherCharges + roundOff;
 
       if (isEditMode && editingBillId) {
         // Update existing bill
@@ -1422,6 +1424,7 @@ const PurchaseEntry = () => {
             bill_date: format(billDate, "yyyy-MM-dd"),
             gross_amount: calculatedGross,
             gst_amount: calculatedGst,
+            other_charges: otherCharges,
             net_amount: calculatedNet,
             round_off: roundOff,
           })
@@ -1551,6 +1554,7 @@ const PurchaseEntry = () => {
         });
         setBillDate(new Date());
         setLineItems([]);
+        setOtherCharges(0);
         setRoundOff(0);
         setSoftwareBillNo("");
       } else {
@@ -1577,6 +1581,7 @@ const PurchaseEntry = () => {
               bill_date: format(billDate, "yyyy-MM-dd"),
               gross_amount: calculatedGross,
               gst_amount: calculatedGst,
+              other_charges: otherCharges,
               net_amount: calculatedNet,
               round_off: roundOff,
               organization_id: currentOrganization.id,
@@ -1669,6 +1674,7 @@ const PurchaseEntry = () => {
         });
         setBillDate(new Date());
         setLineItems([]);
+        setOtherCharges(0);
         setRoundOff(0);
         setSoftwareBillNo(""); // Reset for next entry
       }
@@ -2577,6 +2583,18 @@ const PurchaseEntry = () => {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">GST Amount:</span>
                   <span className="font-semibold">₹{totals.gstAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Other Charges:</span>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={otherCharges}
+                    onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
+                    onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                    className="w-28 text-right"
+                    placeholder="0.00"
+                  />
                 </div>
                 <div className="flex justify-between items-center py-2">
                   <span className="text-muted-foreground">Round Off:</span>
