@@ -2,12 +2,14 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Search, Grid3X3, X, Check } from "lucide-react";
+import { Search, Grid3X3, X, Check, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import jsPDF from "jspdf";
+import { format } from "date-fns";
 
 interface SizeStockDialogProps {
   open: boolean;
@@ -244,6 +246,125 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     grandTotal += row.totalStock;
   });
 
+  // PDF Export function
+  const exportToPDF = () => {
+    if (sizeWiseData.rows.length === 0) return;
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    let yPos = margin;
+
+    // Title
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Size-wise Stock Report", margin, yPos);
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth - margin - 45, yPos);
+    yPos += 8;
+
+    // Table setup
+    const colWidths: number[] = [];
+    const productColWidth = 70;
+    const sizeColWidth = Math.min(12, (pageWidth - margin * 2 - productColWidth - 20) / (sizeWiseData.sizes.length + 1));
+    const stockColWidth = 18;
+    
+    colWidths.push(productColWidth);
+    sizeWiseData.sizes.forEach(() => colWidths.push(sizeColWidth));
+    colWidths.push(stockColWidth);
+
+    const rowHeight = 6;
+
+    // Header
+    doc.setFillColor(59, 130, 246);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    
+    let xPos = margin;
+    doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
+    doc.text("Product", xPos + 2, yPos + 4);
+    xPos += productColWidth;
+
+    sizeWiseData.sizes.forEach((size) => {
+      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
+      doc.text(size, xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+      xPos += sizeColWidth;
+    });
+
+    doc.setFillColor(37, 99, 235);
+    doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
+    doc.text("Stock", xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+    yPos += rowHeight;
+
+    // Data rows
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+
+    sizeWiseData.rows.forEach((row, idx) => {
+      if (yPos > pageHeight - 20) {
+        doc.addPage();
+        yPos = margin;
+      }
+
+      const bgColor = idx % 2 === 0 ? 249 : 255;
+      doc.setFillColor(bgColor, bgColor, bgColor);
+      doc.setTextColor(0, 0, 0);
+
+      xPos = margin;
+      doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
+      const productLabel = `${row.productName}${row.brand || row.color ? ` (${[row.brand, row.color].filter(Boolean).join(" - ")})` : ""}`;
+      doc.text(productLabel.substring(0, 45), xPos + 2, yPos + 4);
+      xPos += productColWidth;
+
+      sizeWiseData.sizes.forEach((size) => {
+        const qty = row.sizeStocks[size] || 0;
+        doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
+        if (qty !== 0) {
+          doc.text(String(qty), xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+        }
+        xPos += sizeColWidth;
+      });
+
+      doc.setFillColor(row.totalStock > 0 ? 220 : 240, row.totalStock > 0 ? 252 : 240, row.totalStock > 0 ? 231 : 240);
+      doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
+      doc.setFont("helvetica", "bold");
+      doc.text(String(row.totalStock), xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+      doc.setFont("helvetica", "normal");
+      yPos += rowHeight;
+    });
+
+    // Totals row
+    if (yPos > pageHeight - 15) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    doc.setFillColor(239, 68, 68);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+
+    xPos = margin;
+    doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
+    doc.text("Total Stock", xPos + 2, yPos + 4);
+    xPos += productColWidth;
+
+    sizeWiseData.sizes.forEach((size) => {
+      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
+      doc.text(String(sizeTotals[size] || 0), xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+      xPos += sizeColWidth;
+    });
+
+    doc.setFillColor(220, 38, 38);
+    doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
+    doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+
+    doc.save(`SizeStock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-[600px] md:max-w-[800px] max-h-[80vh] flex flex-col p-0 gap-0">
@@ -253,14 +374,26 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             <Grid3X3 className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold">Size Stock</span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => onOpenChange(false)}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs gap-1"
+              onClick={exportToPDF}
+              disabled={sizeWiseData.rows.length === 0}
+            >
+              <FileText className="h-3 w-3" />
+              PDF
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
         
         {/* Compact Search */}
