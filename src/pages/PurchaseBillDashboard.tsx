@@ -35,6 +35,10 @@ interface PurchaseItem {
   id: string;
   product_id: string;
   product_name?: string;
+  brand?: string;
+  category?: string;
+  color?: string;
+  style?: string;
   size: string;
   qty: number;
   pur_price: number;
@@ -45,6 +49,25 @@ interface PurchaseItem {
   barcode: string;
   line_total: number;
 }
+
+// Helper function to format product description
+const formatProductDescription = (item: {
+  product_name?: string;
+  brand?: string;
+  category?: string;
+  style?: string;
+  color?: string;
+  size: string;
+}) => {
+  const parts = [];
+  if (item.product_name) parts.push(item.product_name);
+  if (item.brand) parts.push(item.brand);
+  if (item.category) parts.push(item.category);
+  if (item.style) parts.push(item.style);
+  if (item.color) parts.push(item.color);
+  parts.push(item.size);
+  return parts.join(' | ');
+};
 
 interface PurchaseBill {
   id: string;
@@ -192,7 +215,7 @@ const PurchaseBillDashboard = () => {
         while (itemsHasMore) {
           const { data: itemsData, error: itemsError } = await supabase
             .from("purchase_items")
-            .select("bill_id, qty, id, product_id, product_name, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
+            .select("bill_id, qty, id, product_id, product_name, brand, category, color, style, size, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
             .in("bill_id", billIds)
             .is("deleted_at", null)
             .range(itemOffset, itemOffset + PAGE_SIZE - 1);
@@ -236,7 +259,7 @@ const PurchaseBillDashboard = () => {
     try {
       const { data, error } = await supabase
         .from("purchase_items")
-        .select("*")
+        .select("id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total")
         .eq("bill_id", billId)
         .order("created_at");
 
@@ -1192,11 +1215,10 @@ const PurchaseBillDashboard = () => {
                                 </div>
                                 <div className="border rounded-lg overflow-hidden">
                                   <Table>
-                                     <TableHeader>
+                                    <TableHeader>
                                       <TableRow className="bg-muted/30">
-                                        <TableHead>Size</TableHead>
+                                        <TableHead>Product Description</TableHead>
                                         <TableHead>Barcode</TableHead>
-                                        <TableHead>Product Name</TableHead>
                                         <TableHead className="text-right">Quantity</TableHead>
                                         <TableHead className="text-right">Purchase Price</TableHead>
                                         <TableHead className="text-right">Sale Price</TableHead>
@@ -1208,7 +1230,9 @@ const PurchaseBillDashboard = () => {
                                     <TableBody>
                                        {billItems[bill.id].map((item) => (
                                         <TableRow key={item.id}>
-                                          <TableCell className="font-medium">{item.size}</TableCell>
+                                          <TableCell className="font-medium whitespace-nowrap">
+                                            {formatProductDescription(item)}
+                                          </TableCell>
                                           <TableCell>
                                             {item.barcode ? (
                                               <Badge variant="outline" className="font-mono text-xs">
@@ -1218,7 +1242,6 @@ const PurchaseBillDashboard = () => {
                                               <span className="text-muted-foreground">—</span>
                                             )}
                                           </TableCell>
-                                          <TableCell>{item.product_name || "—"}</TableCell>
                                           <TableCell className="text-right">{item.qty}</TableCell>
                                           <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
                                           <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
