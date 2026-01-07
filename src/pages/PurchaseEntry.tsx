@@ -155,6 +155,10 @@ const PurchaseEntry = () => {
   // State for selective barcode printing
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
   const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
+  
+  // State for tracking newly added items for smart barcode printing
+  const [newlyAddedItems, setNewlyAddedItems] = useState<LineItem[]>([]);
+  const [savedBillId, setSavedBillId] = useState<string | null>(null);
 
   const [billData, setBillData] = useState({
     supplier_id: "",
@@ -1531,19 +1535,71 @@ const PurchaseEntry = () => {
             style: item.style || null,
           }));
 
+        let insertedNewItems: LineItem[] = [];
         if (itemsToInsert.length > 0) {
-          const { error: insertError } = await supabase
+          const { data: insertedData, error: insertError } = await supabase
             .from("purchase_items")
-            .insert(itemsToInsert);
+            .insert(itemsToInsert)
+            .select();
           
           if (insertError) throw insertError;
           console.log(`Inserted ${itemsToInsert.length} new items`);
+          
+          // Map inserted items back to LineItem format for barcode printing
+          insertedNewItems = lineItems.filter(item => !originalItemsMap.has(item.temp_id));
+        }
+
+        // Check for price changes and show dialog if any
+        const priceChanges = await detectPriceChanges(lineItems);
+        if (priceChanges.length > 0) {
+          setDetectedPriceChanges(priceChanges);
+          setPendingSaveItems([...lineItems]);
+          setShowPriceUpdateDialog(true);
         }
 
         toast({
           title: "Success",
           description: "Purchase bill updated successfully",
         });
+
+        // Fetch full product details for barcode printing (all items)
+        const itemsWithDetails = await Promise.all(
+          lineItems.map(async (item) => {
+            const { data: product } = await supabase
+              .from("products")
+              .select("brand, color, style")
+              .eq("id", item.product_id)
+              .single();
+            
+            return {
+              ...item,
+              brand: item.brand || product?.brand || "",
+              color: item.color || product?.color || "",
+              style: item.style || product?.style || "",
+            };
+          })
+        );
+
+        // Store all items and newly added items for print dialog
+        setSavedPurchaseItems(itemsWithDetails);
+        setSavedBillId(editingBillId);
+        
+        // Only set newly added items if there are any
+        if (insertedNewItems.length > 0) {
+          const newItemsWithDetails = itemsWithDetails.filter(item => 
+            insertedNewItems.some(newItem => newItem.temp_id === item.temp_id)
+          );
+          setNewlyAddedItems(newItemsWithDetails);
+        } else {
+          setNewlyAddedItems([]);
+        }
+        
+        // Show print dialog after update
+        setShowPrintDialog(true);
+
+        // Clear draft after successful save
+        await deleteDraft();
+        updateCurrentData(null);
 
         // Reset edit mode state - Critical fix for duplicate bill prevention
         setIsEditMode(false);
@@ -1660,6 +1716,8 @@ const PurchaseEntry = () => {
 
         // Store items for barcode printing and show dialog
         setSavedPurchaseItems(itemsWithDetails);
+        setSavedBillId(billDataResult.id);
+        setNewlyAddedItems([]); // All items are new for a new bill
         setShowPrintDialog(true);
 
         // Clear draft after successful save and prevent re-save on cleanup
@@ -2672,9 +2730,9 @@ const PurchaseEntry = () => {
           showMrp={showMrp}
         />
 
-        {/* Print Barcode Dialog */}
+        {/* Print Barcode Dialog with Smart Selection */}
         <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Printer className="h-5 w-5" />
@@ -2683,32 +2741,79 @@ const PurchaseEntry = () => {
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-muted-foreground">
-                Your purchase bill has been saved. Would you like to print barcodes for the purchased items?
+                Your purchase bill has been saved. Would you like to print barcodes?
               </p>
-              <div className="flex gap-3 justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowPrintDialog(false)}
-                >
-                  No, Thanks
-                </Button>
+              
+              {/* Show item counts */}
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span>Total Items:</span>
+                  <span className="font-semibold">{savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)} labels</span>
+                </div>
+                {newlyAddedItems.length > 0 && (
+                  <div className="flex justify-between text-primary">
+                    <span>Newly Added:</span>
+                    <span className="font-semibold">{newlyAddedItems.reduce((sum, i) => sum + i.qty, 0)} labels</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {/* Print All Labels Button */}
                 <Button
                   onClick={async () => {
                     try {
-                      // Fetch supplier code
-                      let supplierCode = "";
-                      if (billData.supplier_id) {
-                        const { data: supplierData } = await supabase
-                          .from("suppliers")
-                          .select("supplier_code")
-                          .eq("id", billData.supplier_id)
-                          .single();
-                        
-                        supplierCode = supplierData?.supplier_code || "";
+                      const barcodeItems = savedPurchaseItems.map(item => ({
+                        sku_id: item.sku_id,
+                        product_name: item.product_name || "",
+                        brand: item.brand || "",
+                        category: item.category || "",
+                        color: item.color || "",
+                        style: item.style || "",
+                        size: item.size,
+                        sale_price: item.sale_price,
+                        mrp: item.mrp,
+                        pur_price: item.pur_price,
+                        barcode: item.barcode,
+                        qty: item.qty,
+                        bill_number: softwareBillNo || "",
+                        supplier_code: "",
+                      }));
+
+                      // Mark all items as printed
+                      if (savedBillId) {
+                        await supabase
+                          .from("purchase_items")
+                          .update({ barcode_printed: true })
+                          .eq("bill_id", savedBillId);
                       }
 
-                      // Transform items to barcode format
-                        const barcodeItems = savedPurchaseItems.map(item => ({
+                      setShowPrintDialog(false);
+                      navigate("/barcode-printing", { 
+                        state: { purchaseItems: barcodeItems } 
+                      });
+                    } catch (error) {
+                      console.error("Error preparing barcode data:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to prepare barcode data",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  className="w-full gap-2"
+                >
+                  <Printer className="h-4 w-4" />
+                  Print All Labels ({savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})
+                </Button>
+
+                {/* Print New Labels Only Button - only show if there are newly added items */}
+                {newlyAddedItems.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      try {
+                        const barcodeItems = newlyAddedItems.map(item => ({
                           sku_id: item.sku_id,
                           product_name: item.product_name || "",
                           brand: item.brand || "",
@@ -2722,28 +2827,47 @@ const PurchaseEntry = () => {
                           barcode: item.barcode,
                           qty: item.qty,
                           bill_number: softwareBillNo || "",
-                          supplier_code: supplierCode,
+                          supplier_code: "",
                         }));
 
-                      setShowPrintDialog(false);
+                        // Mark only new items as printed
+                        if (savedBillId && newlyAddedItems.length > 0) {
+                          const newSkuIds = newlyAddedItems.map(i => i.sku_id).filter(Boolean);
+                          if (newSkuIds.length > 0) {
+                            await supabase
+                              .from("purchase_items")
+                              .update({ barcode_printed: true })
+                              .eq("bill_id", savedBillId)
+                              .in("sku_id", newSkuIds);
+                          }
+                        }
 
-                      // Navigate to barcode printing page
-                      navigate("/barcode-printing", { 
-                        state: { purchaseItems: barcodeItems } 
-                      });
-                    } catch (error) {
-                      console.error("Error preparing barcode data:", error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to prepare barcode data",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  className="gap-2"
+                        setShowPrintDialog(false);
+                        navigate("/barcode-printing", { 
+                          state: { purchaseItems: barcodeItems } 
+                        });
+                      } catch (error) {
+                        console.error("Error preparing barcode data:", error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to prepare barcode data",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                    className="w-full gap-2"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print New Only ({newlyAddedItems.reduce((sum, i) => sum + i.qty, 0)})
+                  </Button>
+                )}
+
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPrintDialog(false)}
+                  className="w-full"
                 >
-                  <Printer className="h-4 w-4" />
-                  Print Barcodes
+                  Skip
                 </Button>
               </div>
             </div>

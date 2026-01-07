@@ -1541,6 +1541,7 @@ export type Database = {
       purchase_items: {
         Row: {
           barcode: string | null
+          barcode_printed: boolean | null
           bill_id: string
           bill_number: string | null
           brand: string | null
@@ -1566,6 +1567,7 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          barcode_printed?: boolean | null
           bill_id: string
           bill_number?: string | null
           brand?: string | null
@@ -1591,6 +1593,7 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          barcode_printed?: boolean | null
           bill_id?: string
           bill_number?: string | null
           brand?: string | null
