@@ -264,40 +264,43 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text(`Generated: ${format(new Date(), "dd/MM/yyyy HH:mm")}`, pageWidth - margin - 45, yPos);
-    yPos += 8;
+    yPos += 10;
 
     // Table setup
-    const colWidths: number[] = [];
     const productColWidth = 70;
-    const sizeColWidth = Math.min(12, (pageWidth - margin * 2 - productColWidth - 20) / (sizeWiseData.sizes.length + 1));
     const stockColWidth = 18;
-    
-    colWidths.push(productColWidth);
-    sizeWiseData.sizes.forEach(() => colWidths.push(sizeColWidth));
-    colWidths.push(stockColWidth);
+    const availableWidth = pageWidth - margin * 2 - productColWidth - stockColWidth;
+    const sizeColWidth = sizeWiseData.sizes.length > 0 
+      ? Math.min(15, availableWidth / sizeWiseData.sizes.length) 
+      : 15;
+    const rowHeight = 7;
 
-    const rowHeight = 6;
-
-    // Header
+    // Draw header row
     doc.setFillColor(59, 130, 246);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
+    doc.setDrawColor(200, 200, 200);
     
     let xPos = margin;
-    doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
-    doc.text("Product", xPos + 2, yPos + 4);
+    
+    // Product header
+    doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
+    doc.text("Product", xPos + 2, yPos + 5);
     xPos += productColWidth;
 
+    // Size headers
     sizeWiseData.sizes.forEach((size) => {
-      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
-      doc.text(size, xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+      doc.setFillColor(59, 130, 246);
+      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
+      doc.text(String(size), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
       xPos += sizeColWidth;
     });
 
+    // Stock header
     doc.setFillColor(37, 99, 235);
-    doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
-    doc.text("Stock", xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+    doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
+    doc.text("Stock", xPos + stockColWidth / 2, yPos + 5, { align: "center" });
     yPos += rowHeight;
 
     // Data rows
@@ -310,29 +313,38 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         yPos = margin;
       }
 
-      const bgColor = idx % 2 === 0 ? 249 : 255;
-      doc.setFillColor(bgColor, bgColor, bgColor);
+      const isEven = idx % 2 === 0;
       doc.setTextColor(0, 0, 0);
 
       xPos = margin;
-      doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
+      
+      // Product cell
+      doc.setFillColor(isEven ? 249 : 255, isEven ? 249 : 255, isEven ? 249 : 255);
+      doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
       const productLabel = `${row.productName}${row.brand || row.color ? ` (${[row.brand, row.color].filter(Boolean).join(" - ")})` : ""}`;
-      doc.text(productLabel.substring(0, 45), xPos + 2, yPos + 4);
+      doc.text(productLabel.substring(0, 40), xPos + 2, yPos + 5);
       xPos += productColWidth;
 
+      // Size cells
       sizeWiseData.sizes.forEach((size) => {
         const qty = row.sizeStocks[size] || 0;
-        doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
+        doc.setFillColor(isEven ? 249 : 255, isEven ? 249 : 255, isEven ? 249 : 255);
+        doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
         if (qty !== 0) {
-          doc.text(String(qty), xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+          doc.text(String(qty), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
         }
         xPos += sizeColWidth;
       });
 
-      doc.setFillColor(row.totalStock > 0 ? 220 : 240, row.totalStock > 0 ? 252 : 240, row.totalStock > 0 ? 231 : 240);
-      doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
+      // Stock cell
+      if (row.totalStock > 0) {
+        doc.setFillColor(220, 252, 231);
+      } else {
+        doc.setFillColor(240, 240, 240);
+      }
+      doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
       doc.setFont("helvetica", "bold");
-      doc.text(String(row.totalStock), xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+      doc.text(String(row.totalStock), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
       doc.setFont("helvetica", "normal");
       yPos += rowHeight;
     });
@@ -348,19 +360,20 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     doc.setFont("helvetica", "bold");
 
     xPos = margin;
-    doc.rect(xPos, yPos, productColWidth, rowHeight, "F");
-    doc.text("Total Stock", xPos + 2, yPos + 4);
+    doc.rect(xPos, yPos, productColWidth, rowHeight, "FD");
+    doc.text("Total Stock", xPos + 2, yPos + 5);
     xPos += productColWidth;
 
     sizeWiseData.sizes.forEach((size) => {
-      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "F");
-      doc.text(String(sizeTotals[size] || 0), xPos + sizeColWidth / 2, yPos + 4, { align: "center" });
+      doc.setFillColor(239, 68, 68);
+      doc.rect(xPos, yPos, sizeColWidth, rowHeight, "FD");
+      doc.text(String(sizeTotals[size] || 0), xPos + sizeColWidth / 2, yPos + 5, { align: "center" });
       xPos += sizeColWidth;
     });
 
     doc.setFillColor(220, 38, 38);
-    doc.rect(xPos, yPos, stockColWidth, rowHeight, "F");
-    doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 4, { align: "center" });
+    doc.rect(xPos, yPos, stockColWidth, rowHeight, "FD");
+    doc.text(String(grandTotal), xPos + stockColWidth / 2, yPos + 5, { align: "center" });
 
     doc.save(`SizeStock_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
   };
