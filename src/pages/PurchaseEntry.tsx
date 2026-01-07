@@ -253,7 +253,7 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("settings")
-        .select("purchase_settings")
+        .select("purchase_settings, product_settings")
         .eq("organization_id", currentOrganization?.id)
         .single();
       if (error) throw error;
@@ -263,6 +263,13 @@ const PurchaseEntry = () => {
   });
 
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  
+  // Check if color field is enabled in product settings
+  const isColorFieldEnabled = (() => {
+    const productSettings = settings?.product_settings as any;
+    if (!productSettings?.fields) return true; // Default to enabled if no settings
+    return productSettings.fields.color?.enabled !== false;
+  })();
 
   // Fetch suppliers with pagination
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
@@ -2658,7 +2665,7 @@ const PurchaseEntry = () => {
           validateStock={false}
           title="Enter Size-wise Qty"
           allowCustomSizes={true}
-          allowAddColor={true}
+          allowAddColor={isColorFieldEnabled}
           defaultPurPrice={selectedProduct?.default_pur_price}
           defaultSalePrice={selectedProduct?.default_sale_price}
           defaultMrp={sizeGridVariants[0]?.mrp || selectedProduct?.default_sale_price}
