@@ -1639,9 +1639,9 @@ const PurchaseEntry = () => {
             
             return {
               ...item,
-              brand: product?.brand || "",
-              color: product?.color || "",
-              style: product?.style || "",
+              brand: item.brand || product?.brand || "",
+              color: item.color || product?.color || "",
+              style: item.style || product?.style || "",
             };
           })
         );
