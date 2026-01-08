@@ -842,7 +842,9 @@ export default function POSSales() {
       
       const extraParts = [];
       if (product.brand) extraParts.push(product.brand);
-      if (product.color) extraParts.push(product.color);
+      // Prioritize variant color over product color
+      const displayColor = variant.color || product.color;
+      if (displayColor) extraParts.push(displayColor);
       
       if (extraParts.length > 0) {
         description += ',' + extraParts.join('-');
