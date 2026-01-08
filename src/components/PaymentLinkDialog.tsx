@@ -36,13 +36,20 @@ export function PaymentLinkDialog({
   invoiceNumber,
   invoiceCount,
 }: PaymentLinkDialogProps) {
-  const { generateUPILink, isUPIConfigured, upiId, businessName } = useUPIPaymentLink();
+  const { generateUPILink, generateWebPaymentLink, isUPIConfigured, upiId, businessName } = useUPIPaymentLink();
   const { sendWhatsApp, copyToClipboard } = useWhatsAppSend();
   const [showQR, setShowQR] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [copied, setCopied] = useState(false);
 
   const upiLink = generateUPILink({
+    amount,
+    customerName,
+    invoiceNumber,
+  });
+
+  // Web payment link (clickable in WhatsApp)
+  const webPaymentLink = generateWebPaymentLink({
     amount,
     customerName,
     invoiceNumber,
@@ -83,23 +90,16 @@ export function PaymentLinkDialog({
       return;
     }
 
-    // Format amount for UPI - WhatsApp won't make upi:// clickable, so provide clear instructions
     const formattedAmount = amount.toLocaleString("en-IN");
     
+    // Use web payment link that opens clickable in WhatsApp
     const message = `🔔 *Payment Request*\n\n` +
       `Dear ${customerName},\n\n` +
       `Please pay *₹${formattedAmount}*` +
       (invoiceNumber ? ` for invoice ${invoiceNumber}` : "") +
       (invoiceCount && invoiceCount > 1 ? ` (${invoiceCount} invoices)` : "") +
       `.\n\n` +
-      `💳 *Pay using UPI:*\n` +
-      `UPI ID: *${upiId}*\n` +
-      `Amount: *₹${formattedAmount}*\n\n` +
-      `📱 *How to pay:*\n` +
-      `1. Open any UPI app (GPay/PhonePe/Paytm)\n` +
-      `2. Tap "Pay" or "Send Money"\n` +
-      `3. Enter UPI ID: ${upiId}\n` +
-      `4. Enter amount: ₹${formattedAmount}\n\n` +
+      `👉 *Click to Pay:*\n${webPaymentLink}\n\n` +
       `Thank you!\n${businessName}`;
 
     sendWhatsApp(customerPhone, message);
