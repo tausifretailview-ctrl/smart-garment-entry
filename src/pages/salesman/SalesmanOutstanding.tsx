@@ -14,10 +14,12 @@ import {
   MessageCircle,
   IndianRupee,
   Users,
-  RefreshCw
+  RefreshCw,
+  Link2
 } from "lucide-react";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
+import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 
 interface CustomerOutstanding {
   id: string;
@@ -38,6 +40,10 @@ const SalesmanOutstanding = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [totalOutstanding, setTotalOutstanding] = useState(0);
+  
+  // Payment link dialog state
+  const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerOutstanding | null>(null);
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -136,6 +142,11 @@ const SalesmanOutstanding = () => {
       `Thank you for your business!`;
 
     await sendWhatsApp(customer.phone, message);
+  };
+
+  const openPaymentLink = (customer: CustomerOutstanding) => {
+    setSelectedCustomer(customer);
+    setPaymentLinkOpen(true);
   };
 
   if (loading) {
@@ -259,6 +270,15 @@ const SalesmanOutstanding = () => {
                         <MessageCircle className="h-4 w-4 mr-1" />
                         Remind
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => openPaymentLink(customer)}
+                      >
+                        <Link2 className="h-4 w-4 mr-1" />
+                        Pay Link
+                      </Button>
                     </>
                   )}
                 </div>
@@ -267,6 +287,18 @@ const SalesmanOutstanding = () => {
           ))
         )}
       </div>
+
+      {/* Payment Link Dialog */}
+      {selectedCustomer && (
+        <PaymentLinkDialog
+          open={paymentLinkOpen}
+          onOpenChange={setPaymentLinkOpen}
+          customerName={selectedCustomer.customer_name}
+          customerPhone={selectedCustomer.phone}
+          amount={selectedCustomer.balance}
+          invoiceCount={selectedCustomer.invoiceCount}
+        />
+      )}
     </div>
   );
 };

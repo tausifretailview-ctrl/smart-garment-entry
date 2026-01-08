@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Search, MessageCircle, Settings2, IndianRupee, Clock, CheckCircle, AlertCircle, Calendar as CalendarIcon, Printer, Send, ChevronLeft, ChevronRight, Filter, Link2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -23,6 +23,7 @@ import { useReactToPrint } from "react-to-print";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
+import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 
 interface Invoice {
   id: string;
@@ -91,6 +92,10 @@ export default function PaymentsDashboard() {
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
+  
+  // Payment link dialog state
+  const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false);
+  const [paymentLinkInvoice, setPaymentLinkInvoice] = useState<Invoice | null>(null);
   
   const receiptRef = useRef<HTMLDivElement>(null);
 
@@ -741,6 +746,20 @@ Thank you for your business!`;
                                   <MessageCircle className="h-4 w-4 text-orange-600" />
                                 </Button>
                               )}
+                              {invoice.payment_status !== 'completed' && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => {
+                                    setPaymentLinkInvoice(invoice);
+                                    setShowPaymentLinkDialog(true);
+                                  }}
+                                  title="Send Payment Link"
+                                  disabled={!invoice.customer_phone}
+                                >
+                                  <Link2 className="h-4 w-4 text-blue-600" />
+                                </Button>
+                              )}
                               {columnSettings.recordPayment && invoice.payment_status !== 'completed' && (
                                 <Button
                                   variant="ghost"
@@ -1011,6 +1030,18 @@ Thank you for your business!`;
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Payment Link Dialog */}
+      {paymentLinkInvoice && (
+        <PaymentLinkDialog
+          open={showPaymentLinkDialog}
+          onOpenChange={setShowPaymentLinkDialog}
+          customerName={paymentLinkInvoice.customer_name}
+          customerPhone={paymentLinkInvoice.customer_phone}
+          amount={Number(paymentLinkInvoice.net_amount || 0) - Number(paymentLinkInvoice.paid_amount || 0)}
+          invoiceNumber={paymentLinkInvoice.sale_number}
+        />
+      )}
     </div>
   );
 }
