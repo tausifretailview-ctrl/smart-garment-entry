@@ -13,7 +13,8 @@ export default function PublicPaymentPage() {
   // Extract payment details from URL params
   const upiId = searchParams.get("pa") || "";
   const businessName = decodeURIComponent(searchParams.get("pn") || "Merchant");
-  const amount = searchParams.get("am") || "0";
+  const rawAmount = searchParams.get("am") || "0";
+  const amount = isNaN(parseFloat(rawAmount)) ? "0" : rawAmount;
   const invoiceNumber = searchParams.get("tn") ? decodeURIComponent(searchParams.get("tn") || "") : "";
 
   // Generate UPI deep link

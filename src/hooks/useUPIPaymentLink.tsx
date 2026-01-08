@@ -48,6 +48,9 @@ export const useUPIPaymentLink = () => {
         return null;
       }
 
+      // Ensure amount is a valid number
+      const validAmount = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
+
       // Build transaction note
       const txnNote = description || 
         (invoiceNumber 
@@ -58,7 +61,7 @@ export const useUPIPaymentLink = () => {
       const params = new URLSearchParams({
         pa: upiId,
         pn: businessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50),
-        am: amount.toFixed(2),
+        am: validAmount.toFixed(2),
         cu: "INR",
         tn: txnNote.substring(0, 50),
       });
@@ -78,6 +81,9 @@ export const useUPIPaymentLink = () => {
         return null;
       }
 
+      // Ensure amount is a valid number
+      const validAmount = isNaN(amount) || amount === null || amount === undefined ? 0 : amount;
+
       const txnNote = description || 
         (invoiceNumber 
           ? `Payment for ${invoiceNumber}` 
@@ -87,7 +93,7 @@ export const useUPIPaymentLink = () => {
       const params = new URLSearchParams({
         pa: upiId,
         pn: businessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50),
-        am: amount.toFixed(2),
+        am: validAmount.toFixed(2),
         tn: txnNote.substring(0, 50),
       });
 
