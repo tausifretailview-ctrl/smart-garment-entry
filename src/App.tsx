@@ -54,6 +54,7 @@ import OrgAuth from "./pages/OrgAuth";
 import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
+import PublicPaymentPage from "./pages/PublicPaymentPage";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
@@ -90,6 +91,7 @@ const App = () => {
               {/* Public routes - No org context needed */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
+              <Route path="/pay" element={<PublicPaymentPage />} />
               
               {/* Platform admin route */}
               <Route

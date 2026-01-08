@@ -69,11 +69,11 @@ export const useUPIPaymentLink = () => {
   );
 
   /**
-   * Generate a web-compatible payment URL
-   * Some UPI apps also support https://upi.link format
+   * Generate a clickable web payment page URL
+   * This URL opens a payment page with a "Pay Now" button that triggers UPI
    */
-  const generateWebUPILink = useCallback(
-    ({ amount, customerName, invoiceNumber, description }: UPILinkParams): string | null => {
+  const generateWebPaymentLink = useCallback(
+    ({ amount, invoiceNumber, description }: UPILinkParams): string | null => {
       if (!upiId) {
         return null;
       }
@@ -81,18 +81,20 @@ export const useUPIPaymentLink = () => {
       const txnNote = description || 
         (invoiceNumber 
           ? `Payment for ${invoiceNumber}` 
-          : `Payment from ${customerName}`);
+          : "Payment");
 
+      // Build URL for the public payment page
       const params = new URLSearchParams({
         pa: upiId,
         pn: businessName.replace(/[^a-zA-Z0-9 ]/g, "").substring(0, 50),
         am: amount.toFixed(2),
-        cu: "INR",
         tn: txnNote.substring(0, 50),
       });
 
-      // Return both formats - deep link works better on mobile
-      return `upi://pay?${params.toString()}`;
+      // Get the base URL of the app
+      const baseUrl = window.location.origin;
+      
+      return `${baseUrl}/pay?${params.toString()}`;
     },
     [upiId, businessName]
   );
@@ -104,7 +106,7 @@ export const useUPIPaymentLink = () => {
 
   return {
     generateUPILink,
-    generateWebUPILink,
+    generateWebPaymentLink,
     isUPIConfigured,
     upiId,
     businessName,
