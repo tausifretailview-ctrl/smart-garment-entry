@@ -83,14 +83,23 @@ export function PaymentLinkDialog({
       return;
     }
 
+    // Format amount for UPI - WhatsApp won't make upi:// clickable, so provide clear instructions
+    const formattedAmount = amount.toLocaleString("en-IN");
+    
     const message = `🔔 *Payment Request*\n\n` +
       `Dear ${customerName},\n\n` +
-      `Please pay *₹${amount.toLocaleString("en-IN")}*` +
+      `Please pay *₹${formattedAmount}*` +
       (invoiceNumber ? ` for invoice ${invoiceNumber}` : "") +
       (invoiceCount && invoiceCount > 1 ? ` (${invoiceCount} invoices)` : "") +
       `.\n\n` +
-      `👉 *Click to Pay:*\n${upiLink}\n\n` +
-      `Or scan the QR code / use this UPI ID:\n📱 *${upiId}*\n\n` +
+      `💳 *Pay using UPI:*\n` +
+      `UPI ID: *${upiId}*\n` +
+      `Amount: *₹${formattedAmount}*\n\n` +
+      `📱 *How to pay:*\n` +
+      `1. Open any UPI app (GPay/PhonePe/Paytm)\n` +
+      `2. Tap "Pay" or "Send Money"\n` +
+      `3. Enter UPI ID: ${upiId}\n` +
+      `4. Enter amount: ₹${formattedAmount}\n\n` +
       `Thank you!\n${businessName}`;
 
     sendWhatsApp(customerPhone, message);
