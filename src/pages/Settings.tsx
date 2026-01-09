@@ -25,6 +25,7 @@ import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
 import BackupSettings from "@/components/BackupSettings";
 import { GiftRewardsManagement } from "@/components/GiftRewardsManagement";
 import { ChequeFormatManagement } from "@/components/ChequeFormatManagement";
+import { PaymentGatewaySettings } from "@/components/PaymentGatewaySettings";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 interface FieldConfig {
@@ -748,13 +749,14 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 lg:grid-cols-10">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
             <TabsTrigger value="purchase">Purchase</TabsTrigger>
             <TabsTrigger value="sale">Sale</TabsTrigger>
             <TabsTrigger value="bill">Bill & Barcode</TabsTrigger>
+            <TabsTrigger value="payment">Payment</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
             <TabsTrigger value="sms">SMS</TabsTrigger>
@@ -3477,6 +3479,10 @@ export default function Settings() {
 
           <TabsContent value="backup">
             <BackupSettings />
+          </TabsContent>
+
+          <TabsContent value="payment">
+            <PaymentGatewaySettings />
           </TabsContent>
         </Tabs>
       </div>
