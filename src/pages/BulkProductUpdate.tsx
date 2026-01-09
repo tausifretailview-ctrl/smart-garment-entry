@@ -22,10 +22,13 @@ import {
   PreviewItem
 } from "@/hooks/useBulkProductUpdate";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import { Loader2 } from "lucide-react";
 
 const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 export default function BulkProductUpdate() {
+  const { currentOrganization, loading: orgLoading } = useOrganization();
   const {
     loading,
     previewItems,
@@ -34,6 +37,15 @@ export default function BulkProductUpdate() {
     applyUpdates,
     clearPreview,
   } = useBulkProductUpdate();
+
+  // Show loading state while organization data is loading
+  if (orgLoading || !currentOrganization) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
