@@ -143,7 +143,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   return (
     <div style={{
       width: '210mm',
-      height: '277mm',
+      minHeight: '297mm',
       margin: '0 auto',
       padding: '10mm',
       fontFamily: "'Arial', sans-serif",
@@ -151,7 +151,6 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
       backgroundColor: '#fff',
       color: '#000',
       boxSizing: 'border-box',
-      overflow: 'hidden',
     }}>
       {/* Custom Header Text (e.g., ||SHREE||) */}
       {customHeaderText && (

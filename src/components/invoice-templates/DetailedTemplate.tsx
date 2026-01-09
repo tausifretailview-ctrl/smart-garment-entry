@@ -204,14 +204,13 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
     <div style={{
       width,
       minHeight,
-      maxHeight: minHeight,
       margin: '0 auto',
       padding: '10mm',
       backgroundColor: 'white',
       fontFamily: font,
       fontSize: '10px',
       color: '#000',
-      overflow: 'hidden'
+      boxSizing: 'border-box',
     }}>
       {/* Custom Header Text */}
       {customHeaderText && (

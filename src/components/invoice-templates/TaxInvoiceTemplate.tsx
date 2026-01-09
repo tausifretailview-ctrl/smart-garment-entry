@@ -213,7 +213,6 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
     <div style={{
       width,
       minHeight,
-      maxHeight: minHeight,
       margin: '0 auto',
       padding: '10mm',
       backgroundColor: 'white',
@@ -221,7 +220,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       fontSize: '9px',
       color: '#000',
       border: `2px solid ${colors.primary}`,
-      overflow: 'hidden'
+      boxSizing: 'border-box',
     }}>
       {/* Custom Header Text */}
       {customHeaderText && (
