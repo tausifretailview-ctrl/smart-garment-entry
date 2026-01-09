@@ -186,12 +186,12 @@ export default function BulkProductUpdate() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Category</Label>
-                  <Select value={filters.category || ""} onValueChange={(v) => setFilters({ ...filters, category: v || undefined })}>
+                  <Select value={filters.category || "__all__"} onValueChange={(v) => setFilters({ ...filters, category: v === "__all__" ? undefined : v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Categories</SelectItem>
+                      <SelectItem value="__all__">All Categories</SelectItem>
                       {filterOptions.categories.map(c => (
                         <SelectItem key={c} value={c}>{c}</SelectItem>
                       ))}
@@ -200,12 +200,12 @@ export default function BulkProductUpdate() {
                 </div>
                 <div className="space-y-2">
                   <Label>Brand</Label>
-                  <Select value={filters.brand || ""} onValueChange={(v) => setFilters({ ...filters, brand: v || undefined })}>
+                  <Select value={filters.brand || "__all__"} onValueChange={(v) => setFilters({ ...filters, brand: v === "__all__" ? undefined : v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Brands" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Brands</SelectItem>
+                      <SelectItem value="__all__">All Brands</SelectItem>
                       {filterOptions.brands.map(b => (
                         <SelectItem key={b} value={b}>{b}</SelectItem>
                       ))}
@@ -418,12 +418,12 @@ export default function BulkProductUpdate() {
                 <>
                   <div className="space-y-2">
                     <Label>Current GST % (Optional Filter)</Label>
-                    <Select value={gstConfig.currentGst === null ? "" : String(gstConfig.currentGst)} onValueChange={(v) => setGstConfig({ ...gstConfig, currentGst: v === "" ? null : Number(v) })}>
+                    <Select value={gstConfig.currentGst === null ? "__all__" : String(gstConfig.currentGst)} onValueChange={(v) => setGstConfig({ ...gstConfig, currentGst: v === "__all__" ? null : Number(v) })}>
                       <SelectTrigger>
                         <SelectValue placeholder="All GST %" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All GST %</SelectItem>
+                        <SelectItem value="__all__">All GST %</SelectItem>
                         {GST_OPTIONS.map(g => (
                           <SelectItem key={g} value={String(g)}>{g}%</SelectItem>
                         ))}
