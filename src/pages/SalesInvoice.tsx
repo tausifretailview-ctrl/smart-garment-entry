@@ -2094,98 +2094,113 @@ Thank you for choosing us!`;
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lineItems.map((item, index) => (
-                <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{item.productName || '-'}</TableCell>
-                  <TableCell>{item.size || '-'}</TableCell>
-                  <TableCell>{item.color || '-'}</TableCell>
-                  <TableCell className="text-xs">{item.barcode || '-'}</TableCell>
-                  <TableCell className="text-xs">{item.hsnCode || '-'}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-16 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        value={item.mrp}
-                        onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-20 h-8"
-                      />
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        value={item.salePrice}
-                        onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-20 h-8"
-                      />
-                    ) : '-'}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.discountPercent}
-                        onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-14 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Input
-                        type="number"
-                        min="0"
-                        value={item.discountAmount}
-                        onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-20 h-8"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.productId ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.gstPercent}
-                        onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-16 h-8"
-                      />
-                    ) : `${item.gstPercent}%`}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
-                  <TableCell>
-                    {item.productId && (
-                      <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {(() => {
+                // Separate filled and empty items
+                const filledItems = lineItems.filter(item => item.productId !== '');
+                const emptyItems = lineItems.filter(item => item.productId === '');
+                
+                // Reverse filled items so newest appears first, keep empty rows at bottom
+                const displayItems = [...filledItems.slice().reverse(), ...emptyItems];
+                
+                return displayItems.map((item) => {
+                  // Calculate original SR number (1 = first added)
+                  const originalIndex = lineItems.findIndex(li => li.id === item.id);
+                  const srNo = item.productId ? originalIndex + 1 : '-';
+                  
+                  return (
+                    <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
+                      <TableCell>{srNo}</TableCell>
+                      <TableCell>{item.productName || '-'}</TableCell>
+                      <TableCell>{item.size || '-'}</TableCell>
+                      <TableCell>{item.color || '-'}</TableCell>
+                      <TableCell className="text-xs">{item.barcode || '-'}</TableCell>
+                      <TableCell className="text-xs">{item.hsnCode || '-'}</TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Input
+                            type="number"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-16 h-8"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.mrp}
+                            onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20 h-8"
+                          />
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.salePrice}
+                            onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20 h-8"
+                          />
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.discountPercent}
+                            onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-14 h-8"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Input
+                            type="number"
+                            min="0"
+                            value={item.discountAmount}
+                            onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20 h-8"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId ? (
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={item.gstPercent}
+                            onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-16 h-8"
+                          />
+                        ) : `${item.gstPercent}%`}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                });
+              })()}
             </TableBody>
           </Table>
         </div>
