@@ -95,13 +95,11 @@ interface ProfessionalTemplateProps {
   fontFamily?: string;
   qrCodeUrl?: string;
   upiId?: string;
-  // Wholesale mode props
   enableWholesaleGrouping?: boolean;
   sizeDisplayFormat?: 'size/qty' | 'size×qty';
   showProductColor?: boolean;
   showProductBrand?: boolean;
   showProductStyle?: boolean;
-  // Points props
   pointsRedeemed?: number;
   pointsRedemptionValue?: number;
   pointsBalance?: number;
@@ -190,7 +188,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
       : `₹${Math.round(amount)}`;
   };
 
-  // Determine dimensions based on format
   const getPageDimensions = () => {
     switch (format) {
       case 'a5-horizontal':
@@ -205,7 +202,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
 
   const { width, minHeight, padding } = getPageDimensions();
 
-  // Calculate font sizes based on format
   const getFontSizes = () => {
     switch (format) {
       case 'a5-horizontal':
@@ -270,7 +266,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   const colors = colorSchemes[colorScheme] || colorSchemes.blue;
   const font = fontFamilyMap[fontFamily] || fontFamilyMap.inter;
 
-  // Group items for wholesale display
   const groupItems = (items: InvoiceItem[]): GroupedItem[] => {
     if (!enableWholesaleGrouping) {
       return items.map(item => ({
@@ -320,25 +315,27 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   const groupedItems = groupItems(items);
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
 
-  return (
-    <div 
-      className="professional-invoice"
-      style={{
-        width,
-        minHeight,
-        maxHeight: minHeight,
-        margin: '0 auto',
-        padding,
-        backgroundColor: 'white',
-        fontFamily: font,
-        fontSize: fontSizes.normal,
-        color: '#000',
-        border: `1px solid ${colors.primary}`,
-        boxSizing: 'border-box',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Custom Header Text */}
+  // Calculate items per page based on format
+  const getItemsPerPage = () => {
+    if (format === 'a4') return 18;
+    if (format === 'a5-horizontal') return 10;
+    return 12; // a5-vertical
+  };
+
+  const itemsPerPage = getItemsPerPage();
+
+  // Split items into pages
+  const pages: GroupedItem[][] = [];
+  for (let i = 0; i < groupedItems.length; i += itemsPerPage) {
+    pages.push(groupedItems.slice(i, i + itemsPerPage));
+  }
+  if (pages.length === 0) pages.push([]);
+
+  const totalPages = pages.length;
+
+  // Render header section
+  const renderHeader = () => (
+    <>
       {customHeaderText && (
         <div style={{ 
           textAlign: 'center', 
@@ -351,7 +348,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       )}
 
-      {/* TAX INVOICE Header */}
       <div style={{ 
         textAlign: 'center',
         background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
@@ -365,7 +361,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       </div>
 
-      {/* Business Header */}
       <div style={{ 
         display: 'flex', 
         alignItems: 'center',
@@ -375,7 +370,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         borderRadius: '3px',
         gap: '8px'
       }}>
-        {/* Logo - Left */}
         {logoPlacement === 'left' && logoUrl && (
           <div style={{ flexShrink: 0 }}>
             <img 
@@ -389,7 +383,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           </div>
         )}
         
-        {/* Business Details - Center */}
         <div style={{ flex: 1, textAlign: logoPlacement === 'center' ? 'center' : 'left' }}>
           {logoPlacement === 'center' && logoUrl && (
             <div style={{ marginBottom: '4px' }}>
@@ -424,7 +417,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           )}
         </div>
 
-        {/* Logo - Right */}
         {logoPlacement === 'right' && logoUrl && (
           <div style={{ flexShrink: 0 }}>
             <img 
@@ -439,7 +431,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         )}
       </div>
 
-      {/* Invoice Details & Customer Info */}
       <div style={{ 
         display: 'flex', 
         gap: '6px', 
@@ -447,7 +438,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         border: `1px solid ${colors.primary}`,
         borderRadius: '3px'
       }}>
-        {/* Customer Details - Left */}
         <div style={{ 
           flex: 1, 
           padding: '5px', 
@@ -472,7 +462,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           </div>
         </div>
 
-        {/* Invoice Details - Right */}
         <div style={{ 
           width: format === 'a4' ? '160px' : '130px', 
           padding: '5px' 
@@ -494,103 +483,105 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           </div>
         </div>
       </div>
+    </>
+  );
 
-      {/* Items Table */}
-      <table style={{ 
-        width: '100%', 
-        borderCollapse: 'collapse', 
-        marginBottom: '6px', 
-        fontSize: fontSizes.small,
-        border: `1px solid ${colors.primary}`
-      }}>
-        <thead>
-          <tr style={{ 
-            background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, 
-            color: 'white' 
-          }}>
-            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '25px' }}>Sr</th>
-            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, textAlign: 'left' }}>Description</th>
-            {showHSN && !enableWholesaleGrouping && (
-              <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '50px' }}>HSN</th>
-            )}
-            {enableWholesaleGrouping && (
-              <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '80px' }}>Sizes</th>
-            )}
-            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '35px' }}>Qty</th>
-            {showMRP && (
-              <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '50px', textAlign: 'right' }}>MRP</th>
-            )}
-            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '55px', textAlign: 'right' }}>Rate</th>
-            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '65px', textAlign: 'right' }}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {groupedItems.map((item, index) => {
-            const wholesaleDetails: string[] = [];
-            if (enableWholesaleGrouping) {
-              if (showProductColor && item.color) wholesaleDetails.push(item.color);
-              if (showProductBrand && item.brand) wholesaleDetails.push(item.brand);
-              if (showProductStyle && item.style) wholesaleDetails.push(item.style);
-            }
-            return (
-              <tr key={index}>
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>{index + 1}</td>
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>
-                  {item.particulars}
-                  {!enableWholesaleGrouping && items[index]?.size && ` (${items[index].size})`}
-                  {wholesaleDetails.length > 0 && (
-                    <div style={{ fontSize: '6pt', color: colors.secondary }}>{wholesaleDetails.join(' | ')}</div>
-                  )}
-                </td>
-                {showHSN && !enableWholesaleGrouping && (
-                  <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>
-                    {items[index]?.hsn || '-'}
-                  </td>
+  // Render items table for a specific page
+  const renderItemsTable = (pageItems: GroupedItem[], startIndex: number, isLastPage: boolean) => (
+    <table style={{ 
+      width: '100%', 
+      borderCollapse: 'collapse', 
+      marginBottom: '6px', 
+      fontSize: fontSizes.small,
+      border: `1px solid ${colors.primary}`
+    }}>
+      <thead>
+        <tr style={{ 
+          background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`, 
+          color: 'white' 
+        }}>
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '25px' }}>Sr</th>
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, textAlign: 'left' }}>Description</th>
+          {showHSN && !enableWholesaleGrouping && (
+            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '50px' }}>HSN</th>
+          )}
+          {enableWholesaleGrouping && (
+            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '80px' }}>Sizes</th>
+          )}
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '35px' }}>Qty</th>
+          {showMRP && (
+            <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '50px', textAlign: 'right' }}>MRP</th>
+          )}
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '55px', textAlign: 'right' }}>Rate</th>
+          <th style={{ padding: '4px 2px', border: `1px solid ${colors.primary}`, width: '65px', textAlign: 'right' }}>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {pageItems.map((item, index) => {
+          const wholesaleDetails: string[] = [];
+          if (enableWholesaleGrouping) {
+            if (showProductColor && item.color) wholesaleDetails.push(item.color);
+            if (showProductBrand && item.brand) wholesaleDetails.push(item.brand);
+            if (showProductStyle && item.style) wholesaleDetails.push(item.style);
+          }
+          const originalIndex = startIndex + index;
+          return (
+            <tr key={index}>
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>{originalIndex + 1}</td>
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>
+                {item.particulars}
+                {!enableWholesaleGrouping && items[originalIndex]?.size && ` (${items[originalIndex].size})`}
+                {wholesaleDetails.length > 0 && (
+                  <div style={{ fontSize: '6pt', color: colors.secondary }}>{wholesaleDetails.join(' | ')}</div>
                 )}
-                {enableWholesaleGrouping && (
-                  <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center', fontSize: '6pt' }}>
-                    {formatSizeQty(item.sizeQtyList)}
-                  </td>
-                )}
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>{item.totalQty}</td>
-                {showMRP && (
-                  <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right' }}>
-                    {formatCurrency(items[index]?.mrp || item.rate)}
-                  </td>
-                )}
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right' }}>
-                  {formatCurrency(item.rate)}
-                </td>
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right', fontWeight: 'bold' }}>
-                  {formatCurrency(item.totalAmount)}
-                </td>
-              </tr>
-            );
-          })}
-          {/* Empty rows to reach minimum */}
-          {Array.from({ length: Math.max(0, minItemRows - groupedItems.length) }).map((_, index) => (
-            <tr key={`empty-${index}`}>
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, height: '16px' }}>&nbsp;</td>
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              </td>
               {showHSN && !enableWholesaleGrouping && (
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>
+                  {items[originalIndex]?.hsn || '-'}
+                </td>
               )}
               {enableWholesaleGrouping && (
-                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center', fontSize: '6pt' }}>
+                  {formatSizeQty(item.sizeQtyList)}
+                </td>
               )}
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
-              {showMRP && <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>}
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
-              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'center' }}>{item.totalQty}</td>
+              {showMRP && (
+                <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right' }}>
+                  {formatCurrency(items[originalIndex]?.mrp || item.rate)}
+                </td>
+              )}
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right' }}>
+                {formatCurrency(item.rate)}
+              </td>
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, textAlign: 'right', fontWeight: 'bold' }}>
+                {formatCurrency(item.totalAmount)}
+              </td>
             </tr>
-          ))}
-        </tbody>
-        {/* Total Row */}
+          );
+        })}
+        {/* Empty rows only on last page */}
+        {isLastPage && Array.from({ length: Math.max(0, minItemRows - pageItems.length) }).map((_, index) => (
+          <tr key={`empty-${index}`}>
+            <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}`, height: '16px' }}>&nbsp;</td>
+            <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            {showHSN && !enableWholesaleGrouping && (
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            )}
+            {enableWholesaleGrouping && (
+              <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            )}
+            <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            {showMRP && <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>}
+            <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+            <td style={{ padding: '3px 2px', border: `1px solid ${colors.primary}` }}>&nbsp;</td>
+          </tr>
+        ))}
+      </tbody>
+      {/* Total Row only on last page */}
+      {isLastPage && (
         <tfoot>
-          <tr style={{ 
-            background: colors.accent, 
-            fontWeight: 'bold' 
-          }}>
+          <tr style={{ background: colors.accent, fontWeight: 'bold' }}>
             <td 
               colSpan={showHSN || enableWholesaleGrouping ? 2 : 1} 
               style={{ padding: '4px', border: `1px solid ${colors.primary}`, textAlign: 'right' }}
@@ -608,11 +599,14 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             </td>
           </tr>
         </tfoot>
-      </table>
+      )}
+    </table>
+  );
 
-      {/* Tax Breakdown & Totals */}
+  // Render summary section (only on last page)
+  const renderSummary = () => (
+    <>
       <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
-        {/* Tax Calculation Box */}
         {showTaxDetails && showGSTBreakdown && (
           <div style={{ 
             flex: 1, 
@@ -660,7 +654,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           </div>
         )}
 
-        {/* Amount Summary */}
         <div style={{ 
           width: showTaxDetails && showGSTBreakdown ? '50%' : '100%', 
           border: `1px solid ${colors.primary}`, 
@@ -743,7 +736,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       </div>
 
-      {/* Amount in Words */}
       <div style={{ 
         border: `1px solid ${colors.primary}`, 
         padding: '4px 6px', 
@@ -755,7 +747,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         <strong>Amount in Words:</strong> {numberToWords(grandTotal)} Only
       </div>
       
-      {/* Points Balance Info */}
       {(pointsRedeemed > 0 || pointsBalance > 0) && (
         <div style={{ 
           border: '1px solid #d97706', 
@@ -776,7 +767,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       )}
 
-      {/* Bank Details & QR Code */}
       {(showBankDetails || qrCodeUrl) && (
         <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
           {showBankDetails && bankDetails && (
@@ -812,7 +802,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       )}
 
-      {/* Declaration & Signature */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
         <div style={{ 
           flex: 1, 
@@ -841,7 +830,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       </div>
 
-      {/* Notes Section */}
       {notes && (
         <div style={{ 
           border: `1px solid ${colors.primary}`, 
@@ -856,7 +844,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       )}
 
-      {/* Terms & Conditions */}
       {termsConditions && termsConditions.length > 0 && (
         <div style={{ 
           border: `1px solid ${colors.primary}`, 
@@ -875,7 +862,6 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         </div>
       )}
 
-      {/* Custom Footer Text */}
       {customFooterText && (
         <div style={{ 
           textAlign: 'center', 
@@ -887,6 +873,72 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           {customFooterText}
         </div>
       )}
-    </div>
+    </>
+  );
+
+  // Render page indicator
+  const renderPageIndicator = (pageNum: number) => (
+    totalPages > 1 && (
+      <div style={{ 
+        textAlign: 'right', 
+        padding: '4px 8px', 
+        fontSize: fontSizes.small, 
+        color: '#666',
+        borderTop: '1px solid #e5e7eb'
+      }}>
+        Page {pageNum} of {totalPages}
+      </div>
+    )
+  );
+
+  // Render a single page
+  const renderPage = (pageItems: GroupedItem[], pageIndex: number) => {
+    const isLastPage = pageIndex === totalPages - 1;
+    const startIndex = pageIndex * itemsPerPage;
+
+    return (
+      <div 
+        key={pageIndex}
+        className="professional-invoice invoice-page"
+        style={{
+          width,
+          minHeight,
+          margin: '0 auto',
+          padding,
+          backgroundColor: 'white',
+          fontFamily: font,
+          fontSize: fontSizes.normal,
+          color: '#000',
+          border: `1px solid ${colors.primary}`,
+          boxSizing: 'border-box',
+          pageBreakAfter: isLastPage ? 'auto' : 'always',
+          breakAfter: isLastPage ? 'auto' : 'page',
+        }}
+      >
+        {renderHeader()}
+        {renderItemsTable(pageItems, startIndex, isLastPage)}
+        {isLastPage && renderSummary()}
+        {renderPageIndicator(pageIndex + 1)}
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <style>
+        {`
+          @media print {
+            .invoice-page {
+              box-shadow: none !important;
+            }
+            .invoice-page:last-child {
+              page-break-after: auto;
+              break-after: auto;
+            }
+          }
+        `}
+      </style>
+      {pages.map((pageItems, pageIndex) => renderPage(pageItems, pageIndex))}
+    </>
   );
 };
