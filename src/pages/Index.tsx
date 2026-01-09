@@ -19,6 +19,7 @@ import {
   MapPin,
   ClipboardList,
   IndianRupee,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ const MetricCard = ({
   </Tooltip>
 );
 
-type DateRangeType = "monthly" | "quarterly" | "yearly";
+type DateRangeType = "monthly" | "quarterly" | "yearly" | "all";
 
 const getDateRange = (type: DateRangeType) => {
   const now = new Date();
@@ -106,6 +107,12 @@ const getDateRange = (type: DateRangeType) => {
         end: format(endOfYear(now), "yyyy-MM-dd"),
         label: format(now, "yyyy"),
       };
+    case "all":
+      return {
+        start: "2000-01-01",
+        end: format(endOfYear(now), "yyyy-MM-dd"),
+        label: "All Time",
+      };
   }
 };
 
@@ -121,7 +128,7 @@ const DashboardContent = () => {
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
 
   // Fetch total sales for selected period
-  const { data: salesData } = useQuery({
+  const { data: salesData, isFetching: salesFetching } = useQuery({
     queryKey: ["total-sales", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0, soldQty: 0 };
@@ -205,7 +212,7 @@ const DashboardContent = () => {
   });
 
   // Fetch total purchase for selected period
-  const { data: purchaseData } = useQuery({
+  const { data: purchaseData, isFetching: purchaseFetching } = useQuery({
     queryKey: ["purchase-total", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0, purchaseQty: 0 };
@@ -237,6 +244,8 @@ const DashboardContent = () => {
     },
     enabled: !!currentOrganization,
   });
+  
+  const isLoading = salesFetching || purchaseFetching;
 
   // Fetch sale returns for selected period
   const { data: saleReturnData } = useQuery({
@@ -477,9 +486,14 @@ const DashboardContent = () => {
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="quarterly">Quarterly</SelectItem>
                 <SelectItem value="yearly">Yearly</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
               </SelectContent>
             </Select>
-            <span className="text-xs font-medium text-primary">{dateLabel}</span>
+            {isLoading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            ) : (
+              <span className="text-xs font-medium text-primary">{dateLabel}</span>
+            )}
           </div>
         </div>
       </div>
