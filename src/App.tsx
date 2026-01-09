@@ -63,6 +63,7 @@ import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
+import BulkProductUpdate from "./pages/BulkProductUpdate";
 import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
 import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
 import SalesmanLayout from "./layouts/SalesmanLayout";
@@ -166,6 +167,18 @@ const App = () => {
                       <FullScreenLayout>
                         <ProductEntry />
                       </FullScreenLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="bulk-product-update"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <BulkProductUpdate />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
