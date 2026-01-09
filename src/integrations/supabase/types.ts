@@ -1292,6 +1292,148 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_gateway_settings: {
+        Row: {
+          active_gateway: string
+          created_at: string | null
+          id: string
+          organization_id: string
+          phonepe_enabled: boolean | null
+          phonepe_merchant_id: string | null
+          razorpay_enabled: boolean | null
+          razorpay_key_id: string | null
+          updated_at: string | null
+          upi_business_name: string | null
+          upi_id: string | null
+        }
+        Insert: {
+          active_gateway?: string
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          phonepe_enabled?: boolean | null
+          phonepe_merchant_id?: string | null
+          razorpay_enabled?: boolean | null
+          razorpay_key_id?: string | null
+          updated_at?: string | null
+          upi_business_name?: string | null
+          upi_id?: string | null
+        }
+        Update: {
+          active_gateway?: string
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          phonepe_enabled?: boolean | null
+          phonepe_merchant_id?: string | null
+          razorpay_enabled?: boolean | null
+          razorpay_key_id?: string | null
+          updated_at?: string | null
+          upi_business_name?: string | null
+          upi_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_gateway_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_links: {
+        Row: {
+          amount: number
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          customer_name: string
+          customer_phone: string | null
+          gateway: string
+          gateway_link_id: string | null
+          gateway_payment_id: string | null
+          id: string
+          invoice_number: string | null
+          legacy_invoice_id: string | null
+          organization_id: string
+          paid_at: string | null
+          payment_url: string | null
+          sale_id: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          gateway: string
+          gateway_link_id?: string | null
+          gateway_payment_id?: string | null
+          id?: string
+          invoice_number?: string | null
+          legacy_invoice_id?: string | null
+          organization_id: string
+          paid_at?: string | null
+          payment_url?: string | null
+          sale_id?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          gateway?: string
+          gateway_link_id?: string | null
+          gateway_payment_id?: string | null
+          id?: string
+          invoice_number?: string | null
+          legacy_invoice_id?: string | null
+          organization_id?: string
+          paid_at?: string | null
+          payment_url?: string | null
+          sale_id?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_links_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_links_legacy_invoice_id_fkey"
+            columns: ["legacy_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "legacy_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_links_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_variants: {
         Row: {
           active: boolean | null
