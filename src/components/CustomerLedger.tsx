@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown } from "lucide-react";
+import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -533,12 +534,22 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
     };
   }, [filteredCustomers]);
 
+  // Calculate transaction totals
+  const transactionTotals = useMemo(() => {
+    if (!transactions) return { totalDebit: 0, totalCredit: 0 };
+    
+    return transactions.reduce((acc, t) => ({
+      totalDebit: acc.totalDebit + (t.debit || 0),
+      totalCredit: acc.totalCredit + (t.credit || 0),
+    }), { totalDebit: 0, totalCredit: 0 });
+  }, [transactions]);
+
   const handleExportToExcel = () => {
     if (!selectedCustomer || !transactions) return;
 
     const exportData = transactions.map((t) => {
       const row: any = {
-        Date: format(new Date(t.date), "dd/MM/yyyy"),
+        Date: t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yyyy"),
         Type: t.type === 'invoice' ? 'Invoice' : 'Payment',
         Reference: t.reference,
         Description: t.description,
@@ -566,10 +577,138 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       return row;
     });
 
+    // Add totals row
+    exportData.push({
+      Date: '',
+      Type: '',
+      Reference: '',
+      Description: 'TOTAL',
+      Debit: transactionTotals.totalDebit.toFixed(2),
+      Credit: transactionTotals.totalCredit.toFixed(2),
+      Balance: transactions.length > 0 ? transactions[transactions.length - 1].balance.toFixed(2) : '0.00',
+    });
+
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
     XLSX.writeFile(wb, `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
+  };
+
+  const handleExportToPDF = () => {
+    if (!selectedCustomer || !transactions) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 14;
+    let yPos = 20;
+
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Customer Ledger", pageWidth / 2, yPos, { align: "center" });
+    yPos += 10;
+
+    // Customer Info
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(selectedCustomer.customer_name, margin, yPos);
+    yPos += 6;
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    if (selectedCustomer.phone) {
+      doc.text(`Phone: ${selectedCustomer.phone}`, margin, yPos);
+      yPos += 5;
+    }
+    if (selectedCustomer.address) {
+      doc.text(`Address: ${selectedCustomer.address}`, margin, yPos);
+      yPos += 5;
+    }
+
+    // Date range if filtered
+    if (startDate || endDate) {
+      const dateRange = `Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} to ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`;
+      doc.text(dateRange, margin, yPos);
+      yPos += 5;
+    }
+
+    // Outstanding Balance
+    doc.setFont("helvetica", "bold");
+    const balanceText = `Outstanding Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    doc.text(balanceText, pageWidth - margin, yPos, { align: "right" });
+    yPos += 10;
+
+    // Table Headers
+    const headers = ["Date", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const colWidths = [22, 18, 25, 52, 22, 22, 22];
+    
+    doc.setFillColor(240, 240, 240);
+    doc.rect(margin, yPos, pageWidth - margin * 2, 8, "F");
+    
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    let xPos = margin;
+    headers.forEach((header, i) => {
+      doc.text(header, xPos + 1, yPos + 5);
+      xPos += colWidths[i];
+    });
+    yPos += 10;
+
+    // Table Rows
+    doc.setFont("helvetica", "normal");
+    transactions.forEach((t) => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+
+      xPos = margin;
+      const rowData = [
+        t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy"),
+        t.type === 'invoice' ? 'Invoice' : 'Payment',
+        t.reference,
+        t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
+        t.debit > 0 ? `Rs. ${t.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "",
+        t.credit > 0 ? `Rs. ${t.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "",
+        `Rs. ${Math.abs(t.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+      ];
+
+      rowData.forEach((cell, i) => {
+        doc.text(cell, xPos + 1, yPos);
+        xPos += colWidths[i];
+      });
+      yPos += 6;
+    });
+
+    // Totals Row
+    yPos += 2;
+    doc.setFillColor(230, 230, 230);
+    doc.rect(margin, yPos - 4, pageWidth - margin * 2, 8, "F");
+    
+    doc.setFont("helvetica", "bold");
+    xPos = margin;
+    const totalsData = [
+      "",
+      "",
+      "",
+      "TOTAL",
+      `Rs. ${transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+      `Rs. ${transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+      `Rs. ${transactions.length > 0 ? Math.abs(transactions[transactions.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}`,
+    ];
+
+    totalsData.forEach((cell, i) => {
+      doc.text(cell, xPos + 1, yPos);
+      xPos += colWidths[i];
+    });
+
+    // Footer
+    yPos += 15;
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
+
+    doc.save(`${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
   };
 
   if (selectedCustomer && transactions) {
@@ -638,7 +777,16 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
               onClick={handleExportToExcel}
             >
               <Download className="mr-2 h-4 w-4" />
-              Export to Excel
+              Export Excel
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportToPDF}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Export PDF
             </Button>
           </div>
         </div>
@@ -851,6 +999,28 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
                             </TableCell>
                           </TableRow>
                         ))
+                      )}
+                      {/* Totals Row */}
+                      {transactions.length > 0 && (
+                        <TableRow className="bg-muted/70 font-bold border-t-2">
+                          <TableCell colSpan={4} className="text-right">
+                            TOTAL
+                          </TableCell>
+                          <TableCell className="text-right text-red-600 dark:text-red-400">
+                            ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className="text-right text-green-600 dark:text-green-400">
+                            ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell className={cn(
+                            "text-right",
+                            transactions[transactions.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
+                            transactions[transactions.length - 1].balance < 0 ? "text-green-600 dark:text-green-400" : 
+                            "text-foreground"
+                          )}>
+                            ₹{Math.abs(transactions[transactions.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
                       )}
                     </TableBody>
                   </Table>
