@@ -331,12 +331,13 @@ export interface ValidationResult {
 
 // Check if a row appears to be a summary/total row that should be skipped
 const isSummaryRow = (row: Record<string, any>): boolean => {
-  const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount'];
+  const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
   
   for (const value of Object.values(row)) {
     if (typeof value === 'string') {
       const lowerValue = value.toLowerCase().trim();
-      if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' '))) {
+      // Check if value matches any summary keyword exactly or starts with it
+      if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
         return true;
       }
     }
