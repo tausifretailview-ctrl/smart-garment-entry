@@ -251,7 +251,7 @@ export const useWhatsAppAPI = () => {
           const contactNumber =
             (orgSettings.contact_number as string) ||
             (orgSettings.phone as string) ||
-            '';
+            'N/A'; // Fallback to prevent empty param error
 
           const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
             day: '2-digit',
