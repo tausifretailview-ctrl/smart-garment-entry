@@ -335,24 +335,34 @@ export const useSaveSale = () => {
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
+            // Fetch organization settings for company details
+            const orgSettings = currentOrganization.settings as Record<string, unknown> || {};
+            const companyName = (orgSettings.company_name as string) || currentOrganization.name || 'Our Company';
+            const contactNumber = (orgSettings.contact_number as string) || (orgSettings.phone as string) || '';
+            
             // Build invoice message for template parameters
             const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
               day: '2-digit',
               month: 'short',
               year: 'numeric'
             });
-            const formattedAmount = `₹${Number(saleData.netAmount).toLocaleString('en-IN')}`;
+            const formattedAmount = `${Number(saleData.netAmount).toLocaleString('en-IN')}`;
+            const paymentStatus = payStatus === 'completed' ? 'Paid' : 'Pending';
 
-            // Template parameters: customer_name, invoice_number, amount, date
+            // Template parameters matching Meta template:
+            // {{customer_name}}, {{invoice_number}}, {{invoice_date}}, {{amount}}, {{payment_status}}, {{company_name}}, {{contact_number}}
             const templateParams = [
               saleData.customerName,
               saleNumber,
+              formattedDate,
               formattedAmount,
-              formattedDate
+              paymentStatus,
+              companyName,
+              contactNumber
             ];
 
             // Build message text (used as fallback if no template)
-            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!`;
+            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {
