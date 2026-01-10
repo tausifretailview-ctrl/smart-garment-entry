@@ -1933,18 +1933,24 @@ const PurchaseEntry = () => {
       }
     }
     
-    // Helper function to detect summary/total rows
-    const isSummaryRow = (row: Record<string, any>): boolean => {
+    // Helper function to detect summary/total rows or empty rows
+    const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
       const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
+      let meaningfulValueCount = 0;
+      
       for (const value of Object.values(row)) {
-        if (typeof value === 'string') {
-          const lowerValue = value.toLowerCase().trim();
-          if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
-            return true;
+        if (value !== undefined && value !== null && value !== '') {
+          meaningfulValueCount++;
+          if (typeof value === 'string') {
+            const lowerValue = value.toLowerCase().trim();
+            if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
+              return true;
+            }
           }
         }
       }
-      return false;
+      // Skip rows with very few values (likely empty/separator rows)
+      return meaningfulValueCount <= 2;
     };
 
     // Filter valid rows - skip empty rows and summary/total rows
@@ -1952,7 +1958,7 @@ const PurchaseEntry = () => {
       row.product_name?.toString().trim() && 
       row.size?.toString().trim() && 
       row.qty && Number(row.qty) > 0 &&
-      !isSummaryRow(row)
+      !isSummaryOrEmptyRow(row)
     );
 
     const BATCH_SIZE = 20;

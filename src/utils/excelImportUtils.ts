@@ -329,19 +329,32 @@ export interface ValidationResult {
   invalidRowCount: number;
 }
 
-// Check if a row appears to be a summary/total row that should be skipped
-const isSummaryRow = (row: Record<string, any>): boolean => {
+// Check if a row appears to be a summary/total row or empty row that should be skipped
+const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
   const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount', 'shipping', 'freight', 'transport', 'charges', 'discount', 'tax', 'gst'];
   
+  // Count how many meaningful values this row has
+  let meaningfulValueCount = 0;
+  
   for (const value of Object.values(row)) {
-    if (typeof value === 'string') {
-      const lowerValue = value.toLowerCase().trim();
-      // Check if value matches any summary keyword exactly or starts with it
-      if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
-        return true;
+    if (value !== undefined && value !== null && value !== '') {
+      meaningfulValueCount++;
+      
+      // Check for summary keywords
+      if (typeof value === 'string') {
+        const lowerValue = value.toLowerCase().trim();
+        if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
+          return true;
+        }
       }
     }
   }
+  
+  // Skip rows with very few values (likely empty/separator rows)
+  if (meaningfulValueCount <= 2) {
+    return true;
+  }
+  
   return false;
 };
 
@@ -370,8 +383,8 @@ export const validateMappedData = (
     const rowNumber = index + 2; // Excel row (1-indexed + header row)
     let rowHasError = false;
 
-    // Skip summary/total rows
-    if (isSummaryRow(row)) {
+    // Skip summary/total rows and empty rows
+    if (isSummaryOrEmptyRow(row)) {
       skippedSummaryRows++;
       return; // Skip this row entirely
     }
