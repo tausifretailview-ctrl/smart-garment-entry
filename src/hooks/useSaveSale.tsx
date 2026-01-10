@@ -335,10 +335,15 @@ export const useSaveSale = () => {
             .maybeSingle();
 
           if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
-            // Fetch organization settings for company details
-            const orgSettings = currentOrganization.settings as Record<string, unknown> || {};
-            const companyName = (orgSettings.company_name as string) || currentOrganization.name || 'Our Company';
-            const contactNumber = (orgSettings.contact_number as string) || (orgSettings.phone as string) || 'N/A';
+            // Fetch company settings from settings table (not organizations.settings)
+            const { data: companySettings } = await supabase
+              .from('settings')
+              .select('business_name, mobile_number')
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
+
+            const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+            const contactNumber = companySettings?.mobile_number || 'N/A';
             
             // Build invoice message for template parameters
             const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
