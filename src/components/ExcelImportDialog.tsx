@@ -312,14 +312,18 @@ export const ExcelImportDialog = ({
   const getValidationResult = (): ValidationResult | null => {
     if (!parsedData) return null;
     const mappedData = applyMappings(parsedData.rows, mappings);
-    return validateMappedData(mappedData, targetFields, mappings);
+    return validateMappedData(mappedData, targetFields, mappings, {
+      headerRowIndex: parsedData.detectedHeaderRow ?? 0,
+    });
   };
 
   const handleImport = async () => {
     if (!parsedData) return;
 
     const mappedData = applyMappings(parsedData.rows, mappings);
-    const validation = validateMappedData(mappedData, targetFields, mappings);
+    const validation = validateMappedData(mappedData, targetFields, mappings, {
+      headerRowIndex: parsedData.detectedHeaderRow ?? 0,
+    });
 
     if (!validation.valid) {
       validation.errors.forEach(err => toast.error(err));

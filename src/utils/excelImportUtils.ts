@@ -361,12 +361,20 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
 export const validateMappedData = (
   mappedData: Record<string, any>[],
   targetFields: TargetField[],
-  mappings: Record<string, string | null>
+  mappings: Record<string, string | null>,
+  options?: {
+    /**
+     * 0-based worksheet row index where headers were detected.
+     * Used only for displaying accurate Excel row numbers in errors.
+     */
+    headerRowIndex?: number;
+  }
 ): ValidationResult => {
   const errors: string[] = [];
   const rowErrors: RowValidationError[] = [];
   const requiredFields = targetFields.filter(f => f.required);
   const numberFields = targetFields.filter(f => f.type === 'number');
+  const headerRowIndex = options?.headerRowIndex ?? 0;
   
   // Check if required fields are mapped
   const mappedFieldKeys = Object.values(mappings).filter(Boolean);
@@ -380,7 +388,12 @@ export const validateMappedData = (
   let invalidRowCount = 0;
   let skippedSummaryRows = 0;
   mappedData.forEach((row, index) => {
-    const rowNumber = index + 2; // Excel row (1-indexed + header row)
+    // Excel row number:
+    // - headerRowIndex is 0-based worksheet index of the header row
+    // - +1 converts it to Excel's 1-based row numbering
+    // - +1 moves to the first data row
+    // - +index moves within the data rows
+    const rowNumber = headerRowIndex + 2 + index;
     let rowHasError = false;
 
     // Skip summary/total rows and empty rows
