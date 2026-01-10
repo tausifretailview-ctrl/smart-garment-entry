@@ -75,6 +75,7 @@ import SalesmanCustomerAccount from "./pages/salesman/SalesmanCustomerAccount";
 import SalesmanOrders from "./pages/salesman/SalesmanOrders";
 import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
 import WhatsAppLogs from "./pages/WhatsAppLogs";
+import WhatsAppInbox from "./pages/WhatsAppInbox";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
@@ -632,6 +633,20 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <WhatsAppLogs />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                
+                {/* WhatsApp Inbox */}
+                <Route
+                  path="whatsapp-inbox"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <WhatsAppInbox />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
