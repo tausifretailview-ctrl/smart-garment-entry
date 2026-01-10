@@ -3285,6 +3285,60 @@ export type Database = {
           },
         ]
       }
+      whatsapp_conversations: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string
+          id: string
+          last_message_at: string | null
+          organization_id: string
+          status: string | null
+          unread_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone: string
+          id?: string
+          last_message_at?: string | null
+          organization_id: string
+          status?: string | null
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string
+          id?: string
+          last_message_at?: string | null
+          organization_id?: string
+          status?: string | null
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_conversations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_logs: {
         Row: {
           created_at: string
@@ -3343,6 +3397,69 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "whatsapp_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_messages: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          delivered_at: string | null
+          direction: string
+          id: string
+          media_url: string | null
+          message_text: string | null
+          message_type: string | null
+          organization_id: string
+          read_at: string | null
+          sent_at: string | null
+          status: string | null
+          wamid: string | null
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          delivered_at?: string | null
+          direction: string
+          id?: string
+          media_url?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          organization_id: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          wamid?: string | null
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_text?: string | null
+          message_type?: string | null
+          organization_id?: string
+          read_at?: string | null
+          sent_at?: string | null
+          status?: string | null
+          wamid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_messages_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

@@ -24,6 +24,7 @@ import {
   Archive,
   Pencil,
   MessageSquare,
+  Inbox,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -683,6 +684,14 @@ export function AppSidebar() {
                             <NavLink to="/whatsapp-logs" className="flex items-center gap-3 group">
                               <MessageSquare className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                               <span className="dark:text-white">WhatsApp Logs</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/whatsapp-inbox" className="flex items-center gap-3 group">
+                              <Inbox className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">WhatsApp Inbox</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
