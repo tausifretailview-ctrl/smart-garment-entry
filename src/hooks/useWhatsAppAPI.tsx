@@ -342,6 +342,7 @@ export const useWhatsAppAPI = () => {
     const stats = {
       todaySent: todayLogs?.filter(l => l.status === 'sent').length || 0,
       todayDelivered: todayLogs?.filter(l => l.status === 'delivered').length || 0,
+      todayRead: todayLogs?.filter(l => l.status === 'read').length || 0,
       todayFailed: todayLogs?.filter(l => l.status === 'failed').length || 0,
       todayPending: todayLogs?.filter(l => l.status === 'pending').length || 0,
       todayTotal: todayLogs?.length || 0,
