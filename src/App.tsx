@@ -624,6 +624,20 @@ const App = () => {
                   }
                 />
 
+                {/* WhatsApp Logs */}
+                <Route
+                  path="whatsapp-logs"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <WhatsAppLogs />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* Recycle Bin - Admin Only */}
                 <Route
                   path="recycle-bin"
