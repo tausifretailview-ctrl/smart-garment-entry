@@ -74,6 +74,7 @@ import SalesmanOrderView from "./pages/salesman/SalesmanOrderView";
 import SalesmanCustomerAccount from "./pages/salesman/SalesmanCustomerAccount";
 import SalesmanOrders from "./pages/salesman/SalesmanOrders";
 import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
+import WhatsAppLogs from "./pages/WhatsAppLogs";
 
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());

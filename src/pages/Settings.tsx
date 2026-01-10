@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
 import { SizeGroupManagement } from "@/components/SizeGroupManagement";
 import { WhatsAppTemplateSettings } from "@/components/WhatsAppTemplateSettings";
+import { WhatsAppAPISettings } from "@/components/WhatsAppAPISettings";
 import { SMSTemplateSettings } from "@/components/SMSTemplateSettings";
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -749,7 +750,7 @@ export default function Settings() {
         </div>
 
         <Tabs defaultValue="company" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-11">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="product">Product</TabsTrigger>
@@ -760,6 +761,7 @@ export default function Settings() {
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="users">User Rights</TabsTrigger>
             <TabsTrigger value="sms">SMS</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
             <TabsTrigger value="backup">Backup</TabsTrigger>
           </TabsList>
 
@@ -3473,6 +3475,24 @@ export default function Settings() {
                   </Button>
                 </div>
                 <UserManagement />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="whatsapp">
+            <Card>
+              <CardHeader>
+                <CardTitle>WhatsApp Integration</CardTitle>
+                <CardDescription>
+                  Configure WhatsApp Business API and message templates
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <WhatsAppAPISettings />
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-semibold mb-4">Message Templates</h3>
+                  <WhatsAppTemplateSettings />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
