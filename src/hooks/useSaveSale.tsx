@@ -324,6 +324,56 @@ export const useSaveSale = () => {
         pointsAwarded = result.pointsAwarded;
       }
 
+      // Auto-send WhatsApp invoice notification
+      if (saleData.customerPhone && currentOrganization?.id) {
+        try {
+          // Check WhatsApp settings
+          const { data: whatsappSettings } = await (supabase as any)
+            .from('whatsapp_api_settings')
+            .select('is_active, auto_send_invoice, invoice_template_name')
+            .eq('organization_id', currentOrganization.id)
+            .maybeSingle();
+
+          if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
+            // Build invoice message for template parameters
+            const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            });
+            const formattedAmount = `₹${Number(saleData.netAmount).toLocaleString('en-IN')}`;
+
+            // Template parameters: customer_name, invoice_number, amount, date
+            const templateParams = [
+              saleData.customerName,
+              saleNumber,
+              formattedAmount,
+              formattedDate
+            ];
+
+            // Build message text (used as fallback if no template)
+            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!`;
+
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                organizationId: currentOrganization.id,
+                phone: saleData.customerPhone,
+                message: messageText,
+                templateType: 'sales_invoice',
+                templateName: whatsappSettings.invoice_template_name || null,
+                templateParams: templateParams,
+                referenceId: sale.id,
+                referenceType: 'sale'
+              }
+            });
+            console.log('WhatsApp invoice notification sent');
+          }
+        } catch (whatsappError) {
+          // Don't fail the sale if WhatsApp notification fails
+          console.error('WhatsApp auto-send failed:', whatsappError);
+        }
+      }
+
       const pointsMessage = pointsAwarded > 0 ? ` (+${pointsAwarded} points)` : '';
       toast({
         title: "Sale saved successfully",

@@ -50,6 +50,10 @@ export const WhatsAppAPISettings = () => {
     auto_send_quotation: false,
     auto_send_sale_order: false,
     auto_send_payment_reminder: false,
+    invoice_template_name: "",
+    quotation_template_name: "",
+    sale_order_template_name: "",
+    payment_reminder_template_name: "",
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -68,6 +72,10 @@ export const WhatsAppAPISettings = () => {
         auto_send_quotation: settings.auto_send_quotation || false,
         auto_send_sale_order: settings.auto_send_sale_order || false,
         auto_send_payment_reminder: settings.auto_send_payment_reminder || false,
+        invoice_template_name: settings.invoice_template_name || "",
+        quotation_template_name: settings.quotation_template_name || "",
+        sale_order_template_name: settings.sale_order_template_name || "",
+        payment_reminder_template_name: settings.payment_reminder_template_name || "",
       });
     }
   }, [settings]);
@@ -262,6 +270,78 @@ export const WhatsAppAPISettings = () => {
                 Configure Phone Number ID and Access Token to test
               </p>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Meta Template Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Settings2 className="h-4 w-4" />
+            Meta Message Templates
+          </CardTitle>
+          <CardDescription>
+            Enter your approved Meta WhatsApp template names. Templates must be created and approved in Meta Business Manager.
+            <a 
+              href="https://business.facebook.com/latest/whatsapp_manager/message_templates" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline ml-1 inline-flex items-center"
+            >
+              Manage Templates <ExternalLink className="h-3 w-3 ml-1" />
+            </a>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <strong>Important:</strong> Business-initiated messages (like invoice notifications) require pre-approved Meta templates. 
+              Without a template, messages can only be sent within 24 hours of customer's last message.
+            </AlertDescription>
+          </Alert>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invoice_template_name">Invoice Template Name</Label>
+              <Input
+                id="invoice_template_name"
+                placeholder="e.g., invoice_notification"
+                value={formData.invoice_template_name}
+                onChange={(e) => handleInputChange("invoice_template_name", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="quotation_template_name">Quotation Template Name</Label>
+              <Input
+                id="quotation_template_name"
+                placeholder="e.g., quotation_message"
+                value={formData.quotation_template_name}
+                onChange={(e) => handleInputChange("quotation_template_name", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="sale_order_template_name">Sale Order Template Name</Label>
+              <Input
+                id="sale_order_template_name"
+                placeholder="e.g., order_confirmation"
+                value={formData.sale_order_template_name}
+                onChange={(e) => handleInputChange("sale_order_template_name", e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="payment_reminder_template_name">Payment Reminder Template Name</Label>
+              <Input
+                id="payment_reminder_template_name"
+                placeholder="e.g., payment_reminder"
+                value={formData.payment_reminder_template_name}
+                onChange={(e) => handleInputChange("payment_reminder_template_name", e.target.value)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

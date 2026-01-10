@@ -3221,10 +3221,14 @@ export type Database = {
           business_name: string | null
           created_at: string
           id: string
+          invoice_template_name: string | null
           is_active: boolean
           organization_id: string
+          payment_reminder_template_name: string | null
           phone_number_id: string | null
           provider: string
+          quotation_template_name: string | null
+          sale_order_template_name: string | null
           updated_at: string
           waba_id: string | null
           webhook_verify_token: string | null
@@ -3238,10 +3242,14 @@ export type Database = {
           business_name?: string | null
           created_at?: string
           id?: string
+          invoice_template_name?: string | null
           is_active?: boolean
           organization_id: string
+          payment_reminder_template_name?: string | null
           phone_number_id?: string | null
           provider?: string
+          quotation_template_name?: string | null
+          sale_order_template_name?: string | null
           updated_at?: string
           waba_id?: string | null
           webhook_verify_token?: string | null
@@ -3255,10 +3263,14 @@ export type Database = {
           business_name?: string | null
           created_at?: string
           id?: string
+          invoice_template_name?: string | null
           is_active?: boolean
           organization_id?: string
+          payment_reminder_template_name?: string | null
           phone_number_id?: string | null
           provider?: string
+          quotation_template_name?: string | null
+          sale_order_template_name?: string | null
           updated_at?: string
           waba_id?: string | null
           webhook_verify_token?: string | null
