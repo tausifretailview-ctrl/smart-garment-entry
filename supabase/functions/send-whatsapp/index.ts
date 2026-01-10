@@ -17,20 +17,66 @@ interface SendWhatsAppRequest {
   referenceType?: string;
 }
 
+
 // Format phone number for WhatsApp (ensure country code)
 function formatPhoneNumber(phone: string): string {
   if (!phone) return "";
-  
+
   // Remove all non-digit characters
   const cleaned = phone.replace(/\D/g, "");
-  
+
   // Add 91 prefix for Indian numbers if not present
   if (cleaned.length === 10) {
     return `91${cleaned}`;
   }
-  
+
   return cleaned;
 }
+
+async function fetchNamedTemplateParamNames(opts: {
+  accessToken: string;
+  wabaId?: string | null;
+  templateName: string;
+}): Promise<string[] | null> {
+  const wabaId = String(opts.wabaId ?? '').trim();
+  if (!wabaId) return null;
+
+  // Fetch template metadata to detect NAMED parameter format
+  const url = `https://graph.facebook.com/v21.0/${wabaId}/message_templates?name=${encodeURIComponent(
+    opts.templateName
+  )}&limit=1`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${opts.accessToken}`,
+      },
+    });
+
+    const data = await res.json();
+    const tpl = data?.data?.[0];
+
+    if (!tpl || tpl.parameter_format !== 'NAMED') return null;
+
+    // Meta returns named params inside example.body_text_named_params for BODY component
+    const bodyComponent = Array.isArray(tpl.components)
+      ? tpl.components.find((c: any) => String(c?.type ?? '').toUpperCase() === 'BODY')
+      : null;
+
+    const named = bodyComponent?.example?.body_text_named_params;
+    if (!Array.isArray(named) || named.length === 0) return null;
+
+    const names = named
+      .map((p: any) => String(p?.param_name ?? '').trim())
+      .filter((n: string) => n.length > 0);
+
+    return names.length > 0 ? names : null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -211,13 +257,29 @@ serve(async (req) => {
           );
         }
 
-        const bodyParameters = normalizedParams.map((text) => ({
-          type: 'text',
-          text,
-        }));
+        const namedParamNames = await fetchNamedTemplateParamNames({
+          accessToken: settings.access_token,
+          wabaId: settings.waba_id,
+          templateName: cleanedTemplateName,
+        });
 
+        const bodyParameters = normalizedParams.map((text, idx) => {
+          const base: Record<string, string> = {
+            type: 'text',
+            text,
+          };
+
+          // If template is configured as NAMED, Meta requires `parameter_name`.
+          // We fetch the expected names from template metadata.
+          if (namedParamNames && namedParamNames[idx]) {
+            base.parameter_name = namedParamNames[idx];
+          }
+
+          return base;
+        });
+ 
         console.log('Body parameters:', JSON.stringify(bodyParameters));
-
+ 
         (templatePayload.template as Record<string, unknown>).components = [
           {
             type: "body",
