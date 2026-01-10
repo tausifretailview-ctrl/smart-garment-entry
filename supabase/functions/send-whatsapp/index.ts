@@ -143,19 +143,23 @@ serve(async (req) => {
     // Otherwise use text message (only works within 24-hour customer service window)
     let payload: Record<string, unknown>;
     
-    if (templateName && templateName.trim() !== '') {
+    const rawTemplateName = typeof templateName === 'string' ? templateName : '';
+    const cleanedTemplateName = rawTemplateName.trim();
+
+    if (cleanedTemplateName !== '') {
       // Template message - required for business-initiated messages outside 24-hour window
-      console.log('Sending template message:', templateName);
+      console.log('Sending template message:', cleanedTemplateName);
+      console.log('Template name raw:', JSON.stringify(rawTemplateName));
       console.log('Template params received:', JSON.stringify(templateParams));
       console.log('Template params length:', templateParams?.length || 0);
-      
+
       const templatePayload: Record<string, unknown> = {
         messaging_product: "whatsapp",
         recipient_type: "individual",
         to: formattedPhone,
         type: "template",
         template: {
-          name: templateName,
+          name: cleanedTemplateName,
           language: { code: "en" },
         }
       };
