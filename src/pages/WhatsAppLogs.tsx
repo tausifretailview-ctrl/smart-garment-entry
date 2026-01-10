@@ -181,7 +181,7 @@ const WhatsAppLogs = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
@@ -206,6 +206,16 @@ const WhatsAppLogs = () => {
                 <div className="text-3xl font-bold text-green-600">{stats?.todayDelivered || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <CheckCircle className="h-3 w-3" /> Delivered
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-emerald-600">{stats?.todayRead || 0}</div>
+                <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                  <Eye className="h-3 w-3" /> Read
                 </div>
               </div>
             </CardContent>
@@ -374,6 +384,18 @@ const WhatsAppLogs = () => {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Sent At</label>
                     <p>{selectedLog.sent_at ? format(new Date(selectedLog.sent_at), 'dd/MM/yyyy HH:mm:ss') : '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Delivered At</label>
+                    <p className={selectedLog.delivered_at ? 'text-green-600' : ''}>
+                      {selectedLog.delivered_at ? format(new Date(selectedLog.delivered_at), 'dd/MM/yyyy HH:mm:ss') : 'Not yet'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Read At</label>
+                    <p className={selectedLog.read_at ? 'text-blue-600 font-medium' : ''}>
+                      {selectedLog.read_at ? format(new Date(selectedLog.read_at), 'dd/MM/yyyy HH:mm:ss') : 'Not yet'}
+                    </p>
                   </div>
                   {selectedLog.wamid && (
                     <div className="col-span-2">
