@@ -24,7 +24,7 @@ import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { purchaseBillFields, purchaseBillSampleData } from "@/utils/excelImportUtils";
+import { purchaseBillFields, purchaseBillSampleData, parseExcelDate } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
@@ -1883,6 +1883,55 @@ const PurchaseEntry = () => {
     onProgress?: (progress: ImportProgress) => void
   ) => {
     if (!currentOrganization) return;
+    
+    // Extract bill-level data from first row if present
+    const firstRow = mappedData[0];
+    if (firstRow) {
+      // Set supplier if provided
+      if (firstRow.bill_supplier_name) {
+        const supplierName = firstRow.bill_supplier_name?.toString().trim();
+        const matchingSupplier = suppliers.find(s => 
+          s.supplier_name?.toLowerCase().trim() === supplierName?.toLowerCase()
+        );
+        if (matchingSupplier) {
+          setBillData(prev => ({
+            ...prev,
+            supplier_id: matchingSupplier.id,
+            supplier_name: matchingSupplier.supplier_name,
+            supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim() || prev.supplier_invoice_no,
+          }));
+        } else {
+          // Just set the name if supplier not found
+          setBillData(prev => ({
+            ...prev,
+            supplier_name: supplierName,
+            supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim() || prev.supplier_invoice_no,
+          }));
+        }
+      } else if (firstRow.bill_supplier_invoice_no) {
+        // Set invoice number even without supplier name
+        setBillData(prev => ({
+          ...prev,
+          supplier_invoice_no: firstRow.bill_supplier_invoice_no?.toString().trim(),
+        }));
+      }
+      
+      // Set bill date if provided
+      if (firstRow.bill_date) {
+        const parsedDate = parseExcelDate(firstRow.bill_date);
+        if (parsedDate) {
+          setBillDate(parsedDate);
+        }
+      }
+      
+      // Set other charges if provided
+      if (firstRow.bill_other_charges) {
+        const charges = Number(firstRow.bill_other_charges);
+        if (!isNaN(charges) && charges > 0) {
+          setOtherCharges(charges);
+        }
+      }
+    }
     
     // Filter valid rows
     const validRows = mappedData.filter(row => 
