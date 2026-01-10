@@ -1339,12 +1339,33 @@ const PurchaseEntry = () => {
     }
     
     try {
-      // Group changes by sku_id
-      const updatesBySkuId = new Map<string, Partial<{ pur_price: number; sale_price: number; mrp: number }>>();
+      // Group changes by sku_id - also sync last_purchase_* fields
+      const updatesBySkuId = new Map<string, Partial<{ 
+        pur_price: number; 
+        sale_price: number; 
+        mrp: number;
+        last_purchase_pur_price: number;
+        last_purchase_sale_price: number;
+        last_purchase_mrp: number;
+        last_purchase_date: string;
+      }>>();
       
       for (const change of selectedChanges) {
         const existing = updatesBySkuId.get(change.sku_id) || {};
         existing[change.field] = change.new_value;
+        
+        // Also sync the corresponding last_purchase field to prevent dialog from appearing again
+        if (change.field === 'pur_price') {
+          existing.last_purchase_pur_price = change.new_value;
+        } else if (change.field === 'sale_price') {
+          existing.last_purchase_sale_price = change.new_value;
+        } else if (change.field === 'mrp') {
+          existing.last_purchase_mrp = change.new_value;
+        }
+        
+        // Update the last purchase date to now
+        existing.last_purchase_date = new Date().toISOString();
+        
         updatesBySkuId.set(change.sku_id, existing);
       }
       
