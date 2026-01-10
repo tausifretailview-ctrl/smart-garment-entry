@@ -146,6 +146,8 @@ serve(async (req) => {
     if (templateName && templateName.trim() !== '') {
       // Template message - required for business-initiated messages outside 24-hour window
       console.log('Sending template message:', templateName);
+      console.log('Template params received:', JSON.stringify(templateParams));
+      console.log('Template params length:', templateParams?.length || 0);
       
       const templatePayload: Record<string, unknown> = {
         messaging_product: "whatsapp",
@@ -159,11 +161,13 @@ serve(async (req) => {
       };
 
       // Add template parameters if provided
-      if (templateParams && templateParams.length > 0) {
+      if (templateParams && Array.isArray(templateParams) && templateParams.length > 0) {
         const bodyParameters = templateParams.map(param => ({
           type: "text",
-          text: param
+          text: String(param || '') // Ensure non-null string
         }));
+        
+        console.log('Body parameters:', JSON.stringify(bodyParameters));
         
         (templatePayload.template as Record<string, unknown>).components = [
           {
@@ -171,8 +175,11 @@ serve(async (req) => {
             parameters: bodyParameters
           }
         ];
+      } else {
+        console.log('WARNING: No template params provided for template message!');
       }
       
+      console.log('Final payload:', JSON.stringify(templatePayload));
       payload = templatePayload;
     } else {
       // Text message - only works if customer has messaged within 24 hours
