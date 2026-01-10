@@ -1131,6 +1131,47 @@ export type Database = {
           },
         ]
       }
+      import_templates: {
+        Row: {
+          created_at: string | null
+          excel_headers: string[] | null
+          field_mappings: Json
+          id: string
+          import_type: string
+          organization_id: string
+          template_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          excel_headers?: string[] | null
+          field_mappings?: Json
+          id?: string
+          import_type: string
+          organization_id: string
+          template_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          excel_headers?: string[] | null
+          field_mappings?: Json
+          id?: string
+          import_type?: string
+          organization_id?: string
+          template_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_templates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       legacy_invoices: {
         Row: {
           amount: number

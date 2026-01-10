@@ -37,6 +37,7 @@ export interface ParsedExcelData {
   headers: string[];
   rows: Record<string, any>[];
   sampleValues: Record<string, string>;
+  detectedHeaderRow?: number;
 }
 
 export const purchaseBillFields: TargetField[] = [
@@ -69,6 +70,43 @@ export const productEntryFields: TargetField[] = [
   { key: 'opening_qty', label: 'Opening Qty', type: 'number' },
 ];
 
+// Find the actual header row by checking first 15 rows for the one with most non-empty unique text values
+const findHeaderRow = (worksheet: XLSX.WorkSheet): number => {
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  let bestRowIdx = 0;
+  let maxScore = 0;
+  
+  for (let rowIdx = 0; rowIdx <= Math.min(range.e.r, 15); rowIdx++) {
+    let nonEmptyCount = 0;
+    const values = new Set<string>();
+    let hasNumbers = false;
+    
+    for (let colIdx = range.s.c; colIdx <= range.e.c; colIdx++) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+      const cell = worksheet[cellRef];
+      if (cell && cell.v !== undefined && cell.v !== '' && cell.v !== null) {
+        const val = String(cell.v).trim();
+        // Skip pure numeric values - headers are usually text
+        if (!val.match(/^[\d.,]+$/)) {
+          nonEmptyCount++;
+          values.add(val.toLowerCase());
+        } else {
+          hasNumbers = true;
+        }
+      }
+    }
+    
+    // Score: unique non-empty text values, prefer rows without numbers
+    const score = values.size * (hasNumbers ? 0.7 : 1);
+    if (score > maxScore) {
+      maxScore = score;
+      bestRowIdx = rowIdx;
+    }
+  }
+  
+  return bestRowIdx;
+};
+
 export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -78,25 +116,54 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: '' });
+        
+        // Find the actual header row
+        const headerRowIdx = findHeaderRow(worksheet);
+        
+        // Parse with the detected header row
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { 
+          defval: '',
+          range: headerRowIdx // Start from detected header row
+        });
         
         if (jsonData.length === 0) {
           reject(new Error('Excel file is empty'));
           return;
         }
 
-        const headers = Object.keys(jsonData[0]);
+        // Filter out headers that start with _EMPTY or are just whitespace
+        const allHeaders = Object.keys(jsonData[0]);
+        const validHeaders = allHeaders.filter(h => 
+          !h.startsWith('__EMPTY') && 
+          h.trim() !== '' &&
+          !h.match(/^_+$/)
+        );
+        
         const sampleValues: Record<string, string> = {};
         
-        headers.forEach(header => {
-          const firstNonEmpty = jsonData.find(row => row[header] !== '' && row[header] !== null && row[header] !== undefined);
+        validHeaders.forEach(header => {
+          const firstNonEmpty = jsonData.find(row => 
+            row[header] !== '' && 
+            row[header] !== null && 
+            row[header] !== undefined
+          );
           sampleValues[header] = firstNonEmpty ? String(firstNonEmpty[header]) : '';
         });
 
+        // Clean up rows to only include valid headers
+        const cleanedRows = jsonData.map(row => {
+          const cleanRow: Record<string, any> = {};
+          validHeaders.forEach(header => {
+            cleanRow[header] = row[header];
+          });
+          return cleanRow;
+        });
+
         resolve({
-          headers,
-          rows: jsonData,
+          headers: validHeaders,
+          rows: cleanedRows,
           sampleValues,
+          detectedHeaderRow: headerRowIdx,
         });
       } catch (error) {
         reject(error);
@@ -107,50 +174,86 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
   });
 };
 
+// Extended field aliases for better matching
+const fieldAliases: Record<string, string[]> = {
+  product_name: ['product', 'productname', 'name', 'item', 'itemname', 'description', 'itemdescription', 'productdesc', 'article', 'articlename'],
+  category: ['category', 'cat', 'type', 'producttype', 'group', 'itemgroup', 'productgroup'],
+  brand: ['brand', 'brandname', 'make', 'manufacturer', 'company', 'partyname'],
+  style: ['style', 'stylename', 'model', 'design', 'designno', 'styleno', 'modelno'],
+  color: ['color', 'colour', 'clr', 'shade'],
+  hsn_code: ['hsn', 'hsncode', 'hsnno', 'saccode', 'sac', 'hsnorsac'],
+  gst_per: ['gst', 'gstper', 'gstpercent', 'gstrate', 'tax', 'taxrate', 'taxper', 'taxpercentage', 'igst', 'cgst', 'sgst'],
+  size: ['size', 'sz', 'productsize', 'itemsize', 'dimension'],
+  barcode: ['barcode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'code', 'skucode'],
+  pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate'],
+  sale_price: ['saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
+  mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice', 'price'],
+  qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty'],
+  default_pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost'],
+  default_sale_price: ['saleprice', 'sellingprice', 'mrp', 'sp', 'price', 'retailprice'],
+  opening_qty: ['openingqty', 'openingstock', 'opening', 'initialqty', 'initialstock', 'qty', 'quantity', 'opstock', 'opqty'],
+  // Customer fields
+  customer_name: ['customername', 'customer', 'name', 'partyname', 'buyername', 'clientname', 'client', 'party'],
+  // Supplier fields with expanded aliases
+  supplier_name: ['suppliername', 'supplier', 'vendor', 'vendorname', 'partyname', 'firmname', 'firm', 'company', 'companyname', 'name', 'party'],
+  contact_person: ['contactperson', 'contact', 'person', 'contactname', 'client', 'customer', 'personname', 'owner', 'proprietor'],
+  phone: ['phone', 'mobile', 'mobileno', 'phoneno', 'contact', 'tel', 'telephone', 'cell', 'mob', 'phno', 'contactno', 'mobilenumber', 'phonenumber'],
+  email: ['email', 'emailid', 'emailaddress', 'mail', 'emailadd', 'emailaddr'],
+  address: ['address', 'addr', 'fulladdress', 'location', 'city', 'area', 'place', 'add', 'officeaddress', 'shopaddress'],
+  gst_number: ['gstnumber', 'gst', 'gstno', 'gstin', 'taxno', 'gstnum', 'gstnoin', 'tin', 'tinno', 'vatno', 'vat'],
+  supplier_code: ['suppliercode', 'code', 'vendorcode', 'partycode', 'invno', 'invoiceno', 'supplierinvno', 'suppcode', 'vendcode', 'refno', 'reference', 'refcode', 'invoicenumber', 'billno', 'billnumber'],
+  opening_balance: ['openingbalance', 'opening', 'balance', 'ob', 'openingbal', 'outstandingbal', 'outstanding', 'opbal', 'openbal', 'balancedue'],
+  discount_percent: ['discountpercent', 'discount', 'disc', 'discper', 'discountper', 'discountrate'],
+};
+
+// Fuzzy matching: check if header words match any aliases
+const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
+  const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '');
+  
+  // Direct match
+  if (aliases.includes(normalizedHeader)) return true;
+  
+  // Check if header contains any alias or alias contains header
+  for (const alias of aliases) {
+    if (normalizedHeader.includes(alias) || alias.includes(normalizedHeader)) {
+      return true;
+    }
+  }
+  
+  // Word-based matching: split header into words and check each
+  const words = header.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+  for (const word of words) {
+    for (const alias of aliases) {
+      if (alias.includes(word) || word.includes(alias)) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+};
+
 export const autoMapFields = (
   excelHeaders: string[],
   targetFields: TargetField[]
 ): Record<string, string | null> => {
   const mappings: Record<string, string | null> = {};
+  const usedSystemFields = new Set<string>();
   
-  const normalizeString = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  const fieldAliases: Record<string, string[]> = {
-    product_name: ['product', 'productname', 'name', 'item', 'itemname', 'description'],
-    category: ['category', 'cat', 'type', 'producttype'],
-    brand: ['brand', 'brandname', 'make', 'manufacturer'],
-    style: ['style', 'stylename', 'model'],
-    color: ['color', 'colour', 'clr'],
-    hsn_code: ['hsn', 'hsncode', 'hsnno', 'saccode'],
-    gst_per: ['gst', 'gstper', 'gstpercent', 'gstrate', 'tax', 'taxrate'],
-    size: ['size', 'sz', 'productsize'],
-    barcode: ['barcode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode'],
-    pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp'],
-    sale_price: ['saleprice', 'sellingprice', 'mrp', 'sp', 'price', 'retailprice'],
-    qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces'],
-    default_pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp'],
-    default_sale_price: ['saleprice', 'sellingprice', 'mrp', 'sp', 'price', 'retailprice'],
-    opening_qty: ['openingqty', 'openingstock', 'opening', 'initialqty', 'initialstock', 'qty', 'quantity'],
-    // Customer/Supplier fields
-    customer_name: ['customername', 'customer', 'name', 'partyname', 'buyername'],
-    supplier_name: ['suppliername', 'supplier', 'vendor', 'vendorname', 'partyname'],
-    contact_person: ['contactperson', 'contact', 'person', 'contactname'],
-    phone: ['phone', 'mobile', 'mobileno', 'phoneno', 'contact', 'tel', 'telephone'],
-    email: ['email', 'emailid', 'emailaddress', 'mail'],
-    address: ['address', 'addr', 'fulladdress', 'location'],
-    gst_number: ['gstnumber', 'gst', 'gstno', 'gstin', 'taxno'],
-    supplier_code: ['suppliercode', 'code', 'vendorcode', 'partycode'],
-    opening_balance: ['openingbalance', 'opening', 'balance', 'ob', 'openingbal'],
-  };
-
+  // First pass: exact and direct alias matches
   excelHeaders.forEach(header => {
-    const normalizedHeader = normalizeString(header);
+    const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
     let matched = false;
 
     for (const field of targetFields) {
-      const aliases = fieldAliases[field.key] || [normalizeString(field.key)];
-      if (aliases.includes(normalizedHeader) || normalizedHeader.includes(normalizeString(field.key))) {
+      if (usedSystemFields.has(field.key)) continue;
+      
+      const aliases = fieldAliases[field.key] || [field.key.toLowerCase().replace(/[^a-z0-9]/g, '')];
+      
+      // Exact match on normalized header
+      if (aliases.includes(normalizedHeader)) {
         mappings[header] = field.key;
+        usedSystemFields.add(field.key);
         matched = true;
         break;
       }
@@ -158,6 +261,23 @@ export const autoMapFields = (
 
     if (!matched) {
       mappings[header] = null;
+    }
+  });
+
+  // Second pass: fuzzy matching for unmapped headers
+  excelHeaders.forEach(header => {
+    if (mappings[header] !== null) return; // Already mapped
+
+    for (const field of targetFields) {
+      if (usedSystemFields.has(field.key)) continue;
+      
+      const aliases = fieldAliases[field.key] || [field.key.toLowerCase().replace(/[^a-z0-9]/g, '')];
+      
+      if (fuzzyMatchField(header, aliases)) {
+        mappings[header] = field.key;
+        usedSystemFields.add(field.key);
+        break;
+      }
     }
   });
 

@@ -650,6 +650,7 @@ const SupplierMaster = () => {
         sampleData={supplierMasterSampleData}
         sampleFileName="Supplier_Master_Sample.xlsx"
         title="Import Suppliers"
+        importType="supplier"
       />
 
       {/* Supplier History Dialog */}
