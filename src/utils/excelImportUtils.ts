@@ -41,6 +41,12 @@ export interface ParsedExcelData {
 }
 
 export const purchaseBillFields: TargetField[] = [
+  // Bill-level fields (extracted from first row)
+  { key: 'bill_supplier_name', label: 'Supplier Name (Bill)', type: 'text' },
+  { key: 'bill_supplier_invoice_no', label: 'Bill Number / Inv No', type: 'text' },
+  { key: 'bill_date', label: 'Bill Date', type: 'text' },
+  { key: 'bill_other_charges', label: 'Other Charges', type: 'number' },
+  // Line item fields
   { key: 'product_name', label: 'Product Name', type: 'text', required: true },
   { key: 'category', label: 'Category', type: 'text' },
   { key: 'brand', label: 'Brand', type: 'text' },
@@ -176,6 +182,12 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
 
 // Extended field aliases for better matching
 const fieldAliases: Record<string, string[]> = {
+  // Bill-level field aliases for purchase bill import
+  bill_supplier_name: ['suppliername', 'supplier', 'vendor', 'vendorname', 'partyname', 'firmname', 'firm', 'company', 'companyname', 'party'],
+  bill_supplier_invoice_no: ['supplierinvno', 'invoiceno', 'invno', 'billno', 'billnumber', 'voucherno', 'invoicenumber', 'suppinvno', 'suppbillno'],
+  bill_date: ['billdate', 'invoicedate', 'invdate', 'date', 'voucherdate', 'purchasedate', 'docdate', 'entrydate'],
+  bill_other_charges: ['othercharges', 'charges', 'freight', 'transport', 'transportcharges', 'freightcharges', 'extracharges'],
+  // Line item fields
   product_name: ['product', 'productname', 'name', 'item', 'itemname', 'description', 'itemdescription', 'productdesc', 'article', 'articlename'],
   category: ['category', 'cat', 'type', 'producttype', 'group', 'itemgroup', 'productgroup'],
   brand: ['brand', 'brandname', 'make', 'manufacturer', 'company', 'partyname'],
@@ -413,10 +425,56 @@ export const generateSampleExcel = (fields: TargetField[], filename: string, sam
 };
 
 export const purchaseBillSampleData = [
-  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'M', barcode: '', pur_price: 495, sale_price: 899, qty: 25 },
-  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'L', barcode: '10001084', pur_price: 495, sale_price: 899, qty: 30 },
-  { product_name: 'Denim Jeans', category: 'Jeans', brand: 'XYZ', style: 'Slim', color: 'Black', hsn_code: '6203', gst_per: 12, size: '32', barcode: '', pur_price: 650, sale_price: 1299, qty: 20 },
+  { bill_supplier_name: 'XYZ Textiles', bill_supplier_invoice_no: 'INV-001', bill_date: '15/01/2026', bill_other_charges: 500, product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'M', barcode: '', pur_price: 495, sale_price: 899, qty: 25 },
+  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'L', barcode: '10001084', pur_price: 495, sale_price: 899, qty: 30 },
+  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Denim Jeans', category: 'Jeans', brand: 'XYZ', style: 'Slim', color: 'Black', hsn_code: '6203', gst_per: 12, size: '32', barcode: '', pur_price: 650, sale_price: 1299, qty: 20 },
 ];
+
+// Parse Excel date from various formats
+export const parseExcelDate = (value: any): Date | null => {
+  if (!value) return null;
+  
+  // Handle Excel serial date number
+  if (typeof value === 'number') {
+    const date = new Date((value - 25569) * 86400 * 1000);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  
+  // Handle string formats
+  const str = String(value).trim();
+  if (!str) return null;
+  
+  // Try DD/MM/YYYY or DD-MM-YYYY format first (common in India)
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (ddmmyyyyMatch) {
+    let day = parseInt(ddmmyyyyMatch[1]);
+    let month = parseInt(ddmmyyyyMatch[2]) - 1; // JS months are 0-indexed
+    let year = parseInt(ddmmyyyyMatch[3]);
+    
+    // Handle 2-digit year
+    if (year < 100) {
+      year += year > 50 ? 1900 : 2000;
+    }
+    
+    const date = new Date(year, month, day);
+    if (!isNaN(date.getTime())) return date;
+  }
+  
+  // Try YYYY-MM-DD format
+  const yyyymmddMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    let year = parseInt(yyyymmddMatch[1]);
+    let month = parseInt(yyyymmddMatch[2]) - 1;
+    let day = parseInt(yyyymmddMatch[3]);
+    
+    const date = new Date(year, month, day);
+    if (!isNaN(date.getTime())) return date;
+  }
+  
+  // Fallback to Date.parse
+  const parsed = new Date(str);
+  return isNaN(parsed.getTime()) ? null : parsed;
+};
 
 export const productEntrySampleData = [
   { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'M', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 50 },
