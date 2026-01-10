@@ -1473,6 +1473,63 @@ Thank you for choosing us!`;
           .eq('id', editingInvoiceId)
           .single();
 
+        // Auto-send WhatsApp invoice notification on update (does not block saving)
+        if (selectedCustomer?.phone && currentOrganization?.id && invoiceData?.sale_number) {
+          try {
+            const { data: whatsappSettings } = await (supabase as any)
+              .from('whatsapp_api_settings')
+              .select('is_active, auto_send_invoice, invoice_template_name')
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
+
+            if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
+              const { data: companySettings } = await supabase
+                .from('settings')
+                .select('business_name, mobile_number')
+                .eq('organization_id', currentOrganization.id)
+                .maybeSingle();
+
+              const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+              const contactNumber = companySettings?.mobile_number || 'N/A';
+
+              const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              });
+              const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
+              const paymentStatus = 'Pending';
+
+              const templateParams = [
+                selectedCustomer.customer_name,
+                invoiceData.sale_number,
+                formattedDate,
+                formattedAmount,
+                paymentStatus,
+                companyName,
+                contactNumber,
+              ];
+
+              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${invoiceData.sale_number} has been updated.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
+
+              await supabase.functions.invoke('send-whatsapp', {
+                body: {
+                  organizationId: currentOrganization.id,
+                  phone: selectedCustomer.phone,
+                  message: messageText,
+                  templateType: 'sales_invoice',
+                  templateName: whatsappSettings.invoice_template_name || null,
+                  templateParams,
+                  referenceId: editingInvoiceId,
+                  referenceType: 'sale',
+                },
+              });
+            }
+          } catch (e) {
+            console.error('WhatsApp auto-send failed (SalesInvoice update):', e);
+          }
+        }
+
         // Store invoice data and show print dialog
         setSavedInvoiceData({
           invoiceNumber: invoiceData?.sale_number,
@@ -1543,6 +1600,63 @@ Thank you for choosing us!`;
           .insert(saleItems);
 
         if (itemsError) throw itemsError;
+
+        // Auto-send WhatsApp invoice notification (does not block saving)
+        if (selectedCustomer?.phone && currentOrganization?.id) {
+          try {
+            const { data: whatsappSettings } = await (supabase as any)
+              .from('whatsapp_api_settings')
+              .select('is_active, auto_send_invoice, invoice_template_name')
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
+
+            if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
+              const { data: companySettings } = await supabase
+                .from('settings')
+                .select('business_name, mobile_number')
+                .eq('organization_id', currentOrganization.id)
+                .maybeSingle();
+
+              const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+              const contactNumber = companySettings?.mobile_number || 'N/A';
+
+              const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              });
+              const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
+              const paymentStatus = 'Pending';
+
+              const templateParams = [
+                selectedCustomer.customer_name,
+                saleNumber,
+                formattedDate,
+                formattedAmount,
+                paymentStatus,
+                companyName,
+                contactNumber,
+              ];
+
+              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
+
+              await supabase.functions.invoke('send-whatsapp', {
+                body: {
+                  organizationId: currentOrganization.id,
+                  phone: selectedCustomer.phone,
+                  message: messageText,
+                  templateType: 'sales_invoice',
+                  templateName: whatsappSettings.invoice_template_name || null,
+                  templateParams,
+                  referenceId: saleData.id,
+                  referenceType: 'sale',
+                },
+              });
+            }
+          } catch (e) {
+            console.error('WhatsApp auto-send failed (SalesInvoice):', e);
+          }
+        }
 
         toast({
           title: "Invoice Saved",
