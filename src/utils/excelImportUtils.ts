@@ -53,12 +53,13 @@ export const purchaseBillFields: TargetField[] = [
   { key: 'style', label: 'Style', type: 'text' },
   { key: 'color', label: 'Color', type: 'text' },
   { key: 'hsn_code', label: 'HSN Code', type: 'text' },
-  { key: 'gst_per', label: 'GST %', type: 'number', required: true },
+  { key: 'gst_per', label: 'GST %', type: 'number' }, // Not required - defaults to 0%
   { key: 'size', label: 'Size', type: 'text', required: true },
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'pur_price', label: 'Purchase Price', type: 'number', required: true },
   { key: 'sale_price', label: 'Sale Price', type: 'number', required: true },
   { key: 'qty', label: 'Quantity', type: 'number', required: true },
+  { key: 'mrp', label: 'MRP', type: 'number' },
 ];
 
 export const productEntryFields: TargetField[] = [
@@ -328,6 +329,21 @@ export interface ValidationResult {
   invalidRowCount: number;
 }
 
+// Check if a row appears to be a summary/total row that should be skipped
+const isSummaryRow = (row: Record<string, any>): boolean => {
+  const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount'];
+  
+  for (const value of Object.values(row)) {
+    if (typeof value === 'string') {
+      const lowerValue = value.toLowerCase().trim();
+      if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' '))) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
 export const validateMappedData = (
   mappedData: Record<string, any>[],
   targetFields: TargetField[],
@@ -348,9 +364,16 @@ export const validateMappedData = (
 
   // Validate each row
   let invalidRowCount = 0;
+  let skippedSummaryRows = 0;
   mappedData.forEach((row, index) => {
     const rowNumber = index + 2; // Excel row (1-indexed + header row)
     let rowHasError = false;
+
+    // Skip summary/total rows
+    if (isSummaryRow(row)) {
+      skippedSummaryRows++;
+      return; // Skip this row entirely
+    }
 
     // Check required fields have values
     requiredFields.forEach(field => {

@@ -1933,11 +1933,26 @@ const PurchaseEntry = () => {
       }
     }
     
-    // Filter valid rows
+    // Helper function to detect summary/total rows
+    const isSummaryRow = (row: Record<string, any>): boolean => {
+      const summaryKeywords = ['total', 'subtotal', 'sub-total', 'grand total', 'sum', 'net', 'gross', 'amount'];
+      for (const value of Object.values(row)) {
+        if (typeof value === 'string') {
+          const lowerValue = value.toLowerCase().trim();
+          if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' '))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // Filter valid rows - skip empty rows and summary/total rows
     const validRows = mappedData.filter(row => 
       row.product_name?.toString().trim() && 
       row.size?.toString().trim() && 
-      row.qty && Number(row.qty) > 0
+      row.qty && Number(row.qty) > 0 &&
+      !isSummaryRow(row)
     );
 
     const BATCH_SIZE = 20;
