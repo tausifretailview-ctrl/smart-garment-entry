@@ -233,14 +233,65 @@ export const useWhatsAppAPI = () => {
       if (fetchError || !logEntry) throw new Error('Message log not found');
       if (logEntry.status !== 'failed') throw new Error('Only failed messages can be retried');
 
+      // Build template params (Meta templates require exact param count)
+      let templateParams: string[] | undefined;
+      let templateNameToUse: string | null = logEntry.template_name;
+
+      // For sales invoices we can deterministically rebuild the params from the sale record
+      if (logEntry.template_type === 'sales_invoice' && logEntry.reference_id) {
+        const { data: sale } = await (supabase as any)
+          .from('sales')
+          .select('sale_number, sale_date, net_amount, payment_status, customer_name')
+          .eq('id', logEntry.reference_id)
+          .maybeSingle();
+
+        if (sale && templateNameToUse) {
+          const orgSettings = (currentOrganization.settings as Record<string, unknown>) || {};
+          const companyName = (orgSettings.company_name as string) || currentOrganization.name || 'Our Company';
+          const contactNumber =
+            (orgSettings.contact_number as string) ||
+            (orgSettings.phone as string) ||
+            '';
+
+          const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+
+          const amount = `${Number(sale.net_amount || 0).toLocaleString('en-IN')}`;
+          const paymentStatus = sale.payment_status === 'completed' ? 'Paid' : 'Pending';
+
+          // {{customer_name}}, {{invoice_number}}, {{invoice_date}}, {{amount}}, {{payment_status}}, {{company_name}}, {{contact_number}}
+          templateParams = [
+            sale.customer_name || '',
+            sale.sale_number || '',
+            formattedDate,
+            amount,
+            paymentStatus,
+            companyName,
+            contactNumber,
+          ];
+        }
+      }
+
+      // If we couldn't build params, do NOT use template (otherwise Meta returns #132000)
+      if (templateNameToUse && (!templateParams || templateParams.length === 0)) {
+        templateNameToUse = null;
+      }
+
+      // send-whatsapp currently validates that `message` is present; ensure we always send a non-empty fallback
+      const messageToSend = (logEntry.message && logEntry.message.trim()) ? logEntry.message : 'WhatsApp notification';
+
       // Resend the message
       const { data, error } = await supabase.functions.invoke('send-whatsapp', {
         body: {
           organizationId: currentOrganization.id,
           phone: logEntry.phone_number,
-          message: logEntry.message,
+          message: messageToSend,
           templateType: logEntry.template_type,
-          templateName: logEntry.template_name,
+          templateName: templateNameToUse,
+          templateParams,
           referenceId: logEntry.reference_id,
           referenceType: logEntry.reference_type,
         },
@@ -254,7 +305,7 @@ export const useWhatsAppAPI = () => {
         .from('whatsapp_logs')
         .update({ status: 'retried' })
         .eq('id', logId);
-      
+
       return data;
     },
     onSuccess: () => {
