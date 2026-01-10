@@ -335,6 +335,7 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
   
   // Count how many meaningful values this row has
   let meaningfulValueCount = 0;
+  let hasTextValue = false;
   
   for (const value of Object.values(row)) {
     if (value !== undefined && value !== null && value !== '') {
@@ -343,6 +344,10 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
       // Check for summary keywords
       if (typeof value === 'string') {
         const lowerValue = value.toLowerCase().trim();
+        // Check if it's a non-numeric text value
+        if (!lowerValue.match(/^[\d.,\-\s]+$/)) {
+          hasTextValue = true;
+        }
         if (summaryKeywords.some(keyword => lowerValue === keyword || lowerValue.startsWith(keyword + ' ') || lowerValue.endsWith(' ' + keyword))) {
           return true;
         }
@@ -351,7 +356,25 @@ const isSummaryOrEmptyRow = (row: Record<string, any>): boolean => {
   }
   
   // Skip rows with very few values (likely empty/separator rows)
-  if (meaningfulValueCount <= 2) {
+  if (meaningfulValueCount <= 3) {
+    return true;
+  }
+  
+  // Skip rows that only have numeric values and no text (likely totals/summary without keywords)
+  if (!hasTextValue) {
+    return true;
+  }
+  
+  // Skip rows where ALL core required fields (product_name, size, qty) are empty
+  const productName = row['product_name'];
+  const size = row['size'];
+  const qty = row['qty'];
+  
+  const hasProductName = productName !== undefined && productName !== null && String(productName).trim() !== '';
+  const hasSize = size !== undefined && size !== null && String(size).trim() !== '';
+  const hasQty = qty !== undefined && qty !== null && String(qty).trim() !== '' && Number(qty) > 0;
+  
+  if (!hasProductName && !hasSize && !hasQty) {
     return true;
   }
   
