@@ -12,6 +12,7 @@ interface SendWhatsAppRequest {
   message: string;
   templateType: string;
   templateName?: string;
+  templateParams?: string[]; // Parameters for template message
   referenceId?: string;
   referenceType?: string;
 }
@@ -49,6 +50,7 @@ serve(async (req) => {
       message, 
       templateType,
       templateName,
+      templateParams,
       referenceId, 
       referenceType 
     }: SendWhatsAppRequest = await req.json();
@@ -136,18 +138,56 @@ serve(async (req) => {
     // Call Meta WhatsApp Business API
     const metaApiUrl = `https://graph.facebook.com/v21.0/${settings.phone_number_id}/messages`;
     
-    // Build the request payload - using text message for now
-    // For template messages, you would need to configure message templates in Meta Business Manager
-    const payload = {
-      messaging_product: "whatsapp",
-      recipient_type: "individual",
-      to: formattedPhone,
-      type: "text",
-      text: {
-        preview_url: true,
-        body: message
+    // Build the request payload
+    // Use template message if templateName is provided (required for business-initiated messages)
+    // Otherwise use text message (only works within 24-hour customer service window)
+    let payload: Record<string, unknown>;
+    
+    if (templateName && templateName.trim() !== '') {
+      // Template message - required for business-initiated messages outside 24-hour window
+      console.log('Sending template message:', templateName);
+      
+      const templatePayload: Record<string, unknown> = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "template",
+        template: {
+          name: templateName,
+          language: { code: "en" },
+        }
+      };
+
+      // Add template parameters if provided
+      if (templateParams && templateParams.length > 0) {
+        const bodyParameters = templateParams.map(param => ({
+          type: "text",
+          text: param
+        }));
+        
+        (templatePayload.template as Record<string, unknown>).components = [
+          {
+            type: "body",
+            parameters: bodyParameters
+          }
+        ];
       }
-    };
+      
+      payload = templatePayload;
+    } else {
+      // Text message - only works if customer has messaged within 24 hours
+      console.log('Sending text message (24-hour window required)');
+      payload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "text",
+        text: {
+          preview_url: true,
+          body: message
+        }
+      };
+    }
 
     console.log('Sending WhatsApp message to:', formattedPhone);
     console.log('Using phone_number_id:', settings.phone_number_id);

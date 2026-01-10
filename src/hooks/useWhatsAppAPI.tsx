@@ -17,6 +17,10 @@ export interface WhatsAppSettings {
   auto_send_sale_order: boolean;
   auto_send_payment_reminder: boolean;
   webhook_verify_token: string | null;
+  invoice_template_name: string | null;
+  quotation_template_name: string | null;
+  sale_order_template_name: string | null;
+  payment_reminder_template_name: string | null;
   created_at: string;
   updated_at: string;
 }
