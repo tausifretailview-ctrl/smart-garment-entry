@@ -162,13 +162,58 @@ serve(async (req) => {
 
       // Add template parameters if provided
       if (templateParams && Array.isArray(templateParams) && templateParams.length > 0) {
-        const bodyParameters = templateParams.map(param => ({
-          type: "text",
-          text: String(param || '') // Ensure non-null string
+        const normalizedParams = templateParams.map((p) => String(p ?? '').trim());
+        const missingParamIndexes = normalizedParams
+          .map((val, idx) => ({ val, idx }))
+          .filter(({ val }) => val.length === 0)
+          .map(({ idx }) => idx);
+
+        if (missingParamIndexes.length > 0) {
+          console.log('ERROR: Template params contain empty values at indexes:', missingParamIndexes);
+          console.log('Template params (normalized):', JSON.stringify(normalizedParams));
+
+          // Update log entry so UI shows exactly what's missing
+          if (logEntry) {
+            await supabase
+              .from('whatsapp_logs')
+              .update({
+                status: 'failed',
+                sent_at: new Date().toISOString(),
+                error_message: `Template parameter(s) empty at index(es): ${missingParamIndexes.join(', ')}`,
+                provider_response: {
+                  error: {
+                    code: 'TEMPLATE_PARAMS_EMPTY',
+                    message: 'One or more WhatsApp template parameters are empty',
+                    missingParamIndexes,
+                    templateName,
+                    templateType,
+                  },
+                },
+              })
+              .eq('id', logEntry.id);
+          }
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'One or more template parameters are empty',
+              details: {
+                missingParamIndexes,
+                templateName,
+                templateType,
+              },
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const bodyParameters = normalizedParams.map((text) => ({
+          type: 'text',
+          text,
         }));
-        
+
         console.log('Body parameters:', JSON.stringify(bodyParameters));
-        
+
         (templatePayload.template as Record<string, unknown>).components = [
           {
             type: "body",
