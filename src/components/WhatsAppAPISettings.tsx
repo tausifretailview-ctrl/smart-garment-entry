@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { useWhatsAppAPI, TemplateParam } from "@/hooks/useWhatsAppAPI";
+import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
 import { TemplateParamMapper } from "@/components/TemplateParamMapper";
 import { 
@@ -24,11 +24,15 @@ import {
   Loader2,
   AlertCircle,
   Info,
-  Bot,
-  BrainCircuit,
-  ChevronDown,
-  ChevronRight
-} from "lucide-react";
+    Bot,
+    BrainCircuit,
+    ChevronDown,
+    ChevronRight,
+    Link,
+    Globe,
+    Instagram,
+    Facebook
+  } from "lucide-react";
 import { toast } from "sonner";
 import {
   Alert,
@@ -76,6 +80,10 @@ export const WhatsAppAPISettings = () => {
     business_hours_end: "18:00",
     outside_hours_message: "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
     handoff_keywords: ["human", "agent", "support", "help", "speak to someone"],
+    // Invoice link settings
+    auto_send_invoice_link: false,
+    invoice_link_message: "📄 View your invoice online: {invoice_link}\n\nThank you for your business!",
+    social_links: { website: "", instagram: "", facebook: "" } as SocialLinks,
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -114,6 +122,10 @@ export const WhatsAppAPISettings = () => {
         business_hours_end: settings.business_hours_end || "18:00",
         outside_hours_message: settings.outside_hours_message || "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
         handoff_keywords: settings.handoff_keywords || ["human", "agent", "support", "help", "speak to someone"],
+        // Invoice link settings
+        auto_send_invoice_link: settings.auto_send_invoice_link || false,
+        invoice_link_message: settings.invoice_link_message || "📄 View your invoice online: {invoice_link}\n\nThank you for your business!",
+        social_links: settings.social_links || { website: "", instagram: "", facebook: "" },
       });
     }
   }, [settings]);
@@ -125,8 +137,15 @@ export const WhatsAppAPISettings = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const handleInputChange = (field: string, value: string | boolean | string[] | TemplateParam[]) => {
+  const handleInputChange = (field: string, value: string | boolean | string[] | TemplateParam[] | SocialLinks) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSocialLinkChange = (field: keyof SocialLinks, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      social_links: { ...prev.social_links, [field]: value }
+    }));
   };
 
   const handleSave = () => {
@@ -744,6 +763,109 @@ export const WhatsAppAPISettings = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Enable WhatsApp API integration above to configure auto-send options
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Invoice Link Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Link className="h-4 w-4" />
+            Invoice Link Settings
+          </CardTitle>
+          <CardDescription>
+            Automatically send a follow-up message with invoice link after template delivery (uses 24-hour window - FREE)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              After sending a template message, a 24-hour messaging window opens. This feature automatically sends a 
+              follow-up message with a clickable invoice link at no extra template cost.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="auto_send_invoice_link">Auto-send Invoice Link</Label>
+              <p className="text-xs text-muted-foreground">Send invoice link after template delivery</p>
+            </div>
+            <Switch
+              id="auto_send_invoice_link"
+              checked={formData.auto_send_invoice_link}
+              onCheckedChange={(checked) => handleInputChange("auto_send_invoice_link", checked)}
+              disabled={!formData.is_active || !formData.auto_send_invoice}
+            />
+          </div>
+
+          {formData.auto_send_invoice_link && (
+            <>
+              <Separator />
+              
+              <div className="space-y-2">
+                <Label htmlFor="invoice_link_message">Follow-up Message</Label>
+                <Textarea
+                  id="invoice_link_message"
+                  placeholder="Message with invoice link..."
+                  value={formData.invoice_link_message}
+                  onChange={(e) => handleInputChange("invoice_link_message", e.target.value)}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Available placeholders: <code className="bg-muted px-1 rounded">{'{invoice_link}'}</code>, <code className="bg-muted px-1 rounded">{'{customer_name}'}</code>
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <Label className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Social Media Links (Optional)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  These links can be used in your WhatsApp template parameters
+                </p>
+                
+                <div className="grid gap-3">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://yourwebsite.com"
+                      value={formData.social_links?.website || ""}
+                      onChange={(e) => handleSocialLinkChange("website", e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Instagram className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://instagram.com/yourpage"
+                      value={formData.social_links?.instagram || ""}
+                      onChange={(e) => handleSocialLinkChange("instagram", e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Facebook className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://facebook.com/yourpage"
+                      value={formData.social_links?.facebook || ""}
+                      onChange={(e) => handleSocialLinkChange("facebook", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {!formData.auto_send_invoice && formData.is_active && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Enable "Auto-send Invoice" above to use this feature
               </AlertDescription>
             </Alert>
           )}

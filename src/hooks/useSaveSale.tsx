@@ -330,7 +330,7 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await (supabase as any)
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, invoice_template_name')
+            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
@@ -352,18 +352,28 @@ export const useSaveSale = () => {
             });
             const formattedAmount = `${Number(saleData.netAmount).toLocaleString('en-IN')}`;
 
-            // Template params for "invoice" utility template:
-            // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
-            const templateParams = [
-              saleData.customerName,
-              saleNumber,
-              formattedDate,
-              formattedAmount,
-              companyName
-            ];
-
             // Build message text (used as fallback if no template)
             const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
+
+            // Build saleData object for dynamic parameter building in edge function
+            const saleDataForWhatsApp = {
+              sale_id: sale.id,
+              org_slug: currentOrganization.slug,
+              customer_name: saleData.customerName,
+              sale_number: saleNumber,
+              sale_date: sale.sale_date,
+              net_amount: saleData.netAmount,
+              gross_amount: saleData.grossAmount,
+              discount_amount: saleData.discountAmount,
+              payment_status: sale.payment_status,
+              items_count: saleData.items.length,
+              salesman: saleData.salesman,
+              organization_name: companyName,
+              // Include social links from settings
+              website: whatsappSettings.social_links?.website || '',
+              instagram: whatsappSettings.social_links?.instagram || '',
+              facebook: whatsappSettings.social_links?.facebook || '',
+            };
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {
@@ -372,7 +382,7 @@ export const useSaveSale = () => {
                 message: messageText,
                 templateType: 'sales_invoice',
                 templateName: whatsappSettings.invoice_template_name || null,
-                templateParams: templateParams,
+                saleData: saleDataForWhatsApp,
                 referenceId: sale.id,
                 referenceType: 'sale'
               }

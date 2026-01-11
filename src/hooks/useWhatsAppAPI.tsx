@@ -10,6 +10,12 @@ export interface TemplateParam {
   customValue?: string;
 }
 
+export interface SocialLinks {
+  website?: string;
+  instagram?: string;
+  facebook?: string;
+}
+
 export interface WhatsAppSettings {
   id: string;
   organization_id: string;
@@ -43,6 +49,10 @@ export interface WhatsAppSettings {
   business_hours_end: string | null;
   outside_hours_message: string | null;
   handoff_keywords: string[] | null;
+  // Invoice link settings
+  auto_send_invoice_link: boolean;
+  invoice_link_message: string | null;
+  social_links: SocialLinks | null;
   created_at: string;
   updated_at: string;
 }
@@ -111,6 +121,10 @@ export const useWhatsAppAPI = () => {
         payment_reminder_template_params: Array.isArray(data.payment_reminder_template_params) 
           ? data.payment_reminder_template_params as unknown as TemplateParam[] 
           : [],
+        // Parse social_links JSONB
+        social_links: data.social_links && typeof data.social_links === 'object'
+          ? data.social_links as unknown as SocialLinks
+          : { website: '', instagram: '', facebook: '' },
       } as WhatsAppSettings;
     },
     enabled: !!currentOrganization?.id,
