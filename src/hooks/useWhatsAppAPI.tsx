@@ -21,6 +21,15 @@ export interface WhatsAppSettings {
   quotation_template_name: string | null;
   sale_order_template_name: string | null;
   payment_reminder_template_name: string | null;
+  // AI Chatbot settings
+  chatbot_enabled: boolean;
+  chatbot_greeting: string | null;
+  chatbot_system_prompt: string | null;
+  business_hours_enabled: boolean;
+  business_hours_start: string | null;
+  business_hours_end: string | null;
+  outside_hours_message: string | null;
+  handoff_keywords: string[] | null;
   created_at: string;
   updated_at: string;
 }

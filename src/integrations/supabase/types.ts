@@ -3218,12 +3218,20 @@ export type Database = {
           auto_send_payment_reminder: boolean
           auto_send_quotation: boolean
           auto_send_sale_order: boolean
+          business_hours_enabled: boolean | null
+          business_hours_end: string | null
+          business_hours_start: string | null
           business_name: string | null
+          chatbot_enabled: boolean | null
+          chatbot_greeting: string | null
+          chatbot_system_prompt: string | null
           created_at: string
+          handoff_keywords: string[] | null
           id: string
           invoice_template_name: string | null
           is_active: boolean
           organization_id: string
+          outside_hours_message: string | null
           payment_reminder_template_name: string | null
           phone_number_id: string | null
           provider: string
@@ -3239,12 +3247,20 @@ export type Database = {
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
+          business_hours_enabled?: boolean | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           business_name?: string | null
+          chatbot_enabled?: boolean | null
+          chatbot_greeting?: string | null
+          chatbot_system_prompt?: string | null
           created_at?: string
+          handoff_keywords?: string[] | null
           id?: string
           invoice_template_name?: string | null
           is_active?: boolean
           organization_id: string
+          outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
           phone_number_id?: string | null
           provider?: string
@@ -3260,12 +3276,20 @@ export type Database = {
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
+          business_hours_enabled?: boolean | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
           business_name?: string | null
+          chatbot_enabled?: boolean | null
+          chatbot_greeting?: string | null
+          chatbot_system_prompt?: string | null
           created_at?: string
+          handoff_keywords?: string[] | null
           id?: string
           invoice_template_name?: string | null
           is_active?: boolean
           organization_id?: string
+          outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
           phone_number_id?: string | null
           provider?: string
