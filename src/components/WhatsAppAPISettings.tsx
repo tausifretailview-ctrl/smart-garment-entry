@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
 import { TemplateParamMapper } from "@/components/TemplateParamMapper";
@@ -31,7 +32,8 @@ import {
     Link,
     Globe,
     Instagram,
-    Facebook
+    Facebook,
+    Star
   } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -83,7 +85,12 @@ export const WhatsAppAPISettings = () => {
     // Button click follow-up settings (WhatsApp 24h compliant)
     send_followup_on_button_click: false,
     button_followup_message: "📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐",
-    social_links: { website: "", instagram: "", facebook: "" } as SocialLinks,
+    followup_menu_message: "Thank you for your interest! 🙏\n\nPlease select what you need:",
+    followup_invoice_message: "📄 Here is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nThank you for your business!",
+    followup_social_message: "📱 Connect with us on social media:\n\n🌐 Website: {website}\n📷 Instagram: {instagram}\n📘 Facebook: {facebook}\n\nFollow us for latest updates! 🌟",
+    followup_review_message: "⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}\n\nYour review helps us serve you better! 🙏",
+    followup_chat_message: "💬 Chat with us directly!\n\nClick here to start a conversation:\n{whatsapp_link}\n\nOur team is ready to assist you!",
+    social_links: { website: "", instagram: "", facebook: "", google_review: "" } as SocialLinks,
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -125,7 +132,12 @@ export const WhatsAppAPISettings = () => {
         // Button click follow-up settings
         send_followup_on_button_click: settings.send_followup_on_button_click || false,
         button_followup_message: settings.button_followup_message || "📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐",
-        social_links: settings.social_links || { website: "", instagram: "", facebook: "" },
+        followup_menu_message: (settings as any).followup_menu_message || "Thank you for your interest! 🙏\n\nPlease select what you need:",
+        followup_invoice_message: (settings as any).followup_invoice_message || "📄 Here is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nThank you for your business!",
+        followup_social_message: (settings as any).followup_social_message || "📱 Connect with us on social media:\n\n🌐 Website: {website}\n📷 Instagram: {instagram}\n📘 Facebook: {facebook}\n\nFollow us for latest updates! 🌟",
+        followup_review_message: (settings as any).followup_review_message || "⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}\n\nYour review helps us serve you better! 🙏",
+        followup_chat_message: (settings as any).followup_chat_message || "💬 Chat with us directly!\n\nClick here to start a conversation:\n{whatsapp_link}\n\nOur team is ready to assist you!",
+        social_links: settings.social_links || { website: "", instagram: "", facebook: "", google_review: "" },
       });
     }
   }, [settings]);
@@ -777,23 +789,22 @@ export const WhatsAppAPISettings = () => {
             Button Click Follow-up
           </CardTitle>
           <CardDescription>
-            Send a follow-up message when customer clicks the "View Invoice" button in your template
+            When customer clicks template button, show them options: Invoice, Social Media, Google Review, or Chat
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              <strong>WhatsApp 24-Hour Window Policy:</strong> When a customer clicks a CTA button in your template, 
-              the 24-hour messaging window opens. Only then can you send follow-up messages for FREE (no template cost).
-              This is fully compliant with WhatsApp Business API policies.
+              <strong>How it works:</strong> When customer clicks a CTA button in your template (Invoice Details, Chat With Us), 
+              they see a menu with options. Based on their choice, the appropriate message is sent automatically (FREE within 24-hour window).
             </AlertDescription>
           </Alert>
 
           <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="send_followup_on_button_click">Send Follow-up on Button Click</Label>
-              <p className="text-xs text-muted-foreground">Automatically send follow-up when customer clicks template button</p>
+              <Label htmlFor="send_followup_on_button_click">Enable Interactive Follow-up Menu</Label>
+              <p className="text-xs text-muted-foreground">Show options menu when customer clicks template button</p>
             </div>
             <Switch
               id="send_followup_on_button_click"
@@ -807,34 +818,93 @@ export const WhatsAppAPISettings = () => {
             <>
               <Separator />
               
+              {/* Menu Message */}
               <div className="space-y-2">
-                <Label htmlFor="button_followup_message">Follow-up Message</Label>
+                <Label htmlFor="followup_menu_message">Menu Message</Label>
                 <Textarea
-                  id="button_followup_message"
-                  placeholder="Thank you message with social links..."
-                  value={formData.button_followup_message}
-                  onChange={(e) => handleInputChange("button_followup_message", e.target.value)}
-                  rows={5}
+                  id="followup_menu_message"
+                  placeholder="Thank you for your interest! Please select..."
+                  value={formData.followup_menu_message}
+                  onChange={(e) => handleInputChange("followup_menu_message", e.target.value)}
+                  rows={2}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Available placeholders: <code className="bg-muted px-1 rounded">{'{customer_name}'}</code>, 
-                  <code className="bg-muted px-1 rounded">{'{sale_number}'}</code>, 
-                  <code className="bg-muted px-1 rounded">{'{invoice_link}'}</code>, 
-                  <code className="bg-muted px-1 rounded">{'{website}'}</code>, 
-                  <code className="bg-muted px-1 rounded">{'{instagram}'}</code>, 
-                  <code className="bg-muted px-1 rounded">{'{facebook}'}</code>
-                </p>
+                <p className="text-xs text-muted-foreground">This message appears with the option buttons</p>
               </div>
+
+              <Separator />
+
+              {/* Response Messages */}
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="invoice">
+                  <AccordionTrigger className="text-sm">📄 Invoice Link Response</AccordionTrigger>
+                  <AccordionContent>
+                    <Textarea
+                      value={formData.followup_invoice_message}
+                      onChange={(e) => handleInputChange("followup_invoice_message", e.target.value)}
+                      rows={4}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Placeholders: <code className="bg-muted px-1 rounded">{'{invoice_link}'}</code>, <code className="bg-muted px-1 rounded">{'{sale_number}'}</code>, <code className="bg-muted px-1 rounded">{'{customer_name}'}</code>
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="social">
+                  <AccordionTrigger className="text-sm">📱 Social Media Response</AccordionTrigger>
+                  <AccordionContent>
+                    <Textarea
+                      value={formData.followup_social_message}
+                      onChange={(e) => handleInputChange("followup_social_message", e.target.value)}
+                      rows={4}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Placeholders: <code className="bg-muted px-1 rounded">{'{website}'}</code>, <code className="bg-muted px-1 rounded">{'{instagram}'}</code>, <code className="bg-muted px-1 rounded">{'{facebook}'}</code>
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="review">
+                  <AccordionTrigger className="text-sm">⭐ Google Review Response</AccordionTrigger>
+                  <AccordionContent>
+                    <Textarea
+                      value={formData.followup_review_message}
+                      onChange={(e) => handleInputChange("followup_review_message", e.target.value)}
+                      rows={4}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Placeholder: <code className="bg-muted px-1 rounded">{'{google_review}'}</code>
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="chat">
+                  <AccordionTrigger className="text-sm">💬 Chat With Us Response</AccordionTrigger>
+                  <AccordionContent>
+                    <Textarea
+                      value={formData.followup_chat_message}
+                      onChange={(e) => handleInputChange("followup_chat_message", e.target.value)}
+                      rows={4}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Placeholder: <code className="bg-muted px-1 rounded">{'{whatsapp_link}'}</code> (auto-generated from your phone number)
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
 
               <Separator />
 
               <div className="space-y-3">
                 <Label className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
-                  Social Media Links (for follow-up)
+                  Social & Business Links
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  These links will be included in the follow-up message when customer clicks the button
+                  These links are used in follow-up responses
                 </p>
                 
                 <div className="grid gap-3">
@@ -860,6 +930,14 @@ export const WhatsAppAPISettings = () => {
                       placeholder="https://facebook.com/yourpage"
                       value={formData.social_links?.facebook || ""}
                       onChange={(e) => handleSocialLinkChange("facebook", e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://g.page/r/YOUR_GOOGLE_REVIEW_LINK"
+                      value={formData.social_links?.google_review || ""}
+                      onChange={(e) => handleSocialLinkChange("google_review", e.target.value)}
                     />
                   </div>
                 </div>
