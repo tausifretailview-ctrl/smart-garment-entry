@@ -343,7 +343,6 @@ export const useSaveSale = () => {
               .maybeSingle();
 
             const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-            const contactNumber = companySettings?.mobile_number || 'N/A';
             
             // Build invoice message for template parameters
             const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
@@ -352,22 +351,19 @@ export const useSaveSale = () => {
               year: 'numeric'
             });
             const formattedAmount = `${Number(saleData.netAmount).toLocaleString('en-IN')}`;
-            const paymentStatus = payStatus === 'completed' ? 'Paid' : 'Pending';
 
-            // Template parameters matching Meta template:
-            // {{customer_name}}, {{invoice_number}}, {{invoice_date}}, {{amount}}, {{payment_status}}, {{company_name}}, {{contact_number}}
+            // Template params for "invoice" utility template:
+            // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
             const templateParams = [
               saleData.customerName,
               saleNumber,
               formattedDate,
               formattedAmount,
-              paymentStatus,
-              companyName,
-              contactNumber
+              companyName
             ];
 
             // Build message text (used as fallback if no template)
-            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
+            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {

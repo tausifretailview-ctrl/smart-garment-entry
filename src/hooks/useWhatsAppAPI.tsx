@@ -259,12 +259,11 @@ export const useWhatsAppAPI = () => {
           // Fetch company settings from settings table (not organizations.settings)
           const { data: companySettings } = await supabase
             .from('settings')
-            .select('business_name, mobile_number')
+            .select('business_name')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
           const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-          const contactNumber = companySettings?.mobile_number || 'N/A';
 
           const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
             day: '2-digit',
@@ -273,17 +272,15 @@ export const useWhatsAppAPI = () => {
           });
 
           const amount = `${Number(sale.net_amount || 0).toLocaleString('en-IN')}`;
-          const paymentStatus = sale.payment_status === 'completed' ? 'Paid' : 'Pending';
 
-          // {{customer_name}}, {{invoice_number}}, {{invoice_date}}, {{amount}}, {{payment_status}}, {{company_name}}, {{contact_number}}
+          // Template params for "invoice" utility template:
+          // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
           templateParams = [
             sale.customer_name || '',
             sale.sale_number || '',
             formattedDate,
             amount,
-            paymentStatus,
             companyName,
-            contactNumber,
           ];
         }
       }
