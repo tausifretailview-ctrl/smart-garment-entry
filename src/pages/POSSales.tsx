@@ -2835,11 +2835,11 @@ export default function POSSales() {
                           
                           {/* Redeem Section */}
                           {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                            <div className="flex items-center bg-amber-600 px-3 py-2 gap-2 rounded-lg">
+                            <div className="flex items-center bg-green-600 px-3 py-2 gap-2 rounded-lg">
                               <span className="text-white text-sm font-medium">Redeem:</span>
                               <Input 
                                 type="number"
-                                className="w-16 h-8 bg-white text-amber-700 text-center text-sm font-semibold rounded border-0" 
+                                className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0" 
                                 value={pointsToRedeem}
                                 onChange={(e) => {
                                   const value = parseInt(e.target.value) || 0;
