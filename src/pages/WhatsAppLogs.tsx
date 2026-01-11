@@ -82,19 +82,19 @@ const WhatsAppLogs = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'sent':
-        return <Badge variant="default" className="bg-blue-500"><Send className="h-3 w-3 mr-1" /> Sent</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-blue-500 hover:bg-blue-600 text-white">Sent</Badge>;
       case 'delivered':
-        return <Badge variant="default" className="bg-green-500"><CheckCircle className="h-3 w-3 mr-1" /> Delivered</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white">Delivered</Badge>;
       case 'read':
-        return <Badge variant="default" className="bg-green-600"><Eye className="h-3 w-3 mr-1" /> Read</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-teal-500 hover:bg-teal-600 text-white">Read</Badge>;
       case 'failed':
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Failed</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-red-500 hover:bg-red-600 text-white">Failed</Badge>;
       case 'pending':
-        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Pending</Badge>;
       case 'retried':
-        return <Badge variant="outline"><RefreshCw className="h-3 w-3 mr-1" /> Retried</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-amber-500 hover:bg-amber-600 text-white">Retried</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-gray-400 text-white">{status}</Badge>;
     }
   };
 

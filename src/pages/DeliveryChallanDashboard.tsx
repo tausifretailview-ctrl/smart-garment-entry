@@ -220,13 +220,13 @@ export default function DeliveryChallanDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Pending</Badge>;
       case 'delivered':
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Delivered</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white">Delivered</Badge>;
       case 'invoiced':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Invoiced</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-blue-500 hover:bg-blue-600 text-white">Invoiced</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge className="min-w-[80px] justify-center bg-gray-400 text-white">{status}</Badge>;
     }
   };
 

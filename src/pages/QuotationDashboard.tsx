@@ -203,15 +203,15 @@ export default function QuotationDashboard() {
   );
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
-      draft: { variant: "secondary", label: "Draft" },
-      sent: { variant: "default", label: "Sent" },
-      confirmed: { variant: "default", label: "Confirmed" },
-      expired: { variant: "destructive", label: "Expired" },
-      cancelled: { variant: "outline", label: "Cancelled" },
+    const variants: Record<string, { className: string, label: string }> = {
+      draft: { className: "min-w-[80px] justify-center bg-gray-400 hover:bg-gray-500 text-white", label: "Draft" },
+      sent: { className: "min-w-[80px] justify-center bg-blue-500 hover:bg-blue-600 text-white", label: "Sent" },
+      confirmed: { className: "min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white", label: "Confirmed" },
+      expired: { className: "min-w-[80px] justify-center bg-red-500 hover:bg-red-600 text-white", label: "Expired" },
+      cancelled: { className: "min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white", label: "Cancelled" },
     };
-    const config = variants[status] || { variant: "secondary", label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = variants[status] || { className: "min-w-[80px] justify-center bg-gray-400 text-white", label: status };
+    return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   // Calculate statistics

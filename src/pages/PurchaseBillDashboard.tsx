@@ -750,11 +750,11 @@ const PurchaseBillDashboard = () => {
     const isFullyPaid = status === 'paid' || Math.abs(paidAmount - bill.net_amount) < 1;
     
     if (isFullyPaid) {
-      return <Badge className="bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20">Paid</Badge>;
+      return <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
     } else if (status === 'partial' || (paidAmount > 0 && paidAmount < bill.net_amount)) {
-      return <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">Partial</Badge>;
+      return <Badge className="min-w-[70px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Partial</Badge>;
     } else {
-      return <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">Unpaid</Badge>;
+      return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
     }
   };
 

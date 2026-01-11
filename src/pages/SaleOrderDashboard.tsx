@@ -381,14 +381,14 @@ export default function SaleOrderDashboard() {
   );
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline", label: string }> = {
-      pending: { variant: "secondary", label: "Pending" },
-      partial: { variant: "outline", label: "Partial" },
-      confirmed: { variant: "default", label: "Confirmed" },
-      cancelled: { variant: "destructive", label: "Cancelled" },
+    const variants: Record<string, { className: string, label: string }> = {
+      pending: { className: "min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white", label: "Pending" },
+      partial: { className: "min-w-[80px] justify-center bg-amber-500 hover:bg-amber-600 text-white", label: "Partial" },
+      confirmed: { className: "min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white", label: "Confirmed" },
+      cancelled: { className: "min-w-[80px] justify-center bg-red-500 hover:bg-red-600 text-white", label: "Cancelled" },
     };
-    const config = variants[status] || { variant: "secondary", label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
+    const config = variants[status] || { className: "min-w-[80px] justify-center bg-gray-400 text-white", label: status };
+    return <Badge className={config.className}>{config.label}</Badge>;
   };
 
   // Calculate statistics
