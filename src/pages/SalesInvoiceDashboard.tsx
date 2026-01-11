@@ -1452,9 +1452,9 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
-                              <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                              <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 <Badge 
-                                  className={`min-w-[70px] justify-center ${
+                                  className={`min-w-[80px] justify-center whitespace-nowrap ${
                                     invoice.payment_status === 'completed' 
                                       ? 'bg-green-500 hover:bg-green-600 text-white' 
                                       : invoice.payment_status === 'partial' 
