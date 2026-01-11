@@ -631,9 +631,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                        <Layout>
+                        <FullScreenLayout>
                           <WhatsAppLogs />
-                        </Layout>
+                        </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
@@ -645,9 +645,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                        <Layout>
+                        <FullScreenLayout>
                           <WhatsAppInbox />
-                        </Layout>
+                        </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
