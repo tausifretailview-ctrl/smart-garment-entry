@@ -1519,17 +1519,17 @@ Thank you for choosing us!`;
               const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
               const paymentStatus = 'Pending';
 
+              // Template params for "invoice" utility template:
+              // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
               const templateParams = [
                 selectedCustomer.customer_name,
                 invoiceData.sale_number,
                 formattedDate,
                 formattedAmount,
-                paymentStatus,
                 companyName,
-                contactNumber,
               ];
 
-              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${invoiceData.sale_number} has been updated.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
+              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${invoiceData.sale_number} has been updated.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
               await supabase.functions.invoke('send-whatsapp', {
                 body: {
@@ -1647,17 +1647,17 @@ Thank you for choosing us!`;
               const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
               const paymentStatus = 'Pending';
 
+              // Template params for "invoice" utility template:
+              // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
               const templateParams = [
                 selectedCustomer.customer_name,
                 saleNumber,
                 formattedDate,
                 formattedAmount,
-                paymentStatus,
                 companyName,
-                contactNumber,
               ];
 
-              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nStatus: ${paymentStatus}\n\nThank you for your business!\n${companyName}`;
+              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
               await supabase.functions.invoke('send-whatsapp', {
                 body: {
