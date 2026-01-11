@@ -3239,6 +3239,7 @@ export type Database = {
         Row: {
           access_token: string | null
           auto_send_invoice: boolean
+          auto_send_invoice_link: boolean | null
           auto_send_payment_reminder: boolean
           auto_send_quotation: boolean
           auto_send_sale_order: boolean
@@ -3252,6 +3253,7 @@ export type Database = {
           created_at: string
           handoff_keywords: string[] | null
           id: string
+          invoice_link_message: string | null
           invoice_template_name: string | null
           invoice_template_params: Json | null
           is_active: boolean
@@ -3265,6 +3267,7 @@ export type Database = {
           quotation_template_params: Json | null
           sale_order_template_name: string | null
           sale_order_template_params: Json | null
+          social_links: Json | null
           updated_at: string
           use_default_api: boolean | null
           waba_id: string | null
@@ -3273,6 +3276,7 @@ export type Database = {
         Insert: {
           access_token?: string | null
           auto_send_invoice?: boolean
+          auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
@@ -3286,6 +3290,7 @@ export type Database = {
           created_at?: string
           handoff_keywords?: string[] | null
           id?: string
+          invoice_link_message?: string | null
           invoice_template_name?: string | null
           invoice_template_params?: Json | null
           is_active?: boolean
@@ -3299,6 +3304,7 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           waba_id?: string | null
@@ -3307,6 +3313,7 @@ export type Database = {
         Update: {
           access_token?: string | null
           auto_send_invoice?: boolean
+          auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
@@ -3320,6 +3327,7 @@ export type Database = {
           created_at?: string
           handoff_keywords?: string[] | null
           id?: string
+          invoice_link_message?: string | null
           invoice_template_name?: string | null
           invoice_template_params?: Json | null
           is_active?: boolean
@@ -3333,6 +3341,7 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           waba_id?: string | null

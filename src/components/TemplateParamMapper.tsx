@@ -35,6 +35,11 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'items_count', label: 'Items Count', description: 'Number of items in invoice' },
     { key: 'due_date', label: 'Due Date', description: 'Payment due date' },
     { key: 'salesman', label: 'Salesman', description: 'Salesperson name' },
+    { key: 'invoice_link', label: 'Invoice Link', description: 'Public URL to view invoice online' },
+    { key: 'payment_link', label: 'Payment Link', description: 'UPI/Payment gateway URL' },
+    { key: 'website', label: 'Website', description: 'Organization website URL' },
+    { key: 'instagram', label: 'Instagram', description: 'Instagram profile link' },
+    { key: 'facebook', label: 'Facebook', description: 'Facebook page link' },
     { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
   ],
   quotation: [

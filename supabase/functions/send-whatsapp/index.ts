@@ -167,6 +167,21 @@ function buildTemplateParams(
         return String(saleData.days_overdue || 0);
       case 'contact_number':
         return String(saleData.contact_number || '');
+      case 'invoice_link':
+        // Build public invoice URL
+        const orgSlug = String(saleData.org_slug || '');
+        const saleId = String(saleData.sale_id || saleData.id || '');
+        return saleId && orgSlug 
+          ? `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}` 
+          : '';
+      case 'payment_link':
+        return String(saleData.payment_link || '');
+      case 'website':
+        return String(saleData.website || '');
+      case 'instagram':
+        return String(saleData.instagram || '');
+      case 'facebook':
+        return String(saleData.facebook || '');
       case 'custom_text':
         return param.customValue || '';
       default:
@@ -534,6 +549,73 @@ serve(async (req) => {
         }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Auto-send invoice link follow-up message if enabled
+    // This uses the 24-hour messaging window opened by the template message
+    if (
+      response.ok && 
+      templateType === 'sales_invoice' && 
+      orgSettings?.auto_send_invoice_link && 
+      saleData?.sale_id && 
+      saleData?.org_slug
+    ) {
+      try {
+        console.log('Auto-sending invoice link follow-up message...');
+        
+        // Build the invoice link
+        const invoiceLink = `https://app.inventoryshop.in/${saleData.org_slug}/invoice/view/${saleData.sale_id}`;
+        
+        // Build the follow-up message
+        let followUpMessage = orgSettings.invoice_link_message || '📄 View your invoice online: {invoice_link}\n\nThank you for your business!';
+        followUpMessage = followUpMessage.replace('{invoice_link}', invoiceLink);
+        followUpMessage = followUpMessage.replace('{customer_name}', String(saleData.customer_name || ''));
+        
+        // Send as free-form text message (uses 24-hour window, no template cost)
+        const followUpPayload = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "text",
+          text: {
+            preview_url: true,
+            body: followUpMessage
+          }
+        };
+
+        const followUpResponse = await fetch(metaApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(followUpPayload),
+        });
+
+        const followUpData = await followUpResponse.json();
+        console.log('Follow-up message response:', JSON.stringify(followUpData));
+
+        // Log the follow-up message
+        if (followUpResponse.ok) {
+          await supabase
+            .from('whatsapp_logs')
+            .insert({
+              organization_id: organizationId,
+              phone_number: formattedPhone,
+              message: followUpMessage,
+              template_type: 'invoice_link_followup',
+              status: 'sent',
+              wamid: followUpData.messages?.[0]?.id,
+              reference_id: saleData.sale_id ? String(saleData.sale_id) : null,
+              reference_type: 'sale',
+              sent_at: new Date().toISOString(),
+              provider_response: followUpData,
+            });
+        }
+      } catch (followUpError) {
+        // Don't fail the main request if follow-up fails
+        console.error('Follow-up message failed:', followUpError);
+      }
     }
 
     return new Response(
