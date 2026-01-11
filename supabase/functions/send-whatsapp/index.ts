@@ -113,41 +113,98 @@ serve(async (req) => {
     }
 
     // Fetch WhatsApp API settings for the organization
-    const { data: settings, error: settingsError } = await supabase
+    const { data: orgSettings, error: settingsError } = await supabase
       .from('whatsapp_api_settings')
       .select('*')
       .eq('organization_id', organizationId)
-      .single();
+      .maybeSingle();
 
-    if (settingsError || !settings) {
+    if (settingsError) {
+      console.error('Error fetching org settings:', settingsError);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhatsApp API settings not configured for this organization' 
+          error: 'Error fetching WhatsApp API settings' 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!settings.is_active) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'WhatsApp API integration is disabled' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Determine which credentials to use
+    let apiCredentials: {
+      phone_number_id: string;
+      access_token: string;
+      waba_id?: string | null;
+    };
+
+    const useDefaultApi = orgSettings?.use_default_api !== false; // Default to true if not set
+
+    if (useDefaultApi || !orgSettings?.phone_number_id || !orgSettings?.access_token) {
+      // Use platform default credentials
+      console.log('Using platform default WhatsApp API credentials');
+      
+      const { data: platformSettings, error: platformError } = await supabase
+        .from('platform_settings')
+        .select('setting_value')
+        .eq('setting_key', 'default_whatsapp_api')
+        .single();
+
+      if (platformError || !platformSettings) {
+        console.error('Platform settings not found:', platformError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Platform default WhatsApp API not configured' 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const defaultCreds = platformSettings.setting_value as Record<string, unknown>;
+      
+      if (!defaultCreds.phone_number_id || !defaultCreds.access_token) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Platform default WhatsApp API credentials not configured' 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      apiCredentials = {
+        phone_number_id: defaultCreds.phone_number_id as string,
+        access_token: defaultCreds.access_token as string,
+        waba_id: defaultCreds.waba_id as string | null,
+      };
+    } else {
+      // Use organization's own credentials
+      console.log('Using organization-specific WhatsApp API credentials');
+      
+      if (!orgSettings.is_active) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'WhatsApp API integration is disabled' 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      apiCredentials = {
+        phone_number_id: orgSettings.phone_number_id,
+        access_token: orgSettings.access_token,
+        waba_id: orgSettings.waba_id,
+      };
     }
 
-    if (!settings.phone_number_id || !settings.access_token) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'WhatsApp API credentials not configured (missing phone_number_id or access_token)' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Create a merged settings object for template fetching
+    const settings = {
+      ...orgSettings,
+      phone_number_id: apiCredentials.phone_number_id,
+      access_token: apiCredentials.access_token,
+      waba_id: apiCredentials.waba_id,
+    };
 
     const formattedPhone = formatPhoneNumber(phone);
     

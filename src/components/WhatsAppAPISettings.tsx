@@ -49,6 +49,7 @@ export const WhatsAppAPISettings = () => {
     access_token: "",
     business_name: "",
     is_active: false,
+    use_default_api: true,
     auto_send_invoice: false,
     auto_send_quotation: false,
     auto_send_sale_order: false,
@@ -80,6 +81,7 @@ export const WhatsAppAPISettings = () => {
         access_token: settings.access_token || "",
         business_name: settings.business_name || "",
         is_active: settings.is_active || false,
+        use_default_api: settings.use_default_api !== false, // Default to true
         auto_send_invoice: settings.auto_send_invoice || false,
         auto_send_quotation: settings.auto_send_quotation || false,
         auto_send_sale_order: settings.auto_send_sale_order || false,
@@ -124,7 +126,7 @@ export const WhatsAppAPISettings = () => {
     testConnection(testPhone);
   };
 
-  const isConfigured = formData.phone_number_id && formData.access_token;
+  const isConfigured = formData.use_default_api || (formData.phone_number_id && formData.access_token);
 
   if (settingsLoading) {
     return (
@@ -181,63 +183,92 @@ export const WhatsAppAPISettings = () => {
             API Configuration
           </CardTitle>
           <CardDescription>
-            Enter your WhatsApp Business API credentials from Meta Business Manager
+            Choose to use the platform's shared WhatsApp number or configure your own
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="phone_number_id">Phone Number ID</Label>
-              <Input
-                id="phone_number_id"
-                placeholder="e.g., 123456789012345"
-                value={formData.phone_number_id}
-                onChange={(e) => handleInputChange("phone_number_id", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Found in WhatsApp Manager → Phone Numbers
+          {/* Platform Default Toggle */}
+          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+            <div>
+              <Label htmlFor="use_default_api" className="font-medium">Use Platform Default WhatsApp Number</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Use the shared platform WhatsApp number for all messages. Your organization's messages, reports, and chatbot settings remain separate.
               </p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="waba_id">WhatsApp Business Account ID</Label>
-              <Input
-                id="waba_id"
-                placeholder="e.g., 123456789012345"
-                value={formData.waba_id}
-                onChange={(e) => handleInputChange("waba_id", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Found in WhatsApp Manager → Account settings
-              </p>
-            </div>
+            <Switch
+              id="use_default_api"
+              checked={formData.use_default_api}
+              onCheckedChange={(checked) => handleInputChange("use_default_api", checked)}
+            />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="access_token">Access Token</Label>
-            <div className="relative">
-              <Input
-                id="access_token"
-                type={showToken ? "text" : "password"}
-                placeholder="Permanent Access Token from System User"
-                value={formData.access_token}
-                onChange={(e) => handleInputChange("access_token", e.target.value)}
-                className="pr-10"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowToken(!showToken)}
-              >
-                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Create a System User in Business Settings → System Users → Generate Token
-            </p>
-          </div>
+          {formData.use_default_api ? (
+            <Alert>
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle>Using Platform Default Number</AlertTitle>
+              <AlertDescription className="text-sm">
+                Your organization will use the shared platform WhatsApp number. All messages sent will appear from the platform number, 
+                but your reports, chatbot settings, and message logs remain specific to your organization.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <Separator />
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="phone_number_id">Phone Number ID</Label>
+                  <Input
+                    id="phone_number_id"
+                    placeholder="e.g., 123456789012345"
+                    value={formData.phone_number_id}
+                    onChange={(e) => handleInputChange("phone_number_id", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Found in WhatsApp Manager → Phone Numbers
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="waba_id">WhatsApp Business Account ID</Label>
+                  <Input
+                    id="waba_id"
+                    placeholder="e.g., 123456789012345"
+                    value={formData.waba_id}
+                    onChange={(e) => handleInputChange("waba_id", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Found in WhatsApp Manager → Account settings
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="access_token">Access Token</Label>
+                <div className="relative">
+                  <Input
+                    id="access_token"
+                    type={showToken ? "text" : "password"}
+                    placeholder="Permanent Access Token from System User"
+                    value={formData.access_token}
+                    onChange={(e) => handleInputChange("access_token", e.target.value)}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowToken(!showToken)}
+                  >
+                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Create a System User in Business Settings → System Users → Generate Token
+                </p>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="business_name">Business Name</Label>
@@ -275,7 +306,7 @@ export const WhatsAppAPISettings = () => {
               />
               <Button 
                 onClick={handleTestConnection} 
-                disabled={isTesting || !isConfigured}
+                disabled={isTesting || !isConfigured || !formData.is_active}
                 variant="outline"
               >
                 {isTesting ? (
@@ -285,10 +316,10 @@ export const WhatsAppAPISettings = () => {
                 )}
               </Button>
             </div>
-            {!isConfigured && (
+            {!formData.is_active && (
               <p className="text-xs text-orange-600">
                 <AlertCircle className="h-3 w-3 inline mr-1" />
-                Configure Phone Number ID and Access Token to test
+                Enable WhatsApp API Integration to test
               </p>
             )}
           </div>
