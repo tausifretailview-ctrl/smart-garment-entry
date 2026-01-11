@@ -205,7 +205,12 @@ export const useWhatsAppAPI = () => {
   const testConnectionMutation = useMutation({
     mutationFn: async (testPhone: string) => {
       if (!currentOrganization?.id) throw new Error('No organization selected');
-      if (!settings?.phone_number_id || !settings?.access_token) {
+      
+      // Allow test if using platform default API OR if own credentials are configured
+      const useDefaultApi = settings?.use_default_api !== false;
+      const hasOwnCredentials = settings?.phone_number_id && settings?.access_token;
+      
+      if (!useDefaultApi && !hasOwnCredentials) {
         throw new Error('Please configure API credentials first');
       }
 
@@ -213,13 +218,18 @@ export const useWhatsAppAPI = () => {
         body: {
           organizationId: currentOrganization.id,
           phone: testPhone,
-          message: `🔔 Test message from ${settings.business_name || 'WhatsApp API Integration'}\n\nYour WhatsApp Business API is configured correctly!`,
+          message: `🔔 Test message from ${settings?.business_name || 'WhatsApp API Integration'}\n\nYour WhatsApp Business API is configured correctly!`,
           templateType: 'test',
         },
       });
 
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || 'Connection test failed');
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Edge function returned an error');
+      }
+      if (!data?.success) {
+        throw new Error(data?.error || 'Connection test failed');
+      }
       
       return data;
     },
