@@ -85,7 +85,7 @@ async function getCustomerInfo(supabase: any, organizationId: string, phone: str
   // Get recent sales
   const { data: sales } = await supabase
     .from('sales')
-    .select('bill_no, sale_date, net_amount, payment_status')
+    .select('sale_number, sale_date, net_amount, payment_status')
     .eq('organization_id', organizationId)
     .eq('customer_id', customer.id)
     .is('deleted_at', null)
@@ -130,7 +130,7 @@ Customer Information:
 
 Recent Invoices:
 ${customerInfo.recent_sales?.map((s: any) => 
-  `- ${s.bill_no} (${s.sale_date}): ₹${s.net_amount} - ${s.payment_status}`
+  `- ${s.sale_number} (${s.sale_date}): ₹${s.net_amount} - ${s.payment_status}`
 ).join('\n') || 'No recent invoices'}
 `;
   }
