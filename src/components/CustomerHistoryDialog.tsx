@@ -64,6 +64,7 @@ export function CustomerHistoryDialog({
         `)
         .eq('customer_id', customerId)
         .eq('organization_id', organizationId)
+        .is('deleted_at', null)
         .order('sale_date', { ascending: false })
         .limit(50);
       if (error) throw error;
