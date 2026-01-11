@@ -389,12 +389,6 @@ export const useSaveSale = () => {
         }
       }
 
-      const pointsMessage = pointsAwarded > 0 ? ` (+${pointsAwarded} points)` : '';
-      toast({
-        title: "Sale saved successfully",
-        description: `Sale ${saleNumber} has been recorded${pointsMessage}`,
-      });
-
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       console.error('Error saving sale:', error);
