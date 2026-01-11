@@ -2457,93 +2457,7 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
           
-          {/* Customer Discount Indicator */}
-          {customerId && (() => {
-            const customer = customers?.find((c: any) => c.id === customerId);
-            const customerMasterDiscount = customer?.discount_percent || 0;
-            return (
-              <div className="flex items-center gap-1 h-12 items-center">
-                {hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                  <>
-                    <span className="text-xs text-muted-foreground">Brand:</span>
-                    {brandDiscounts.slice(0, 3).map((bd, idx) => (
-                      <span 
-                        key={idx} 
-                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
-                      >
-                        {bd.brand}: {bd.discount_percent}%
-                      </span>
-                    ))}
-                    {brandDiscounts.length > 3 && (
-                      <span className="text-xs text-muted-foreground">+{brandDiscounts.length - 3} more</span>
-                    )}
-                  </>
-                ) : customerMasterDiscount > 0 ? (
-                  <>
-                    <span className="text-xs text-muted-foreground">Discount:</span>
-                    <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
-                      {customerMasterDiscount}%
-                    </span>
-                  </>
-                ) : null}
-              </div>
-            );
-          })()}
-          
-          {/* Floating Customer Points Window - Appears after customer selection */}
-          {isPointsEnabled && customerId && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className="h-12 px-3 flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-md"
-                >
-                  <Coins className="h-4 w-4" />
-                  <span className="font-semibold">{customerPointsData?.balance || 0} pts</span>
-                  {items.length > 0 && (
-                    <span className="text-amber-100 text-xs">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent 
-                className="w-auto p-0 border-0 shadow-xl z-[100]" 
-                align="start"
-                sideOffset={8}
-              >
-                <div className="flex items-center rounded-lg overflow-hidden">
-                  {/* Points Display Section */}
-                  <div className="flex items-center gap-2 px-3 py-2.5 bg-amber-500 text-white">
-                    <Coins className="h-4 w-4" />
-                    <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
-                    {items.length > 0 && (
-                      <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
-                    )}
-                  </div>
-                  {/* Redeem Section */}
-                  {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
-                    <div className="flex items-center bg-amber-600 px-3 py-2.5 gap-2">
-                      <Input 
-                        type="number"
-                        className="w-14 h-7 bg-white text-amber-700 text-center text-sm font-semibold rounded border-0" 
-                        value={pointsToRedeem}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
-                          setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
-                        }}
-                        min={0}
-                        max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
-                        disabled={!customerId}
-                      />
-                      <span className="text-white text-sm font-medium whitespace-nowrap">
-                        Pts (₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)})
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          )}
+          {/* Customer Discount & Points moved to bottom after Note section */}
 
           {/* Salesperson Search - After Customer Name */}
           <Popover open={openSalesmanSearch} onOpenChange={setOpenSalesmanSearch}>
@@ -2871,6 +2785,81 @@ export default function POSSales() {
                     />
                   </div>
                 </div>
+                
+                {/* Customer Discount & Points Section - After Notes */}
+                {customerId && (() => {
+                  const customer = customers?.find((c: any) => c.id === customerId);
+                  const customerMasterDiscount = customer?.discount_percent || 0;
+                  const hasDiscountInfo = (hasBrandDiscounts && brandDiscounts.length > 0) || customerMasterDiscount > 0;
+                  const showPointsSection = isPointsEnabled;
+                  
+                  if (!hasDiscountInfo && !showPointsSection) return null;
+                  
+                  return (
+                    <div className="min-w-[1200px] p-3 border-t bg-amber-50/50 dark:bg-amber-950/20 flex items-center gap-4">
+                      {/* Discount Indicator */}
+                      {hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                        <div className="flex items-center gap-2 bg-primary/5 px-3 py-2 rounded-lg">
+                          <span className="text-sm text-muted-foreground font-medium">Brand Discounts:</span>
+                          {brandDiscounts.slice(0, 5).map((bd, idx) => (
+                            <span 
+                              key={idx} 
+                              className="text-sm bg-primary/10 text-primary px-2 py-1 rounded font-semibold"
+                            >
+                              {bd.brand}: {bd.discount_percent}%
+                            </span>
+                          ))}
+                          {brandDiscounts.length > 5 && (
+                            <span className="text-sm text-muted-foreground">+{brandDiscounts.length - 5} more</span>
+                          )}
+                        </div>
+                      ) : customerMasterDiscount > 0 ? (
+                        <div className="flex items-center gap-2 bg-green-500/10 px-3 py-2 rounded-lg">
+                          <span className="text-sm text-muted-foreground font-medium">Master Discount:</span>
+                          <span className="text-sm bg-green-500/20 text-green-600 px-2 py-1 rounded font-semibold">
+                            {customerMasterDiscount}%
+                          </span>
+                        </div>
+                      ) : null}
+                      
+                      {/* Points Display & Redeem */}
+                      {showPointsSection && (
+                        <div className="flex items-center gap-3 ml-auto">
+                          <div className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg">
+                            <Coins className="h-4 w-4" />
+                            <span className="font-bold">{customerPointsData?.balance || 0} pts</span>
+                            {items.length > 0 && (
+                              <span className="text-amber-100 text-sm">+{calculatePoints(items.reduce((sum, item) => sum + item.netAmount, 0))}</span>
+                            )}
+                          </div>
+                          
+                          {/* Redeem Section */}
+                          {isRedemptionEnabled && (customerPointsData?.balance || 0) >= (pointsSettings?.min_points_for_redemption || 10) && (
+                            <div className="flex items-center bg-amber-600 px-3 py-2 gap-2 rounded-lg">
+                              <span className="text-white text-sm font-medium">Redeem:</span>
+                              <Input 
+                                type="number"
+                                className="w-16 h-8 bg-white text-amber-700 text-center text-sm font-semibold rounded border-0" 
+                                value={pointsToRedeem}
+                                onChange={(e) => {
+                                  const value = parseInt(e.target.value) || 0;
+                                  const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
+                                  setPointsToRedeem(Math.min(Math.max(0, value), maxPoints));
+                                }}
+                                min={0}
+                                max={calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0)}
+                                disabled={!customerId}
+                              />
+                              <span className="text-white text-sm font-medium whitespace-nowrap">
+                                pts = ₹{calculateRedemptionValue(pointsToRedeem).toFixed(0)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </Card>
