@@ -6,13 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface TemplateParamMapping {
+  index: number;
+  field: string;
+  label: string;
+  customValue?: string;
+}
+
 interface SendWhatsAppRequest {
   organizationId: string;
   phone: string;
   message: string;
   templateType: string;
   templateName?: string;
-  templateParams?: string[]; // Parameters for template message
+  templateParams?: string[]; // Direct parameters (legacy support)
+  saleData?: Record<string, unknown>; // Dynamic data for parameter building
   referenceId?: string;
   referenceType?: string;
 }
@@ -78,6 +86,96 @@ async function fetchNamedTemplateParamNames(opts: {
 }
 
 
+// Build template parameters dynamically from saleData and param mapping
+function buildTemplateParams(
+  paramMapping: TemplateParamMapping[],
+  saleData: Record<string, unknown>,
+  orgName: string
+): string[] {
+  if (!paramMapping || paramMapping.length === 0) {
+    return [];
+  }
+
+  return paramMapping.map((param) => {
+    const field = param.field;
+    
+    switch (field) {
+      case 'customer_name':
+        return String(saleData.customer_name || '');
+      case 'invoice_number':
+      case 'quotation_number':
+      case 'order_number':
+        return String(saleData.sale_number || saleData.quotation_number || saleData.order_number || '');
+      case 'invoice_date':
+      case 'quotation_date':
+      case 'order_date':
+        const dateVal = saleData.sale_date || saleData.quotation_date || saleData.order_date;
+        if (dateVal) {
+          return new Date(String(dateVal)).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+        return '';
+      case 'amount':
+        const amount = saleData.net_amount || saleData.amount || 0;
+        return Number(amount).toLocaleString('en-IN');
+      case 'gross_amount':
+        return Number(saleData.gross_amount || 0).toLocaleString('en-IN');
+      case 'discount':
+        return Number(saleData.discount_amount || saleData.discount || 0).toLocaleString('en-IN');
+      case 'payment_status':
+        return String(saleData.payment_status || 'Pending');
+      case 'organization_name':
+        return orgName;
+      case 'items_count':
+        return String(saleData.items_count || 0);
+      case 'due_date':
+        const dueDateVal = saleData.due_date;
+        if (dueDateVal) {
+          return new Date(String(dueDateVal)).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+        return '';
+      case 'valid_until':
+        const validUntilVal = saleData.valid_until;
+        if (validUntilVal) {
+          return new Date(String(validUntilVal)).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+        return '';
+      case 'delivery_date':
+        const deliveryDateVal = saleData.delivery_date;
+        if (deliveryDateVal) {
+          return new Date(String(deliveryDateVal)).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          });
+        }
+        return '';
+      case 'salesman':
+        return String(saleData.salesman || '');
+      case 'days_overdue':
+        return String(saleData.days_overdue || 0);
+      case 'contact_number':
+        return String(saleData.contact_number || '');
+      case 'custom_text':
+        return param.customValue || '';
+      default:
+        // Try to get the value directly from saleData
+        return String(saleData[field] || param.customValue || '');
+    }
+  });
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -97,6 +195,7 @@ serve(async (req) => {
       templateType,
       templateName,
       templateParams,
+      saleData,
       referenceId, 
       referenceType 
     }: SendWhatsAppRequest = await req.json();
@@ -252,9 +351,34 @@ serve(async (req) => {
     if (cleanedTemplateName !== '') {
       // Template message - required for business-initiated messages outside 24-hour window
       console.log('Sending template message:', cleanedTemplateName);
-      console.log('Template name raw:', JSON.stringify(rawTemplateName));
       console.log('Template params received:', JSON.stringify(templateParams));
-      console.log('Template params length:', templateParams?.length || 0);
+      console.log('SaleData received:', JSON.stringify(saleData));
+
+      // Determine which params to use - either directly provided or built from saleData
+      let finalTemplateParams: string[] = [];
+      
+      if (templateParams && Array.isArray(templateParams) && templateParams.length > 0) {
+        // Use directly provided params (legacy support)
+        finalTemplateParams = templateParams;
+      } else if (saleData && orgSettings) {
+        // Build params dynamically from saleData using param mapping from settings
+        const paramMappingKey = `${templateType.replace('sales_', '')}_template_params`;
+        const paramMapping = orgSettings[paramMappingKey] as TemplateParamMapping[] | null;
+        
+        // Fetch org name for the organization_name field
+        const { data: companySettings } = await supabase
+          .from('settings')
+          .select('business_name')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+        
+        const orgName = companySettings?.business_name || 'Our Company';
+        
+        if (paramMapping && paramMapping.length > 0) {
+          finalTemplateParams = buildTemplateParams(paramMapping, saleData, orgName);
+          console.log('Built dynamic params:', JSON.stringify(finalTemplateParams));
+        }
+      }
 
       const templatePayload: Record<string, unknown> = {
         messaging_product: "whatsapp",
@@ -267,9 +391,9 @@ serve(async (req) => {
         }
       };
 
-      // Add template parameters if provided
-      if (templateParams && Array.isArray(templateParams) && templateParams.length > 0) {
-        const normalizedParams = templateParams.map((p) => String(p ?? '').trim());
+      // Add template parameters if we have any
+      if (finalTemplateParams.length > 0) {
+        const normalizedParams = finalTemplateParams.map((p) => String(p ?? '').trim());
         const missingParamIndexes = normalizedParams
           .map((val, idx) => ({ val, idx }))
           .filter(({ val }) => val.length === 0)
