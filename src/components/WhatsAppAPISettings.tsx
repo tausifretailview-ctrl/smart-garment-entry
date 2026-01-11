@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
 import { 
@@ -20,7 +21,9 @@ import {
   ExternalLink,
   Loader2,
   AlertCircle,
-  Info
+  Info,
+  Bot,
+  BrainCircuit
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -54,6 +57,15 @@ export const WhatsAppAPISettings = () => {
     quotation_template_name: "",
     sale_order_template_name: "",
     payment_reminder_template_name: "",
+    // Chatbot settings
+    chatbot_enabled: false,
+    chatbot_greeting: "Hello! I'm an AI assistant. How can I help you today?",
+    chatbot_system_prompt: "You are a helpful business assistant. Keep responses concise and mobile-friendly (under 500 characters). Help customers with invoice inquiries, order status, payment information, and general business questions.",
+    business_hours_enabled: false,
+    business_hours_start: "09:00",
+    business_hours_end: "18:00",
+    outside_hours_message: "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
+    handoff_keywords: ["human", "agent", "support", "help", "speak to someone"],
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -76,6 +88,15 @@ export const WhatsAppAPISettings = () => {
         quotation_template_name: settings.quotation_template_name || "",
         sale_order_template_name: settings.sale_order_template_name || "",
         payment_reminder_template_name: settings.payment_reminder_template_name || "",
+        // Chatbot settings
+        chatbot_enabled: settings.chatbot_enabled || false,
+        chatbot_greeting: settings.chatbot_greeting || "Hello! I'm an AI assistant. How can I help you today?",
+        chatbot_system_prompt: settings.chatbot_system_prompt || "You are a helpful business assistant. Keep responses concise and mobile-friendly (under 500 characters). Help customers with invoice inquiries, order status, payment information, and general business questions.",
+        business_hours_enabled: settings.business_hours_enabled || false,
+        business_hours_start: settings.business_hours_start || "09:00",
+        business_hours_end: settings.business_hours_end || "18:00",
+        outside_hours_message: settings.outside_hours_message || "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
+        handoff_keywords: settings.handoff_keywords || ["human", "agent", "support", "help", "speak to someone"],
       });
     }
   }, [settings]);
@@ -87,7 +108,7 @@ export const WhatsAppAPISettings = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const handleInputChange = (field: string, value: string | boolean) => {
+  const handleInputChange = (field: string, value: string | boolean | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -271,6 +292,128 @@ export const WhatsAppAPISettings = () => {
               </p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Chatbot Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI Chatbot
+            {formData.chatbot_enabled && (
+              <Badge variant="default" className="ml-2">
+                <BrainCircuit className="h-3 w-3 mr-1" /> Active
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Enable AI-powered automatic responses to customer WhatsApp messages
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <BrainCircuit className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              When enabled, the AI chatbot will automatically respond to incoming WhatsApp messages.
+              It can answer questions about invoices, payments, order status, and more using your business data.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="chatbot_enabled">Enable AI Chatbot</Label>
+              <p className="text-xs text-muted-foreground">Auto-respond to customer messages</p>
+            </div>
+            <Switch
+              id="chatbot_enabled"
+              checked={formData.chatbot_enabled}
+              onCheckedChange={(checked) => handleInputChange("chatbot_enabled", checked)}
+              disabled={!formData.is_active}
+            />
+          </div>
+
+          {formData.chatbot_enabled && (
+            <>
+              <Separator />
+              
+              <div className="space-y-2">
+                <Label htmlFor="chatbot_system_prompt">AI Instructions</Label>
+                <Textarea
+                  id="chatbot_system_prompt"
+                  placeholder="Instructions for the AI assistant..."
+                  value={formData.chatbot_system_prompt}
+                  onChange={(e) => handleInputChange("chatbot_system_prompt", e.target.value)}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Customize how the AI responds to customers. Include your business policies, tone, and any specific instructions.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="business_hours_enabled">Business Hours Only</Label>
+                  <p className="text-xs text-muted-foreground">Only respond during business hours</p>
+                </div>
+                <Switch
+                  id="business_hours_enabled"
+                  checked={formData.business_hours_enabled}
+                  onCheckedChange={(checked) => handleInputChange("business_hours_enabled", checked)}
+                />
+              </div>
+
+              {formData.business_hours_enabled && (
+                <div className="grid gap-4 md:grid-cols-2 pl-4 border-l-2 border-muted">
+                  <div className="space-y-2">
+                    <Label htmlFor="business_hours_start">Start Time</Label>
+                    <Input
+                      id="business_hours_start"
+                      type="time"
+                      value={formData.business_hours_start}
+                      onChange={(e) => handleInputChange("business_hours_start", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="business_hours_end">End Time</Label>
+                    <Input
+                      id="business_hours_end"
+                      type="time"
+                      value={formData.business_hours_end}
+                      onChange={(e) => handleInputChange("business_hours_end", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="outside_hours_message">Outside Hours Message</Label>
+                    <Textarea
+                      id="outside_hours_message"
+                      placeholder="Message to send outside business hours..."
+                      value={formData.outside_hours_message}
+                      onChange={(e) => handleInputChange("outside_hours_message", e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="handoff_keywords">Handoff Keywords</Label>
+                <Input
+                  id="handoff_keywords"
+                  placeholder="human, agent, support, help"
+                  value={formData.handoff_keywords.join(", ")}
+                  onChange={(e) => handleInputChange("handoff_keywords", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated keywords that trigger handoff to human agent
+                </p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
