@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Layout } from "@/components/Layout";
+import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,16 +39,12 @@ import {
   Loader2,
   Search,
   FileText,
-  Download,
-  ArrowLeft
+  Download
 } from "lucide-react";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import * as XLSX from "xlsx";
 
 const WhatsAppLogs = () => {
-  const { orgNavigate } = useOrgNavigation();
   const { fetchMessageLogs, retryMessage, isRetrying, getMessageStats } = useWhatsAppAPI();
   
   const [statusFilter, setStatusFilter] = useState("all");
@@ -145,28 +141,18 @@ const WhatsAppLogs = () => {
   };
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <FullScreenLayout>
+      <div className="space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => orgNavigate('/dashboard')}
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <MessageSquare className="h-6 w-6 text-green-600" />
-                WhatsApp Message Logs
-              </h1>
-              <p className="text-muted-foreground">
-                Track all WhatsApp messages sent via the Business API
-              </p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <MessageSquare className="h-6 w-6 text-green-600" />
+              WhatsApp Message Logs
+            </h1>
+            <p className="text-muted-foreground">
+              Track all WhatsApp messages sent via the Business API
+            </p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => refetch()}>
@@ -429,9 +415,9 @@ const WhatsAppLogs = () => {
               </div>
             )}
           </DialogContent>
-        </Dialog>
-      </div>
-    </Layout>
+      </Dialog>
+    </div>
+    </FullScreenLayout>
   );
 };
 
