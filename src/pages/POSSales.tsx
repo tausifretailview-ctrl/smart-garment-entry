@@ -2033,6 +2033,21 @@ export default function POSSales() {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      
+      // Check if customer with this phone already exists
+      const { data: existingCustomer } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("phone", data.phone)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      
+      if (existingCustomer) {
+        // Return existing customer instead of creating duplicate
+        return existingCustomer;
+      }
+      
       // Use phone as customer name if name is empty
       const customerData = {
         ...data,
