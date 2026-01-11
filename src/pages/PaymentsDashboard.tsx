@@ -440,13 +440,13 @@ Thank you for your business!`;
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>;
+        return <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
       case 'partial':
-        return <Badge className="bg-yellow-500 hover:bg-yellow-600"><Clock className="h-3 w-3 mr-1" />Partial</Badge>;
+        return <Badge className="min-w-[70px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Partial</Badge>;
       case 'pending':
-        return <Badge className="bg-red-500 hover:bg-red-600"><AlertCircle className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="min-w-[70px] justify-center">{status}</Badge>;
     }
   };
 
