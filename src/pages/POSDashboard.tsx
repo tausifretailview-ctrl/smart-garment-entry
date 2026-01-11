@@ -1432,10 +1432,23 @@ const POSDashboard = () => {
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
                                 <Badge 
-                                  variant={sale.payment_status === "completed" ? "default" : sale.payment_status === "hold" ? "secondary" : "destructive"}
-                                  className={sale.payment_status === "hold" ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                                  className={`min-w-[70px] justify-center ${
+                                    sale.payment_status === "completed" 
+                                      ? "bg-green-500 hover:bg-green-600 text-white" 
+                                      : sale.payment_status === "partial" 
+                                        ? "bg-pink-400 hover:bg-pink-500 text-white" 
+                                        : sale.payment_status === "hold" 
+                                          ? "bg-amber-500 hover:bg-amber-600 text-white" 
+                                          : "bg-red-500 hover:bg-red-600 text-white"
+                                  }`}
                                 >
-                                  {sale.payment_status}
+                                  {sale.payment_status === "completed" 
+                                    ? "Paid" 
+                                    : sale.payment_status === "partial" 
+                                      ? "Partial" 
+                                      : sale.payment_status === "hold" 
+                                        ? "Hold" 
+                                        : "Not Paid"}
                                 </Badge>
                               </TableCell>
                             )}
