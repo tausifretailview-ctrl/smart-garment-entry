@@ -14,6 +14,7 @@ export interface SocialLinks {
   website?: string;
   instagram?: string;
   facebook?: string;
+  google_review?: string;
 }
 
 export interface WhatsAppSettings {
@@ -52,6 +53,11 @@ export interface WhatsAppSettings {
   // Button click follow-up settings (WhatsApp 24h compliant)
   send_followup_on_button_click: boolean;
   button_followup_message: string | null;
+  followup_menu_message: string | null;
+  followup_invoice_message: string | null;
+  followup_social_message: string | null;
+  followup_review_message: string | null;
+  followup_chat_message: string | null;
   social_links: SocialLinks | null;
   created_at: string;
   updated_at: string;

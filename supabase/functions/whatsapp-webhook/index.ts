@@ -514,87 +514,172 @@ Deno.serve(async (req) => {
                   }
 
                   // Check if this is a button click from a template CTA - 24-hour window now open!
-                  if (
-                    (messageType === 'button' || 
-                     (messageType === 'interactive' && message.interactive?.type === 'button_reply')) &&
-                    settings.send_followup_on_button_click
-                  ) {
+                  if (settings.send_followup_on_button_click) {
                     const buttonText = message.button?.text || 
-                                       message.interactive?.button_reply?.title || '';
+                                       message.interactive?.button_reply?.title ||
+                                       message.interactive?.list_reply?.title || '';
+                    const buttonId = message.interactive?.button_reply?.id ||
+                                     message.interactive?.list_reply?.id || '';
                     
-                    console.log(`Button clicked: "${buttonText}" from ${senderPhone}`);
+                    console.log(`User interaction: "${buttonText}" (ID: ${buttonId}) from ${senderPhone}`);
                     
-                    // Check for pending follow-ups for this customer
                     const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
                     
-                    const { data: pendingLogs } = await supabase
-                      .from('whatsapp_logs')
-                      .select('*')
-                      .eq('organization_id', organizationId)
-                      .ilike('phone_number', `%${cleanPhone}%`)
-                      .eq('pending_followup', true)
-                      .order('created_at', { ascending: false })
-                      .limit(1);
-                    
-                    if (pendingLogs && pendingLogs.length > 0) {
-                      const log = pendingLogs[0];
-                      const followupData = log.followup_data as Record<string, string> | null;
+                    // Check if user selected one of our quick reply options
+                    if (buttonId === 'invoice_link' || buttonId === 'social_media' || 
+                        buttonId === 'google_review' || buttonId === 'chat_with_us') {
                       
-                      if (followupData) {
-                        // Build follow-up message from template
-                        let followupMessage = followupData.message_template || 
-                          '📄 Thank you for viewing your invoice!\n\n🌐 {website}\n📷 {instagram}';
+                      // Get pending followup data
+                      const { data: pendingLogs } = await supabase
+                        .from('whatsapp_logs')
+                        .select('*')
+                        .eq('organization_id', organizationId)
+                        .ilike('phone_number', `%${cleanPhone}%`)
+                        .eq('pending_followup', true)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                      
+                      if (pendingLogs && pendingLogs.length > 0) {
+                        const log = pendingLogs[0];
+                        const followupData = log.followup_data as Record<string, string> | null;
                         
-                        followupMessage = followupMessage
-                          .replace('{customer_name}', followupData.customer_name || '')
-                          .replace('{invoice_link}', followupData.invoice_link || '')
-                          .replace('{sale_number}', followupData.sale_number || '')
-                          .replace('{website}', followupData.website || '')
-                          .replace('{instagram}', followupData.instagram || '')
-                          .replace('{facebook}', followupData.facebook || '');
-                        
-                        // Remove lines with empty placeholders
-                        followupMessage = followupMessage
-                          .split('\n')
-                          .filter(line => !line.includes('{') && line.trim() !== '')
-                          .join('\n');
-                        
-                        // Send the follow-up message (FREE - within 24-hour window!)
-                        const wamidFollowup = await sendWhatsAppMessage(settings, senderPhone, followupMessage);
-                        
-                        if (wamidFollowup) {
-                          // Log the outbound message
-                          await supabase.from('whatsapp_messages').insert({
-                            organization_id: organizationId,
-                            conversation_id: conversation.id,
-                            wamid: wamidFollowup,
-                            direction: 'outbound',
-                            message_type: 'text',
-                            message_text: followupMessage,
-                            status: 'sent',
-                            sent_at: new Date().toISOString(),
-                          });
+                        if (followupData) {
+                          let responseMessage = '';
                           
-                          // Also log to whatsapp_logs for tracking
-                          await supabase.from('whatsapp_logs').insert({
-                            organization_id: organizationId,
-                            phone_number: senderPhone,
-                            message: followupMessage,
-                            template_type: 'button_click_followup',
-                            status: 'sent',
-                            wamid: wamidFollowup,
-                            reference_id: log.reference_id,
-                            reference_type: 'sale',
-                            sent_at: new Date().toISOString(),
-                          });
+                          if (buttonId === 'invoice_link') {
+                            responseMessage = (settings.followup_invoice_message || '📄 Here is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nThank you for your business!')
+                              .replace('{invoice_link}', followupData.invoice_link || '')
+                              .replace('{sale_number}', followupData.sale_number || '')
+                              .replace('{customer_name}', followupData.customer_name || '');
+                          } else if (buttonId === 'social_media') {
+                            responseMessage = (settings.followup_social_message || '📱 Connect with us on social media:\n\n🌐 Website: {website}\n📷 Instagram: {instagram}\n📘 Facebook: {facebook}')
+                              .replace('{website}', followupData.website || '')
+                              .replace('{instagram}', followupData.instagram || '')
+                              .replace('{facebook}', followupData.facebook || '');
+                          } else if (buttonId === 'google_review') {
+                            responseMessage = (settings.followup_review_message || '⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}')
+                              .replace('{google_review}', followupData.google_review || '');
+                          } else if (buttonId === 'chat_with_us') {
+                            const whatsappLink = `https://wa.me/${settings.phone_number_id?.replace(/\D/g, '')}`;
+                            responseMessage = (settings.followup_chat_message || '💬 Chat with us directly!\n\nClick here to start a conversation:\n{whatsapp_link}')
+                              .replace('{whatsapp_link}', followupData.whatsapp_link || whatsappLink);
+                          }
                           
-                          // Mark follow-up as sent
-                          await supabase
-                            .from('whatsapp_logs')
-                            .update({ pending_followup: false })
-                            .eq('id', log.id);
+                          // Remove empty placeholder lines
+                          responseMessage = responseMessage
+                            .split('\n')
+                            .filter(line => !line.includes('{') || line.trim() === '')
+                            .join('\n')
+                            .replace(/\n{3,}/g, '\n\n');
                           
-                          console.log('Follow-up message sent after button click!');
+                          if (responseMessage.trim()) {
+                            const wamidReply = await sendWhatsAppMessage(settings, senderPhone, responseMessage);
+                            
+                            if (wamidReply) {
+                              await supabase.from('whatsapp_messages').insert({
+                                organization_id: organizationId,
+                                conversation_id: conversation.id,
+                                wamid: wamidReply,
+                                direction: 'outbound',
+                                message_type: 'text',
+                                message_text: responseMessage,
+                                status: 'sent',
+                                sent_at: new Date().toISOString(),
+                              });
+                              console.log(`Sent ${buttonId} response to customer`);
+                            }
+                          }
+                        }
+                      }
+                      continue; // Skip AI chatbot for menu selections
+                    }
+                    
+                    // Check if this is a button click from template CTA (Invoice Details, Chat With Us, etc.)
+                    if (messageType === 'button' || 
+                        (messageType === 'interactive' && message.interactive?.type === 'button_reply' && 
+                         !['invoice_link', 'social_media', 'google_review', 'chat_with_us'].includes(buttonId))) {
+                      
+                      // Check for pending follow-ups for this customer
+                      const { data: pendingLogs } = await supabase
+                        .from('whatsapp_logs')
+                        .select('*')
+                        .eq('organization_id', organizationId)
+                        .ilike('phone_number', `%${cleanPhone}%`)
+                        .eq('pending_followup', true)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                      
+                      if (pendingLogs && pendingLogs.length > 0) {
+                        const log = pendingLogs[0];
+                        const followupData = log.followup_data as Record<string, string> | null;
+                        
+                        if (followupData) {
+                          // Send interactive button menu asking what customer needs
+                          const menuMessage = settings.followup_menu_message || 'Thank you for your interest! 🙏\n\nPlease select what you need:';
+                          
+                          const interactivePayload = {
+                            messaging_product: 'whatsapp',
+                            recipient_type: 'individual',
+                            to: senderPhone,
+                            type: 'interactive',
+                            interactive: {
+                              type: 'button',
+                              body: {
+                                text: menuMessage
+                              },
+                              action: {
+                                buttons: [
+                                  { type: 'reply', reply: { id: 'invoice_link', title: '📄 Invoice Link' } },
+                                  { type: 'reply', reply: { id: 'social_media', title: '📱 Social Media' } },
+                                  { type: 'reply', reply: { id: 'google_review', title: '⭐ Google Review' } }
+                                ]
+                              }
+                            }
+                          };
+                          
+                          // WhatsApp allows max 3 buttons, so we send chat option as text
+                          try {
+                            const menuResponse = await fetch(
+                              `https://graph.facebook.com/v18.0/${settings.phone_number_id}/messages`,
+                              {
+                                method: 'POST',
+                                headers: {
+                                  'Authorization': `Bearer ${settings.access_token}`,
+                                  'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify(interactivePayload),
+                              }
+                            );
+                            
+                            if (menuResponse.ok) {
+                              const menuResult = await menuResponse.json();
+                              const menuWamid = menuResult.messages?.[0]?.id;
+                              
+                              if (menuWamid) {
+                                await supabase.from('whatsapp_messages').insert({
+                                  organization_id: organizationId,
+                                  conversation_id: conversation.id,
+                                  wamid: menuWamid,
+                                  direction: 'outbound',
+                                  message_type: 'interactive',
+                                  message_text: menuMessage,
+                                  status: 'sent',
+                                  sent_at: new Date().toISOString(),
+                                });
+                                
+                                // Also send "Chat with us" as a separate text with link
+                                const whatsappLink = `https://wa.me/${settings.phone_number_id?.replace(/\D/g, '')}`;
+                                const chatOption = `\n💬 Or chat with us directly: ${whatsappLink}`;
+                                await sendWhatsAppMessage(settings, senderPhone, chatOption);
+                                
+                                console.log('Sent interactive menu after button click!');
+                              }
+                            } else {
+                              console.error('Failed to send interactive menu:', await menuResponse.text());
+                            }
+                          } catch (err) {
+                            console.error('Error sending interactive menu:', err);
+                          }
                         }
                       }
                     }

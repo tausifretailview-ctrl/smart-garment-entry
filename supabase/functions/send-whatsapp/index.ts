@@ -568,6 +568,8 @@ serve(async (req) => {
         const invoiceLink = `https://app.inventoryshop.in/${saleData.org_slug}/invoice/view/${saleData.sale_id}`;
         
         // Store follow-up data with the log entry - will be sent when customer clicks button
+        const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
+        
         await supabase
           .from('whatsapp_logs')
           .update({
@@ -579,6 +581,8 @@ serve(async (req) => {
               website: String(saleData.website || orgSettings.social_links?.website || ''),
               instagram: String(saleData.instagram || orgSettings.social_links?.instagram || ''),
               facebook: String(saleData.facebook || orgSettings.social_links?.facebook || ''),
+              google_review: String(orgSettings.social_links?.google_review || ''),
+              whatsapp_link: whatsappLink,
               message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
             }
           })

@@ -3252,6 +3252,11 @@ export type Database = {
           chatbot_greeting: string | null
           chatbot_system_prompt: string | null
           created_at: string
+          followup_chat_message: string | null
+          followup_invoice_message: string | null
+          followup_menu_message: string | null
+          followup_review_message: string | null
+          followup_social_message: string | null
           handoff_keywords: string[] | null
           id: string
           invoice_link_message: string | null
@@ -3291,6 +3296,11 @@ export type Database = {
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
           created_at?: string
+          followup_chat_message?: string | null
+          followup_invoice_message?: string | null
+          followup_menu_message?: string | null
+          followup_review_message?: string | null
+          followup_social_message?: string | null
           handoff_keywords?: string[] | null
           id?: string
           invoice_link_message?: string | null
@@ -3330,6 +3340,11 @@ export type Database = {
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
           created_at?: string
+          followup_chat_message?: string | null
+          followup_invoice_message?: string | null
+          followup_menu_message?: string | null
+          followup_review_message?: string | null
+          followup_social_message?: string | null
           handoff_keywords?: string[] | null
           id?: string
           invoice_link_message?: string | null
