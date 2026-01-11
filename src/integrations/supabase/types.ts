@@ -1475,6 +1475,30 @@ export type Database = {
           },
         ]
       }
+      platform_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          setting_key: string
+          setting_value: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          setting_key: string
+          setting_value?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          setting_key?: string
+          setting_value?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       product_variants: {
         Row: {
           active: boolean | null
@@ -3238,6 +3262,7 @@ export type Database = {
           quotation_template_name: string | null
           sale_order_template_name: string | null
           updated_at: string
+          use_default_api: boolean | null
           waba_id: string | null
           webhook_verify_token: string | null
         }
@@ -3267,6 +3292,7 @@ export type Database = {
           quotation_template_name?: string | null
           sale_order_template_name?: string | null
           updated_at?: string
+          use_default_api?: boolean | null
           waba_id?: string | null
           webhook_verify_token?: string | null
         }
@@ -3296,6 +3322,7 @@ export type Database = {
           quotation_template_name?: string | null
           sale_order_template_name?: string | null
           updated_at?: string
+          use_default_api?: boolean | null
           waba_id?: string | null
           webhook_verify_token?: string | null
         }

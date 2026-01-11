@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StockReconciliation } from "@/components/StockReconciliation";
+import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 
 interface Organization {
   id: string;
@@ -578,8 +579,14 @@ export default function PlatformAdmin() {
           <TabsList>
             <TabsTrigger value="organizations">Organizations</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="whatsapp">WhatsApp API</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
+
+          {/* WhatsApp Tab */}
+          <TabsContent value="whatsapp" className="space-y-4">
+            <PlatformWhatsAppSettings />
+          </TabsContent>
 
           {/* Organizations Tab */}
           <TabsContent value="organizations" className="space-y-4">

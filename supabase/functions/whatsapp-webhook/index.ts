@@ -7,13 +7,85 @@ const corsHeaders = {
 
 // Helper to find organization by phone number ID from settings
 async function findOrganizationByPhoneId(supabase: any, phoneNumberId: string) {
-  const { data } = await supabase
+  // First check if any org has this specific phone_number_id
+  const { data: orgSettings } = await supabase
     .from('whatsapp_api_settings')
     .select('*')
     .eq('phone_number_id', phoneNumberId)
-    .single();
+    .eq('use_default_api', false)
+    .maybeSingle();
   
-  return data;
+  if (orgSettings) {
+    return orgSettings;
+  }
+
+  // Check if this is the platform default phone number
+  const { data: platformSettings } = await supabase
+    .from('platform_settings')
+    .select('setting_value')
+    .eq('setting_key', 'default_whatsapp_api')
+    .single();
+
+  if (platformSettings) {
+    const defaultCreds = platformSettings.setting_value as Record<string, unknown>;
+    if (defaultCreds.phone_number_id === phoneNumberId) {
+      // This is the shared platform number - return platform settings merged with null org
+      return {
+        ...defaultCreds,
+        organization_id: null, // Will need special routing
+        is_platform_default: true,
+      };
+    }
+  }
+
+  return null;
+}
+
+// Helper to find organization for a customer phone using the shared API
+async function findOrganizationByCustomerPhone(supabase: any, customerPhone: string) {
+  const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
+  
+  // Check existing conversations first (most recent interaction)
+  const { data: conversation } = await supabase
+    .from('whatsapp_conversations')
+    .select('organization_id')
+    .ilike('customer_phone', `%${cleanPhone}%`)
+    .order('last_message_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (conversation?.organization_id) {
+    // Fetch full settings for this org
+    const { data: orgSettings } = await supabase
+      .from('whatsapp_api_settings')
+      .select('*')
+      .eq('organization_id', conversation.organization_id)
+      .maybeSingle();
+    
+    return orgSettings;
+  }
+
+  // Check customers table across all orgs (most recent customer)
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('organization_id')
+    .or(`phone.ilike.%${cleanPhone}%,phone.ilike.%${customerPhone}%`)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (customer?.organization_id) {
+    const { data: orgSettings } = await supabase
+      .from('whatsapp_api_settings')
+      .select('*')
+      .eq('organization_id', customer.organization_id)
+      .maybeSingle();
+    
+    return orgSettings;
+  }
+
+  return null;
 }
 
 // Helper to get or create conversation
@@ -341,9 +413,35 @@ Deno.serve(async (req) => {
                 console.log('Processing incoming messages:', change.value.messages);
                 
                 // Find organization settings by phone_number_id
-                const settings = await findOrganizationByPhoneId(supabase, phoneNumberId);
+                let settings = await findOrganizationByPhoneId(supabase, phoneNumberId);
                 
-                if (!settings) {
+                // If this is the platform default number, we need special routing
+                if (settings?.is_platform_default) {
+                  console.log('Incoming message on shared platform number, routing by customer phone...');
+                  
+                  // Get customer phone from first message
+                  const firstMessage = change.value.messages[0];
+                  const senderPhone = firstMessage?.from;
+                  
+                  if (senderPhone) {
+                    const routedSettings = await findOrganizationByCustomerPhone(supabase, senderPhone);
+                    if (routedSettings) {
+                      console.log('Routed to organization:', routedSettings.organization_id);
+                      // Merge platform credentials with org settings
+                      settings = {
+                        ...routedSettings,
+                        phone_number_id: settings.phone_number_id,
+                        access_token: settings.access_token,
+                        waba_id: settings.waba_id,
+                      };
+                    } else {
+                      console.error('Could not route message - no organization found for customer:', senderPhone);
+                      continue;
+                    }
+                  }
+                }
+                
+                if (!settings || !settings.organization_id) {
                   console.error('Settings not found for phone_number_id:', phoneNumberId);
                   continue;
                 }
