@@ -732,6 +732,67 @@ export default function QuotationEntry() {
         .insert(quotationItems);
       if (itemsError) throw itemsError;
 
+      // Auto-send WhatsApp quotation notification (does not block saving)
+      if (selectedCustomer?.phone && currentOrganization?.id && !editingQuotationId) {
+        try {
+          const { data: whatsappSettings } = await (supabase as any)
+            .from('whatsapp_api_settings')
+            .select('is_active, auto_send_quotation, quotation_template_name')
+            .eq('organization_id', currentOrganization.id)
+            .maybeSingle();
+
+          if (whatsappSettings?.is_active && whatsappSettings?.auto_send_quotation) {
+            const { data: companySettings } = await supabase
+              .from('settings')
+              .select('business_name, mobile_number')
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
+
+            const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+            const contactNumber = companySettings?.mobile_number || 'N/A';
+
+            const formattedDate = new Date(quotationDate).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            });
+            const formattedValidUntil = new Date(validUntil).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            });
+            const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
+
+            const templateParams = [
+              selectedCustomer.customer_name || 'Valued Customer',
+              quotationNumber,
+              formattedDate,
+              formattedAmount,
+              formattedValidUntil,
+              companyName,
+              contactNumber,
+            ];
+
+            const messageText = `Hello ${selectedCustomer.customer_name || 'Valued Customer'},\n\nYour quotation ${quotationNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\nValid Until: ${formattedValidUntil}\n\nThank you for your interest!\n${companyName}\n${contactNumber}`;
+
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                organizationId: currentOrganization.id,
+                phone: selectedCustomer.phone,
+                message: messageText,
+                templateType: 'quotation',
+                templateName: whatsappSettings.quotation_template_name || null,
+                templateParams,
+                referenceId: quotationId,
+                referenceType: 'quotation',
+              },
+            });
+          }
+        } catch (e) {
+          console.error('WhatsApp auto-send failed (QuotationEntry):', e);
+        }
+      }
+
       toast({ title: "Success", description: `Quotation ${quotationNumber} saved` });
       return { success: true, quotationId };
     } catch (error: any) {

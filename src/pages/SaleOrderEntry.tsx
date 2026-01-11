@@ -808,6 +808,67 @@ export default function SaleOrderEntry() {
         .insert(orderItems);
       if (itemsError) throw itemsError;
 
+      // Auto-send WhatsApp sale order notification (does not block saving)
+      if (selectedCustomer?.phone && currentOrganization?.id && !editingOrderId) {
+        try {
+          const { data: whatsappSettings } = await (supabase as any)
+            .from('whatsapp_api_settings')
+            .select('is_active, auto_send_sale_order, sale_order_template_name')
+            .eq('organization_id', currentOrganization.id)
+            .maybeSingle();
+
+          if (whatsappSettings?.is_active && whatsappSettings?.auto_send_sale_order) {
+            const { data: companySettings } = await supabase
+              .from('settings')
+              .select('business_name, mobile_number')
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
+
+            const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+            const contactNumber = companySettings?.mobile_number || 'N/A';
+
+            const formattedDate = new Date(orderDate).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            });
+            const formattedDelivery = new Date(expectedDelivery).toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric',
+            });
+            const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
+
+            const templateParams = [
+              selectedCustomer.customer_name || 'Valued Customer',
+              orderNumber,
+              formattedDate,
+              formattedAmount,
+              formattedDelivery,
+              companyName,
+              contactNumber,
+            ];
+
+            const messageText = `Hello ${selectedCustomer.customer_name || 'Valued Customer'},\n\nYour sale order ${orderNumber} has been confirmed.\nAmount: ₹${formattedAmount}\nOrder Date: ${formattedDate}\nExpected Delivery: ${formattedDelivery}\n\nThank you for your order!\n${companyName}\n${contactNumber}`;
+
+            await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                organizationId: currentOrganization.id,
+                phone: selectedCustomer.phone,
+                message: messageText,
+                templateType: 'sale_order',
+                templateName: whatsappSettings.sale_order_template_name || null,
+                templateParams,
+                referenceId: orderId,
+                referenceType: 'sale_order',
+              },
+            });
+          }
+        } catch (e) {
+          console.error('WhatsApp auto-send failed (SaleOrderEntry):', e);
+        }
+      }
+
       // Prevent auto-save cleanup from re-creating a draft after successful save
       skipDraftSaveOnUnmountRef.current = true;
       updateCurrentData(null);
