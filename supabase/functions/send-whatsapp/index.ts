@@ -551,70 +551,43 @@ serve(async (req) => {
       );
     }
 
-    // Auto-send invoice link follow-up message if enabled
-    // This uses the 24-hour messaging window opened by the template message
+    // Mark pending follow-up when customer clicks the CTA button (WhatsApp 24h policy compliant)
+    // The follow-up will be sent by whatsapp-webhook when customer clicks the template button
     if (
       response.ok && 
       templateType === 'sales_invoice' && 
-      orgSettings?.auto_send_invoice_link && 
+      orgSettings?.send_followup_on_button_click && 
       saleData?.sale_id && 
-      saleData?.org_slug
+      saleData?.org_slug &&
+      logEntry
     ) {
       try {
-        console.log('Auto-sending invoice link follow-up message...');
+        console.log('Marking pending follow-up for button click...');
         
         // Build the invoice link
         const invoiceLink = `https://app.inventoryshop.in/${saleData.org_slug}/invoice/view/${saleData.sale_id}`;
         
-        // Build the follow-up message
-        let followUpMessage = orgSettings.invoice_link_message || '📄 View your invoice online: {invoice_link}\n\nThank you for your business!';
-        followUpMessage = followUpMessage.replace('{invoice_link}', invoiceLink);
-        followUpMessage = followUpMessage.replace('{customer_name}', String(saleData.customer_name || ''));
-        
-        // Send as free-form text message (uses 24-hour window, no template cost)
-        const followUpPayload = {
-          messaging_product: "whatsapp",
-          recipient_type: "individual",
-          to: formattedPhone,
-          type: "text",
-          text: {
-            preview_url: true,
-            body: followUpMessage
-          }
-        };
-
-        const followUpResponse = await fetch(metaApiUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${settings.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(followUpPayload),
-        });
-
-        const followUpData = await followUpResponse.json();
-        console.log('Follow-up message response:', JSON.stringify(followUpData));
-
-        // Log the follow-up message
-        if (followUpResponse.ok) {
-          await supabase
-            .from('whatsapp_logs')
-            .insert({
-              organization_id: organizationId,
-              phone_number: formattedPhone,
-              message: followUpMessage,
-              template_type: 'invoice_link_followup',
-              status: 'sent',
-              wamid: followUpData.messages?.[0]?.id,
-              reference_id: saleData.sale_id ? String(saleData.sale_id) : null,
-              reference_type: 'sale',
-              sent_at: new Date().toISOString(),
-              provider_response: followUpData,
-            });
-        }
+        // Store follow-up data with the log entry - will be sent when customer clicks button
+        await supabase
+          .from('whatsapp_logs')
+          .update({
+            pending_followup: true,
+            followup_data: {
+              invoice_link: invoiceLink,
+              customer_name: String(saleData.customer_name || ''),
+              sale_number: String(saleData.sale_number || ''),
+              website: String(saleData.website || orgSettings.social_links?.website || ''),
+              instagram: String(saleData.instagram || orgSettings.social_links?.instagram || ''),
+              facebook: String(saleData.facebook || orgSettings.social_links?.facebook || ''),
+              message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
+            }
+          })
+          .eq('id', logEntry.id);
+          
+        console.log('Pending follow-up marked successfully');
       } catch (followUpError) {
-        // Don't fail the main request if follow-up fails
-        console.error('Follow-up message failed:', followUpError);
+        // Don't fail the main request if marking fails
+        console.error('Failed to mark pending follow-up:', followUpError);
       }
     }
 

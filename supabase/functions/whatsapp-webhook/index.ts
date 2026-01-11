@@ -513,6 +513,93 @@ Deno.serve(async (req) => {
                     console.error('Error updating conversation:', updateError);
                   }
 
+                  // Check if this is a button click from a template CTA - 24-hour window now open!
+                  if (
+                    (messageType === 'button' || 
+                     (messageType === 'interactive' && message.interactive?.type === 'button_reply')) &&
+                    settings.send_followup_on_button_click
+                  ) {
+                    const buttonText = message.button?.text || 
+                                       message.interactive?.button_reply?.title || '';
+                    
+                    console.log(`Button clicked: "${buttonText}" from ${senderPhone}`);
+                    
+                    // Check for pending follow-ups for this customer
+                    const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
+                    
+                    const { data: pendingLogs } = await supabase
+                      .from('whatsapp_logs')
+                      .select('*')
+                      .eq('organization_id', organizationId)
+                      .ilike('phone_number', `%${cleanPhone}%`)
+                      .eq('pending_followup', true)
+                      .order('created_at', { ascending: false })
+                      .limit(1);
+                    
+                    if (pendingLogs && pendingLogs.length > 0) {
+                      const log = pendingLogs[0];
+                      const followupData = log.followup_data as Record<string, string> | null;
+                      
+                      if (followupData) {
+                        // Build follow-up message from template
+                        let followupMessage = followupData.message_template || 
+                          '📄 Thank you for viewing your invoice!\n\n🌐 {website}\n📷 {instagram}';
+                        
+                        followupMessage = followupMessage
+                          .replace('{customer_name}', followupData.customer_name || '')
+                          .replace('{invoice_link}', followupData.invoice_link || '')
+                          .replace('{sale_number}', followupData.sale_number || '')
+                          .replace('{website}', followupData.website || '')
+                          .replace('{instagram}', followupData.instagram || '')
+                          .replace('{facebook}', followupData.facebook || '');
+                        
+                        // Remove lines with empty placeholders
+                        followupMessage = followupMessage
+                          .split('\n')
+                          .filter(line => !line.includes('{') && line.trim() !== '')
+                          .join('\n');
+                        
+                        // Send the follow-up message (FREE - within 24-hour window!)
+                        const wamidFollowup = await sendWhatsAppMessage(settings, senderPhone, followupMessage);
+                        
+                        if (wamidFollowup) {
+                          // Log the outbound message
+                          await supabase.from('whatsapp_messages').insert({
+                            organization_id: organizationId,
+                            conversation_id: conversation.id,
+                            wamid: wamidFollowup,
+                            direction: 'outbound',
+                            message_type: 'text',
+                            message_text: followupMessage,
+                            status: 'sent',
+                            sent_at: new Date().toISOString(),
+                          });
+                          
+                          // Also log to whatsapp_logs for tracking
+                          await supabase.from('whatsapp_logs').insert({
+                            organization_id: organizationId,
+                            phone_number: senderPhone,
+                            message: followupMessage,
+                            template_type: 'button_click_followup',
+                            status: 'sent',
+                            wamid: wamidFollowup,
+                            reference_id: log.reference_id,
+                            reference_type: 'sale',
+                            sent_at: new Date().toISOString(),
+                          });
+                          
+                          // Mark follow-up as sent
+                          await supabase
+                            .from('whatsapp_logs')
+                            .update({ pending_followup: false })
+                            .eq('id', log.id);
+                          
+                          console.log('Follow-up message sent after button click!');
+                        }
+                      }
+                    }
+                  }
+
                   // AI Chatbot Response
                   if (settings.chatbot_enabled && settings.is_active && messageText) {
                     console.log('AI Chatbot is enabled, generating response...');

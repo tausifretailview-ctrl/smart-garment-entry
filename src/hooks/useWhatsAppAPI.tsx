@@ -49,9 +49,9 @@ export interface WhatsAppSettings {
   business_hours_end: string | null;
   outside_hours_message: string | null;
   handoff_keywords: string[] | null;
-  // Invoice link settings
-  auto_send_invoice_link: boolean;
-  invoice_link_message: string | null;
+  // Button click follow-up settings (WhatsApp 24h compliant)
+  send_followup_on_button_click: boolean;
+  button_followup_message: string | null;
   social_links: SocialLinks | null;
   created_at: string;
   updated_at: string;
