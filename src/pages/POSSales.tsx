@@ -2462,7 +2462,7 @@ export default function POSSales() {
             const customer = customers?.find((c: any) => c.id === customerId);
             const customerMasterDiscount = customer?.discount_percent || 0;
             return (
-              <div className="flex items-center gap-1 self-end pb-3">
+              <div className="flex items-center gap-1 h-12 items-center">
                 {hasBrandDiscounts && brandDiscounts.length > 0 ? (
                   <>
                     <span className="text-xs text-muted-foreground">Brand:</span>
@@ -2496,7 +2496,7 @@ export default function POSSales() {
               <PopoverTrigger asChild>
                 <Button 
                   variant="ghost" 
-                  className="h-10 px-3 flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-md"
+                  className="h-12 px-3 flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-md"
                 >
                   <Coins className="h-4 w-4" />
                   <span className="font-semibold">{customerPointsData?.balance || 0} pts</span>
@@ -2766,7 +2766,7 @@ export default function POSSales() {
               <div className="overflow-x-auto">
                 {items.length === 0 ? (
                   // Show 6 blank rows with serial numbers
-                  Array.from({ length: 6 }).map((_, index) => (
+                  Array.from({ length: 5 }).map((_, index) => (
                     <div key={index} className="min-w-[1200px] grid gap-3 p-4 border-b text-base" style={{ gridTemplateColumns: '60px 140px 1fr 80px 70px 100px 60px 70px 80px 100px 130px' }}>
                       <div className="flex items-center text-muted-foreground">{index + 1}</div>
                       <div className="flex items-center text-muted-foreground">-</div>
