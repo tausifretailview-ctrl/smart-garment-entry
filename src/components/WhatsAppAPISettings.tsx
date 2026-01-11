@@ -80,9 +80,9 @@ export const WhatsAppAPISettings = () => {
     business_hours_end: "18:00",
     outside_hours_message: "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
     handoff_keywords: ["human", "agent", "support", "help", "speak to someone"],
-    // Invoice link settings
-    auto_send_invoice_link: false,
-    invoice_link_message: "📄 View your invoice online: {invoice_link}\n\nThank you for your business!",
+    // Button click follow-up settings (WhatsApp 24h compliant)
+    send_followup_on_button_click: false,
+    button_followup_message: "📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐",
     social_links: { website: "", instagram: "", facebook: "" } as SocialLinks,
   });
 
@@ -122,9 +122,9 @@ export const WhatsAppAPISettings = () => {
         business_hours_end: settings.business_hours_end || "18:00",
         outside_hours_message: settings.outside_hours_message || "Thank you for your message. Our business hours are 9 AM to 6 PM. We will respond during business hours.",
         handoff_keywords: settings.handoff_keywords || ["human", "agent", "support", "help", "speak to someone"],
-        // Invoice link settings
-        auto_send_invoice_link: settings.auto_send_invoice_link || false,
-        invoice_link_message: settings.invoice_link_message || "📄 View your invoice online: {invoice_link}\n\nThank you for your business!",
+        // Button click follow-up settings
+        send_followup_on_button_click: settings.send_followup_on_button_click || false,
+        button_followup_message: settings.button_followup_message || "📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐",
         social_links: settings.social_links || { website: "", instagram: "", facebook: "" },
       });
     }
@@ -769,54 +769,60 @@ export const WhatsAppAPISettings = () => {
         </CardContent>
       </Card>
 
-      {/* Invoice Link Settings */}
+      {/* Button Click Follow-up Settings */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Link className="h-4 w-4" />
-            Invoice Link Settings
+            Button Click Follow-up
           </CardTitle>
           <CardDescription>
-            Automatically send a follow-up message with invoice link after template delivery (uses 24-hour window - FREE)
+            Send a follow-up message when customer clicks the "View Invoice" button in your template
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              After sending a template message, a 24-hour messaging window opens. This feature automatically sends a 
-              follow-up message with a clickable invoice link at no extra template cost.
+              <strong>WhatsApp 24-Hour Window Policy:</strong> When a customer clicks a CTA button in your template, 
+              the 24-hour messaging window opens. Only then can you send follow-up messages for FREE (no template cost).
+              This is fully compliant with WhatsApp Business API policies.
             </AlertDescription>
           </Alert>
 
           <div className="flex items-center justify-between">
             <div>
-              <Label htmlFor="auto_send_invoice_link">Auto-send Invoice Link</Label>
-              <p className="text-xs text-muted-foreground">Send invoice link after template delivery</p>
+              <Label htmlFor="send_followup_on_button_click">Send Follow-up on Button Click</Label>
+              <p className="text-xs text-muted-foreground">Automatically send follow-up when customer clicks template button</p>
             </div>
             <Switch
-              id="auto_send_invoice_link"
-              checked={formData.auto_send_invoice_link}
-              onCheckedChange={(checked) => handleInputChange("auto_send_invoice_link", checked)}
+              id="send_followup_on_button_click"
+              checked={formData.send_followup_on_button_click}
+              onCheckedChange={(checked) => handleInputChange("send_followup_on_button_click", checked)}
               disabled={!formData.is_active || !formData.auto_send_invoice}
             />
           </div>
 
-          {formData.auto_send_invoice_link && (
+          {formData.send_followup_on_button_click && (
             <>
               <Separator />
               
               <div className="space-y-2">
-                <Label htmlFor="invoice_link_message">Follow-up Message</Label>
+                <Label htmlFor="button_followup_message">Follow-up Message</Label>
                 <Textarea
-                  id="invoice_link_message"
-                  placeholder="Message with invoice link..."
-                  value={formData.invoice_link_message}
-                  onChange={(e) => handleInputChange("invoice_link_message", e.target.value)}
-                  rows={3}
+                  id="button_followup_message"
+                  placeholder="Thank you message with social links..."
+                  value={formData.button_followup_message}
+                  onChange={(e) => handleInputChange("button_followup_message", e.target.value)}
+                  rows={5}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Available placeholders: <code className="bg-muted px-1 rounded">{'{invoice_link}'}</code>, <code className="bg-muted px-1 rounded">{'{customer_name}'}</code>
+                  Available placeholders: <code className="bg-muted px-1 rounded">{'{customer_name}'}</code>, 
+                  <code className="bg-muted px-1 rounded">{'{sale_number}'}</code>, 
+                  <code className="bg-muted px-1 rounded">{'{invoice_link}'}</code>, 
+                  <code className="bg-muted px-1 rounded">{'{website}'}</code>, 
+                  <code className="bg-muted px-1 rounded">{'{instagram}'}</code>, 
+                  <code className="bg-muted px-1 rounded">{'{facebook}'}</code>
                 </p>
               </div>
 
@@ -825,10 +831,10 @@ export const WhatsAppAPISettings = () => {
               <div className="space-y-3">
                 <Label className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
-                  Social Media Links (Optional)
+                  Social Media Links (for follow-up)
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  These links can be used in your WhatsApp template parameters
+                  These links will be included in the follow-up message when customer clicks the button
                 </p>
                 
                 <div className="grid gap-3">

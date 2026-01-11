@@ -3247,6 +3247,7 @@ export type Database = {
           business_hours_end: string | null
           business_hours_start: string | null
           business_name: string | null
+          button_followup_message: string | null
           chatbot_enabled: boolean | null
           chatbot_greeting: string | null
           chatbot_system_prompt: string | null
@@ -3267,6 +3268,7 @@ export type Database = {
           quotation_template_params: Json | null
           sale_order_template_name: string | null
           sale_order_template_params: Json | null
+          send_followup_on_button_click: boolean | null
           social_links: Json | null
           updated_at: string
           use_default_api: boolean | null
@@ -3284,6 +3286,7 @@ export type Database = {
           business_hours_end?: string | null
           business_hours_start?: string | null
           business_name?: string | null
+          button_followup_message?: string | null
           chatbot_enabled?: boolean | null
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
@@ -3304,6 +3307,7 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          send_followup_on_button_click?: boolean | null
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
@@ -3321,6 +3325,7 @@ export type Database = {
           business_hours_end?: string | null
           business_hours_start?: string | null
           business_name?: string | null
+          button_followup_message?: string | null
           chatbot_enabled?: boolean | null
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
@@ -3341,6 +3346,7 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          send_followup_on_button_click?: boolean | null
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
@@ -3416,9 +3422,11 @@ export type Database = {
           created_at: string
           delivered_at: string | null
           error_message: string | null
+          followup_data: Json | null
           id: string
           message: string | null
           organization_id: string
+          pending_followup: boolean | null
           phone_number: string
           provider_response: Json | null
           read_at: string | null
@@ -3434,9 +3442,11 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           error_message?: string | null
+          followup_data?: Json | null
           id?: string
           message?: string | null
           organization_id: string
+          pending_followup?: boolean | null
           phone_number: string
           provider_response?: Json | null
           read_at?: string | null
@@ -3452,9 +3462,11 @@ export type Database = {
           created_at?: string
           delivered_at?: string | null
           error_message?: string | null
+          followup_data?: Json | null
           id?: string
           message?: string | null
           organization_id?: string
+          pending_followup?: boolean | null
           phone_number?: string
           provider_response?: Json | null
           read_at?: string | null
