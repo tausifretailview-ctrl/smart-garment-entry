@@ -1432,7 +1432,7 @@ const POSDashboard = () => {
                             {columnSettings.status && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
                                 <Badge 
-                                  className={`min-w-[70px] justify-center ${
+                                  className={`min-w-[80px] justify-center whitespace-nowrap ${
                                     sale.payment_status === "completed" 
                                       ? "bg-green-500 hover:bg-green-600 text-white" 
                                       : sale.payment_status === "partial" 
