@@ -7,8 +7,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useWhatsAppAPI, TemplateParam } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
+import { TemplateParamMapper } from "@/components/TemplateParamMapper";
 import { 
   MessageSquare, 
   Settings2, 
@@ -23,7 +25,9 @@ import {
   AlertCircle,
   Info,
   Bot,
-  BrainCircuit
+  BrainCircuit,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -58,6 +62,11 @@ export const WhatsAppAPISettings = () => {
     quotation_template_name: "",
     sale_order_template_name: "",
     payment_reminder_template_name: "",
+    // Template parameter mappings
+    invoice_template_params: [] as TemplateParam[],
+    quotation_template_params: [] as TemplateParam[],
+    sale_order_template_params: [] as TemplateParam[],
+    payment_reminder_template_params: [] as TemplateParam[],
     // Chatbot settings
     chatbot_enabled: false,
     chatbot_greeting: "Hello! I'm an AI assistant. How can I help you today?",
@@ -71,6 +80,7 @@ export const WhatsAppAPISettings = () => {
 
   const [showToken, setShowToken] = useState(false);
   const [testPhone, setTestPhone] = useState("");
+  const [openTemplateSection, setOpenTemplateSection] = useState<string | null>(null);
 
   // Load settings into form
   useEffect(() => {
@@ -90,6 +100,11 @@ export const WhatsAppAPISettings = () => {
         quotation_template_name: settings.quotation_template_name || "",
         sale_order_template_name: settings.sale_order_template_name || "",
         payment_reminder_template_name: settings.payment_reminder_template_name || "",
+        // Template parameter mappings
+        invoice_template_params: settings.invoice_template_params || [],
+        quotation_template_params: settings.quotation_template_params || [],
+        sale_order_template_params: settings.sale_order_template_params || [],
+        payment_reminder_template_params: settings.payment_reminder_template_params || [],
         // Chatbot settings
         chatbot_enabled: settings.chatbot_enabled || false,
         chatbot_greeting: settings.chatbot_greeting || "Hello! I'm an AI assistant. How can I help you today?",
@@ -110,7 +125,7 @@ export const WhatsAppAPISettings = () => {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const handleInputChange = (field: string, value: string | boolean | string[]) => {
+  const handleInputChange = (field: string, value: string | boolean | string[] | TemplateParam[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -456,7 +471,7 @@ export const WhatsAppAPISettings = () => {
             Meta Message Templates
           </CardTitle>
           <CardDescription>
-            Enter your approved Meta WhatsApp template names. Templates must be created and approved in Meta Business Manager.
+            Configure your approved Meta WhatsApp template names and their parameters.
             <a 
               href="https://business.facebook.com/latest/whatsapp_manager/message_templates" 
               target="_blank" 
@@ -471,52 +486,186 @@ export const WhatsAppAPISettings = () => {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
-              <strong>Important:</strong> Business-initiated messages (like invoice notifications) require pre-approved Meta templates. 
-              Without a template, messages can only be sent within 24 hours of customer's last message.
+              <strong>Important:</strong> Configure template parameters to match your Meta template exactly. 
+              The order and count of parameters must match what you defined in Meta Business Manager.
             </AlertDescription>
           </Alert>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="invoice_template_name">Invoice Template Name</Label>
-              <Input
-                id="invoice_template_name"
-                placeholder="e.g., invoice_notification"
-                value={formData.invoice_template_name}
-                onChange={(e) => handleInputChange("invoice_template_name", e.target.value)}
+          {/* Invoice Template */}
+          <Collapsible
+            open={openTemplateSection === 'invoice'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'invoice' : null)}
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted">
+                <div className="flex items-center gap-2">
+                  {openTemplateSection === 'invoice' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Invoice Template</span>
+                  {formData.invoice_template_name && (
+                    <Badge variant="secondary" className="text-xs">
+                      {formData.invoice_template_name}
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant={formData.invoice_template_params.length > 0 ? "default" : "outline"}>
+                  {formData.invoice_template_params.length} params
+                </Badge>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="invoice_template_name">Template Name</Label>
+                <Input
+                  id="invoice_template_name"
+                  placeholder="e.g., invoice_notification"
+                  value={formData.invoice_template_name}
+                  onChange={(e) => handleInputChange("invoice_template_name", e.target.value)}
+                />
+              </div>
+              <TemplateParamMapper
+                templateType="invoice"
+                templateName={formData.invoice_template_name}
+                params={formData.invoice_template_params}
+                onChange={(params) => handleInputChange("invoice_template_params", params)}
               />
-            </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-            <div className="space-y-2">
-              <Label htmlFor="quotation_template_name">Quotation Template Name</Label>
-              <Input
-                id="quotation_template_name"
-                placeholder="e.g., quotation_message"
-                value={formData.quotation_template_name}
-                onChange={(e) => handleInputChange("quotation_template_name", e.target.value)}
+          {/* Quotation Template */}
+          <Collapsible
+            open={openTemplateSection === 'quotation'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'quotation' : null)}
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted">
+                <div className="flex items-center gap-2">
+                  {openTemplateSection === 'quotation' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Quotation Template</span>
+                  {formData.quotation_template_name && (
+                    <Badge variant="secondary" className="text-xs">
+                      {formData.quotation_template_name}
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant={formData.quotation_template_params.length > 0 ? "default" : "outline"}>
+                  {formData.quotation_template_params.length} params
+                </Badge>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="quotation_template_name">Template Name</Label>
+                <Input
+                  id="quotation_template_name"
+                  placeholder="e.g., quotation_message"
+                  value={formData.quotation_template_name}
+                  onChange={(e) => handleInputChange("quotation_template_name", e.target.value)}
+                />
+              </div>
+              <TemplateParamMapper
+                templateType="quotation"
+                templateName={formData.quotation_template_name}
+                params={formData.quotation_template_params}
+                onChange={(params) => handleInputChange("quotation_template_params", params)}
               />
-            </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-            <div className="space-y-2">
-              <Label htmlFor="sale_order_template_name">Sale Order Template Name</Label>
-              <Input
-                id="sale_order_template_name"
-                placeholder="e.g., order_confirmation"
-                value={formData.sale_order_template_name}
-                onChange={(e) => handleInputChange("sale_order_template_name", e.target.value)}
+          {/* Sale Order Template */}
+          <Collapsible
+            open={openTemplateSection === 'sale_order'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'sale_order' : null)}
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted">
+                <div className="flex items-center gap-2">
+                  {openTemplateSection === 'sale_order' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Sale Order Template</span>
+                  {formData.sale_order_template_name && (
+                    <Badge variant="secondary" className="text-xs">
+                      {formData.sale_order_template_name}
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant={formData.sale_order_template_params.length > 0 ? "default" : "outline"}>
+                  {formData.sale_order_template_params.length} params
+                </Badge>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="sale_order_template_name">Template Name</Label>
+                <Input
+                  id="sale_order_template_name"
+                  placeholder="e.g., order_confirmation"
+                  value={formData.sale_order_template_name}
+                  onChange={(e) => handleInputChange("sale_order_template_name", e.target.value)}
+                />
+              </div>
+              <TemplateParamMapper
+                templateType="sale_order"
+                templateName={formData.sale_order_template_name}
+                params={formData.sale_order_template_params}
+                onChange={(params) => handleInputChange("sale_order_template_params", params)}
               />
-            </div>
+            </CollapsibleContent>
+          </Collapsible>
 
-            <div className="space-y-2">
-              <Label htmlFor="payment_reminder_template_name">Payment Reminder Template Name</Label>
-              <Input
-                id="payment_reminder_template_name"
-                placeholder="e.g., payment_reminder"
-                value={formData.payment_reminder_template_name}
-                onChange={(e) => handleInputChange("payment_reminder_template_name", e.target.value)}
+          {/* Payment Reminder Template */}
+          <Collapsible
+            open={openTemplateSection === 'payment_reminder'}
+            onOpenChange={(open) => setOpenTemplateSection(open ? 'payment_reminder' : null)}
+          >
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg cursor-pointer hover:bg-muted">
+                <div className="flex items-center gap-2">
+                  {openTemplateSection === 'payment_reminder' ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4" />
+                  )}
+                  <span className="font-medium">Payment Reminder Template</span>
+                  {formData.payment_reminder_template_name && (
+                    <Badge variant="secondary" className="text-xs">
+                      {formData.payment_reminder_template_name}
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant={formData.payment_reminder_template_params.length > 0 ? "default" : "outline"}>
+                  {formData.payment_reminder_template_params.length} params
+                </Badge>
+              </div>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-3 space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="payment_reminder_template_name">Template Name</Label>
+                <Input
+                  id="payment_reminder_template_name"
+                  placeholder="e.g., payment_reminder"
+                  value={formData.payment_reminder_template_name}
+                  onChange={(e) => handleInputChange("payment_reminder_template_name", e.target.value)}
+                />
+              </div>
+              <TemplateParamMapper
+                templateType="payment_reminder"
+                templateName={formData.payment_reminder_template_name}
+                params={formData.payment_reminder_template_params}
+                onChange={(params) => handleInputChange("payment_reminder_template_params", params)}
               />
-            </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
 

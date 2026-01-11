@@ -3,6 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 
+export interface TemplateParam {
+  index: number;
+  field: string;
+  label: string;
+  customValue?: string;
+}
+
 export interface WhatsAppSettings {
   id: string;
   organization_id: string;
@@ -22,6 +29,11 @@ export interface WhatsAppSettings {
   quotation_template_name: string | null;
   sale_order_template_name: string | null;
   payment_reminder_template_name: string | null;
+  // Template parameter mappings
+  invoice_template_params: TemplateParam[] | null;
+  quotation_template_params: TemplateParam[] | null;
+  sale_order_template_params: TemplateParam[] | null;
+  payment_reminder_template_params: TemplateParam[] | null;
   // AI Chatbot settings
   chatbot_enabled: boolean;
   chatbot_greeting: string | null;
@@ -59,6 +71,8 @@ export interface SendMessageParams {
   message: string;
   templateType: string;
   templateName?: string;
+  templateParams?: string[];
+  saleData?: Record<string, unknown>;
   referenceId?: string;
   referenceType?: string;
 }
@@ -80,7 +94,24 @@ export const useWhatsAppAPI = () => {
         .maybeSingle();
       
       if (error) throw error;
-      return data as WhatsAppSettings | null;
+      if (!data) return null;
+      
+      // Parse JSONB template params from DB format to our interface
+      return {
+        ...data,
+        invoice_template_params: Array.isArray(data.invoice_template_params) 
+          ? data.invoice_template_params as unknown as TemplateParam[] 
+          : [],
+        quotation_template_params: Array.isArray(data.quotation_template_params) 
+          ? data.quotation_template_params as unknown as TemplateParam[] 
+          : [],
+        sale_order_template_params: Array.isArray(data.sale_order_template_params) 
+          ? data.sale_order_template_params as unknown as TemplateParam[] 
+          : [],
+        payment_reminder_template_params: Array.isArray(data.payment_reminder_template_params) 
+          ? data.payment_reminder_template_params as unknown as TemplateParam[] 
+          : [],
+      } as WhatsAppSettings;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -90,17 +121,31 @@ export const useWhatsAppAPI = () => {
     mutationFn: async (newSettings: Partial<WhatsAppSettings>) => {
       if (!currentOrganization?.id) throw new Error('No organization selected');
 
+      // Convert template params back to plain JSON for Supabase
       const settingsData = {
         ...newSettings,
         organization_id: currentOrganization.id,
         updated_at: new Date().toISOString(),
+        // Ensure template params are stored as JSON arrays
+        invoice_template_params: newSettings.invoice_template_params 
+          ? JSON.parse(JSON.stringify(newSettings.invoice_template_params)) 
+          : undefined,
+        quotation_template_params: newSettings.quotation_template_params 
+          ? JSON.parse(JSON.stringify(newSettings.quotation_template_params)) 
+          : undefined,
+        sale_order_template_params: newSettings.sale_order_template_params 
+          ? JSON.parse(JSON.stringify(newSettings.sale_order_template_params)) 
+          : undefined,
+        payment_reminder_template_params: newSettings.payment_reminder_template_params 
+          ? JSON.parse(JSON.stringify(newSettings.payment_reminder_template_params)) 
+          : undefined,
       };
 
       if (settings?.id) {
         // Update existing
         const { data, error } = await supabase
           .from('whatsapp_api_settings')
-          .update(settingsData)
+          .update(settingsData as any)
           .eq('id', settings.id)
           .select()
           .single();
@@ -111,7 +156,7 @@ export const useWhatsAppAPI = () => {
         // Insert new
         const { data, error } = await supabase
           .from('whatsapp_api_settings')
-          .insert(settingsData)
+          .insert(settingsData as any)
           .select()
           .single();
         

@@ -3253,14 +3253,18 @@ export type Database = {
           handoff_keywords: string[] | null
           id: string
           invoice_template_name: string | null
+          invoice_template_params: Json | null
           is_active: boolean
           organization_id: string
           outside_hours_message: string | null
           payment_reminder_template_name: string | null
+          payment_reminder_template_params: Json | null
           phone_number_id: string | null
           provider: string
           quotation_template_name: string | null
+          quotation_template_params: Json | null
           sale_order_template_name: string | null
+          sale_order_template_params: Json | null
           updated_at: string
           use_default_api: boolean | null
           waba_id: string | null
@@ -3283,14 +3287,18 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           invoice_template_name?: string | null
+          invoice_template_params?: Json | null
           is_active?: boolean
           organization_id: string
           outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
+          payment_reminder_template_params?: Json | null
           phone_number_id?: string | null
           provider?: string
           quotation_template_name?: string | null
+          quotation_template_params?: Json | null
           sale_order_template_name?: string | null
+          sale_order_template_params?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           waba_id?: string | null
@@ -3313,14 +3321,18 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           invoice_template_name?: string | null
+          invoice_template_params?: Json | null
           is_active?: boolean
           organization_id?: string
           outside_hours_message?: string | null
           payment_reminder_template_name?: string | null
+          payment_reminder_template_params?: Json | null
           phone_number_id?: string | null
           provider?: string
           quotation_template_name?: string | null
+          quotation_template_params?: Json | null
           sale_order_template_name?: string | null
+          sale_order_template_params?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
           waba_id?: string | null
