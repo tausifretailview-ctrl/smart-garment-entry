@@ -763,7 +763,7 @@ export default function SalesInvoiceDashboard() {
       // Generate voucher number
       const { data: voucherData, error: voucherError } = await supabase.rpc(
         'generate_voucher_number',
-        { p_type: 'RECEIPT', p_date: format(paymentDate, 'yyyy-MM-dd') }
+        { p_type: 'receipt', p_date: format(paymentDate, 'yyyy-MM-dd') }
       );
 
       if (voucherError) throw voucherError;
