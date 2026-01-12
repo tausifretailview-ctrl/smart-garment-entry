@@ -44,38 +44,63 @@ async function findOrganizationByPhoneId(supabase: any, phoneNumberId: string) {
 // Helper to find organization for a customer phone using the shared API
 async function findOrganizationByCustomerPhone(supabase: any, customerPhone: string) {
   const cleanPhone = customerPhone.replace(/\D/g, '').slice(-10);
+  const fullPhone = customerPhone.replace(/\D/g, '');
   
-  // Check existing conversations first (most recent interaction)
+  console.log(`Looking up organization for customer phone: ${customerPhone} (clean: ${cleanPhone})`);
+  
+  // Priority 1: Check whatsapp_logs for the most recent outbound message to this customer
+  // This is the most reliable way to find which org sent a message to this customer
+  const { data: recentLog } = await supabase
+    .from('whatsapp_logs')
+    .select('organization_id')
+    .or(`phone_number.ilike.%${cleanPhone}%,phone_number.ilike.%${fullPhone}%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (recentLog?.organization_id) {
+    console.log(`Found org from whatsapp_logs: ${recentLog.organization_id}`);
+    const { data: orgSettings } = await supabase
+      .from('whatsapp_api_settings')
+      .select('*')
+      .eq('organization_id', recentLog.organization_id)
+      .maybeSingle();
+    
+    if (orgSettings) return orgSettings;
+  }
+  
+  // Priority 2: Check existing conversations (most recent interaction)
   const { data: conversation } = await supabase
     .from('whatsapp_conversations')
     .select('organization_id')
-    .ilike('customer_phone', `%${cleanPhone}%`)
+    .or(`customer_phone.ilike.%${cleanPhone}%,customer_phone.ilike.%${fullPhone}%`)
     .order('last_message_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (conversation?.organization_id) {
-    // Fetch full settings for this org
+    console.log(`Found org from whatsapp_conversations: ${conversation.organization_id}`);
     const { data: orgSettings } = await supabase
       .from('whatsapp_api_settings')
       .select('*')
       .eq('organization_id', conversation.organization_id)
       .maybeSingle();
     
-    return orgSettings;
+    if (orgSettings) return orgSettings;
   }
 
-  // Check customers table across all orgs (most recent customer)
+  // Priority 3: Check customers table across all orgs (most recent customer)
   const { data: customer } = await supabase
     .from('customers')
     .select('organization_id')
-    .or(`phone.ilike.%${cleanPhone}%,phone.ilike.%${customerPhone}%`)
+    .or(`phone.ilike.%${cleanPhone}%,phone.ilike.%${fullPhone}%`)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
   if (customer?.organization_id) {
+    console.log(`Found org from customers table: ${customer.organization_id}`);
     const { data: orgSettings } = await supabase
       .from('whatsapp_api_settings')
       .select('*')
@@ -85,6 +110,7 @@ async function findOrganizationByCustomerPhone(supabase: any, customerPhone: str
     return orgSettings;
   }
 
+  console.log('No organization found for this customer phone');
   return null;
 }
 
