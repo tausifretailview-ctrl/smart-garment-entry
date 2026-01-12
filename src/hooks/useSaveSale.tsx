@@ -366,7 +366,7 @@ export const useSaveSale = () => {
               gross_amount: saleData.grossAmount,
               discount_amount: saleData.discountAmount,
               payment_status: sale.payment_status,
-              items_count: saleData.items.length,
+              items_count: saleData.items.reduce((sum, item) => sum + item.quantity, 0),
               salesman: saleData.salesman,
               organization_name: companyName,
               // Include social links from settings
