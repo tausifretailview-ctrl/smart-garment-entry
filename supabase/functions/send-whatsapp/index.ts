@@ -17,7 +17,8 @@ interface SendWhatsAppRequest {
   organizationId: string;
   phone: string;
   message: string;
-  templateType: string;
+  messageType?: string; // 'text' for manual messages, 'template' for template messages
+  templateType?: string; // Type of template: sales_invoice, quotation, etc.
   templateName?: string;
   templateParams?: string[]; // Direct parameters (legacy support)
   saleData?: Record<string, unknown>; // Dynamic data for parameter building
@@ -206,7 +207,8 @@ serve(async (req) => {
     const { 
       organizationId, 
       phone, 
-      message, 
+      message,
+      messageType,
       templateType,
       templateName,
       templateParams,
@@ -215,16 +217,19 @@ serve(async (req) => {
       referenceType 
     }: SendWhatsAppRequest = await req.json();
 
-    // Validate required fields
-    if (!organizationId || !phone || !message || !templateType) {
+    // Validate required fields - templateType is only required for template messages
+    if (!organizationId || !phone || !message) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Missing required fields: organizationId, phone, message, templateType' 
+          error: 'Missing required fields: organizationId, phone, message' 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Determine if this is a text message or template message
+    const isTextMessage = messageType === 'text' || (!templateName && !templateType);
 
     // Fetch WhatsApp API settings for the organization
     const { data: orgSettings, error: settingsError } = await supabase
@@ -340,7 +345,7 @@ serve(async (req) => {
         phone_number: formattedPhone,
         message: message,
         template_name: templateName || null,
-        template_type: templateType,
+        template_type: templateType || (isTextMessage ? 'manual_message' : 'unknown'),
         status: 'pending',
         reference_id: referenceId || null,
         reference_type: referenceType || null,
@@ -391,7 +396,7 @@ serve(async (req) => {
       if (templateParams && Array.isArray(templateParams) && templateParams.length > 0) {
         // Use directly provided params (legacy support)
         finalTemplateParams = templateParams;
-      } else if (saleData && orgSettings) {
+      } else if (saleData && orgSettings && templateType) {
         // Build params dynamically from saleData using param mapping from settings
         const paramMappingKey = `${templateType.replace('sales_', '')}_template_params`;
         const paramMapping = orgSettings[paramMappingKey] as TemplateParamMapping[] | null;
