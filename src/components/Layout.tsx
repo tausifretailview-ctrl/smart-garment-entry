@@ -7,7 +7,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
-
+import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 interface LayoutProps {
   children: ReactNode;
 }
@@ -31,6 +31,7 @@ export const Layout = ({ children }: LayoutProps) => {
           </SidebarInset>
         </div>
         <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
+        <FloatingWhatsAppInbox />
         <FloatingChatButton />
       </SidebarProvider>
     </ChatProvider>
