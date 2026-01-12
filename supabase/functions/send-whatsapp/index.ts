@@ -369,6 +369,22 @@ serve(async (req) => {
       console.log('Template params received:', JSON.stringify(templateParams));
       console.log('SaleData received:', JSON.stringify(saleData));
 
+      // Fetch template language from stored meta templates
+      let templateLanguage = 'en'; // Default fallback
+      const { data: metaTemplate } = await supabase
+        .from('whatsapp_meta_templates')
+        .select('template_language')
+        .eq('organization_id', organizationId)
+        .eq('template_name', cleanedTemplateName)
+        .maybeSingle();
+
+      if (metaTemplate?.template_language) {
+        templateLanguage = metaTemplate.template_language;
+        console.log('Using stored template language:', templateLanguage);
+      } else {
+        console.log('Template not found in DB, using default language: en');
+      }
+
       // Determine which params to use - either directly provided or built from saleData
       let finalTemplateParams: string[] = [];
       
@@ -402,7 +418,7 @@ serve(async (req) => {
         type: "template",
         template: {
           name: cleanedTemplateName,
-          language: { code: "en" },
+          language: { code: templateLanguage },
         }
       };
 
