@@ -49,7 +49,7 @@ export const FloatingWhatsAppInbox = () => {
     <Button
       onClick={handleClick}
       className={cn(
-        "fixed bottom-6 right-24 z-50 h-14 w-14 rounded-full shadow-lg transition-all duration-300 hover:scale-110",
+        "fixed bottom-24 right-6 z-50 h-14 w-14 rounded-full shadow-lg transition-all duration-300 hover:scale-110",
         "bg-green-600 hover:bg-green-700"
       )}
       size="icon"
