@@ -1076,11 +1076,11 @@ export default function StockReport() {
                       <TableHead>Brand</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead>Barcode</TableHead>
-                      <TableHead className="text-right bg-blue-50 dark:bg-blue-950">Opening Qty</TableHead>
-                      <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
-                      <TableHead className="text-right bg-orange-50 dark:bg-orange-950">Pur Return</TableHead>
-                      <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
-                      <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
+                      <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
+                      <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
+                      <TableHead className="text-right bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
+                      <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                      <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-white">Current Stock</TableHead>
                       <TableHead className="text-right">Pur Price</TableHead>
                       <TableHead className="text-right">Stock Value</TableHead>
                       <TableHead className="text-right">Sale Price</TableHead>
@@ -1358,10 +1358,10 @@ export default function StockReport() {
                         <TableHead>Product</TableHead>
                         <TableHead>Brand</TableHead>
                         <TableHead>Size</TableHead>
-                        <TableHead className="text-right bg-blue-50 dark:bg-blue-950">Opening Qty</TableHead>
-                        <TableHead className="text-right bg-green-50 dark:bg-green-950">Purchase Qty</TableHead>
-                        <TableHead className="text-right bg-red-50 dark:bg-red-950">Sales Qty</TableHead>
-                        <TableHead className="text-right bg-primary/10 font-semibold">Current Stock</TableHead>
+                        <TableHead className="text-right bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-white">Opening Qty</TableHead>
+                        <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
+                        <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
+                        <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-white">Current Stock</TableHead>
                         <TableHead className="text-right">Sale Price</TableHead>
                       </TableRow>
                     </TableHeader>
