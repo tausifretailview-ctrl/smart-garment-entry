@@ -3273,6 +3273,10 @@ export type Database = {
           quotation_template_params: Json | null
           sale_order_template_name: string | null
           sale_order_template_params: Json | null
+          selected_invoice_template_id: string | null
+          selected_payment_reminder_template_id: string | null
+          selected_quotation_template_id: string | null
+          selected_sale_order_template_id: string | null
           send_followup_on_button_click: boolean | null
           social_links: Json | null
           updated_at: string
@@ -3317,6 +3321,10 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          selected_invoice_template_id?: string | null
+          selected_payment_reminder_template_id?: string | null
+          selected_quotation_template_id?: string | null
+          selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
           social_links?: Json | null
           updated_at?: string
@@ -3361,6 +3369,10 @@ export type Database = {
           quotation_template_params?: Json | null
           sale_order_template_name?: string | null
           sale_order_template_params?: Json | null
+          selected_invoice_template_id?: string | null
+          selected_payment_reminder_template_id?: string | null
+          selected_quotation_template_id?: string | null
+          selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
           social_links?: Json | null
           updated_at?: string
@@ -3374,6 +3386,34 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_api_settings_selected_invoice_template_id_fkey"
+            columns: ["selected_invoice_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_api_settings_selected_payment_reminder_template_i_fkey"
+            columns: ["selected_payment_reminder_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_api_settings_selected_quotation_template_id_fkey"
+            columns: ["selected_quotation_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_api_settings_selected_sale_order_template_id_fkey"
+            columns: ["selected_sale_order_template_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_meta_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -3559,6 +3599,50 @@ export type Database = {
           },
           {
             foreignKeyName: "whatsapp_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_meta_templates: {
+        Row: {
+          components: Json | null
+          created_at: string | null
+          id: string
+          organization_id: string
+          template_category: string | null
+          template_language: string | null
+          template_name: string
+          template_status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          components?: Json | null
+          created_at?: string | null
+          id?: string
+          organization_id: string
+          template_category?: string | null
+          template_language?: string | null
+          template_name: string
+          template_status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          components?: Json | null
+          created_at?: string | null
+          id?: string
+          organization_id?: string
+          template_category?: string | null
+          template_language?: string | null
+          template_name?: string
+          template_status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_meta_templates_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
