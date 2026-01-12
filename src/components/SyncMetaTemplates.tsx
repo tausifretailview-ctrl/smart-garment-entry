@@ -24,7 +24,7 @@ export const SyncMetaTemplates = () => {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [manualTemplateName, setManualTemplateName] = useState("");
-  const [manualTemplateLanguage, setManualTemplateLanguage] = useState("en");
+  const [manualTemplateLanguage, setManualTemplateLanguage] = useState("en_US");
 
   // Sync templates from Meta API
   const syncMutation = useMutation({
@@ -171,7 +171,7 @@ export const SyncMetaTemplates = () => {
               <Label htmlFor="template_language">Language Code</Label>
               <Input
                 id="template_language"
-                placeholder="e.g., en"
+                placeholder="e.g., en_US"
                 value={manualTemplateLanguage}
                 onChange={(e) => setManualTemplateLanguage(e.target.value)}
               />
