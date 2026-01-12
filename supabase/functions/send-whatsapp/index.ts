@@ -573,38 +573,54 @@ serve(async (req) => {
       response.ok && 
       templateType === 'sales_invoice' && 
       orgSettings?.send_followup_on_button_click && 
-      saleData?.sale_id && 
-      saleData?.org_slug &&
       logEntry
     ) {
       try {
         console.log('Marking pending follow-up for button click...');
         
-        // Build the invoice link
-        const invoiceLink = `https://app.inventoryshop.in/${saleData.org_slug}/invoice/view/${saleData.sale_id}`;
+        // Get sale_id and org_slug - either from saleData or fallback to referenceId
+        const saleId = saleData?.sale_id || referenceId;
+        let orgSlug = saleData?.org_slug;
         
-        // Store follow-up data with the log entry - will be sent when customer clicks button
-        const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
+        // If no org_slug in saleData, fetch from organization
+        if (!orgSlug && organizationId) {
+          const { data: org } = await supabase
+            .from('organizations')
+            .select('slug')
+            .eq('id', organizationId)
+            .single();
+          orgSlug = org?.slug;
+        }
         
-        await supabase
-          .from('whatsapp_logs')
-          .update({
-            pending_followup: true,
-            followup_data: {
-              invoice_link: invoiceLink,
-              customer_name: String(saleData.customer_name || ''),
-              sale_number: String(saleData.sale_number || ''),
-              website: String(saleData.website || orgSettings.social_links?.website || ''),
-              instagram: String(saleData.instagram || orgSettings.social_links?.instagram || ''),
-              facebook: String(saleData.facebook || orgSettings.social_links?.facebook || ''),
-              google_review: String(orgSettings.social_links?.google_review || ''),
-              whatsapp_link: whatsappLink,
-              message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
-            }
-          })
-          .eq('id', logEntry.id);
+        if (saleId && orgSlug) {
+          // Build the invoice link
+          const invoiceLink = `https://app.inventoryshop.in/${orgSlug}/invoice/view/${saleId}`;
           
-        console.log('Pending follow-up marked successfully');
+          // Store follow-up data with the log entry - will be sent when customer clicks button
+          const whatsappLink = `https://wa.me/${orgSettings.phone_number_id?.replace(/\D/g, '')}`;
+          
+          await supabase
+            .from('whatsapp_logs')
+            .update({
+              pending_followup: true,
+              followup_data: {
+                invoice_link: invoiceLink,
+                customer_name: String(saleData?.customer_name || ''),
+                sale_number: String(saleData?.sale_number || ''),
+                website: String(saleData?.website || orgSettings.social_links?.website || ''),
+                instagram: String(saleData?.instagram || orgSettings.social_links?.instagram || ''),
+                facebook: String(saleData?.facebook || orgSettings.social_links?.facebook || ''),
+                google_review: String(orgSettings.social_links?.google_review || ''),
+                whatsapp_link: whatsappLink,
+                message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
+              }
+            })
+            .eq('id', logEntry.id);
+            
+          console.log('Pending follow-up marked successfully with invoice link:', invoiceLink);
+        } else {
+          console.log('Could not mark pending follow-up - missing saleId or orgSlug');
+        }
       } catch (followUpError) {
         // Don't fail the main request if marking fails
         console.error('Failed to mark pending follow-up:', followUpError);
