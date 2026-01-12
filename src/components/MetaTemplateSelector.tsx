@@ -152,20 +152,38 @@ export const MetaTemplateSelector = ({
     if (template) {
       onTemplateChange(template.id, template.template_name);
       
+      // Always reset params when selecting a new template
+      let newParams: TemplateParam[] = [];
+      
       // Auto-generate params based on template components if available
       if (template.components) {
         const bodyComponent = template.components.find?.((c: any) => c.type === 'BODY');
         if (bodyComponent?.example?.body_text?.[0]) {
           const exampleParams = bodyComponent.example.body_text[0];
-          const newParams = exampleParams.map((text: string, idx: number) => ({
+          newParams = exampleParams.map((text: string, idx: number) => ({
             index: idx + 1,
             field: '',
             label: `Parameter ${idx + 1}`,
             customValue: undefined,
           }));
-          onParamsChange(newParams);
+        } else {
+          // Count placeholders in body text like {{1}}, {{2}}, etc.
+          const bodyText = bodyComponent?.text || '';
+          const placeholderMatches = bodyText.match(/\{\{(\d+)\}\}/g);
+          if (placeholderMatches) {
+            const uniqueNumbers = [...new Set(placeholderMatches.map((m: string) => parseInt(m.replace(/[{}]/g, ''))))];
+            newParams = uniqueNumbers.sort((a: number, b: number) => a - b).map((num: number) => ({
+              index: num,
+              field: '',
+              label: `Parameter ${num}`,
+              customValue: undefined,
+            }));
+          }
         }
       }
+      
+      // Always update params (even if empty, to clear old ones)
+      onParamsChange(newParams);
     }
   };
 
