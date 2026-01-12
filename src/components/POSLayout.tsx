@@ -21,7 +21,9 @@ import { useNavigate } from "react-router-dom";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
-
+import { ChatProvider } from "@/contexts/ChatContext";
+import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
+import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 interface POSLayoutProps {
   children: ReactNode;
 }
@@ -175,14 +177,18 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <main className="flex-1 animate-fade-in p-4">{children}</main>
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
+      <FloatingWhatsAppInbox />
+      <FloatingChatButton />
     </div>
   );
 };
 
 export const POSLayout = ({ children }: POSLayoutProps) => {
   return (
-    <POSProvider>
-      <POSLayoutContent>{children}</POSLayoutContent>
-    </POSProvider>
+    <ChatProvider>
+      <POSProvider>
+        <POSLayoutContent>{children}</POSLayoutContent>
+      </POSProvider>
+    </ChatProvider>
   );
 };
