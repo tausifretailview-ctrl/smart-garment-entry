@@ -319,57 +319,119 @@ export const useWhatsAppAPI = () => {
       if (fetchError || !logEntry) throw new Error('Message log not found');
       if (logEntry.status !== 'failed') throw new Error('Only failed messages can be retried');
 
-      // Build template params (Meta templates require exact param count)
-      let templateParams: string[] | undefined;
       let templateNameToUse: string | null = logEntry.template_name;
+      let saleData: Record<string, unknown> | undefined;
 
-      // For sales invoices we can deterministically rebuild the params from the sale record
+      // For sales invoices, rebuild complete saleData so the edge function can use configured param mapping
       if (logEntry.template_type === 'sales_invoice' && logEntry.reference_id) {
-        const { data: sale } = await (supabase as any)
+        // Fetch sale with all necessary fields
+        const { data: sale } = await supabase
           .from('sales')
-          .select('sale_number, sale_date, net_amount, payment_status, customer_name')
+          .select('id, sale_number, sale_date, net_amount, gross_amount, discount_amount, payment_status, customer_name, customer_id, salesman')
           .eq('id', logEntry.reference_id)
           .maybeSingle();
 
         if (sale && templateNameToUse) {
-          // Fetch company settings from settings table (not organizations.settings)
-          const { data: companySettings } = await supabase
-            .from('settings')
-            .select('business_name')
-            .eq('organization_id', currentOrganization.id)
-            .maybeSingle();
+          // Fetch sale items to calculate items_count
+          const { data: saleItems } = await supabase
+            .from('sale_items')
+            .select('quantity')
+            .eq('sale_id', logEntry.reference_id);
 
-          const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
+          const itemsCount = saleItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 
-          const formattedDate = new Date(sale.sale_date || Date.now()).toLocaleDateString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-          });
-
-          const amount = `${Number(sale.net_amount || 0).toLocaleString('en-IN')}`;
-
-          // Template params for "invoice" utility template:
-          // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
-          templateParams = [
-            sale.customer_name || '',
-            sale.sale_number || '',
-            formattedDate,
-            amount,
-            companyName,
-          ];
+          // Build complete saleData object - edge function will use this with configured param mapping
+          saleData = {
+            sale_id: sale.id,
+            org_slug: currentOrganization.slug,
+            sale_number: sale.sale_number,
+            customer_name: sale.customer_name,
+            customer_phone: logEntry.phone_number,
+            sale_date: sale.sale_date,
+            net_amount: sale.net_amount,
+            gross_amount: sale.gross_amount,
+            discount_amount: sale.discount_amount,
+            payment_status: sale.payment_status,
+            salesman: sale.salesman,
+            items_count: itemsCount,
+          };
+        } else {
+          // Cannot rebuild sale data - don't use template
+          templateNameToUse = null;
         }
       }
 
-      // If we couldn't build params, do NOT use template (otherwise Meta returns #132000)
-      if (templateNameToUse && (!templateParams || templateParams.length === 0)) {
-        templateNameToUse = null;
+      // For quotations, rebuild saleData
+      if (logEntry.template_type === 'quotation' && logEntry.reference_id) {
+        const { data: quotation } = await supabase
+          .from('quotations')
+          .select('id, quotation_number, quotation_date, net_amount, gross_amount, customer_name, salesman')
+          .eq('id', logEntry.reference_id)
+          .maybeSingle();
+
+        if (quotation && templateNameToUse) {
+          const { data: quotationItems } = await supabase
+            .from('quotation_items')
+            .select('quantity')
+            .eq('quotation_id', logEntry.reference_id);
+
+          const itemsCount = quotationItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+
+          saleData = {
+            quotation_id: quotation.id,
+            org_slug: currentOrganization.slug,
+            quotation_number: quotation.quotation_number,
+            customer_name: quotation.customer_name,
+            customer_phone: logEntry.phone_number,
+            quotation_date: quotation.quotation_date,
+            net_amount: quotation.net_amount,
+            gross_amount: quotation.gross_amount,
+            salesman: quotation.salesman,
+            items_count: itemsCount,
+          };
+        } else {
+          templateNameToUse = null;
+        }
       }
 
-      // send-whatsapp currently validates that `message` is present; ensure we always send a non-empty fallback
+      // For sale orders, rebuild saleData
+      if (logEntry.template_type === 'sale_order' && logEntry.reference_id) {
+        const { data: order } = await supabase
+          .from('sale_orders')
+          .select('id, order_number, order_date, net_amount, gross_amount, customer_name, salesman')
+          .eq('id', logEntry.reference_id)
+          .maybeSingle();
+
+        if (order && templateNameToUse) {
+          const { data: orderItems } = await supabase
+            .from('sale_order_items')
+            .select('order_qty')
+            .eq('order_id', logEntry.reference_id);
+
+          const itemsCount = orderItems?.reduce((sum, item) => sum + (item.order_qty || 0), 0) || 0;
+
+          saleData = {
+            order_id: order.id,
+            org_slug: currentOrganization.slug,
+            order_number: order.order_number,
+            customer_name: order.customer_name,
+            customer_phone: logEntry.phone_number,
+            order_date: order.order_date,
+            net_amount: order.net_amount,
+            gross_amount: order.gross_amount,
+            salesman: order.salesman,
+            items_count: itemsCount,
+          };
+        } else {
+          templateNameToUse = null;
+        }
+      }
+
+      // send-whatsapp validates that `message` is present; ensure we always send a non-empty fallback
       const messageToSend = (logEntry.message && logEntry.message.trim()) ? logEntry.message : 'WhatsApp notification';
 
-      // Resend the message
+      // Resend the message - pass saleData instead of templateParams
+      // The edge function will build params dynamically from the configured mapping
       const { data, error } = await supabase.functions.invoke('send-whatsapp', {
         body: {
           organizationId: currentOrganization.id,
@@ -377,7 +439,7 @@ export const useWhatsAppAPI = () => {
           message: messageToSend,
           templateType: logEntry.template_type,
           templateName: templateNameToUse,
-          templateParams,
+          saleData, // Edge function will use configured param mapping
           referenceId: logEntry.reference_id,
           referenceType: logEntry.reference_type,
         },
