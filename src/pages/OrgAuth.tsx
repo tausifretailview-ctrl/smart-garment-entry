@@ -231,27 +231,17 @@ export default function OrgAuth() {
     <div className="min-h-screen flex w-full">
       {/* Left Panel - Light Theme with POS Illustration */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex-col p-8 relative overflow-hidden">
-        {/* Subtle city skyline blur effect */}
+        {/* Subtle background effect */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-slate-400 to-transparent" />
         </div>
-        
-        {/* SafPro ERP Branding - Top Left */}
-        <div className="z-10">
-          <img 
-            src={safproLogo} 
-            alt="SafPro ERP" 
-            className="h-14 w-auto object-contain"
-          />
-          <p className="text-sm text-slate-600 italic mt-2">Clean & Professional Software</p>
-        </div>
 
-        {/* POS Illustration - Center */}
-        <div className="flex-1 flex items-center justify-center z-10 py-8">
+        {/* POS Illustration with Logo - Center */}
+        <div className="flex-1 flex items-center justify-center z-10">
           <img 
             src={posIllustration} 
-            alt="POS System" 
-            className="w-full max-w-md object-contain drop-shadow-xl"
+            alt="SafPro ERP - POS System" 
+            className="w-full max-w-lg object-contain drop-shadow-xl"
           />
         </div>
 
