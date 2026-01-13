@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { 
@@ -20,7 +21,9 @@ import {
   Check,
   RefreshCw,
   Search,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  AlertCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +55,44 @@ const WhatsAppInbox = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Check if using shared WhatsApp number
+  const { data: whatsappSettings } = useQuery({
+    queryKey: ['whatsapp-api-settings', currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      
+      const { data, error } = await supabase
+        .from('whatsapp_api_settings')
+        .select('use_default_api, phone_number_id')
+        .eq('organization_id', currentOrganization.id)
+        .single();
+      
+      if (error) return null;
+      return data;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // Check if phone_number_id is shared by multiple orgs (for non-default API users)
+  const { data: sharedNumberInfo } = useQuery({
+    queryKey: ['shared-number-check', whatsappSettings?.phone_number_id],
+    queryFn: async () => {
+      if (!whatsappSettings?.phone_number_id || whatsappSettings.use_default_api) return null;
+      
+      const { data, error } = await supabase
+        .from('whatsapp_api_settings')
+        .select('organization_id')
+        .eq('phone_number_id', whatsappSettings.phone_number_id)
+        .eq('use_default_api', false);
+      
+      if (error) return null;
+      return { count: data?.length || 0, isShared: (data?.length || 0) > 1 };
+    },
+    enabled: !!whatsappSettings?.phone_number_id && !whatsappSettings.use_default_api,
+  });
+
+  const isUsingSharedNumber = whatsappSettings?.use_default_api || sharedNumberInfo?.isShared;
+
   // Fetch conversations
   const { data: conversations = [], isLoading: loadingConversations, refetch: refetchConversations } = useQuery({
     queryKey: ['whatsapp-conversations', currentOrganization?.id],
@@ -68,7 +109,7 @@ const WhatsAppInbox = () => {
       return data as Conversation[];
     },
     enabled: !!currentOrganization?.id,
-    refetchInterval: 10000,
+    refetchInterval: 5000, // Faster refresh for shared numbers
   });
 
   // Fetch messages for selected conversation
@@ -231,16 +272,34 @@ const WhatsAppInbox = () => {
 
   return (
     <div className="h-[calc(100vh-120px)] flex flex-col">
+      {/* Shared Number Alert */}
+      {isUsingSharedNumber && (
+        <Alert className="m-4 mb-0 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <Users className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
+            <strong>Shared WhatsApp Number:</strong> You're using a shared WhatsApp number. 
+            Customer replies are routed based on who last messaged them. 
+            Send a message to a customer to see their future replies in your inbox.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-3">
           <MessageSquare className="h-6 w-6 text-green-600" />
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold">WhatsApp Inbox</h1>
-            <p className="text-sm text-muted-foreground">
-              {totalUnread > 0 ? `${totalUnread} unread message${totalUnread > 1 ? 's' : ''}` : 'All caught up!'}
-            </p>
+            {isUsingSharedNumber && (
+              <Badge variant="outline" className="text-xs border-amber-300 text-amber-700">
+                <Users className="h-3 w-3 mr-1" />
+                Shared
+              </Badge>
+            )}
           </div>
+          <p className="text-sm text-muted-foreground hidden sm:block">
+            {totalUnread > 0 ? `${totalUnread} unread message${totalUnread > 1 ? 's' : ''}` : 'All caught up!'}
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchConversations()}>
           <RefreshCw className="h-4 w-4 mr-2" />

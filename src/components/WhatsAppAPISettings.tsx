@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { 
@@ -53,6 +54,8 @@ export const WhatsAppAPISettings = () => {
     isTesting,
     getMessageStats 
   } = useWhatsAppAPI();
+  
+  const [sharedNumberWarning, setSharedNumberWarning] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     phone_number_id: "",
@@ -161,7 +164,28 @@ export const WhatsAppAPISettings = () => {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Check if this phone_number_id is used by other organizations
+    if (!formData.use_default_api && formData.phone_number_id) {
+      const { data: existingSettings } = await supabase
+        .from('whatsapp_api_settings')
+        .select('organization_id, organizations!inner(name)')
+        .eq('phone_number_id', formData.phone_number_id)
+        .eq('use_default_api', false)
+        .neq('organization_id', settings?.organization_id || '');
+      
+      if (existingSettings && existingSettings.length > 0) {
+        const orgNames = existingSettings.map((s: any) => s.organizations?.name).filter(Boolean).join(', ');
+        setSharedNumberWarning(
+          `This Phone Number ID is already used by: ${orgNames || 'other organizations'}. Messages will be routed based on customer's last interaction.`
+        );
+      } else {
+        setSharedNumberWarning(null);
+      }
+    } else {
+      setSharedNumberWarning(null);
+    }
+    
     updateSettings(formData);
   };
 
@@ -326,6 +350,17 @@ export const WhatsAppAPISettings = () => {
               onChange={(e) => handleInputChange("business_name", e.target.value)}
             />
           </div>
+
+          {/* Shared Number Warning */}
+          {sharedNumberWarning && (
+            <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-200">Shared Phone Number Detected</AlertTitle>
+              <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
+                {sharedNumberWarning}
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="flex items-center justify-between pt-2">
             <div className="flex items-center space-x-2">
