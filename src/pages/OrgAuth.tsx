@@ -252,18 +252,24 @@ export default function OrgAuth() {
             </p>
           </div>
 
-          {/* POS Hero Image - Large, Natural, No Frame */}
-          <div className="flex-1 flex items-center justify-center -mx-4 -mt-2">
-            <img 
-              src={posIllustration} 
-              alt="SafPro ERP - Complete POS System" 
-              className="w-full max-w-none h-auto object-contain"
-              style={{ 
-                filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.12))',
-                maxHeight: '440px',
-                minHeight: '360px'
-              }}
-            />
+          {/* POS Hero Image - Large, Natural, Cropped to hide embedded branding */}
+          <div className="flex-1 flex items-center justify-center -mx-4 overflow-hidden">
+            <div 
+              className="relative w-full flex items-end justify-center"
+              style={{ maxHeight: '420px', minHeight: '340px' }}
+            >
+              <img 
+                src={posIllustration} 
+                alt="SafPro ERP - Complete POS System" 
+                className="w-full max-w-none h-auto object-cover object-bottom"
+                style={{ 
+                  filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.12))',
+                  maxHeight: '500px',
+                  marginTop: '-60px', /* Crop top portion to hide embedded branding */
+                  clipPath: 'inset(12% 0 0 0)' /* Hide top 12% of image where branding appears */
+                }}
+              />
+            </div>
           </div>
 
           {/* Software Features - Soft White Cards */}
