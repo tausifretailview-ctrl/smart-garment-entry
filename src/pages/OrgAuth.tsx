@@ -234,42 +234,31 @@ export default function OrgAuth() {
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col px-10 py-5">
-          {/* SafPro Logo - Clean, minimal, top left */}
-          <div className="mb-1">
-            <img 
-              src={safproLogo} 
-              alt="SafPro ERP" 
-              className="h-14 w-auto object-contain"
-              style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.06))' }}
-            />
-          </div>
-
-          {/* POS Hero Image Section - Stretched to top, realistic product photo style */}
-          <div className="flex-1 flex items-start justify-center overflow-hidden -mt-4">
+        <div className="relative z-10 flex-1 flex flex-col px-10 py-6">
+          {/* POS Hero Image Section - Full height, clearly visible above features */}
+          <div className="flex-1 flex items-center justify-center overflow-hidden mb-5">
             <div 
-              className="relative w-full flex items-end justify-center overflow-hidden"
+              className="relative w-full flex items-center justify-center overflow-hidden rounded-2xl"
               style={{ 
-                minHeight: '420px',
+                minHeight: '380px',
                 background: 'linear-gradient(180deg, rgba(248,250,252,0.3) 0%, rgba(241,245,249,0.5) 50%, rgba(226,232,240,0.4) 100%)'
               }}
             >
               {/* Subtle desk shadow beneath POS */}
               <div 
-                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-8 rounded-full opacity-20"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-10 rounded-full opacity-25"
                 style={{ 
-                  background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, transparent 70%)',
-                  filter: 'blur(8px)'
+                  background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%)',
+                  filter: 'blur(10px)'
                 }}
               />
               <img 
                 src={posIllustration} 
                 alt="Complete POS System" 
-                className="w-full max-w-none h-auto object-cover object-top relative z-10"
+                className="w-full max-w-[90%] h-auto object-contain relative z-10"
                 style={{ 
-                  filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.15)) contrast(1.05) saturate(1.08) brightness(1.01)',
-                  maxHeight: '480px',
-                  marginTop: '-20px',
+                  filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.18)) contrast(1.05) saturate(1.08) brightness(1.02)',
+                  maxHeight: '360px',
                   imageRendering: 'auto'
                 }}
               />
