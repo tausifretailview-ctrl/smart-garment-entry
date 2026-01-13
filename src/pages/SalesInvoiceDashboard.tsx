@@ -1512,7 +1512,7 @@ export default function SalesInvoiceDashboard() {
                                     invoice.payment_status === 'completed' 
                                       ? 'bg-green-500 hover:bg-green-600 text-white' 
                                       : invoice.payment_status === 'partial' 
-                                        ? 'bg-pink-400 hover:bg-pink-500 text-white' 
+                                        ? 'bg-orange-400 hover:bg-orange-500 text-white' 
                                         : 'bg-red-500 hover:bg-red-600 text-white'
                                   }`}
                                 >

@@ -442,7 +442,7 @@ Thank you for your business!`;
       case 'completed':
         return <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
       case 'partial':
-        return <Badge className="min-w-[70px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Partial</Badge>;
+        return <Badge className="min-w-[70px] justify-center bg-orange-400 hover:bg-orange-500 text-white">Partial</Badge>;
       case 'pending':
         return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
       default:
