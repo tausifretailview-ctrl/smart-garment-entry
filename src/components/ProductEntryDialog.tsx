@@ -934,6 +934,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                           <TableHead>Barcode</TableHead>
                           <TableHead>Opening Qty</TableHead>
                           <TableHead>Active</TableHead>
+                          <TableHead></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -990,6 +991,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                                 checked={variant.active}
                                 onCheckedChange={(checked) => handleVariantChange(index, "active", checked)}
                               />
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                onClick={() => setVariants(variants.filter((_, i) => i !== index))}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
