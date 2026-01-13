@@ -224,7 +224,7 @@ export default function OrgAuth() {
             <img 
               src={safproLogo} 
               alt="SafPro ERP" 
-              className="h-12 w-auto mx-auto object-contain"
+              className="h-20 w-auto mx-auto object-contain"
             />
           </div>
           
