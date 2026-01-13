@@ -6,17 +6,29 @@ const corsHeaders = {
 };
 
 // Helper to find organization by phone number ID from settings
+// Returns settings array if multiple orgs share the same phone_number_id
 async function findOrganizationByPhoneId(supabase: any, phoneNumberId: string) {
   // First check if any org has this specific phone_number_id
-  const { data: orgSettings } = await supabase
+  const { data: orgSettings, error } = await supabase
     .from('whatsapp_api_settings')
     .select('*')
     .eq('phone_number_id', phoneNumberId)
-    .eq('use_default_api', false)
-    .maybeSingle();
+    .eq('use_default_api', false);
   
-  if (orgSettings) {
-    return orgSettings;
+  if (error) {
+    console.error('Error fetching org settings by phone_number_id:', error);
+  }
+
+  // If exactly one org has this phone_number_id, return it
+  if (orgSettings && orgSettings.length === 1) {
+    return orgSettings[0];
+  }
+  
+  // If multiple orgs share this phone_number_id, return null
+  // The caller should use customer phone lookup to disambiguate
+  if (orgSettings && orgSettings.length > 1) {
+    console.log(`Multiple orgs (${orgSettings.length}) share phone_number_id: ${phoneNumberId}. Will use customer phone lookup.`);
+    return { is_shared_number: true, settings_list: orgSettings };
   }
 
   // Check if this is the platform default phone number
@@ -441,13 +453,33 @@ Deno.serve(async (req) => {
                 // Find organization settings by phone_number_id
                 let settings = await findOrganizationByPhoneId(supabase, phoneNumberId);
                 
+                // Get customer phone from first message for routing
+                const firstMessage = change.value.messages[0];
+                const senderPhone = firstMessage?.from;
+                
+                // If multiple orgs share this phone number, route by customer phone
+                if (settings?.is_shared_number) {
+                  console.log('Multiple orgs share this phone number, routing by customer phone...');
+                  
+                  if (senderPhone) {
+                    const routedSettings = await findOrganizationByCustomerPhone(supabase, senderPhone);
+                    if (routedSettings) {
+                      console.log('Routed to organization:', routedSettings.organization_id);
+                      settings = routedSettings;
+                    } else {
+                      // If no previous interaction, use the first org in the list
+                      console.log('No previous org found for customer, using first org with this phone number');
+                      settings = settings.settings_list[0];
+                    }
+                  } else {
+                    // Fallback to first org
+                    settings = settings.settings_list[0];
+                  }
+                }
+                
                 // If this is the platform default number, we need special routing
                 if (settings?.is_platform_default) {
                   console.log('Incoming message on shared platform number, routing by customer phone...');
-                  
-                  // Get customer phone from first message
-                  const firstMessage = change.value.messages[0];
-                  const senderPhone = firstMessage?.from;
                   
                   if (senderPhone) {
                     const routedSettings = await findOrganizationByCustomerPhone(supabase, senderPhone);
