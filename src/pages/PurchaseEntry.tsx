@@ -1312,19 +1312,21 @@ const PurchaseEntry = () => {
         });
       }
       
-      // Check MRP
-      const itemMrp = item.mrp || 0;
-      const variantMrp = variant.mrp || 0;
-      if (variantMrp !== itemMrp && itemMrp > 0) {
-        changes.push({
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          size: item.size,
-          barcode: item.barcode,
-          field: "mrp",
-          old_value: variantMrp,
-          new_value: itemMrp,
-        });
+      // Check MRP only if MRP setting is enabled
+      if (showMrp) {
+        const itemMrp = item.mrp || 0;
+        const variantMrp = variant.mrp || 0;
+        if (variantMrp !== itemMrp && itemMrp > 0) {
+          changes.push({
+            sku_id: item.sku_id,
+            product_name: item.product_name,
+            size: item.size,
+            barcode: item.barcode,
+            field: "mrp",
+            old_value: variantMrp,
+            new_value: itemMrp,
+          });
+        }
       }
     }
     
