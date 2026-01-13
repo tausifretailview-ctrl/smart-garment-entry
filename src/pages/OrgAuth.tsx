@@ -272,17 +272,17 @@ export default function OrgAuth() {
             <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3.5">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white rounded-xl px-4 py-3.5 shadow-md border border-slate-100 hover:shadow-lg transition-all duration-200"
+                  className="bg-white rounded-xl px-5 py-4 shadow-md border border-slate-100 hover:shadow-lg transition-all duration-200"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-700 text-sm leading-tight font-medium">{feature}</span>
+                    <span className="text-slate-800 text-sm leading-tight font-semibold">{feature}</span>
                   </div>
                 </div>
               ))}
