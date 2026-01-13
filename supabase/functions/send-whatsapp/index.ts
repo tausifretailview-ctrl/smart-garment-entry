@@ -217,12 +217,24 @@ serve(async (req) => {
       referenceType 
     }: SendWhatsAppRequest = await req.json();
 
-    // Validate required fields - templateType is only required for template messages
-    if (!organizationId || !phone || !message) {
+    // Validate required fields - message is optional for template messages
+    if (!organizationId || !phone) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'Missing required fields: organizationId, phone, message' 
+          error: 'Missing required fields: organizationId, phone' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // For non-template messages, message is required
+    const isTemplateMessage = templateType || templateName;
+    if (!isTemplateMessage && !message) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Message is required for non-template messages' 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
