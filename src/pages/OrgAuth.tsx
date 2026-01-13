@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { validateAuth } from "@/lib/validations";
-import safproLogo from "@/assets/safpro-logo.png";
+import safproLogo from "@/assets/safpro-logo-full.png";
 
 interface Organization {
   id: string;
@@ -219,60 +219,59 @@ export default function OrgAuth() {
   const chartHeights = [40, 70, 50, 90, 60];
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex w-full">
       {/* Left Panel - Branding with Animated Dashboard */}
-      <div className="hidden lg:flex lg:w-[55%] bg-gradient-to-br from-indigo-50 via-indigo-100 to-purple-100 flex-col items-center justify-center p-12 relative overflow-hidden">
-        {/* Decorative background circles */}
-        <div className="absolute top-20 left-10 w-32 h-32 bg-indigo-200/30 rounded-full blur-2xl" />
-        <div className="absolute bottom-20 right-10 w-48 h-48 bg-purple-200/40 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/4 w-24 h-24 bg-violet-200/30 rounded-full blur-xl" />
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-900 flex-col items-center justify-center p-8 relative overflow-hidden">
+        {/* Decorative background elements */}
+        <div className="absolute top-20 left-10 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl" />
         
-        {/* SafPro ERP Branding */}
-        <div className="text-center z-10 mb-8">
+        {/* SafPro ERP Branding - Top Left */}
+        <div className="absolute top-8 left-8 z-10">
           <img 
             src={safproLogo} 
             alt="SafPro ERP" 
-            className="h-20 w-auto mx-auto mb-4 object-contain"
+            className="h-12 w-auto object-contain"
           />
-          <p className="text-lg text-indigo-600 font-medium">Clean & Professional Software</p>
+          <p className="text-xs text-slate-400 uppercase tracking-widest mt-2">Clean & Professional Software</p>
         </div>
 
-        {/* Animated Mock Dashboard */}
-        <div className="z-10 w-full max-w-md">
+        {/* Animated Mock Dashboard - Centered */}
+        <div className="z-10 w-full max-w-lg mt-8">
           {/* Monitor Frame */}
-          <div className="bg-slate-800 rounded-2xl p-4 shadow-2xl">
+          <div className="bg-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-700/50">
             {/* Traffic light dots & title */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-4">
               <div className="w-3 h-3 rounded-full bg-red-400" />
               <div className="w-3 h-3 rounded-full bg-yellow-400" />
               <div className="w-3 h-3 rounded-full bg-green-400" />
-              <span className="text-white/80 text-xs ml-auto font-mono">SMART INVENTORY v4.0</span>
+              <span className="text-slate-400 text-xs ml-auto font-mono tracking-wide">SMART INVENTORY v4.0</span>
             </div>
             
             {/* Dashboard Content */}
-            <div className="bg-slate-100 rounded-lg p-4 space-y-4">
+            <div className="bg-slate-50 rounded-xl p-5 space-y-5">
               {/* Stats Cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Total Stock</p>
-                  <p className="text-xl font-bold text-indigo-600">1,284</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Total Stock</p>
+                  <p className="text-2xl font-bold text-indigo-600">1,284</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Today Sales</p>
-                  <p className="text-xl font-bold text-green-500">₹45k</p>
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Today Sales</p>
+                  <p className="text-2xl font-bold text-green-500">₹45k</p>
                 </div>
-                <div className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wide">Pending</p>
-                  <p className="text-xl font-bold text-orange-500">12</p>
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-100">
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Pending</p>
+                  <p className="text-2xl font-bold text-orange-500">12</p>
                 </div>
               </div>
               
               {/* Animated Chart Bars */}
-              <div className="flex items-end justify-center gap-3 h-20 pt-2">
+              <div className="flex items-end justify-between gap-4 h-28 px-4">
                 {chartHeights.map((height, i) => (
                   <div 
                     key={i}
-                    className="w-10 bg-gradient-to-t from-indigo-400 to-indigo-300 rounded-t origin-bottom animate-chart-bar"
+                    className="flex-1 bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t-lg origin-bottom animate-chart-bar shadow-sm"
                     style={{ 
                       height: `${height}%`,
                       animationDelay: `${i * 0.3}s`
@@ -283,33 +282,38 @@ export default function OrgAuth() {
             </div>
           </div>
           
-          {/* Receipt Printer Animation */}
-          <div className="flex justify-center -mt-2">
-            <div className="bg-slate-700 rounded-b-lg px-10 py-3 relative overflow-hidden">
-              <div className="w-16 h-6 bg-white rounded-sm animate-bill-slide" />
+          {/* Receipt/Barcode Printer Animation */}
+          <div className="flex justify-center -mt-1">
+            <div className="bg-slate-700 rounded-b-xl px-12 py-4 relative overflow-hidden shadow-lg">
+              {/* Printer slot lines */}
+              <div className="absolute top-0 left-4 right-4 h-0.5 bg-slate-600" />
+              {/* Animated receipt paper with barcode lines */}
+              <div className="w-20 bg-white rounded-sm animate-bill-slide p-1 space-y-0.5">
+                <div className="h-0.5 bg-slate-800 w-full" />
+                <div className="h-0.5 bg-slate-800 w-3/4" />
+                <div className="h-0.5 bg-slate-800 w-full" />
+                <div className="h-0.5 bg-slate-800 w-1/2" />
+                <div className="h-0.5 bg-slate-800 w-full" />
+                <div className="h-0.5 bg-slate-800 w-2/3" />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Feature Badges */}
-        <div className="flex flex-wrap justify-center gap-3 mt-8 z-10">
-          <Badge variant="secondary" className="bg-white/80 backdrop-blur-sm px-3 py-1.5 text-sm shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500 mr-1.5" />
+        <div className="flex flex-wrap justify-center gap-4 mt-10 z-10">
+          <Badge variant="secondary" className="bg-white/10 backdrop-blur-sm text-white border-white/20 px-4 py-2 text-sm">
+            <CheckCircle2 className="w-4 h-4 text-green-400 mr-2" />
             GST Ready
           </Badge>
-          <Badge variant="secondary" className="bg-white/80 backdrop-blur-sm px-3 py-1.5 text-sm shadow-sm">
-            <CheckCircle2 className="w-4 h-4 text-green-500 mr-1.5" />
+          <Badge variant="secondary" className="bg-white/10 backdrop-blur-sm text-white border-white/20 px-4 py-2 text-sm">
+            <CheckCircle2 className="w-4 h-4 text-green-400 mr-2" />
             Barcode Print
           </Badge>
-          <Badge variant="secondary" className="bg-white/80 backdrop-blur-sm px-3 py-1.5 text-sm shadow-sm">
-            <Cloud className="w-4 h-4 text-blue-500 mr-1.5" />
+          <Badge variant="secondary" className="bg-white/10 backdrop-blur-sm text-white border-white/20 px-4 py-2 text-sm">
+            <Cloud className="w-4 h-4 text-blue-400 mr-2" />
             Cloud Sync
           </Badge>
-        </div>
-
-        {/* Footer */}
-        <div className="absolute bottom-6 text-center text-indigo-500 text-sm">
-          <p>Powered by SafPro ERP</p>
         </div>
       </div>
 
