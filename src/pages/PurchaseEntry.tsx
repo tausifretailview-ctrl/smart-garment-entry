@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, ShoppingCart, Plus, Trash2, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -2405,7 +2405,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-16">GST %</TableHead>
                     <TableHead className="w-24">GST AMT</TableHead>
                     <TableHead className="w-24">TOTAL</TableHead>
-                    <TableHead className="w-12"></TableHead>
+                    <TableHead className="w-12 sticky right-0 bg-background"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -2548,13 +2548,14 @@ const PurchaseEntry = () => {
                         <TableCell className="font-semibold">
                           ₹{total.toFixed(2)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-background">
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={() => removeLineItem(item.temp_id)}
                           >
-                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <X className="h-4 w-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
