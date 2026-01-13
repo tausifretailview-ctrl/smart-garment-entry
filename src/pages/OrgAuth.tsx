@@ -221,18 +221,17 @@ export default function OrgAuth() {
     <div className="min-h-screen flex w-full bg-slate-50">
       {/* Left Panel - Product Showcase */}
       <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
-        {/* Clean, Light Office Background - Minimal blur */}
+        {/* Clean, Crisp Background - No haze */}
         <div className="absolute inset-0">
-          {/* Light neutral base */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-sky-50/30 to-slate-100/80" />
+          {/* Light neutral base - sharper */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-100/60" />
           
-          {/* Subtle window light from top-right */}
-          <div className="absolute top-0 right-0 w-2/3 h-1/2 bg-gradient-to-bl from-white/60 via-white/20 to-transparent" />
+          {/* Subtle window light from top-right - reduced opacity */}
+          <div className="absolute top-0 right-0 w-2/3 h-1/2 bg-gradient-to-bl from-white/40 via-transparent to-transparent" />
           
-          {/* Subtle depth elements - reduced blur */}
-          <div className="absolute top-12 left-8 w-32 h-24 bg-sky-100/30 rounded-2xl blur-xl" />
-          <div className="absolute top-20 right-16 w-40 h-32 bg-blue-50/40 rounded-2xl blur-xl" />
-          <div className="absolute bottom-32 right-12 w-36 h-28 bg-slate-100/50 rounded-2xl blur-xl" />
+          {/* Minimal depth accents - less blur, lower opacity */}
+          <div className="absolute top-12 left-8 w-32 h-24 bg-sky-50/20 rounded-2xl blur-lg" />
+          <div className="absolute bottom-32 right-12 w-36 h-28 bg-slate-50/30 rounded-2xl blur-lg" />
         </div>
 
         {/* Content */}
@@ -258,10 +257,11 @@ export default function OrgAuth() {
                 alt="Complete POS System" 
                 className="w-full max-w-none h-auto object-cover object-bottom"
                 style={{ 
-                  filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.15)) contrast(1.02) saturate(1.05)',
+                  filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.18)) contrast(1.08) saturate(1.1) brightness(1.02)',
                   maxHeight: '480px',
                   marginTop: '-55px',
-                  clipPath: 'inset(11% 0 0 0)'
+                  clipPath: 'inset(11% 0 0 0)',
+                  imageRendering: 'auto'
                 }}
               />
             </div>
