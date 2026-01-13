@@ -268,7 +268,7 @@ export default function OrgAuth() {
           </div>
 
           {/* Software Features - Prominent Cards */}
-          <div className="mt-5">
+          <div className="mt-3">
             <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide">
               Software Features
             </h3>
@@ -286,30 +286,6 @@ export default function OrgAuth() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="mt-5 pt-4 border-t border-slate-200/70">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="bg-slate-100 rounded-lg p-1.5">
-                  <div className="w-5 h-4 bg-slate-500 rounded relative">
-                    <div className="absolute bottom-0 left-0.5 right-0.5 h-1.5 bg-white rounded-sm" />
-                  </div>
-                </div>
-                <span className="text-slate-500 text-xs font-medium">Thermal & Barcode Ready</span>
-              </div>
-              
-              <a 
-                href="https://adtechagency.in/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-slate-500 text-xs font-medium hover:text-slate-700 transition-colors"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>www.adtechagency.in</span>
-              </a>
             </div>
           </div>
         </div>
