@@ -10,6 +10,7 @@ import { Loader2, Building2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
+import safproLogo from "@/assets/safpro-logo.png";
 
 interface Organization {
   id: string;
@@ -218,22 +219,34 @@ export default function OrgAuth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-4">
-          {logoUrl ? (
-            <div className="mx-auto mb-2">
-              <img 
-                src={logoUrl} 
-                alt={displayName} 
-                className="h-20 w-auto mx-auto object-contain"
-              />
-            </div>
-          ) : (
-            <div 
-              className="mx-auto w-16 h-16 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: `${brandColor}20` }}
-            >
-              <Building2 className="h-8 w-8" style={{ color: brandColor }} />
-            </div>
-          )}
+          {/* SafPro ERP Platform Logo */}
+          <div className="mx-auto">
+            <img 
+              src={safproLogo} 
+              alt="SafPro ERP" 
+              className="h-12 w-auto mx-auto object-contain"
+            />
+          </div>
+          
+          {/* Separator and Organization Branding */}
+          <div className="border-t border-border/50 pt-4">
+            {logoUrl ? (
+              <div className="mx-auto mb-2">
+                <img 
+                  src={logoUrl} 
+                  alt={displayName} 
+                  className="h-20 w-auto mx-auto object-contain"
+                />
+              </div>
+            ) : (
+              <div 
+                className="mx-auto w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: `${brandColor}20` }}
+              >
+                <Building2 className="h-8 w-8" style={{ color: brandColor }} />
+              </div>
+            )}
+          </div>
           <div>
             <CardTitle 
               className="text-2xl"
