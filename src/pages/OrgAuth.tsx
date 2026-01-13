@@ -221,68 +221,86 @@ export default function OrgAuth() {
     <div className="min-h-screen flex w-full bg-slate-50">
       {/* Left Panel - Product Showcase */}
       <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
-        {/* Clean, Crisp Background - No haze */}
+        {/* Split Background - Top: Office Desk Scene, Bottom: Frosted Panel */}
         <div className="absolute inset-0">
-          {/* Light neutral base - sharper */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-slate-100/60" />
+          {/* Office desk scene background for POS image - warm, professional */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100/80" />
           
-          {/* Subtle window light from top-right - reduced opacity */}
-          <div className="absolute top-0 right-0 w-2/3 h-1/2 bg-gradient-to-bl from-white/40 via-transparent to-transparent" />
+          {/* Subtle warm office lighting from top */}
+          <div className="absolute top-0 left-0 right-0 h-2/3 bg-gradient-to-br from-amber-50/30 via-slate-50 to-slate-100/50" />
           
-          {/* Minimal depth accents - less blur, lower opacity */}
-          <div className="absolute top-12 left-8 w-32 h-24 bg-sky-50/20 rounded-2xl blur-lg" />
-          <div className="absolute bottom-32 right-12 w-36 h-28 bg-slate-50/30 rounded-2xl blur-lg" />
+          {/* Desk surface hint at bottom of POS area */}
+          <div className="absolute top-[45%] left-0 right-0 h-24 bg-gradient-to-b from-transparent via-stone-100/40 to-stone-200/30" />
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col px-10 py-6">
-          {/* SafPro Logo & Branding - TOP LEFT ONLY, No tagline */}
-          <div className="mb-2">
+        <div className="relative z-10 flex-1 flex flex-col px-10 py-5">
+          {/* SafPro Logo - Clean, minimal, top left */}
+          <div className="mb-1">
             <img 
               src={safproLogo} 
               alt="SafPro ERP" 
-              className="h-16 w-auto object-contain"
-              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.08))' }}
+              className="h-14 w-auto object-contain"
+              style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.06))' }}
             />
           </div>
 
-          {/* POS Hero Image - Sharp, Clean, Premium */}
-          <div className="flex-1 flex items-center justify-center -mx-2 overflow-hidden">
+          {/* POS Hero Image Section - Distinct realistic product photo style */}
+          <div className="flex-1 flex items-center justify-center overflow-hidden py-2">
             <div 
-              className="relative w-full flex items-end justify-center"
-              style={{ maxHeight: '400px', minHeight: '320px' }}
+              className="relative w-full flex items-end justify-center rounded-2xl overflow-hidden"
+              style={{ 
+                maxHeight: '380px', 
+                minHeight: '300px',
+                background: 'linear-gradient(180deg, rgba(248,250,252,0.3) 0%, rgba(241,245,249,0.5) 50%, rgba(226,232,240,0.4) 100%)'
+              }}
             >
+              {/* Subtle desk shadow beneath POS */}
+              <div 
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-3/4 h-8 rounded-full opacity-20"
+                style={{ 
+                  background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.3) 0%, transparent 70%)',
+                  filter: 'blur(8px)'
+                }}
+              />
               <img 
                 src={posIllustration} 
                 alt="Complete POS System" 
-                className="w-full max-w-none h-auto object-cover object-bottom"
+                className="w-full max-w-none h-auto object-cover object-bottom relative z-10"
                 style={{ 
-                  filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.18)) contrast(1.08) saturate(1.1) brightness(1.02)',
-                  maxHeight: '480px',
-                  marginTop: '-55px',
-                  clipPath: 'inset(11% 0 0 0)',
+                  filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.15)) contrast(1.05) saturate(1.08) brightness(1.01)',
+                  maxHeight: '440px',
+                  marginTop: '-40px',
+                  clipPath: 'inset(10% 0 0 0)',
                   imageRendering: 'auto'
                 }}
               />
             </div>
           </div>
 
-          {/* Software Features - Prominent Cards */}
-          <div className="mt-3">
-            <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide">
+          {/* Software Features - Frosted Glass Panel Container */}
+          <div 
+            className="mt-4 rounded-2xl p-5 border border-white/60"
+            style={{
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(248,250,252,0.9) 50%, rgba(241,245,249,0.85) 100%)',
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
+            }}
+          >
+            <h3 className="text-slate-700 text-sm font-semibold mb-3.5 tracking-wide uppercase">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-3 gap-3">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white rounded-xl px-5 py-4 shadow-md border border-slate-100 hover:shadow-lg transition-all duration-200"
+                  className="bg-white/90 rounded-xl px-4 py-3.5 shadow-sm border border-slate-100/80 hover:shadow-md hover:bg-white transition-all duration-200"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-800 text-sm leading-tight font-semibold">{feature}</span>
+                    <span className="text-slate-700 text-xs leading-tight font-semibold">{feature}</span>
                   </div>
                 </div>
               ))}
