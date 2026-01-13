@@ -221,71 +221,45 @@ export default function OrgAuth() {
     <div className="min-h-screen flex w-full bg-slate-50">
       {/* Left Panel - Product Showcase */}
       <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
-        {/* Split Background - Top: Office Desk Scene, Bottom: Frosted Panel */}
-        <div className="absolute inset-0">
-          {/* Office desk scene background for POS image - warm, professional */}
-          <div className="absolute inset-0 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100/80" />
-          
-          {/* Subtle warm office lighting from top */}
-          <div className="absolute top-0 left-0 right-0 h-2/3 bg-gradient-to-br from-amber-50/30 via-slate-50 to-slate-100/50" />
-          
-          {/* Desk surface hint at bottom of POS area */}
-          <div className="absolute top-[45%] left-0 right-0 h-24 bg-gradient-to-b from-transparent via-stone-100/40 to-stone-200/30" />
-        </div>
+        {/* Background */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-slate-100/50 to-slate-100" />
 
-        {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col px-10 py-6">
-          {/* POS Hero Image Section - Full height, clearly visible above features */}
-          <div className="flex-1 flex items-center justify-center overflow-hidden mb-5">
-            <div 
-              className="relative w-full flex items-center justify-center overflow-hidden rounded-2xl"
+        {/* Content - Scrollable single page layout */}
+        <div className="relative z-10 flex-1 flex flex-col justify-between px-8 py-6">
+          {/* POS Hero Image Section - Full width, properly aligned */}
+          <div className="flex-1 flex items-center justify-center">
+            <img 
+              src={posIllustration} 
+              alt="Complete POS System" 
+              className="w-full h-auto object-contain"
               style={{ 
-                minHeight: '380px',
-                background: 'linear-gradient(180deg, rgba(248,250,252,0.3) 0%, rgba(241,245,249,0.5) 50%, rgba(226,232,240,0.4) 100%)'
+                filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.15)) contrast(1.04) saturate(1.06) brightness(1.01)',
+                maxHeight: 'calc(100vh - 280px)',
+                imageRendering: 'auto'
               }}
-            >
-              {/* Subtle desk shadow beneath POS */}
-              <div 
-                className="absolute bottom-4 left-1/2 -translate-x-1/2 w-3/4 h-10 rounded-full opacity-25"
-                style={{ 
-                  background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, transparent 70%)',
-                  filter: 'blur(10px)'
-                }}
-              />
-              <img 
-                src={posIllustration} 
-                alt="Complete POS System" 
-                className="w-full max-w-[90%] h-auto object-contain relative z-10"
-                style={{ 
-                  filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.18)) contrast(1.05) saturate(1.08) brightness(1.02)',
-                  maxHeight: '360px',
-                  imageRendering: 'auto'
-                }}
-              />
-            </div>
+            />
           </div>
 
-          {/* Software Features - Frosted Glass Panel Container */}
+          {/* Software Features - Clean section below POS */}
           <div 
-            className="mt-4 rounded-2xl p-5 border border-white/60"
+            className="mt-6 rounded-2xl p-6 border border-white/70"
             style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.85) 0%, rgba(248,250,252,0.9) 50%, rgba(241,245,249,0.85) 100%)',
-              backdropFilter: 'blur(12px)',
-              boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.95) 100%)',
+              boxShadow: '0 4px 20px -4px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.6) inset'
             }}
           >
-            <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide uppercase">
+            <h3 className="text-slate-700 text-base font-bold mb-4 tracking-wide uppercase">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-3 gap-3">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/90 rounded-xl px-4 py-4 shadow-sm border border-slate-100/80 hover:shadow-md hover:bg-white transition-all duration-200"
+                  className="bg-white rounded-xl px-4 py-3.5 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                     </div>
                     <span className="text-slate-700 text-sm leading-tight font-semibold">{feature}</span>
                   </div>
