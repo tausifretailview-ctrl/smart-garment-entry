@@ -245,13 +245,12 @@ export default function OrgAuth() {
             />
           </div>
 
-          {/* POS Hero Image Section - Distinct realistic product photo style */}
-          <div className="flex-1 flex items-center justify-center overflow-hidden py-2">
+          {/* POS Hero Image Section - Stretched to top, realistic product photo style */}
+          <div className="flex-1 flex items-start justify-center overflow-hidden -mt-4">
             <div 
-              className="relative w-full flex items-end justify-center rounded-2xl overflow-hidden"
+              className="relative w-full flex items-end justify-center overflow-hidden"
               style={{ 
-                maxHeight: '380px', 
-                minHeight: '300px',
+                minHeight: '420px',
                 background: 'linear-gradient(180deg, rgba(248,250,252,0.3) 0%, rgba(241,245,249,0.5) 50%, rgba(226,232,240,0.4) 100%)'
               }}
             >
@@ -266,12 +265,11 @@ export default function OrgAuth() {
               <img 
                 src={posIllustration} 
                 alt="Complete POS System" 
-                className="w-full max-w-none h-auto object-cover object-bottom relative z-10"
+                className="w-full max-w-none h-auto object-cover object-top relative z-10"
                 style={{ 
                   filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.15)) contrast(1.05) saturate(1.08) brightness(1.01)',
-                  maxHeight: '440px',
-                  marginTop: '-40px',
-                  clipPath: 'inset(10% 0 0 0)',
+                  maxHeight: '480px',
+                  marginTop: '-20px',
                   imageRendering: 'auto'
                 }}
               />
@@ -287,20 +285,20 @@ export default function OrgAuth() {
               boxShadow: '0 4px 24px -4px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
             }}
           >
-            <h3 className="text-slate-700 text-sm font-semibold mb-3.5 tracking-wide uppercase">
+            <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide uppercase">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3.5">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/90 rounded-xl px-4 py-3.5 shadow-sm border border-slate-100/80 hover:shadow-md hover:bg-white transition-all duration-200"
+                  className="bg-white/90 rounded-xl px-4 py-4 shadow-sm border border-slate-100/80 hover:shadow-md hover:bg-white transition-all duration-200"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-3">
+                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-4 h-4 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-700 text-xs leading-tight font-semibold">{feature}</span>
+                    <span className="text-slate-700 text-sm leading-tight font-semibold">{feature}</span>
                   </div>
                 </div>
               ))}
