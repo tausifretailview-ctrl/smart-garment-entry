@@ -374,20 +374,25 @@ serve(async (req) => {
       console.log('Template params received:', JSON.stringify(templateParams));
       console.log('SaleData received:', JSON.stringify(saleData));
 
-      // Fetch template language from stored meta templates
+      // Fetch template info including components from stored meta templates
       // Prefer en_US over en as it's more common for Meta templates
       let templateLanguage = 'en_US'; // Default fallback - en_US is more common for Meta
+      let templateComponents: any[] | null = null;
+      
       const { data: metaTemplates } = await supabase
         .from('whatsapp_meta_templates')
-        .select('template_language')
+        .select('template_language, components')
         .eq('organization_id', organizationId)
         .eq('template_name', cleanedTemplateName);
 
       if (metaTemplates && metaTemplates.length > 0) {
         // Prefer en_US if multiple languages exist, otherwise use the first one found
         const enUSTemplate = metaTemplates.find((t: any) => t.template_language === 'en_US');
-        templateLanguage = enUSTemplate?.template_language || metaTemplates[0].template_language;
+        const selectedTemplate = enUSTemplate || metaTemplates[0];
+        templateLanguage = selectedTemplate.template_language;
+        templateComponents = selectedTemplate.components as any[];
         console.log('Using stored template language:', templateLanguage);
+        console.log('Template components from DB:', JSON.stringify(templateComponents));
       } else {
         console.log('Template not found in DB, using default language: en_US');
       }
@@ -498,13 +503,55 @@ serve(async (req) => {
         });
  
         console.log('Body parameters:', JSON.stringify(bodyParameters));
- 
-        (templatePayload.template as Record<string, unknown>).components = [
-          {
+
+        // Build components array
+        const components: Array<Record<string, unknown>> = [];
+        
+        // Add body component if we have body parameters
+        if (bodyParameters.length > 0) {
+          components.push({
             type: "body",
             parameters: bodyParameters
+          });
+        }
+
+        // Check if template has FLOW buttons and add button component if needed
+        // FLOW buttons require explicit button component with sub_type: "flow"
+        if (templateComponents && Array.isArray(templateComponents)) {
+          const buttonsComponent = templateComponents.find(
+            (c: any) => c?.type?.toUpperCase() === 'BUTTONS'
+          );
+          
+          if (buttonsComponent?.buttons && Array.isArray(buttonsComponent.buttons)) {
+            buttonsComponent.buttons.forEach((btn: any, idx: number) => {
+              if (btn?.type?.toUpperCase() === 'FLOW') {
+                // For FLOW buttons, we need to include the button component
+                // with the button text as parameter
+                components.push({
+                  type: "button",
+                  sub_type: "flow",
+                  index: String(idx),
+                  parameters: [
+                    {
+                      type: "action",
+                      action: {
+                        flow_token: "unused" // Required but can be any string for navigate flows
+                      }
+                    }
+                  ]
+                });
+                console.log(`Added FLOW button component at index ${idx}`);
+              }
+            });
           }
-        ];
+        }
+
+        // Set components on template payload
+        if (components.length > 0) {
+          (templatePayload.template as Record<string, unknown>).components = components;
+        }
+        
+        console.log('Components being sent:', JSON.stringify(components));
       } else {
         console.log('WARNING: No template params provided for template message!');
       }
