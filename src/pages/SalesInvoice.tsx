@@ -1509,7 +1509,6 @@ Thank you for choosing us!`;
                 .maybeSingle();
 
               const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-              const contactNumber = companySettings?.mobile_number || 'N/A';
 
               const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
                 day: '2-digit',
@@ -1517,17 +1516,9 @@ Thank you for choosing us!`;
                 year: 'numeric',
               });
               const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
-              const paymentStatus = 'Pending';
 
-              // Template params for "invoice" utility template:
-              // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
-              const templateParams = [
-                selectedCustomer.customer_name,
-                invoiceData.sale_number,
-                formattedDate,
-                formattedAmount,
-                companyName,
-              ];
+              // Calculate total quantity from items
+              const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
               const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${invoiceData.sale_number} has been updated.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
@@ -1538,12 +1529,17 @@ Thank you for choosing us!`;
                   message: messageText,
                   templateType: 'sales_invoice',
                   templateName: whatsappSettings.invoice_template_name || null,
-                  templateParams,
                   saleData: {
                     sale_id: editingInvoiceId,
                     org_slug: currentOrganization.slug,
                     customer_name: selectedCustomer.customer_name,
                     sale_number: invoiceData.sale_number,
+                    sale_date: invoiceDate,
+                    net_amount: netAmount,
+                    gross_amount: grossAmount,
+                    discount_amount: flatDiscountAmount,
+                    items_count: totalQty,
+                    organization_name: companyName,
                   },
                   referenceId: editingInvoiceId,
                   referenceType: 'sale',
@@ -1643,7 +1639,6 @@ Thank you for choosing us!`;
                 .maybeSingle();
 
               const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-              const contactNumber = companySettings?.mobile_number || 'N/A';
 
               const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
                 day: '2-digit',
@@ -1651,17 +1646,9 @@ Thank you for choosing us!`;
                 year: 'numeric',
               });
               const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
-              const paymentStatus = 'Pending';
 
-              // Template params for "invoice" utility template:
-              // 1. Customer Name, 2. Invoice Number, 3. Invoice Date, 4. Invoice Amount, 5. Organization Name
-              const templateParams = [
-                selectedCustomer.customer_name,
-                saleNumber,
-                formattedDate,
-                formattedAmount,
-                companyName,
-              ];
+              // Calculate total quantity from items
+              const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
               const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
@@ -1672,12 +1659,17 @@ Thank you for choosing us!`;
                   message: messageText,
                   templateType: 'sales_invoice',
                   templateName: whatsappSettings.invoice_template_name || null,
-                  templateParams,
                   saleData: {
                     sale_id: saleData.id,
                     org_slug: currentOrganization.slug,
                     customer_name: selectedCustomer.customer_name,
                     sale_number: saleNumber,
+                    sale_date: invoiceDate,
+                    net_amount: netAmount,
+                    gross_amount: grossAmount,
+                    discount_amount: flatDiscountAmount,
+                    items_count: totalQty,
+                    organization_name: companyName,
                   },
                   referenceId: saleData.id,
                   referenceType: 'sale',
