@@ -249,33 +249,30 @@ export default function OrgAuth() {
         </div>
 
         {/* Main Content Container - Unified Glass Card */}
-        <div className="relative z-10 flex-1 flex flex-col m-6 bg-white/70 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 overflow-hidden">
-          {/* POS Illustration Section */}
-          <div className="flex-shrink-0 flex items-center justify-center py-6 px-8">
+        <div className="relative z-10 flex-1 flex flex-col m-4 bg-white/60 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 overflow-hidden">
+          {/* POS Illustration Section - Large */}
+          <div className="flex-1 flex items-center justify-center p-4">
             <img 
               src={posIllustration} 
               alt="SafPro ERP - POS System" 
-              className="h-56 w-auto object-contain drop-shadow-lg"
+              className="w-full h-full max-h-[420px] object-contain drop-shadow-xl"
             />
           </div>
 
-          {/* Divider */}
-          <div className="mx-8 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
-
-          {/* Software Features - Horizontal Cards */}
-          <div className="flex-1 px-6 py-5">
-            <h3 className="text-slate-700 font-semibold text-sm mb-4 text-center">Software Features</h3>
-            <div className="grid grid-cols-3 gap-3">
+          {/* Software Features - Bottom Horizontal Cards */}
+          <div className="bg-white/90 px-5 py-4 border-t border-slate-200/50">
+            <h3 className="text-slate-700 font-semibold text-sm mb-3 text-center">Software Features</h3>
+            <div className="grid grid-cols-3 gap-2.5">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/80 rounded-lg p-3 shadow-sm border border-slate-100 hover:shadow-md hover:border-green-200 transition-all duration-200 group"
+                  className="bg-slate-50 rounded-lg p-2.5 shadow-sm border border-slate-100 hover:shadow-md hover:border-green-300 hover:bg-green-50/50 transition-all duration-200 group"
                 >
                   <div className="flex items-start gap-2">
                     <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                       <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-600 text-xs leading-tight">{feature}</span>
+                    <span className="text-slate-600 text-xs leading-tight font-medium">{feature}</span>
                   </div>
                 </div>
               ))}
