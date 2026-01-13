@@ -448,28 +448,7 @@ export default function OrgAuth() {
                 </a>
               </div>
 
-              {/* Website & Support */}
-              <div className="pt-5 border-t border-slate-100 space-y-3">
-                <a 
-                  href="https://adtechagency.in/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 text-slate-400 text-sm hover:text-slate-600 transition-colors"
-                >
-                  <Globe className="w-4 h-4" />
-                  <span className="font-medium">www.adtechagency.in</span>
-                </a>
-                
-                <a 
-                  href="tel:+918424034844"
-                  className="flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center shadow-sm">
-                    <Phone className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="font-semibold">+91-8424034844</span>
-                </a>
-              </div>
+
             </div>
           </div>
         </div>
