@@ -229,82 +229,89 @@ export default function OrgAuth() {
 
   return (
     <div className="min-h-screen flex w-full">
-      {/* Left Panel - Light Theme with POS Illustration */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-100 flex-col p-8 relative overflow-hidden">
-        {/* Subtle background effect */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-slate-400 to-transparent" />
+      {/* Left Panel - Integrated POS & Features with Office Background */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col relative overflow-hidden">
+        {/* Office Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100">
+          {/* Window/Office elements */}
+          <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-sky-200/40 to-transparent" />
+          <div className="absolute top-4 left-8 w-24 h-20 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm" />
+          <div className="absolute top-4 right-12 w-32 h-24 bg-white/20 rounded-lg border border-white/30 backdrop-blur-sm" />
+          <div className="absolute top-6 left-40 w-16 h-16 bg-white/15 rounded-lg border border-white/20 backdrop-blur-sm" />
+          {/* City silhouette */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 opacity-10">
+            <div className="absolute bottom-0 left-[5%] w-12 h-20 bg-slate-600 rounded-t-sm" />
+            <div className="absolute bottom-0 left-[12%] w-8 h-28 bg-slate-700 rounded-t-sm" />
+            <div className="absolute bottom-0 left-[18%] w-14 h-16 bg-slate-500 rounded-t-sm" />
+            <div className="absolute bottom-0 right-[15%] w-10 h-24 bg-slate-600 rounded-t-sm" />
+            <div className="absolute bottom-0 right-[8%] w-16 h-20 bg-slate-700 rounded-t-sm" />
+          </div>
         </div>
 
-        {/* POS Illustration with Logo - Center */}
-        <div className="flex-1 flex items-center justify-center z-10">
-          <img 
-            src={posIllustration} 
-            alt="SafPro ERP - POS System" 
-            className="w-full max-w-lg object-contain drop-shadow-xl"
-          />
-        </div>
-
-        {/* Bottom Section - Features & Hardware */}
-        <div className="z-10 grid grid-cols-2 gap-8">
-          {/* Software Features */}
-          <div>
-            <h3 className="text-slate-700 font-medium italic mb-4 text-sm">Software Features</h3>
-            <ul className="space-y-2.5">
-              {softwareFeatures.map((feature, index) => (
-                <li key={index} className="flex items-start gap-2">
-                  <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Check className="w-3 h-3 text-white" strokeWidth={3} />
-                  </div>
-                  <span className="text-slate-600 text-sm">{feature}</span>
-                </li>
-              ))}
-            </ul>
+        {/* Main Content Container - Unified Glass Card */}
+        <div className="relative z-10 flex-1 flex flex-col m-6 bg-white/70 backdrop-blur-md rounded-2xl shadow-xl border border-white/50 overflow-hidden">
+          {/* POS Illustration Section */}
+          <div className="flex-shrink-0 flex items-center justify-center py-6 px-8">
+            <img 
+              src={posIllustration} 
+              alt="SafPro ERP - POS System" 
+              className="h-56 w-auto object-contain drop-shadow-lg"
+            />
           </div>
 
-          {/* Supported Hardware - Thermal Printer */}
-          <div>
-            <h3 className="text-slate-700 font-medium italic mb-4 text-sm">Supported Hardware</h3>
-            <div className="flex justify-center">
-              {/* Thermal Printer Graphic */}
-              <div className="relative">
-                {/* Printer Body */}
-                <div className="bg-slate-700 rounded-lg p-4 w-32 shadow-lg">
-                  {/* Top vent lines */}
-                  <div className="flex gap-1 mb-2">
-                    {[...Array(8)].map((_, i) => (
-                      <div key={i} className="h-0.5 flex-1 bg-slate-600 rounded" />
-                    ))}
-                  </div>
-                  {/* Paper slot */}
-                  <div className="bg-slate-800 rounded h-2 w-full" />
-                  {/* Printing paper with barcode */}
-                  <div className="bg-white rounded-sm mt-1 p-1.5 animate-bill-slide overflow-hidden">
-                    <div className="flex justify-center gap-px">
-                      {[2, 1, 3, 1, 2, 1, 3, 2, 1, 2, 1, 3, 1, 2].map((w, i) => (
-                        <div key={i} className="bg-slate-900 h-6" style={{ width: `${w}px` }} />
-                      ))}
+          {/* Divider */}
+          <div className="mx-8 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+
+          {/* Software Features - Horizontal Cards */}
+          <div className="flex-1 px-6 py-5">
+            <h3 className="text-slate-700 font-semibold text-sm mb-4 text-center">Software Features</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {softwareFeatures.map((feature, index) => (
+                <div 
+                  key={index} 
+                  className="bg-white/80 rounded-lg p-3 shadow-sm border border-slate-100 hover:shadow-md hover:border-green-200 transition-all duration-200 group"
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
-                    <p className="text-[5px] text-center text-slate-500 mt-0.5 font-mono">8901234567890</p>
+                    <span className="text-slate-600 text-xs leading-tight">{feature}</span>
                   </div>
                 </div>
-                {/* Printer stand/base */}
-                <div className="bg-slate-600 rounded-b-lg h-2 w-28 mx-auto -mt-1" />
-              </div>
+              ))}
             </div>
           </div>
-        </div>
 
-        {/* Website Link - Bottom */}
-        <div className="z-10 mt-6 text-center">
-          <a 
-            href="https://adtechagency.in/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-slate-500 text-sm hover:text-slate-700 transition-colors"
-          >
-            Visit us: <span className="font-medium text-slate-700">www.adtechagency.in</span>
-          </a>
+          {/* Hardware & Website Footer */}
+          <div className="bg-slate-50/80 px-6 py-4 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              {/* Thermal Printer Mini */}
+              <div className="flex items-center gap-3">
+                <div className="bg-slate-700 rounded p-1.5 w-10 shadow-sm">
+                  <div className="bg-slate-800 rounded h-1 w-full mb-0.5" />
+                  <div className="bg-white rounded-sm p-0.5">
+                    <div className="flex justify-center gap-px">
+                      {[1, 2, 1, 2, 1].map((w, i) => (
+                        <div key={i} className="bg-slate-900 h-2" style={{ width: `${w}px` }} />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-xs text-slate-500 italic">Thermal Printer Support</span>
+              </div>
+
+              {/* Website Link */}
+              <a 
+                href="https://adtechagency.in/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-slate-500 text-xs hover:text-indigo-600 transition-colors"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span className="font-medium">www.adtechagency.in</span>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
 
