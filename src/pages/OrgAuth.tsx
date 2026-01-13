@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import safproLogo from "@/assets/safpro-logo.png";
+import posIllustration from "@/assets/pos-illustration.png";
 
 interface Organization {
   id: string;
@@ -216,22 +217,56 @@ export default function OrgAuth() {
   const brandColor = orgSettings?.bill_barcode_settings?.brand_color || "#3b82f6";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-4">
-          {/* SafPro ERP Platform Logo */}
-          <div className="mx-auto">
-            <img 
-              src={safproLogo} 
-              alt="SafPro ERP" 
-              className="h-20 w-auto mx-auto object-contain"
-            />
-          </div>
-          
-          {/* Separator and Organization Branding */}
-          <div className="border-t border-border/50 pt-4">
+    <div className="min-h-screen flex">
+      {/* Left Panel - Branding */}
+      <div className="hidden lg:flex lg:w-[55%] bg-gradient-to-br from-blue-50 via-blue-100 to-sky-100 flex-col items-center justify-center p-12 relative overflow-hidden">
+        {/* Decorative background circles */}
+        <div className="absolute top-20 left-10 w-32 h-32 bg-blue-200/30 rounded-full blur-2xl" />
+        <div className="absolute bottom-20 right-10 w-48 h-48 bg-sky-200/40 rounded-full blur-3xl" />
+        
+        {/* SafPro ERP Branding */}
+        <div className="text-center z-10">
+          <img 
+            src={safproLogo} 
+            alt="SafPro ERP" 
+            className="h-24 w-auto mx-auto mb-6 object-contain"
+          />
+          <h1 className="text-3xl font-bold text-blue-900 mb-2">SafPro ERP</h1>
+          <p className="text-lg text-blue-700 mb-10">Clean & Professional Software</p>
+        </div>
+
+        {/* POS System Illustration */}
+        <div className="z-10 max-w-lg">
+          <img 
+            src={posIllustration} 
+            alt="POS System" 
+            className="w-full h-auto object-contain drop-shadow-xl"
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="absolute bottom-6 text-center text-blue-600 text-sm">
+          <p>Powered by SafPro ERP</p>
+        </div>
+      </div>
+
+      {/* Right Panel - Login Form */}
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-12 bg-background">
+        <Card className="w-full max-w-md shadow-lg border-border/50">
+          <CardHeader className="text-center space-y-4 pb-6">
+            {/* Mobile: Show SafPro logo */}
+            <div className="lg:hidden mx-auto mb-2">
+              <img 
+                src={safproLogo} 
+                alt="SafPro ERP" 
+                className="h-16 w-auto mx-auto object-contain"
+              />
+              <div className="border-t border-border/50 mt-4 pt-4" />
+            </div>
+
+            {/* Organization Branding */}
             {logoUrl ? (
-              <div className="mx-auto mb-2">
+              <div className="mx-auto">
                 <img 
                   src={logoUrl} 
                   alt={displayName} 
@@ -246,77 +281,81 @@ export default function OrgAuth() {
                 <Building2 className="h-8 w-8" style={{ color: brandColor }} />
               </div>
             )}
-          </div>
-          <div>
-            <CardTitle 
-              className="text-2xl"
-              style={{ color: brandColor }}
-            >
-              {displayName}
-            </CardTitle>
-            <CardDescription className="mt-2">
-              Sign in to access your account
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          
-          <form onSubmit={handleSignIn} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-                required
-              />
-            </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                required
-              />
+            <div>
+              <CardTitle 
+                className="text-2xl font-bold"
+                style={{ color: brandColor }}
+              >
+                {displayName}
+              </CardTitle>
+              <CardDescription className="mt-2">
+                Sign in to access your account
+              </CardDescription>
             </div>
+          </CardHeader>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={loading}
-              style={{ backgroundColor: brandColor }}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                "Sign In"
-              )}
-            </Button>
-          </form>
+          <CardContent className="space-y-6">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  required
+                  className="h-11"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  required
+                  className="h-11"
+                />
+              </div>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Don't have access?</p>
-            <p className="mt-1">Contact your organization administrator</p>
-          </div>
-        </CardContent>
-      </Card>
+              <Button 
+                type="submit" 
+                className="w-full h-11 text-base font-medium" 
+                disabled={loading}
+                style={{ backgroundColor: brandColor }}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
+              </Button>
+            </form>
+
+            <div className="pt-4 text-center text-sm text-muted-foreground border-t border-border/50">
+              <p>Don't have access?</p>
+              <p className="mt-1">Contact your organization administrator</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
