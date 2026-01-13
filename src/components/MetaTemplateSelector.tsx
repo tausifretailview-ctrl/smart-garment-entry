@@ -112,6 +112,132 @@ const templateTypeLabels: Record<string, string> = {
   payment_reminder: 'Payment Reminder Template',
 };
 
+// Preset template configurations for quick setup
+const TEMPLATE_PRESETS: Record<string, { name: string; description: string; params: TemplateParam[] }[]> = {
+  invoice: [
+    {
+      name: '5-Param Invoice (Standard)',
+      description: 'Customer, Invoice No, Date, Amount, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'invoice_date', label: 'Invoice Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '6-Param Invoice (With Qty)',
+      description: 'Customer, Invoice No, Date, Amount, Qty, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'invoice_date', label: 'Invoice Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'items_count', label: 'Items Count' },
+        { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '4-Param Invoice (Simple)',
+      description: 'Customer, Invoice No, Amount, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'amount', label: 'Amount' },
+        { index: 4, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '6-Param with Invoice Link',
+      description: 'Customer, Invoice No, Date, Amount, Link, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'invoice_date', label: 'Invoice Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'invoice_link', label: 'Invoice Link' },
+        { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+  ],
+  quotation: [
+    {
+      name: '5-Param Quotation',
+      description: 'Customer, Quotation No, Date, Amount, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'quotation_number', label: 'Quotation Number' },
+        { index: 3, field: 'quotation_date', label: 'Quotation Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '6-Param with Validity',
+      description: 'Customer, Quotation No, Date, Amount, Valid Until, Org',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'quotation_number', label: 'Quotation Number' },
+        { index: 3, field: 'quotation_date', label: 'Quotation Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'valid_until', label: 'Valid Until' },
+        { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+  ],
+  sale_order: [
+    {
+      name: '5-Param Sale Order',
+      description: 'Customer, Order No, Date, Amount, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'order_number', label: 'Order Number' },
+        { index: 3, field: 'order_date', label: 'Order Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '6-Param with Delivery',
+      description: 'Customer, Order No, Date, Amount, Delivery Date, Org',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'order_number', label: 'Order Number' },
+        { index: 3, field: 'order_date', label: 'Order Date' },
+        { index: 4, field: 'amount', label: 'Amount' },
+        { index: 5, field: 'delivery_date', label: 'Delivery Date' },
+        { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+  ],
+  payment_reminder: [
+    {
+      name: '5-Param Payment Reminder',
+      description: 'Customer, Invoice No, Amount, Due Date, Org Name',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'amount', label: 'Amount' },
+        { index: 4, field: 'due_date', label: 'Due Date' },
+        { index: 5, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+    {
+      name: '6-Param with Days Overdue',
+      description: 'Customer, Invoice No, Amount, Due Date, Days, Org',
+      params: [
+        { index: 1, field: 'customer_name', label: 'Customer Name' },
+        { index: 2, field: 'invoice_number', label: 'Invoice Number' },
+        { index: 3, field: 'amount', label: 'Amount' },
+        { index: 4, field: 'due_date', label: 'Due Date' },
+        { index: 5, field: 'days_overdue', label: 'Days Overdue' },
+        { index: 6, field: 'organization_name', label: 'Organization Name' },
+      ],
+    },
+  ],
+};
+
 export const MetaTemplateSelector = ({
   templateType,
   selectedTemplateId,
@@ -125,6 +251,7 @@ export const MetaTemplateSelector = ({
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const availableFields = AVAILABLE_FIELDS[templateType] || AVAILABLE_FIELDS.invoice;
+  const presets = TEMPLATE_PRESETS[templateType] || [];
 
   // Fetch stored approved templates
   const { data: templates, isLoading: templatesLoading, refetch } = useQuery({
@@ -147,15 +274,39 @@ export const MetaTemplateSelector = ({
   // Find selected template
   const selectedTemplate = templates?.find(t => t.id === selectedTemplateId || t.template_name === selectedTemplateName);
 
+  // Get placeholder count from template
+  const getTemplateParamCount = (template: MetaTemplate): number => {
+    if (!template.components) return 0;
+    const bodyComponent = template.components.find?.((c: any) => c.type === 'BODY');
+    if (bodyComponent?.example?.body_text?.[0]) {
+      return bodyComponent.example.body_text[0].length;
+    }
+    const bodyText = bodyComponent?.text || '';
+    const placeholderMatches = bodyText.match(/\{\{(\d+)\}\}/g);
+    return placeholderMatches ? [...new Set(placeholderMatches)].length : 0;
+  };
+
   const handleTemplateSelect = (templateId: string) => {
     const template = templates?.find(t => t.id === templateId);
     if (template) {
       onTemplateChange(template.id, template.template_name);
       
-      // Always reset params when selecting a new template
-      let newParams: TemplateParam[] = [];
+      // Check if we already have saved params - don't reset if switching back to same template
+      if (params.length > 0 && selectedTemplateName === template.template_name) {
+        return; // Keep existing params
+      }
+      
+      // Get expected param count from template
+      const expectedParamCount = getTemplateParamCount(template);
+      
+      // If current params length matches template, keep them (user might be switching back)
+      if (params.length === expectedParamCount && params.some(p => p.field)) {
+        return; // Keep existing configured params
+      }
       
       // Auto-generate params based on template components if available
+      let newParams: TemplateParam[] = [];
+      
       if (template.components) {
         const bodyComponent = template.components.find?.((c: any) => c.type === 'BODY');
         if (bodyComponent?.example?.body_text?.[0]) {
@@ -182,9 +333,16 @@ export const MetaTemplateSelector = ({
         }
       }
       
-      // Always update params (even if empty, to clear old ones)
-      onParamsChange(newParams);
+      // Only update params if we generated new ones
+      if (newParams.length > 0) {
+        onParamsChange(newParams);
+      }
     }
+  };
+
+  const handlePresetSelect = (preset: { name: string; params: TemplateParam[] }) => {
+    onParamsChange([...preset.params]);
+    toast.success(`Applied preset: ${preset.name}`);
   };
 
   const addParameter = () => {
@@ -302,9 +460,30 @@ export const MetaTemplateSelector = ({
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">Template Parameters</Label>
               <span className="text-xs text-muted-foreground">
-                {params.length} parameter{params.length !== 1 ? 's' : ''}
+                {params.length} parameter{params.length !== 1 ? 's' : ''} configured
               </span>
             </div>
+
+            {/* Quick Preset Selection */}
+            {presets.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Quick Presets:</Label>
+                <div className="flex flex-wrap gap-2">
+                  {presets.map((preset, idx) => (
+                    <Button
+                      key={idx}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePresetSelect(preset)}
+                      className="text-xs h-7"
+                      title={preset.description}
+                    >
+                      {preset.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               {params.map((param, index) => (

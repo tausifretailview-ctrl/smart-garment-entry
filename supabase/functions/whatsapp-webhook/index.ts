@@ -551,6 +551,59 @@ Deno.serve(async (req) => {
                     
                     const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
                     
+                    // Check if this is a "Feedback" FLOW button click - auto-send invoice link after
+                    const isFeedbackButton = buttonText.toLowerCase().includes('feedback') || 
+                                             buttonId.toLowerCase().includes('feedback');
+                    
+                    if (isFeedbackButton && messageType === 'button') {
+                      console.log('Feedback button clicked, auto-sending invoice link...');
+                      
+                      // Get pending followup data
+                      const { data: pendingLogs } = await supabase
+                        .from('whatsapp_logs')
+                        .select('*')
+                        .eq('organization_id', organizationId)
+                        .ilike('phone_number', `%${cleanPhone}%`)
+                        .eq('pending_followup', true)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                      
+                      if (pendingLogs && pendingLogs.length > 0) {
+                        const log = pendingLogs[0];
+                        const followupData = log.followup_data as Record<string, string> | null;
+                        
+                        if (followupData && followupData.invoice_link) {
+                          const invoiceMessage = (settings.followup_invoice_message || '📄 Thank you for your feedback! 🙏\n\nHere is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nWe appreciate your business! 💫')
+                            .replace('{invoice_link}', followupData.invoice_link || '')
+                            .replace('{sale_number}', followupData.sale_number || '')
+                            .replace('{customer_name}', followupData.customer_name || '');
+                          
+                          const wamidReply = await sendWhatsAppMessage(settings, senderPhone, invoiceMessage);
+                          
+                          if (wamidReply) {
+                            await supabase.from('whatsapp_messages').insert({
+                              organization_id: organizationId,
+                              conversation_id: conversation.id,
+                              wamid: wamidReply,
+                              direction: 'outbound',
+                              message_type: 'text',
+                              message_text: invoiceMessage,
+                              status: 'sent',
+                              sent_at: new Date().toISOString(),
+                            });
+                            console.log('Auto-sent invoice link after feedback button click');
+                            
+                            // Mark followup as completed
+                            await supabase
+                              .from('whatsapp_logs')
+                              .update({ pending_followup: false })
+                              .eq('id', log.id);
+                          }
+                        }
+                      }
+                      continue; // Skip further processing for feedback button
+                    }
+                    
                     // Check if user selected one of our quick reply options
                     if (buttonId === 'invoice_link' || buttonId === 'social_media' || 
                         buttonId === 'google_review' || buttonId === 'chat_with_us') {
