@@ -208,6 +208,7 @@ export const useWhatsAppAPI = () => {
           templateName: params.templateName,
           referenceId: params.referenceId,
           referenceType: params.referenceType,
+          saleData: params.saleData, // Pass saleData for template parameter building
         },
       });
 
