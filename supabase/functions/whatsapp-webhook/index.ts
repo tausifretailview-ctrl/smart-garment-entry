@@ -636,6 +636,87 @@ Deno.serve(async (req) => {
                       continue; // Skip further processing for feedback button
                     }
                     
+                    // Check if this is "Order Details" button click - send invoice link + Google review
+                    const isOrderDetailsButton = buttonText.toLowerCase().includes('order details') || 
+                                                 buttonId.toLowerCase().includes('order_details') ||
+                                                 buttonId.toLowerCase().includes('order-details');
+                    
+                    if (isOrderDetailsButton && messageType === 'button') {
+                      console.log('Order Details button clicked, auto-sending invoice link + review request...');
+                      
+                      // Get pending followup data
+                      const { data: pendingLogs } = await supabase
+                        .from('whatsapp_logs')
+                        .select('*')
+                        .eq('organization_id', organizationId)
+                        .ilike('phone_number', `%${cleanPhone}%`)
+                        .eq('pending_followup', true)
+                        .order('created_at', { ascending: false })
+                        .limit(1);
+                      
+                      if (pendingLogs && pendingLogs.length > 0) {
+                        const log = pendingLogs[0];
+                        const followupData = log.followup_data as Record<string, string> | null;
+                        
+                        if (followupData && followupData.invoice_link) {
+                          // Step 1: Send Invoice Link
+                          const invoiceMessage = (settings.followup_invoice_message || '📄 Here is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nThank you for your business!')
+                            .replace('{invoice_link}', followupData.invoice_link || '')
+                            .replace('{sale_number}', followupData.sale_number || '')
+                            .replace('{customer_name}', followupData.customer_name || '');
+                          
+                          const wamidInvoice = await sendWhatsAppMessage(settings, senderPhone, invoiceMessage);
+                          
+                          if (wamidInvoice) {
+                            await supabase.from('whatsapp_messages').insert({
+                              organization_id: organizationId,
+                              conversation_id: conversation.id,
+                              wamid: wamidInvoice,
+                              direction: 'outbound',
+                              message_type: 'text',
+                              message_text: invoiceMessage,
+                              status: 'sent',
+                              sent_at: new Date().toISOString(),
+                            });
+                            console.log('Invoice link sent successfully after Order Details click');
+                            
+                            // Step 2: Send Google Review Request
+                            const googleReviewLink = followupData.google_review || settings.social_links?.google_review || '';
+                            
+                            if (googleReviewLink) {
+                              const reviewMessage = (settings.followup_review_message || '⭐ We hope you loved your purchase!\n\nPlease take a moment to rate us on Google:\n{google_review}\n\nYour feedback helps us serve you better! 🙏')
+                                .replace('{google_review}', googleReviewLink);
+                              
+                              const wamidReview = await sendWhatsAppMessage(settings, senderPhone, reviewMessage);
+                              
+                              if (wamidReview) {
+                                await supabase.from('whatsapp_messages').insert({
+                                  organization_id: organizationId,
+                                  conversation_id: conversation.id,
+                                  wamid: wamidReview,
+                                  direction: 'outbound',
+                                  message_type: 'text',
+                                  message_text: reviewMessage,
+                                  status: 'sent',
+                                  sent_at: new Date().toISOString(),
+                                });
+                                console.log('Google review request sent successfully');
+                              }
+                            } else {
+                              console.log('No Google Review link configured, skipping review request');
+                            }
+                            
+                            // Mark followup as completed
+                            await supabase
+                              .from('whatsapp_logs')
+                              .update({ pending_followup: false })
+                              .eq('id', log.id);
+                          }
+                        }
+                      }
+                      continue; // Skip further processing for Order Details button
+                    }
+                    
                     // Check if user selected one of our quick reply options
                     if (buttonId === 'invoice_link' || buttonId === 'social_media' || 
                         buttonId === 'google_review' || buttonId === 'chat_with_us') {
