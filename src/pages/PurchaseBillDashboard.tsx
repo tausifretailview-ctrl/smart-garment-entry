@@ -752,7 +752,7 @@ const PurchaseBillDashboard = () => {
     if (isFullyPaid) {
       return <Badge className="min-w-[70px] justify-center bg-green-500 hover:bg-green-600 text-white">Paid</Badge>;
     } else if (status === 'partial' || (paidAmount > 0 && paidAmount < bill.net_amount)) {
-      return <Badge className="min-w-[70px] justify-center bg-pink-400 hover:bg-pink-500 text-white">Partial</Badge>;
+      return <Badge className="min-w-[70px] justify-center bg-orange-400 hover:bg-orange-500 text-white">Partial</Badge>;
     } else {
       return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
     }

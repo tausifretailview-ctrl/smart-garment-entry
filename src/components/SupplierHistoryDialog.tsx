@@ -114,7 +114,7 @@ export const SupplierHistoryDialog = ({
       case "paid":
         return <Badge className="bg-green-500/20 text-green-700 dark:text-green-400">Paid</Badge>;
       case "partial":
-        return <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400">Partial</Badge>;
+        return <Badge className="bg-orange-400/20 text-orange-600 dark:text-orange-400">Partial</Badge>;
       default:
         return <Badge className="bg-red-500/20 text-red-700 dark:text-red-400">Unpaid</Badge>;
     }

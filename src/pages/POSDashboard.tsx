@@ -1493,8 +1493,8 @@ const POSDashboard = () => {
                                     sale.payment_status === "completed" 
                                       ? "bg-green-500 hover:bg-green-600 text-white" 
                                       : sale.payment_status === "partial" 
-                                        ? "bg-pink-400 hover:bg-pink-500 text-white" 
-                                        : sale.payment_status === "hold" 
+                                        ? "bg-orange-400 hover:bg-orange-500 text-white" 
+                                        : sale.payment_status === "hold"
                                           ? "bg-amber-500 hover:bg-amber-600 text-white" 
                                           : "bg-red-500 hover:bg-red-600 text-white"
                                   }`}
