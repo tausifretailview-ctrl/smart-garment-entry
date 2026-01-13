@@ -141,6 +141,20 @@ export default {
           "25%": { transform: "rotate(-5deg)" },
           "75%": { transform: "rotate(5deg)" },
         },
+        "pulse-phone": {
+          "0%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(108, 92, 231, 0.7)" },
+          "70%": { transform: "scale(1.1)", boxShadow: "0 0 0 10px rgba(108, 92, 231, 0)" },
+          "100%": { transform: "scale(1)", boxShadow: "0 0 0 0 rgba(108, 92, 231, 0)" },
+        },
+        "bill-slide": {
+          "0%": { transform: "translateY(-20px)", opacity: "0" },
+          "20%": { opacity: "1" },
+          "100%": { transform: "translateY(30px)", opacity: "0" },
+        },
+        "chart-bar": {
+          "0%, 100%": { transform: "scaleY(1)" },
+          "50%": { transform: "scaleY(0.6)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -155,6 +169,9 @@ export default {
         "icon-spin-slow": "icon-spin-slow 3s linear infinite",
         "icon-pulse": "icon-pulse 2s ease-in-out infinite",
         "icon-wiggle": "icon-wiggle 0.5s ease-in-out",
+        "pulse-phone": "pulse-phone 2s infinite",
+        "bill-slide": "bill-slide 4s infinite linear",
+        "chart-bar": "chart-bar 3s ease-in-out infinite",
       },
       gridTemplateColumns: {
         '13': 'repeat(13, minmax(0, 1fr))',
