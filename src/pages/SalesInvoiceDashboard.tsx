@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 
@@ -73,6 +74,7 @@ export default function SalesInvoiceDashboard() {
   const { currentOrganization } = useOrganization();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
+  const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const [searchQuery, setSearchQuery] = useState("");
   const [deliveryFilter, setDeliveryFilter] = useState<string>("all");
   const [periodFilter, setPeriodFilter] = useState<string>("all");
@@ -673,6 +675,52 @@ export default function SalesInvoiceDashboard() {
     }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}${invoice.terms_conditions ? `\n\n*Terms & Conditions:*\n${invoice.terms_conditions}` : ''}`, customerBalance);
 
     sendWhatsApp(invoice.customer_phone, templateMessage);
+  };
+
+  // Resend WhatsApp using API (for WhatsApp API enabled customers)
+  const handleResendWhatsAppAPI = async (invoice: any) => {
+    if (!invoice.customer_phone) {
+      toast({
+        title: "No Phone Number",
+        description: "Customer phone number is required to send WhatsApp message",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const totalQty = invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0;
+      
+      await sendMessageAsync({
+        phone: invoice.customer_phone,
+        message: '',
+        templateType: 'sales_invoice',
+        templateName: whatsAppAPISettings?.invoice_template_name || undefined,
+        referenceId: invoice.id,
+        referenceType: 'sale',
+        saleData: {
+          sale_number: invoice.sale_number,
+          customer_name: invoice.customer_name,
+          customer_phone: invoice.customer_phone,
+          sale_date: invoice.sale_date,
+          net_amount: invoice.net_amount,
+          payment_status: invoice.payment_status,
+          items_count: totalQty,
+          organization_id: currentOrganization?.id,
+        },
+      });
+      
+      toast({
+        title: "Message Sent",
+        description: "WhatsApp message sent successfully via API",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to Send",
+        description: error.message || "Failed to send WhatsApp message",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCopyLink = async (invoice: any) => {
@@ -1554,6 +1602,18 @@ export default function SalesInvoiceDashboard() {
                                     disabled={!invoice.customer_phone}
                                   >
                                     <MessageCircle className="h-4 w-4 text-green-600" />
+                                  </Button>
+                                )}
+                                {/* Resend WhatsApp API - Only show when WhatsApp API is enabled */}
+                                {whatsAppAPISettings?.is_active && (
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => handleResendWhatsAppAPI(invoice)}
+                                    title="Resend via WhatsApp API"
+                                    disabled={!invoice.customer_phone || isSendingWhatsAppAPI}
+                                  >
+                                    <Send className="h-4 w-4 text-teal-600" />
                                   </Button>
                                 )}
                                 {invoice.payment_status !== 'completed' && (
