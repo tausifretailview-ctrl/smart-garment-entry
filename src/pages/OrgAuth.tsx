@@ -221,73 +221,68 @@ export default function OrgAuth() {
     <div className="min-h-screen flex w-full bg-slate-50">
       {/* Left Panel - Product Showcase */}
       <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
-        {/* Soft Office Background */}
+        {/* Clean, Light Office Background - Minimal blur */}
         <div className="absolute inset-0">
-          {/* Light gradient base */}
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-100/80 via-blue-50/50 to-slate-100/60" />
+          {/* Light neutral base */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-sky-50/30 to-slate-100/80" />
           
-          {/* Soft window light from top */}
-          <div className="absolute top-0 left-0 right-0 h-2/3 bg-gradient-to-b from-white/70 via-white/30 to-transparent" />
+          {/* Subtle window light from top-right */}
+          <div className="absolute top-0 right-0 w-2/3 h-1/2 bg-gradient-to-bl from-white/60 via-white/20 to-transparent" />
           
-          {/* Blurred glass office shapes */}
-          <div className="absolute top-8 left-12 w-48 h-36 bg-white/50 rounded-3xl blur-2xl" />
-          <div className="absolute top-16 right-24 w-64 h-44 bg-sky-100/40 rounded-3xl blur-3xl" />
-          <div className="absolute bottom-40 left-16 w-36 h-28 bg-blue-50/50 rounded-2xl blur-2xl" />
-          <div className="absolute bottom-24 right-20 w-52 h-40 bg-slate-100/60 rounded-3xl blur-2xl" />
-          <div className="absolute top-1/2 left-1/3 w-40 h-32 bg-indigo-50/30 rounded-full blur-3xl" />
+          {/* Subtle depth elements - reduced blur */}
+          <div className="absolute top-12 left-8 w-32 h-24 bg-sky-100/30 rounded-2xl blur-xl" />
+          <div className="absolute top-20 right-16 w-40 h-32 bg-blue-50/40 rounded-2xl blur-xl" />
+          <div className="absolute bottom-32 right-12 w-36 h-28 bg-slate-100/50 rounded-2xl blur-xl" />
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col px-10 py-8">
-          {/* SafPro Logo & Branding - TOP LEFT, Large */}
-          <div className="mb-4">
+        <div className="relative z-10 flex-1 flex flex-col px-10 py-6">
+          {/* SafPro Logo & Branding - TOP LEFT ONLY, No tagline */}
+          <div className="mb-2">
             <img 
               src={safproLogo} 
               alt="SafPro ERP" 
-              className="h-20 w-auto object-contain"
-              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
+              className="h-16 w-auto object-contain"
+              style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.08))' }}
             />
-            <p className="text-slate-500 text-lg mt-1.5 font-light tracking-wide">
-              Clean & Professional Software
-            </p>
           </div>
 
-          {/* POS Hero Image - Large, Natural, Cropped to hide embedded branding */}
-          <div className="flex-1 flex items-center justify-center -mx-4 overflow-hidden">
+          {/* POS Hero Image - Sharp, Clean, Premium */}
+          <div className="flex-1 flex items-center justify-center -mx-2 overflow-hidden">
             <div 
               className="relative w-full flex items-end justify-center"
-              style={{ maxHeight: '420px', minHeight: '340px' }}
+              style={{ maxHeight: '400px', minHeight: '320px' }}
             >
               <img 
                 src={posIllustration} 
-                alt="SafPro ERP - Complete POS System" 
+                alt="Complete POS System" 
                 className="w-full max-w-none h-auto object-cover object-bottom"
                 style={{ 
-                  filter: 'drop-shadow(0 30px 60px rgba(0,0,0,0.12))',
-                  maxHeight: '500px',
-                  marginTop: '-60px', /* Crop top portion to hide embedded branding */
-                  clipPath: 'inset(12% 0 0 0)' /* Hide top 12% of image where branding appears */
+                  filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.15)) contrast(1.02) saturate(1.05)',
+                  maxHeight: '480px',
+                  marginTop: '-55px',
+                  clipPath: 'inset(11% 0 0 0)'
                 }}
               />
             </div>
           </div>
 
-          {/* Software Features - Soft White Cards */}
-          <div className="mt-4">
-            <p className="text-slate-500 text-sm font-medium mb-3 tracking-wide">
+          {/* Software Features - Prominent Cards */}
+          <div className="mt-5">
+            <h3 className="text-slate-700 text-base font-semibold mb-4 tracking-wide">
               Software Features
-            </p>
-            <div className="grid grid-cols-3 gap-2.5">
+            </h3>
+            <div className="grid grid-cols-3 gap-3">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/80 backdrop-blur-sm rounded-xl px-3.5 py-2.5 shadow-sm border border-slate-100/80 hover:bg-white hover:shadow-md transition-all duration-200 group"
+                  className="bg-white rounded-xl px-4 py-3.5 shadow-md border border-slate-100 hover:shadow-lg transition-all duration-200"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-600 text-xs leading-tight font-medium">{feature}</span>
+                    <span className="text-slate-700 text-sm leading-tight font-medium">{feature}</span>
                   </div>
                 </div>
               ))}
@@ -295,23 +290,22 @@ export default function OrgAuth() {
           </div>
 
           {/* Footer */}
-          <div className="mt-5 pt-4 border-t border-slate-200/60">
+          <div className="mt-5 pt-4 border-t border-slate-200/70">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {/* Mini Printer */}
-                <div className="bg-slate-100/80 rounded-lg p-1.5">
+                <div className="bg-slate-100 rounded-lg p-1.5">
                   <div className="w-5 h-4 bg-slate-500 rounded relative">
                     <div className="absolute bottom-0 left-0.5 right-0.5 h-1.5 bg-white rounded-sm" />
                   </div>
                 </div>
-                <span className="text-slate-400 text-xs">Thermal & Barcode Ready</span>
+                <span className="text-slate-500 text-xs font-medium">Thermal & Barcode Ready</span>
               </div>
               
               <a 
                 href="https://adtechagency.in/" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-slate-400 text-xs hover:text-slate-600 transition-colors"
+                className="flex items-center gap-1.5 text-slate-500 text-xs font-medium hover:text-slate-700 transition-colors"
               >
                 <Globe className="w-3.5 h-3.5" />
                 <span>www.adtechagency.in</span>
