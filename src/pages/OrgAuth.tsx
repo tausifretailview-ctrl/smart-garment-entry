@@ -66,7 +66,6 @@ export default function OrgAuth() {
 
         setOrganization(data);
 
-        // Fetch organization branding settings
         const { data: settingsData } = await supabase
           .from("settings")
           .select("business_name, bill_barcode_settings")
@@ -88,7 +87,6 @@ export default function OrgAuth() {
   }, [orgSlug]);
 
   useEffect(() => {
-    // If user is already logged in, verify they belong to this org
     const checkUserMembership = async () => {
       if (user && organization) {
         const { data: membership } = await supabase
@@ -99,11 +97,9 @@ export default function OrgAuth() {
           .single();
 
         if (membership) {
-          // User belongs to this org, redirect to org-scoped dashboard
           localStorage.setItem("selectedOrgSlug", organization.slug);
           navigate(`/${organization.slug}`);
         } else {
-          // User is logged in but not a member of this org
           setError("You are not a member of this organization. Please contact your administrator.");
           await supabase.auth.signOut();
         }
@@ -121,7 +117,6 @@ export default function OrgAuth() {
       return;
     }
 
-    // Validate with Zod schema
     const validation = validateAuth(email, password);
     if (!validation.success) {
       toast.error(validation.error);
@@ -132,7 +127,6 @@ export default function OrgAuth() {
     setError("");
 
     try {
-      // First, authenticate the user
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -154,7 +148,6 @@ export default function OrgAuth() {
         return;
       }
 
-      // Check if user belongs to this organization
       const { data: membership, error: membershipError } = await supabase
         .from("organization_members")
         .select("id, role")
@@ -169,7 +162,6 @@ export default function OrgAuth() {
         return;
       }
 
-      // Success! Store the organization slug and redirect to org-scoped dashboard
       localStorage.setItem("selectedOrgSlug", organization.slug);
       toast.success(`Welcome to ${organization.name}!`);
       navigate(`/${organization.slug}`);
@@ -226,116 +218,115 @@ export default function OrgAuth() {
   ];
 
   return (
-    <div className="min-h-screen flex w-full bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Left Panel - Premium Product Showcase */}
+    <div className="min-h-screen flex w-full">
+      {/* Left Panel - Product Showcase with Light Office Background */}
       <div className="hidden lg:flex lg:w-[55%] flex-col relative overflow-hidden">
-        {/* Modern Office Background with Gradient Overlay */}
+        {/* Soft Light Office Background */}
         <div className="absolute inset-0">
-          {/* Base gradient */}
-          <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900" />
+          {/* Base light gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-slate-50 to-indigo-50" />
           
-          {/* Office window effect */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-sky-400/30 to-transparent" />
+          {/* Soft window light effect */}
+          <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/60 to-transparent" />
+          
+          {/* Blurred glass office shapes */}
+          <div className="absolute top-10 left-10 w-40 h-32 bg-white/40 rounded-2xl blur-xl" />
+          <div className="absolute top-20 right-20 w-56 h-40 bg-blue-100/30 rounded-3xl blur-2xl" />
+          <div className="absolute bottom-32 left-20 w-32 h-24 bg-indigo-100/40 rounded-2xl blur-xl" />
+          <div className="absolute bottom-20 right-16 w-48 h-36 bg-slate-100/50 rounded-2xl blur-2xl" />
+          
+          {/* Subtle city silhouette at bottom */}
+          <div className="absolute bottom-0 left-0 right-0 h-20 opacity-[0.03]">
+            <div className="absolute bottom-0 left-[5%] w-16 h-16 bg-slate-800 rounded-t-sm" />
+            <div className="absolute bottom-0 left-[15%] w-10 h-24 bg-slate-700 rounded-t-sm" />
+            <div className="absolute bottom-0 left-[22%] w-20 h-14 bg-slate-600 rounded-t-sm" />
+            <div className="absolute bottom-0 right-[20%] w-14 h-20 bg-slate-700 rounded-t-sm" />
+            <div className="absolute bottom-0 right-[10%] w-18 h-16 bg-slate-800 rounded-t-sm" />
           </div>
-          
-          {/* Abstract geometric shapes */}
-          <div className="absolute top-20 left-10 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-20 right-10 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 left-1/3 w-48 h-48 bg-indigo-400/10 rounded-full blur-2xl" />
-          
-          {/* Grid pattern overlay */}
-          <div 
-            className="absolute inset-0 opacity-5"
-            style={{
-              backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
-              backgroundSize: '50px 50px'
-            }}
-          />
         </div>
 
         {/* Content */}
-        <div className="relative z-10 flex-1 flex flex-col p-8 lg:p-12">
-          {/* Header - SafPro ERP Branding */}
-          <div className="mb-8">
-            <div className="flex items-center gap-4 mb-3">
+        <div className="relative z-10 flex-1 flex flex-col p-8 lg:p-10">
+          {/* Hero Section - SafPro Branding + POS Image Merged */}
+          <div className="flex-1 flex flex-col">
+            {/* SafPro Logo & Title - Large and Prominent */}
+            <div className="mb-6">
               <img 
                 src={safproLogo} 
                 alt="SafPro ERP" 
-                className="h-14 w-auto object-contain brightness-0 invert drop-shadow-lg"
+                className="h-16 w-auto object-contain drop-shadow-sm"
               />
+              <p className="text-slate-500 text-base mt-2 font-light tracking-wide">
+                Clean & Professional Software
+              </p>
             </div>
-            <p className="text-white/70 text-lg font-light tracking-wide">
-              Clean & Professional Software
-            </p>
-          </div>
 
-          {/* Main Hero Section - POS Image */}
-          <div className="flex-1 flex items-center justify-center relative">
-            {/* Glow effect behind image */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-[500px] h-[500px] bg-gradient-to-r from-purple-500/20 via-blue-500/20 to-indigo-500/20 rounded-full blur-3xl" />
-            </div>
-            
-            {/* POS System Image - Large and Prominent */}
-            <div className="relative z-10">
+            {/* POS System Image - Large, Natural, No Frame */}
+            <div className="flex-1 flex items-center justify-center relative py-4">
               <img 
                 src={posIllustration} 
                 alt="SafPro ERP - Complete POS System" 
-                className="w-full max-w-[520px] h-auto max-h-[400px] object-contain drop-shadow-2xl"
-                style={{ filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.3))' }}
+                className="w-full max-w-[580px] h-auto object-contain"
+                style={{ 
+                  filter: 'drop-shadow(0 20px 40px rgba(0,0,0,0.08))',
+                  maxHeight: '380px'
+                }}
               />
             </div>
-          </div>
 
-          {/* Software Features - Horizontal Cards */}
-          <div className="mt-6">
-            <div className="grid grid-cols-3 gap-3">
-              {softwareFeatures.map((feature, index) => (
-                <div 
-                  key={index} 
-                  className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 hover:bg-white/15 hover:border-white/20 transition-all duration-300 group cursor-default"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+            {/* Software Features - Soft White Cards */}
+            <div className="mt-auto pt-6">
+              <h3 className="text-slate-600 font-medium text-sm mb-4 flex items-center gap-2">
+                <span className="w-8 h-px bg-slate-300" />
+                Software Features
+                <span className="w-8 h-px bg-slate-300" />
+              </h3>
+              <div className="grid grid-cols-3 gap-3">
+                {softwareFeatures.map((feature, index) => (
+                  <div 
+                    key={index} 
+                    className="bg-white/70 backdrop-blur-sm rounded-xl px-4 py-3 shadow-sm border border-white/80 hover:bg-white/90 hover:shadow-md transition-all duration-200 group"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center flex-shrink-0 shadow-sm group-hover:scale-105 transition-transform">
+                        <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                      </div>
+                      <span className="text-slate-600 text-xs leading-snug font-medium">{feature}</span>
                     </div>
-                    <span className="text-white/90 text-sm font-medium leading-tight">{feature}</span>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-white/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {/* Mini Thermal Printer Icon */}
-                <div className="bg-white/10 rounded-lg p-2">
-                  <div className="w-8 h-6 bg-slate-700 rounded relative">
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-slate-800 rounded-t" />
-                    <div className="absolute bottom-0 left-1 right-1 h-3 bg-white rounded-sm flex items-center justify-center">
-                      <div className="flex gap-px">
-                        {[1, 2, 1, 2, 1, 2, 1].map((w, i) => (
-                          <div key={i} className="bg-slate-800 h-2" style={{ width: `${w}px` }} />
-                        ))}
+            {/* Footer */}
+            <div className="mt-6 pt-4 border-t border-slate-200/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  {/* Mini Printer Icon */}
+                  <div className="bg-slate-100 rounded-lg p-1.5">
+                    <div className="w-6 h-5 bg-slate-600 rounded relative">
+                      <div className="absolute bottom-0 left-0.5 right-0.5 h-2 bg-white rounded-sm flex items-center justify-center">
+                        <div className="flex gap-px">
+                          {[1, 1.5, 1, 1.5, 1].map((w, i) => (
+                            <div key={i} className="bg-slate-700 h-1.5" style={{ width: `${w}px` }} />
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <span className="text-slate-400 text-xs">Thermal & Barcode Ready</span>
                 </div>
-                <span className="text-white/50 text-xs">Thermal & Barcode Printer Ready</span>
+                
+                <a 
+                  href="https://adtechagency.in/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-slate-400 text-xs hover:text-indigo-500 transition-colors"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>www.adtechagency.in</span>
+                </a>
               </div>
-              
-              <a 
-                href="https://adtechagency.in/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-white/60 text-sm hover:text-white transition-colors"
-              >
-                <Globe className="w-4 h-4" />
-                <span>www.adtechagency.in</span>
-              </a>
             </div>
           </div>
         </div>
@@ -387,7 +378,7 @@ export default function OrgAuth() {
             </div>
 
             {/* Login Form */}
-            <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+            <Card className="shadow-2xl border-0 bg-white">
               <CardContent className="p-8 space-y-6">
                 {error && (
                   <Alert variant="destructive" className="rounded-xl">
