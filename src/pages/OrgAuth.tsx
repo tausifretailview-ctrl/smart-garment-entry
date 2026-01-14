@@ -219,49 +219,88 @@ export default function OrgAuth() {
 
   return (
     <div className="min-h-screen flex w-full bg-slate-50">
-      {/* Left Panel - Product Showcase */}
+      {/* Left Panel - Product Showcase with Office Background */}
       <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
-        {/* Background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-50 via-slate-100/50 to-slate-100" />
+        {/* Office/Window Background Scene */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(180deg, #E8F4FC 0%, #D4E8F5 25%, #C5DCF0 50%, #B8D4EC 75%, #AAC8E5 100%)'
+          }}
+        />
+        {/* Window frame overlay effect */}
+        <div 
+          className="absolute inset-0"
+          style={{
+            background: 'radial-gradient(ellipse at 50% 20%, rgba(255,255,255,0.4) 0%, transparent 60%)'
+          }}
+        />
+        {/* Subtle city/horizon silhouette at bottom */}
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-32"
+          style={{
+            background: 'linear-gradient(to top, rgba(156,163,175,0.15) 0%, transparent 100%)'
+          }}
+        />
 
-        {/* Content - Scrollable single page layout */}
-        <div className="relative z-10 flex-1 flex flex-col justify-between px-8 py-6">
-          {/* POS Hero Image Section - Full width, properly aligned */}
-          <div className="flex-1 flex items-center justify-center">
+        {/* Content - Single cohesive layout */}
+        <div className="relative z-10 flex-1 flex flex-col px-8 py-6">
+          {/* SafPro ERP Branding at Top */}
+          <div className="text-center mb-4">
+            <img 
+              src={safproLogo} 
+              alt="SafPro ERP" 
+              className="h-14 w-auto mx-auto object-contain"
+              style={{ 
+                filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))'
+              }}
+            />
+            <p className="text-slate-600 mt-1.5 text-sm font-medium tracking-wide">
+              Clean & Professional Software
+            </p>
+          </div>
+
+          {/* POS Hero Image - Centered with desk shadow effect */}
+          <div className="flex-1 flex items-center justify-center relative">
+            {/* Desk surface shadow */}
+            <div 
+              className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
+              style={{
+                background: 'radial-gradient(ellipse, rgba(0,0,0,0.12) 0%, transparent 70%)',
+                filter: 'blur(8px)'
+              }}
+            />
             <img 
               src={posIllustration} 
               alt="Complete POS System" 
-              className="w-full h-auto object-contain"
+              className="w-full h-auto object-contain relative z-10"
               style={{ 
-                filter: 'drop-shadow(0 20px 50px rgba(0,0,0,0.15)) contrast(1.04) saturate(1.06) brightness(1.01)',
-                maxHeight: 'calc(100vh - 280px)',
+                filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
+                maxHeight: 'calc(100vh - 320px)',
                 imageRendering: 'auto'
               }}
             />
           </div>
 
-          {/* Software Features - Clean section below POS */}
-          <div 
-            className="mt-6 rounded-2xl p-6 border border-white/70"
-            style={{
-              background: 'linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.95) 100%)',
-              boxShadow: '0 4px 20px -4px rgba(0,0,0,0.06), 0 0 0 1px rgba(255,255,255,0.6) inset'
-            }}
-          >
-            <h3 className="text-slate-700 text-base font-bold mb-4 tracking-wide uppercase">
+          {/* Software Features - Integrated at bottom */}
+          <div className="mt-auto pt-4">
+            <h3 className="text-slate-700 text-sm font-bold mb-3 tracking-wider uppercase text-center">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2.5">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white rounded-xl px-4 py-3.5 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200"
+                  className="bg-white/95 backdrop-blur-sm rounded-xl px-3.5 py-3 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
+                  style={{
+                    boxShadow: '0 4px 15px -3px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
+                  }}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
-                      <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-700 text-sm leading-tight font-semibold">{feature}</span>
+                    <span className="text-slate-700 text-xs leading-tight font-semibold">{feature}</span>
                   </div>
                 </div>
               ))}
