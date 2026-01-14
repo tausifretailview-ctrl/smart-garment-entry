@@ -2814,6 +2814,7 @@ const PurchaseEntry = () => {
           title="Enter Size-wise Qty"
           allowCustomSizes={true}
           allowAddColor={isColorFieldEnabled}
+          allowMultiColor={true}
           defaultPurPrice={selectedProduct?.default_pur_price}
           defaultSalePrice={selectedProduct?.default_sale_price}
           defaultMrp={sizeGridVariants[0]?.mrp || selectedProduct?.default_sale_price}
