@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,35 +39,49 @@ import {
   Loader2,
   Search,
   FileText,
-  Download
+  Download,
+  Calendar
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
 const WhatsAppLogs = () => {
-  const { fetchMessageLogs, retryMessage, isRetrying, getMessageStats } = useWhatsAppAPI();
+  const { fetchMessageLogs, retryMessage, isRetrying } = useWhatsAppAPI();
   
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // Fetch logs
+  // Fetch logs with date filter
   const { data: logs, isLoading, refetch } = useQuery({
-    queryKey: ['whatsapp-logs', statusFilter, typeFilter],
-    queryFn: () => fetchMessageLogs({
-      status: statusFilter,
-      templateType: typeFilter,
-      limit: 100,
-    }),
+    queryKey: ['whatsapp-logs', statusFilter, typeFilter, selectedDate],
+    queryFn: () => {
+      const dateStart = startOfDay(new Date(selectedDate)).toISOString();
+      const dateEnd = endOfDay(new Date(selectedDate)).toISOString();
+      return fetchMessageLogs({
+        status: statusFilter,
+        templateType: typeFilter,
+        limit: 500,
+        startDate: dateStart,
+        endDate: dateEnd,
+      });
+    },
   });
 
-  // Fetch stats
-  const { data: stats } = useQuery({
-    queryKey: ['whatsapp-stats'],
-    queryFn: getMessageStats,
-    refetchInterval: 30000,
-  });
+  // Calculate stats from the fetched logs for the selected date
+  const stats = useMemo(() => {
+    if (!logs) return null;
+    return {
+      total: logs.length,
+      sent: logs.filter(l => l.status === 'sent').length,
+      delivered: logs.filter(l => l.status === 'delivered').length,
+      read: logs.filter(l => l.status === 'read').length,
+      failed: logs.filter(l => l.status === 'failed').length,
+      pending: logs.filter(l => l.status === 'pending').length,
+    };
+  }, [logs]);
 
   const filteredLogs = logs?.filter(log => {
     if (!searchQuery) return true;
@@ -170,15 +184,15 @@ const WhatsAppLogs = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold">{stats?.todayTotal || 0}</div>
-                <div className="text-sm text-muted-foreground">Today Total</div>
+                <div className="text-3xl font-bold">{stats?.total || 0}</div>
+                <div className="text-sm text-muted-foreground">Total</div>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-blue-600">{stats?.todaySent || 0}</div>
+                <div className="text-3xl font-bold text-blue-600">{stats?.sent || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <Send className="h-3 w-3" /> Sent
                 </div>
@@ -188,7 +202,7 @@ const WhatsAppLogs = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-green-600">{stats?.todayDelivered || 0}</div>
+                <div className="text-3xl font-bold text-green-600">{stats?.delivered || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <CheckCircle className="h-3 w-3" /> Delivered
                 </div>
@@ -198,7 +212,7 @@ const WhatsAppLogs = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-emerald-600">{stats?.todayRead || 0}</div>
+                <div className="text-3xl font-bold text-emerald-600">{stats?.read || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <Eye className="h-3 w-3" /> Read
                 </div>
@@ -208,7 +222,7 @@ const WhatsAppLogs = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-yellow-600">{stats?.todayPending || 0}</div>
+                <div className="text-3xl font-bold text-yellow-600">{stats?.pending || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <Clock className="h-3 w-3" /> Pending
                 </div>
@@ -218,7 +232,7 @@ const WhatsAppLogs = () => {
           <Card>
             <CardContent className="pt-4">
               <div className="text-center">
-                <div className="text-3xl font-bold text-red-600">{stats?.todayFailed || 0}</div>
+                <div className="text-3xl font-bold text-red-600">{stats?.failed || 0}</div>
                 <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
                   <XCircle className="h-3 w-3" /> Failed
                 </div>
@@ -231,6 +245,15 @@ const WhatsAppLogs = () => {
         <Card>
           <CardContent className="pt-4">
             <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="w-[160px]"
+                />
+              </div>
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
