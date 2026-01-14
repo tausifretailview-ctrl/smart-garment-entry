@@ -245,20 +245,6 @@ export default function OrgAuth() {
 
         {/* Content - Single cohesive layout */}
         <div className="relative z-10 flex-1 flex flex-col px-8 py-6">
-          {/* SafPro ERP Branding at Top */}
-          <div className="text-center mb-4">
-            <img 
-              src={safproLogo} 
-              alt="SafPro ERP" 
-              className="h-14 w-auto mx-auto object-contain"
-              style={{ 
-                filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))'
-              }}
-            />
-            <p className="text-slate-600 mt-1.5 text-sm font-medium tracking-wide">
-              Clean & Professional Software
-            </p>
-          </div>
 
           {/* POS Hero Image - Centered with desk shadow effect */}
           <div className="flex-1 flex items-center justify-center relative">
