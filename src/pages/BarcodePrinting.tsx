@@ -1173,15 +1173,21 @@ export default function BarcodePrinting() {
           };
           setLabelConfig(configWithBarcode);
           setSelectedLabelTemplate(template.name);
-        } else if (defaultFormat.labelConfig) {
-          // Template was deleted, fall back to inline config with migration
-          const migratedConfig = ensureCompleteFieldOrder(defaultFormat.labelConfig);
-          const configWithBarcode = {
-            ...migratedConfig,
-            barcode: { ...migratedConfig.barcode, show: true },
-            barcodeText: { ...migratedConfig.barcodeText, show: true },
-          };
-          setLabelConfig(configWithBarcode);
+        } else {
+          // Template not found - notify user and suggest re-selecting
+          console.warn(`Default template "${defaultFormat.defaultTemplate}" not found in saved templates. Available templates:`, dbLabelTemplates.map((t: LabelTemplate) => t.name));
+          toast.warning(`Default template "${defaultFormat.defaultTemplate}" not found. Please select a template from "My Templates".`);
+          
+          if (defaultFormat.labelConfig) {
+            // Fall back to inline config with migration
+            const migratedConfig = ensureCompleteFieldOrder(defaultFormat.labelConfig);
+            const configWithBarcode = {
+              ...migratedConfig,
+              barcode: { ...migratedConfig.barcode, show: true },
+              barcodeText: { ...migratedConfig.barcodeText, show: true },
+            };
+            setLabelConfig(configWithBarcode);
+          }
         }
       } else if (defaultFormat.labelConfig) {
         // No template reference, load inline config with migration
