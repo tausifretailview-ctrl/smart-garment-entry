@@ -2400,6 +2400,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-28">PUR.RATE</TableHead>
                     <TableHead className="w-28">SALE.RATE</TableHead>
                     {showMrp && <TableHead className="w-28">MRP</TableHead>}
+                    <TableHead className="w-20">GST %</TableHead>
                     <TableHead className="w-24">SUB TOTAL</TableHead>
                     <TableHead className="w-20">DISC %</TableHead>
                     <TableHead className="w-24">TOTAL</TableHead>
@@ -2500,6 +2501,25 @@ const PurchaseEntry = () => {
                             />
                           </TableCell>
                         )}
+                        <TableCell>
+                          <Select
+                            value={String(item.gst_per)}
+                            onValueChange={(value) =>
+                              updateLineItem(item.temp_id, "gst_per", Number(value))
+                            }
+                          >
+                            <SelectTrigger className="w-20 h-9">
+                              <SelectValue placeholder="GST" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="0">0%</SelectItem>
+                              <SelectItem value="5">5%</SelectItem>
+                              <SelectItem value="12">12%</SelectItem>
+                              <SelectItem value="18">18%</SelectItem>
+                              <SelectItem value="28">28%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
                         <TableCell className="font-semibold">
                           ₹{subTotal.toFixed(2)}
                         </TableCell>
@@ -2659,7 +2679,7 @@ const PurchaseEntry = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell colSpan={showMrp ? 9 : 8} className="text-muted-foreground text-sm">
+                    <TableCell colSpan={showMrp ? 10 : 9} className="text-muted-foreground text-sm">
                       <span className="hidden md:inline">Type to search or </span>
                       <button 
                         onClick={handleAddNewProductFromInline}
@@ -2676,7 +2696,7 @@ const PurchaseEntry = () => {
                       <TableCell></TableCell>
                       <TableCell colSpan={3} className="text-right">Total:</TableCell>
                       <TableCell className="text-center">{totals.totalQty}</TableCell>
-                      <TableCell colSpan={showMrp ? 7 : 6}></TableCell>
+                      <TableCell colSpan={showMrp ? 8 : 7}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>
