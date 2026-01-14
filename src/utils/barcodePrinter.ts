@@ -117,13 +117,18 @@ const getAbsolutePositionedLabelHTML = (
   labelWidthMm: number,
   labelHeightMm: number
 ): string => {
+  // Check if price field has showMrpPrefix option enabled
+  const priceField = labelConfig.price as LabelFieldConfig & { showMrpPrefix?: boolean } | undefined;
+  const showMrpPrefix = priceField?.showMrpPrefix ?? false;
+  const priceContent = showMrpPrefix ? `MRP Rs.${item.sale_price}` : `₹${item.sale_price}`;
+
   const fieldMap: Record<string, { content: string; key: string }> = {
     brand: { content: item.brand || '', key: 'brand' },
     productName: { content: item.product_name || '', key: 'productName' },
     color: { content: item.color || '', key: 'color' },
     style: { content: item.style || '', key: 'style' },
     size: { content: item.size || '', key: 'size' },
-    price: { content: `₹${item.sale_price}`, key: 'price' },
+    price: { content: priceContent, key: 'price' },
     mrp: { content: item.mrp ? `MRP ₹${item.mrp}` : '', key: 'mrp' },
     barcode: { content: item.barcode, key: 'barcode' },
     barcodeText: { content: item.barcode, key: 'barcodeText' },
