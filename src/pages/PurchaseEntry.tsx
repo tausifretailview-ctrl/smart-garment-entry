@@ -29,6 +29,7 @@ import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
+import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 
 interface PriceChange {
@@ -141,6 +142,7 @@ const PurchaseEntry = () => {
   const initialDraftCheckDone = useRef(false); // Track if initial draft check was done
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
+  const [showAddSupplierDialog, setShowAddSupplierDialog] = useState(false);
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
@@ -2215,7 +2217,8 @@ const PurchaseEntry = () => {
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={() => navigate("/suppliers", { state: { returnTo: "/purchase-entry" } })}
+                    onClick={() => setShowAddSupplierDialog(true)}
+                    title="Add New Supplier"
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
@@ -2991,6 +2994,24 @@ const PurchaseEntry = () => {
           priceChanges={detectedPriceChanges}
           onConfirm={handlePriceUpdateConfirm}
           onSkip={handlePriceUpdateSkip}
+        />
+
+        {/* Add Supplier Dialog */}
+        <AddSupplierDialog
+          open={showAddSupplierDialog}
+          onClose={() => setShowAddSupplierDialog(false)}
+          onSupplierCreated={(supplier) => {
+            refetchSuppliers();
+            setBillData((prev) => ({
+              ...prev,
+              supplier_id: supplier.id,
+              supplier_name: supplier.supplier_name,
+            }));
+            toast({
+              title: "Supplier Selected",
+              description: `${supplier.supplier_name} has been selected`,
+            });
+          }}
         />
       </div>
     </div>
