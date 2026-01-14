@@ -23,6 +23,7 @@ interface LabelFieldConfig {
   paddingRight?: number;
   lineHeight?: number;
   minHeight?: number;
+  showMrpPrefix?: boolean; // For price field - shows "MRP Rs." prefix
 }
 
 interface LabelDesignConfig {
@@ -294,13 +295,17 @@ export function InteractiveLabelPreview({
   }, [selectedField, labelConfig, setLabelConfig]);
 
   const getFieldContent = (fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth'>) => {
+    // Check if price field has MRP prefix enabled
+    const priceField = labelConfig.price as LabelFieldConfig;
+    const showMrpPrefix = priceField?.showMrpPrefix ?? false;
+
     if (sampleItem) {
       switch (fieldKey) {
         case 'brand': return sampleItem.brand || businessName || 'Brand';
         case 'productName': return sampleItem.product_name;
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
-        case 'price': return `₹${sampleItem.sale_price}`;
+        case 'price': return showMrpPrefix ? `MRP Rs.${sampleItem.sale_price}` : `₹${sampleItem.sale_price}`;
         case 'mrp': return sampleItem.mrp ? `MRP ₹${sampleItem.mrp}` : '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number || '';
@@ -315,7 +320,7 @@ export function InteractiveLabelPreview({
       case 'productName': return 'Sample Product';
       case 'color': return 'Blue';
       case 'style': return 'Classic';
-      case 'price': return '₹999';
+      case 'price': return showMrpPrefix ? 'MRP Rs.999' : '₹999';
       case 'mrp': return 'MRP ₹1299';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'BILL001';
@@ -587,6 +592,25 @@ export function InteractiveLabelPreview({
                     }}
                   />
                 </div>
+
+                {/* MRP Prefix option for price field */}
+                {selectedField === 'price' && (
+                  <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-700">
+                    <Checkbox
+                      id="field-mrp-prefix"
+                      checked={(selectedFieldConfig as LabelFieldConfig & { showMrpPrefix?: boolean }).showMrpPrefix ?? false}
+                      onCheckedChange={(checked) => {
+                        setLabelConfig(prev => ({
+                          ...prev,
+                          [selectedField]: { ...prev[selectedField], showMrpPrefix: checked === true }
+                        }));
+                      }}
+                    />
+                    <Label htmlFor="field-mrp-prefix" className="cursor-pointer text-sm">
+                      Show "MRP Rs." prefix (e.g., MRP Rs.999)
+                    </Label>
+                  </div>
+                )}
               </>
             )}
 
