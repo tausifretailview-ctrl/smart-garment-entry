@@ -1265,6 +1265,50 @@ export type Database = {
         }
         Relationships: []
       }
+      organization_label_templates_backup: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          organization_id: string
+          organization_name: string
+          template_config: Json
+          template_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id: string
+          organization_name: string
+          template_config: Json
+          template_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          organization_id?: string
+          organization_name?: string
+          template_config?: Json
+          template_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_label_templates_backup_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
