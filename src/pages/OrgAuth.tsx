@@ -256,145 +256,17 @@ export default function OrgAuth() {
                 filter: 'blur(8px)'
               }}
             />
-            
-            {/* POS Image Container with animated overlays */}
-            <div className="relative w-full">
-              <img 
-                src={posIllustration} 
-                alt="Complete POS System" 
-                className="w-full h-auto object-contain relative z-10"
-                style={{ 
-                  filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-                  maxHeight: 'calc(100vh - 320px)',
-                  imageRendering: 'auto'
-                }}
-              />
-              
-              {/* Animated Receipt printing from printer */}
-              <div 
-                className="absolute z-20"
-                style={{
-                  right: '8%',
-                  top: '38%',
-                  width: '45px',
-                  height: '60px',
-                  overflow: 'hidden'
-                }}
-              >
-                <div 
-                  className="w-full bg-white rounded-sm shadow-lg"
-                  style={{
-                    height: '55px',
-                    background: 'linear-gradient(180deg, #fff 0%, #f8f8f8 100%)',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                    animation: 'receiptPrint 3s ease-in-out infinite',
-                    transformOrigin: 'top center'
-                  }}
-                >
-                  {/* Receipt lines */}
-                  <div className="p-1.5 space-y-1">
-                    <div className="h-1 bg-slate-300 rounded w-3/4 mx-auto" />
-                    <div className="h-0.5 bg-slate-200 rounded w-full" />
-                    <div className="h-0.5 bg-slate-200 rounded w-4/5" />
-                    <div className="h-0.5 bg-slate-200 rounded w-full" />
-                    <div className="h-0.5 bg-slate-200 rounded w-3/5" />
-                    <div className="h-1 bg-emerald-400 rounded w-2/3 mx-auto mt-1" />
-                  </div>
-                </div>
-              </div>
-              
-              {/* Computer screen glow/activity effect */}
-              <div 
-                className="absolute z-20 pointer-events-none"
-                style={{
-                  left: '18%',
-                  top: '20%',
-                  width: '28%',
-                  height: '35%',
-                  background: 'radial-gradient(ellipse at center, rgba(99, 102, 241, 0.08) 0%, transparent 70%)',
-                  animation: 'screenGlow 2s ease-in-out infinite alternate',
-                  borderRadius: '4px'
-                }}
-              />
-              
-              {/* Screen content typing animation */}
-              <div 
-                className="absolute z-20"
-                style={{
-                  left: '22%',
-                  top: '32%',
-                  width: '20%'
-                }}
-              >
-                <div className="space-y-1">
-                  <div 
-                    className="h-0.5 bg-indigo-400/50 rounded"
-                    style={{ animation: 'typingLine 2s ease-in-out infinite', width: '0%' }}
-                  />
-                  <div 
-                    className="h-0.5 bg-indigo-300/40 rounded"
-                    style={{ animation: 'typingLine 2s ease-in-out infinite 0.3s', width: '0%' }}
-                  />
-                  <div 
-                    className="h-0.5 bg-indigo-300/40 rounded"
-                    style={{ animation: 'typingLine 2s ease-in-out infinite 0.6s', width: '0%' }}
-                  />
-                </div>
-              </div>
-              
-              {/* Blinking cursor on screen */}
-              <div 
-                className="absolute z-20 w-0.5 h-2 bg-indigo-500"
-                style={{
-                  left: '23%',
-                  top: '38%',
-                  animation: 'blink 1s step-end infinite'
-                }}
-              />
-            </div>
+            <img 
+              src={posIllustration} 
+              alt="Complete POS System" 
+              className="w-full h-auto object-contain relative z-10"
+              style={{ 
+                filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
+                maxHeight: 'calc(100vh - 320px)',
+                imageRendering: 'auto'
+              }}
+            />
           </div>
-          
-          {/* CSS Animations */}
-          <style>{`
-            @keyframes receiptPrint {
-              0%, 100% { 
-                transform: translateY(-100%);
-                opacity: 0;
-              }
-              10% {
-                opacity: 1;
-              }
-              20%, 80% { 
-                transform: translateY(0%);
-                opacity: 1;
-              }
-              90% {
-                opacity: 1;
-              }
-              95% {
-                transform: translateY(5%);
-                opacity: 0;
-              }
-            }
-            
-            @keyframes screenGlow {
-              0% { opacity: 0.4; }
-              100% { opacity: 0.8; }
-            }
-            
-            @keyframes typingLine {
-              0% { width: 0%; opacity: 0; }
-              10% { opacity: 1; }
-              50% { width: 100%; opacity: 1; }
-              80% { width: 100%; opacity: 1; }
-              100% { width: 100%; opacity: 0; }
-            }
-            
-            @keyframes blink {
-              0%, 50% { opacity: 1; }
-              51%, 100% { opacity: 0; }
-            }
-          `}</style>
 
           {/* Software Features - Integrated at bottom */}
           <div className="mt-auto pt-4">
