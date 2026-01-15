@@ -5,9 +5,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, FileSpreadsheet, Scale, Calculator } from "lucide-react";
-import { format, startOfMonth, endOfMonth, startOfYear } from "date-fns";
+import { 
+  Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock
+} from "lucide-react";
+import { format, startOfYear } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -15,6 +21,8 @@ import {
   calculateProfitLoss,
   calculateBalanceSheet,
   calculateNetProfitSummary,
+  getIndiaFinancialYear,
+  getCurrentQuarter,
   TrialBalanceEntry,
   ProfitLossData,
   BalanceSheetData,
@@ -29,14 +37,83 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+// Report Header Component
+const ReportHeader = ({ 
+  title, 
+  subtitle, 
+  organization, 
+  generatedAt 
+}: { 
+  title: string; 
+  subtitle: string; 
+  organization?: { name: string }; 
+  generatedAt?: string;
+}) => (
+  <div className="text-center mb-6 print:mb-4 border-b pb-4">
+    <div className="flex items-center justify-center gap-2 mb-2">
+      <Building2 className="h-8 w-8 text-primary print:text-black" />
+    </div>
+    <h1 className="text-2xl font-bold print:text-xl">{organization?.name || "Organization"}</h1>
+    <h2 className="text-xl font-semibold text-primary print:text-black mt-1">{title}</h2>
+    <p className="text-muted-foreground print:text-gray-600">{subtitle}</p>
+    {generatedAt && (
+      <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1">
+        <Clock className="h-3 w-3" />
+        Generated: {generatedAt}
+      </p>
+    )}
+  </div>
+);
+
+// Financial Year Presets Component
+const FYPresets = ({ 
+  onSelect, 
+  currentSelection 
+}: { 
+  onSelect: (from: string, to: string) => void; 
+  currentSelection?: string;
+}) => {
+  const currentFY = getIndiaFinancialYear(0);
+  const previousFY = getIndiaFinancialYear(-1);
+  const currentQ = getCurrentQuarter();
+  
+  return (
+    <div className="flex flex-wrap gap-2 print:hidden">
+      <Button
+        variant={currentSelection === "currentFY" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate)}
+      >
+        <Calendar className="h-3 w-3 mr-1" />
+        {currentFY.label}
+      </Button>
+      <Button
+        variant={currentSelection === "previousFY" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate)}
+      >
+        {previousFY.label}
+      </Button>
+      <Button
+        variant={currentSelection === "currentQ" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate)}
+      >
+        {currentQ.label}
+      </Button>
+    </div>
+  );
+};
+
 export default function AccountingReports() {
   const { currentOrganization } = useOrganization();
   const [activeTab, setActiveTab] = useState("trial-balance");
   const [loading, setLoading] = useState(false);
 
-  // Date filters
+  // Date filters - default to India FY
+  const currentFY = getIndiaFinancialYear(0);
   const [asOfDate, setAsOfDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [fromDate, setFromDate] = useState(format(startOfYear(new Date()), "yyyy-MM-dd"));
+  const [fromDate, setFromDate] = useState(currentFY.fromDate);
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
 
   // Report data
@@ -111,6 +188,11 @@ export default function AccountingReports() {
     else if (activeTab === "net-profit") fetchNetProfitSummary();
   };
 
+  const handleFYSelect = (from: string, to: string) => {
+    setFromDate(from);
+    setToDate(to);
+  };
+
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
 
@@ -126,23 +208,24 @@ export default function AccountingReports() {
     } else if (activeTab === "profit-loss" && profitLoss) {
       const data = [
         { Particulars: "REVENUE", Amount: "" },
-        { Particulars: "Gross Sales", Amount: profitLoss.grossSales },
+        { Particulars: "Gross Sales (Excl. GST)", Amount: profitLoss.grossSales },
         { Particulars: "Less: Sales Returns", Amount: -profitLoss.salesReturns },
-        { Particulars: "Net Sales", Amount: profitLoss.netSales },
+        { Particulars: "NET SALES", Amount: profitLoss.netSales },
         { Particulars: "", Amount: "" },
         { Particulars: "COST OF GOODS SOLD", Amount: "" },
         { Particulars: "Opening Stock", Amount: profitLoss.openingStock },
-        { Particulars: "Add: Purchases", Amount: profitLoss.purchases },
+        { Particulars: "Add: Purchases (Excl. GST)", Amount: profitLoss.purchases },
         { Particulars: "Less: Purchase Returns", Amount: -profitLoss.purchaseReturns },
         { Particulars: "Less: Closing Stock", Amount: -profitLoss.closingStock },
-        { Particulars: "Total COGS", Amount: profitLoss.cogs },
+        { Particulars: "TOTAL COGS", Amount: profitLoss.cogs },
         { Particulars: "", Amount: "" },
-        { Particulars: "GROSS PROFIT", Amount: profitLoss.grossProfit },
+        { Particulars: profitLoss.isGrossLoss ? "GROSS LOSS" : "GROSS PROFIT", Amount: Math.abs(profitLoss.grossProfit) },
         { Particulars: "", Amount: "" },
-        { Particulars: "EXPENSES", Amount: "" },
-        { Particulars: "Operating Expenses", Amount: profitLoss.expenses },
+        { Particulars: "OPERATING EXPENSES", Amount: "" },
+        ...profitLoss.expensesByCategory.map(e => ({ Particulars: `  ${e.category}`, Amount: e.amount })),
+        { Particulars: "TOTAL EXPENSES", Amount: profitLoss.totalExpenses },
         { Particulars: "", Amount: "" },
-        { Particulars: "NET PROFIT", Amount: profitLoss.netProfit },
+        { Particulars: profitLoss.isNetLoss ? "NET LOSS" : "NET PROFIT", Amount: Math.abs(profitLoss.netProfit) },
         { Particulars: "Profit Margin %", Amount: `${profitLoss.profitMargin.toFixed(2)}%` },
       ];
       const ws = XLSX.utils.json_to_sheet(data);
@@ -190,7 +273,7 @@ export default function AccountingReports() {
             Accounting Reports
           </h1>
           <p className="text-muted-foreground">
-            View Trial Balance, Profit & Loss, Balance Sheet, and Net Profit Summary
+            GST-Compliant Financial Statements for Indian SMEs
           </p>
         </div>
         <div className="flex gap-2">
@@ -230,7 +313,7 @@ export default function AccountingReports() {
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 print:hidden">
                   <Scale className="h-5 w-5" />
                   Trial Balance
                 </CardTitle>
@@ -251,7 +334,15 @@ export default function AccountingReports() {
                   </Button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground print:text-black">
+              <div className="hidden print:block">
+                <ReportHeader 
+                  title="Trial Balance" 
+                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground print:hidden">
                 As of: {format(new Date(asOfDate), "dd MMM yyyy")}
               </p>
             </CardHeader>
@@ -313,16 +404,22 @@ export default function AccountingReports() {
           </Card>
         </TabsContent>
 
-        {/* Profit & Loss */}
+        {/* Profit & Loss - Enhanced GST-Compliant */}
         <TabsContent value="profit-loss" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5" />
-                  Profit & Loss Statement
-                </CardTitle>
-                <div className="flex items-center gap-4 print:hidden">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="flex items-center gap-2 print:hidden">
+                    <TrendingUp className="h-5 w-5" />
+                    Profit & Loss Statement
+                    <Badge variant="outline" className="ml-2">GST Compliant</Badge>
+                  </CardTitle>
+                  <div className="flex flex-wrap items-center gap-4 print:hidden">
+                    <FYPresets onSelect={handleFYSelect} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 print:hidden">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="fromDate">From:</Label>
                     <Input
@@ -349,7 +446,18 @@ export default function AccountingReports() {
                   </Button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground print:text-black">
+              
+              {/* Print Header */}
+              <div className="hidden print:block">
+                <ReportHeader 
+                  title="Profit & Loss Statement" 
+                  subtitle={profitLoss?.periodLabel || `${format(new Date(fromDate), "dd MMM yyyy")} - ${format(new Date(toDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={profitLoss?.generatedAt}
+                />
+              </div>
+              
+              <p className="text-sm text-muted-foreground print:hidden">
                 Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
               </p>
             </CardHeader>
@@ -360,84 +468,157 @@ export default function AccountingReports() {
                 </div>
               ) : profitLoss ? (
                 <div className="space-y-6">
+                  {/* Warnings */}
+                  {profitLoss.warnings.length > 0 && (
+                    <div className="space-y-2 print:hidden">
+                      {profitLoss.warnings.map((warning, idx) => (
+                        <Alert key={idx} variant="destructive" className="bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <AlertDescription className="text-amber-800 dark:text-amber-200">
+                            {warning}
+                          </AlertDescription>
+                        </Alert>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* GST Notice */}
+                  <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800 print:hidden">
+                    <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
+                      ℹ️ All amounts are GST-exclusive. GST data is reported separately in GST Reports.
+                    </AlertDescription>
+                  </Alert>
+
                   {/* Revenue Section */}
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3 text-primary">REVENUE</h3>
+                  <div className="border rounded-lg p-4 print:border-black">
+                    <h3 className="font-semibold text-lg mb-3 text-primary print:text-black flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      REVENUE
+                    </h3>
                     <div className="space-y-2">
                       <div className="flex justify-between">
-                        <span>Gross Sales</span>
-                        <span>{formatCurrency(profitLoss.grossSales)}</span>
+                        <span>Gross Sales (Excl. GST)</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.grossSales)}</span>
                       </div>
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between text-muted-foreground print:text-gray-600">
                         <span>Less: Sales Returns</span>
-                        <span>({formatCurrency(profitLoss.salesReturns)})</span>
+                        <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.salesReturns)})</span>
                       </div>
-                      <div className="flex justify-between font-semibold border-t pt-2">
-                        <span>Net Sales</span>
-                        <span>{formatCurrency(profitLoss.netSales)}</span>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-lg">
+                        <span>NET SALES</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.netSales)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* COGS Section */}
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3 text-primary">COST OF GOODS SOLD</h3>
+                  <div className="border rounded-lg p-4 print:border-black">
+                    <h3 className="font-semibold text-lg mb-3 text-primary print:text-black flex items-center gap-2">
+                      <FileSpreadsheet className="h-5 w-5" />
+                      COST OF GOODS SOLD
+                    </h3>
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span>Opening Stock</span>
-                        <span>{formatCurrency(profitLoss.openingStock)}</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.openingStock)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Add: Purchases</span>
-                        <span>{formatCurrency(profitLoss.purchases)}</span>
+                        <span>Add: Purchases (Excl. GST)</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.purchases)}</span>
                       </div>
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between text-muted-foreground print:text-gray-600">
                         <span>Less: Purchase Returns</span>
-                        <span>({formatCurrency(profitLoss.purchaseReturns)})</span>
+                        <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.purchaseReturns)})</span>
                       </div>
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between text-muted-foreground print:text-gray-600">
                         <span>Less: Closing Stock</span>
-                        <span>({formatCurrency(profitLoss.closingStock)})</span>
+                        <span className="text-right font-mono text-destructive">({formatCurrency(profitLoss.closingStock)})</span>
                       </div>
-                      <div className="flex justify-between font-semibold border-t pt-2">
-                        <span>Total COGS</span>
-                        <span>{formatCurrency(profitLoss.cogs)}</span>
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-lg">
+                        <span>TOTAL COGS</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.cogs)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Gross Profit */}
-                  <div className={`border rounded-lg p-4 ${profitLoss.grossProfit >= 0 ? 'bg-green-50 dark:bg-green-950' : 'bg-red-50 dark:bg-red-950'}`}>
-                    <div className="flex justify-between font-bold text-lg">
-                      <span>GROSS PROFIT</span>
-                      <span className={profitLoss.grossProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(profitLoss.grossProfit)}
+                  <div className={`border-2 rounded-lg p-4 ${
+                    profitLoss.isGrossLoss 
+                      ? 'border-destructive bg-destructive/10 dark:bg-destructive/20' 
+                      : 'border-green-500 bg-green-50 dark:bg-green-950'
+                  }`}>
+                    <div className="flex justify-between font-bold text-xl">
+                      <span className="flex items-center gap-2">
+                        {profitLoss.isGrossLoss ? (
+                          <TrendingDown className="h-6 w-6 text-destructive" />
+                        ) : (
+                          <TrendingUp className="h-6 w-6 text-green-600" />
+                        )}
+                        {profitLoss.isGrossLoss ? 'GROSS LOSS' : 'GROSS PROFIT'}
+                      </span>
+                      <span className={`font-mono ${profitLoss.isGrossLoss ? 'text-destructive' : 'text-green-600'}`}>
+                        {profitLoss.isGrossLoss && '-'}{formatCurrency(Math.abs(profitLoss.grossProfit))}
                       </span>
                     </div>
                   </div>
 
                   {/* Expenses Section */}
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-semibold text-lg mb-3 text-primary">EXPENSES</h3>
+                  <div className="border rounded-lg p-4 print:border-black">
+                    <h3 className="font-semibold text-lg mb-3 text-primary print:text-black flex items-center gap-2">
+                      <Wallet className="h-5 w-5" />
+                      OPERATING EXPENSES
+                    </h3>
                     <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span>Operating Expenses</span>
-                        <span>{formatCurrency(profitLoss.expenses)}</span>
+                      {profitLoss.expensesByCategory.length > 0 ? (
+                        profitLoss.expensesByCategory.map((expense, idx) => (
+                          <div key={idx} className="flex justify-between pl-4">
+                            <span>{expense.category}</span>
+                            <span className="text-right font-mono">{formatCurrency(expense.amount)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex justify-between text-muted-foreground pl-4">
+                          <span>No expenses recorded</span>
+                          <span className="text-right font-mono">{formatCurrency(0)}</span>
+                        </div>
+                      )}
+                      <Separator className="my-2" />
+                      <div className="flex justify-between font-semibold text-lg">
+                        <span>TOTAL EXPENSES</span>
+                        <span className="text-right font-mono">{formatCurrency(profitLoss.totalExpenses)}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Net Profit */}
-                  <div className={`border-2 rounded-lg p-4 ${profitLoss.netProfit >= 0 ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-red-500 bg-red-50 dark:bg-red-950'}`}>
-                    <div className="flex justify-between font-bold text-xl">
-                      <span>NET PROFIT</span>
-                      <span className={profitLoss.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(profitLoss.netProfit)}
+                  <div className={`border-4 rounded-lg p-6 ${
+                    profitLoss.isNetLoss 
+                      ? 'border-destructive bg-destructive/10 dark:bg-destructive/20' 
+                      : 'border-green-500 bg-green-50 dark:bg-green-950'
+                  }`}>
+                    <div className="flex justify-between font-bold text-2xl">
+                      <span className="flex items-center gap-3">
+                        {profitLoss.isNetLoss ? (
+                          <TrendingDown className="h-8 w-8 text-destructive" />
+                        ) : (
+                          <TrendingUp className="h-8 w-8 text-green-600" />
+                        )}
+                        {profitLoss.isNetLoss ? 'NET LOSS' : 'NET PROFIT'}
+                      </span>
+                      <span className={`font-mono ${profitLoss.isNetLoss ? 'text-destructive' : 'text-green-600'}`}>
+                        {profitLoss.isNetLoss && '-'}{formatCurrency(Math.abs(profitLoss.netProfit))}
                       </span>
                     </div>
-                    <div className="flex justify-between text-sm mt-2 text-muted-foreground">
-                      <span>Profit Margin</span>
-                      <span>{profitLoss.profitMargin.toFixed(2)}%</span>
+                    <Separator className="my-3" />
+                    <div className="flex justify-between text-lg">
+                      <span className="text-muted-foreground">Profit Margin</span>
+                      <span className={`font-mono font-semibold ${
+                        profitLoss.profitMargin < 0 ? 'text-destructive' : 'text-green-600'
+                      }`}>
+                        {profitLoss.profitMargin.toFixed(2)}%
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -455,7 +636,7 @@ export default function AccountingReports() {
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="flex items-center gap-2 print:hidden">
                   <FileSpreadsheet className="h-5 w-5" />
                   Balance Sheet
                 </CardTitle>
@@ -476,7 +657,15 @@ export default function AccountingReports() {
                   </Button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground print:text-black">
+              <div className="hidden print:block">
+                <ReportHeader 
+                  title="Balance Sheet" 
+                  subtitle={`As of: ${format(new Date(asOfDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground print:hidden">
                 As of: {format(new Date(asOfDate), "dd MMM yyyy")}
               </p>
             </CardHeader>
@@ -498,19 +687,19 @@ export default function AccountingReports() {
                         <div className="text-sm font-medium text-muted-foreground">Current Assets</div>
                         <div className="flex justify-between pl-4">
                           <span>Cash & Bank</span>
-                          <span>{formatCurrency(balanceSheet.assets.cashBank)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.assets.cashBank)}</span>
                         </div>
                         <div className="flex justify-between pl-4">
                           <span>Accounts Receivable</span>
-                          <span>{formatCurrency(balanceSheet.assets.accountsReceivable)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.assets.accountsReceivable)}</span>
                         </div>
                         <div className="flex justify-between pl-4">
                           <span>Inventory</span>
-                          <span>{formatCurrency(balanceSheet.assets.inventory)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.assets.inventory)}</span>
                         </div>
                         <div className="flex justify-between font-bold border-t pt-2 text-lg">
                           <span>Total Assets</span>
-                          <span className="text-primary">{formatCurrency(balanceSheet.assets.totalAssets)}</span>
+                          <span className="text-primary font-mono">{formatCurrency(balanceSheet.assets.totalAssets)}</span>
                         </div>
                       </div>
                     </div>
@@ -527,15 +716,15 @@ export default function AccountingReports() {
                         <div className="text-sm font-medium text-muted-foreground">Current Liabilities</div>
                         <div className="flex justify-between pl-4">
                           <span>Accounts Payable</span>
-                          <span>{formatCurrency(balanceSheet.liabilities.accountsPayable)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.liabilities.accountsPayable)}</span>
                         </div>
                         <div className="flex justify-between pl-4">
                           <span>GST Payable</span>
-                          <span>{formatCurrency(balanceSheet.liabilities.gstPayable)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.liabilities.gstPayable)}</span>
                         </div>
                         <div className="flex justify-between font-bold border-t pt-2">
                           <span>Total Liabilities</span>
-                          <span>{formatCurrency(balanceSheet.liabilities.totalLiabilities)}</span>
+                          <span className="font-mono">{formatCurrency(balanceSheet.liabilities.totalLiabilities)}</span>
                         </div>
                       </div>
                     </div>
@@ -548,7 +737,7 @@ export default function AccountingReports() {
                       <div className="space-y-3">
                         <div className="flex justify-between font-bold border-t pt-2">
                           <span>Closing Capital</span>
-                          <span className="text-green-600">{formatCurrency(balanceSheet.equity.closingCapital)}</span>
+                          <span className="text-green-600 font-mono">{formatCurrency(balanceSheet.equity.closingCapital)}</span>
                         </div>
                       </div>
                     </div>
@@ -556,7 +745,7 @@ export default function AccountingReports() {
                     <div className="border-2 border-primary rounded-lg p-4 bg-primary/5">
                       <div className="flex justify-between font-bold text-lg">
                         <span>Total Liabilities + Equity</span>
-                        <span className="text-primary">
+                        <span className="text-primary font-mono">
                           {formatCurrency(balanceSheet.liabilities.totalLiabilities + balanceSheet.equity.closingCapital)}
                         </span>
                       </div>
@@ -576,12 +765,15 @@ export default function AccountingReports() {
         <TabsContent value="net-profit" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="h-5 w-5" />
-                  Net Profit Summary
-                </CardTitle>
-                <div className="flex items-center gap-4 print:hidden">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="flex items-center gap-2 print:hidden">
+                    <PieChart className="h-5 w-5" />
+                    Net Profit Summary
+                  </CardTitle>
+                  <FYPresets onSelect={handleFYSelect} />
+                </div>
+                <div className="flex flex-wrap items-center gap-4 print:hidden">
                   <div className="flex items-center gap-2">
                     <Label htmlFor="npFromDate">From:</Label>
                     <Input
@@ -608,7 +800,15 @@ export default function AccountingReports() {
                   </Button>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground print:text-black">
+              <div className="hidden print:block">
+                <ReportHeader 
+                  title="Net Profit Summary" 
+                  subtitle={`Period: ${format(new Date(fromDate), "dd MMM yyyy")} - ${format(new Date(toDate), "dd MMM yyyy")}`}
+                  organization={currentOrganization || undefined}
+                  generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground print:hidden">
                 Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
               </p>
             </CardHeader>
@@ -618,17 +818,31 @@ export default function AccountingReports() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : netProfitSummary ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                   <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Revenue</p>
-                          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 font-mono">
                             {formatCurrency(netProfitSummary.totalRevenue)}
                           </p>
                         </div>
                         <TrendingUp className="h-10 w-10 text-blue-500" />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">Cost of Goods</p>
+                          <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 font-mono">
+                            {formatCurrency(netProfitSummary.cogs)}
+                          </p>
+                        </div>
+                        <FileSpreadsheet className="h-10 w-10 text-amber-500" />
                       </div>
                     </CardContent>
                   </Card>
@@ -638,7 +852,7 @@ export default function AccountingReports() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">Total Expenses</p>
-                          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300 font-mono">
                             {formatCurrency(netProfitSummary.totalExpenses)}
                           </p>
                         </div>
@@ -652,7 +866,7 @@ export default function AccountingReports() {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">Gross Profit</p>
-                          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 font-mono">
                             {formatCurrency(netProfitSummary.grossProfit)}
                           </p>
                         </div>
@@ -661,21 +875,21 @@ export default function AccountingReports() {
                     </CardContent>
                   </Card>
 
-                  <Card className={`border-2 ${netProfitSummary.netProfit >= 0 ? 'bg-green-50 dark:bg-green-950 border-green-500' : 'bg-red-50 dark:bg-red-950 border-red-500'}`}>
+                  <Card className={`border-2 ${netProfitSummary.isNetLoss ? 'bg-red-50 dark:bg-red-950 border-red-500' : 'bg-green-50 dark:bg-green-950 border-green-500'}`}>
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className={`text-sm font-medium ${netProfitSummary.netProfit >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                            Net Profit
+                          <p className={`text-sm font-medium ${netProfitSummary.isNetLoss ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                            {netProfitSummary.isNetLoss ? 'Net Loss' : 'Net Profit'}
                           </p>
-                          <p className={`text-2xl font-bold ${netProfitSummary.netProfit >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
-                            {formatCurrency(netProfitSummary.netProfit)}
+                          <p className={`text-2xl font-bold font-mono ${netProfitSummary.isNetLoss ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
+                            {netProfitSummary.isNetLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.netProfit))}
                           </p>
                           <p className="text-sm text-muted-foreground mt-1">
                             Margin: {netProfitSummary.profitMarginPercent.toFixed(2)}%
                           </p>
                         </div>
-                        <PieChart className={`h-10 w-10 ${netProfitSummary.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                        <PieChart className={`h-10 w-10 ${netProfitSummary.isNetLoss ? 'text-red-500' : 'text-green-500'}`} />
                       </div>
                     </CardContent>
                   </Card>
