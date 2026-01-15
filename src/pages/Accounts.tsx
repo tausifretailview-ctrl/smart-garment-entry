@@ -889,33 +889,38 @@ export default function Accounts() {
           .from("sales")
           .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount")
           .eq("id", invoiceId)
-          .single();
+          .maybeSingle();
 
         if (fetchError) throw fetchError;
+        
+        if (invoice) {
+          // Calculate new paid amount (reverse the payment)
+          const currentPaid = Number(invoice.paid_amount || 0);
+          const newPaidAmount = Math.max(0, currentPaid - paymentAmount);
+          const netAmount = Number(invoice.net_amount || 0);
 
-        // Calculate new paid amount (reverse the payment)
-        const currentPaid = Number(invoice.paid_amount || 0);
-        const newPaidAmount = Math.max(0, currentPaid - paymentAmount);
-        const netAmount = Number(invoice.net_amount || 0);
+          // Determine new payment status
+          let newPaymentStatus = 'pending';
+          if (newPaidAmount >= netAmount) {
+            newPaymentStatus = 'completed';
+          } else if (newPaidAmount > 0) {
+            newPaymentStatus = 'partial';
+          }
 
-        // Determine new payment status
-        let newPaymentStatus = 'pending';
-        if (newPaidAmount >= netAmount) {
-          newPaymentStatus = 'completed';
-        } else if (newPaidAmount > 0) {
-          newPaymentStatus = 'partial';
+          // Update the sales record with reversed payment
+          const { error: updateError } = await supabase
+            .from("sales")
+            .update({
+              paid_amount: newPaidAmount,
+              payment_status: newPaymentStatus,
+            })
+            .eq("id", invoiceId);
+
+          if (updateError) throw updateError;
+        } else {
+          console.warn("Invoice not found:", invoiceId);
+          // Continue with deleting the voucher even if invoice not found
         }
-
-        // Update the sales record with reversed payment
-        const { error: updateError } = await supabase
-          .from("sales")
-          .update({
-            paid_amount: newPaidAmount,
-            payment_status: newPaymentStatus,
-          })
-          .eq("id", invoiceId);
-
-        if (updateError) throw updateError;
       }
 
       // Delete the voucher items first (if any)
@@ -1709,9 +1714,9 @@ export default function Accounts() {
                                   return supplier ? (
                                     <span className="flex items-center gap-2">
                                       {supplier.supplier_name}
-                                      {supplier.outstandingBalance && (
+                                      {supplier.outstandingBalance !== undefined && supplier.outstandingBalance !== null && (
                                         <Badge variant="destructive" className="ml-2">
-                                          ₹{supplier.outstandingBalance.toFixed(2)}
+                                          ₹{(supplier.outstandingBalance || 0).toFixed(2)}
                                         </Badge>
                                       )}
                                     </span>
@@ -1755,7 +1760,7 @@ export default function Accounts() {
                                     />
                                     <span className="flex-1">{supplier.supplier_name}</span>
                                     <Badge variant="destructive" className="ml-2">
-                                      ₹{supplier.outstandingBalance.toFixed(2)}
+                                      ₹{(supplier.outstandingBalance || 0).toFixed(2)}
                                     </Badge>
                                   </CommandItem>
                                 ))}
