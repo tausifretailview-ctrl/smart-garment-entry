@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { format, subDays } from "date-fns";
 
 export interface TrialBalanceEntry {
   accountName: string;
@@ -7,19 +8,42 @@ export interface TrialBalanceEntry {
   credit: number;
 }
 
+export interface ExpenseCategory {
+  category: string;
+  amount: number;
+}
+
 export interface ProfitLossData {
+  // Revenue
   grossSales: number;
   salesReturns: number;
   netSales: number;
+  
+  // COGS (GST-exclusive)
   openingStock: number;
   purchases: number;
+  purchasesGST: number; // For reference only
   purchaseReturns: number;
   closingStock: number;
   cogs: number;
+  
+  // Gross Profit
   grossProfit: number;
-  expenses: number;
+  isGrossLoss: boolean;
+  
+  // Expenses by Category
+  expensesByCategory: ExpenseCategory[];
+  totalExpenses: number;
+  
+  // Net Profit
   netProfit: number;
+  isNetLoss: boolean;
   profitMargin: number;
+  
+  // Metadata
+  warnings: string[];
+  generatedAt: string;
+  periodLabel: string;
 }
 
 export interface BalanceSheetData {
@@ -47,6 +71,8 @@ export interface NetProfitSummary {
   grossProfit: number;
   netProfit: number;
   profitMarginPercent: number;
+  cogs: number;
+  isNetLoss: boolean;
 }
 
 // Calculate Trial Balance
@@ -187,7 +213,7 @@ export async function calculateTrialBalance(
   return entries;
 }
 
-// Calculate Stock Value
+// Calculate Stock Value at current date
 export async function calculateStockValue(organizationId: string): Promise<number> {
   const { data: variants } = await supabase
     .from("product_variants")
@@ -199,57 +225,172 @@ export async function calculateStockValue(organizationId: string): Promise<numbe
   return variants.reduce((sum, v) => sum + ((v.stock_qty || 0) * (v.pur_price || 0)), 0);
 }
 
-// Calculate Profit & Loss
+// Calculate Stock Value at a specific date (for opening stock)
+export async function calculateStockValueAtDate(
+  organizationId: string,
+  asOfDate: string
+): Promise<number> {
+  // Get current stock value
+  const currentStock = await calculateStockValue(organizationId);
+  
+  // Get all stock movements after the date to calculate what stock was at that point
+  // This is a simplified approach - in production, you'd track stock movements explicitly
+  
+  // Get purchases after the date
+  const { data: purchasesAfter } = await supabase
+    .from("purchase_items")
+    .select(`
+      qty, pur_price,
+      purchase_bills!inner(bill_date, organization_id, deleted_at)
+    `)
+    .eq("purchase_bills.organization_id", organizationId)
+    .gt("purchase_bills.bill_date", asOfDate)
+    .is("purchase_bills.deleted_at", null)
+    .is("deleted_at", null);
+  
+  const purchasesValueAfter = purchasesAfter?.reduce(
+    (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
+  ) || 0;
+  
+  // Get sales after the date
+  const { data: salesAfter } = await supabase
+    .from("sale_items")
+    .select(`
+      quantity, unit_price,
+      sales!inner(invoice_date, organization_id, deleted_at)
+    `)
+    .eq("sales.organization_id", organizationId)
+    .gt("sales.invoice_date", asOfDate)
+    .is("sales.deleted_at", null)
+    .is("deleted_at", null);
+  
+  const salesValueAfter = salesAfter?.reduce(
+    (sum, s) => sum + ((s.quantity || 0) * (s.unit_price || 0)), 0
+  ) || 0;
+  
+  // Stock at date = Current stock - Purchases after date + Sales after date
+  // (Simplified - actual implementation would use FIFO/LIFO/Weighted Average)
+  return Math.max(0, currentStock - purchasesValueAfter + salesValueAfter);
+}
+
+// Calculate Profit & Loss (Enhanced GST-Compliant)
 export async function calculateProfitLoss(
   organizationId: string,
   fromDate: string,
   toDate: string
 ): Promise<ProfitLossData> {
+  const warnings: string[] = [];
+  
+  // REVENUE SECTION
+  // Gross Sales - use gross_amount (before GST) for GST-exclusive reporting
   const { data: sales } = await supabase
     .from("sales")
-    .select("net_amount")
+    .select("gross_amount, net_amount")
     .eq("organization_id", organizationId)
     .gte("invoice_date", fromDate)
     .lte("invoice_date", toDate)
     .is("deleted_at", null);
-  const grossSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+  
+  // Use gross_amount (before GST) for GST-exclusive reporting
+  const grossSales = sales?.reduce((sum, s) => sum + (s.gross_amount || s.net_amount || 0), 0) || 0;
 
+  // Sales Returns
   const { data: saleReturns } = await supabase
     .from("sale_returns")
-    .select("net_amount")
+    .select("gross_amount, net_amount")
     .eq("organization_id", organizationId)
     .gte("return_date", fromDate)
     .lte("return_date", toDate)
     .is("deleted_at", null);
-  const salesReturns = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+  const salesReturns = saleReturns?.reduce((sum, sr) => sum + (sr.gross_amount || sr.net_amount || 0), 0) || 0;
 
   const netSales = grossSales - salesReturns;
 
+  // COGS SECTION (GST-Exclusive)
+  // Opening Stock = Stock value at the start of the period
+  const openingStockDate = format(subDays(new Date(fromDate), 1), "yyyy-MM-dd");
+  const openingStock = await calculateStockValueAtDate(organizationId, openingStockDate);
+  
+  // Purchases (GST-Exclusive - use gross_amount)
   const { data: purchases } = await supabase
     .from("purchase_bills")
-    .select("net_amount")
+    .select("gross_amount, gst_amount, net_amount")
     .eq("organization_id", organizationId)
     .gte("bill_date", fromDate)
     .lte("bill_date", toDate)
     .is("deleted_at", null);
-  const purchasesAmount = purchases?.reduce((sum, p) => sum + (p.net_amount || 0), 0) || 0;
+  
+  // gross_amount is the amount BEFORE GST (GST-exclusive)
+  const purchasesAmount = purchases?.reduce((sum, p) => sum + (p.gross_amount || 0), 0) || 0;
+  const purchasesGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
 
+  // Purchase Returns (GST-Exclusive)
   const { data: purchaseReturns } = await supabase
     .from("purchase_returns")
-    .select("net_amount")
+    .select("gross_amount, net_amount")
     .eq("organization_id", organizationId)
     .gte("return_date", fromDate)
     .lte("return_date", toDate)
     .is("deleted_at", null);
-  const purchaseReturnsAmount = purchaseReturns?.reduce((sum, pr) => sum + (pr.net_amount || 0), 0) || 0;
+  const purchaseReturnsAmount = purchaseReturns?.reduce((sum, pr) => sum + (pr.gross_amount || pr.net_amount || 0), 0) || 0;
 
+  // Closing Stock (current stock value)
   const closingStock = await calculateStockValue(organizationId);
-  const openingStock = Math.max(0, closingStock - purchasesAmount + purchaseReturnsAmount);
+  
+  // Validate closing stock
+  if (closingStock < 0) {
+    warnings.push("Warning: Negative closing stock detected. Please verify stock entries.");
+  }
+
+  // COGS = Opening Stock + Purchases - Purchase Returns - Closing Stock
   const cogs = Math.max(0, openingStock + purchasesAmount - purchaseReturnsAmount - closingStock);
+
+  // Gross Profit
   const grossProfit = netSales - cogs;
-  const expenses = 0; // Simplified - no separate expense tracking
-  const netProfit = grossProfit - expenses;
+  const isGrossLoss = grossProfit < 0;
+
+  // EXPENSES SECTION (from voucher_entries)
+  const { data: expenseVouchers } = await supabase
+    .from("voucher_entries")
+    .select("category, total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "expense")
+    .gte("voucher_date", fromDate)
+    .lte("voucher_date", toDate)
+    .is("deleted_at", null);
+
+  // Group expenses by category
+  const expenseMap = new Map<string, number>();
+  expenseVouchers?.forEach(v => {
+    const category = v.category || "Miscellaneous";
+    const current = expenseMap.get(category) || 0;
+    expenseMap.set(category, current + (v.total_amount || 0));
+  });
+
+  const expensesByCategory: ExpenseCategory[] = Array.from(expenseMap.entries())
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const totalExpenses = expensesByCategory.reduce((sum, e) => sum + e.amount, 0);
+
+  // Net Profit
+  const netProfit = grossProfit - totalExpenses;
+  const isNetLoss = netProfit < 0;
   const profitMargin = netSales > 0 ? (netProfit / netSales) * 100 : 0;
+
+  // Edge case warnings
+  if (netSales === 0 && cogs > 0) {
+    warnings.push("No sales recorded for this period, but cost of goods exists.");
+  }
+  
+  if (netSales === 0 && totalExpenses === 0 && cogs === 0) {
+    warnings.push("No transactions recorded for this period.");
+  }
+
+  // Generate period label
+  const fromFormatted = format(new Date(fromDate), "dd MMM yyyy");
+  const toFormatted = format(new Date(toDate), "dd MMM yyyy");
+  const periodLabel = `${fromFormatted} to ${toFormatted}`;
 
   return {
     grossSales,
@@ -257,13 +398,20 @@ export async function calculateProfitLoss(
     netSales,
     openingStock,
     purchases: purchasesAmount,
+    purchasesGST,
     purchaseReturns: purchaseReturnsAmount,
     closingStock,
     cogs,
     grossProfit,
-    expenses,
+    isGrossLoss,
+    expensesByCategory,
+    totalExpenses,
     netProfit,
+    isNetLoss,
     profitMargin,
+    warnings,
+    generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
+    periodLabel,
   };
 }
 
@@ -362,9 +510,40 @@ export async function calculateNetProfitSummary(
   const plData = await calculateProfitLoss(organizationId, fromDate, toDate);
   return {
     totalRevenue: plData.netSales,
-    totalExpenses: plData.cogs + plData.expenses,
+    totalExpenses: plData.totalExpenses,
     grossProfit: plData.grossProfit,
     netProfit: plData.netProfit,
     profitMarginPercent: plData.profitMargin,
+    cogs: plData.cogs,
+    isNetLoss: plData.isNetLoss,
+  };
+}
+
+// Get India Financial Year dates
+export function getIndiaFinancialYear(offset: number = 0): { fromDate: string; toDate: string; label: string } {
+  const today = new Date();
+  let fyStartYear = today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1;
+  fyStartYear += offset;
+  
+  const fromDate = format(new Date(fyStartYear, 3, 1), "yyyy-MM-dd"); // April 1
+  const toDate = format(new Date(fyStartYear + 1, 2, 31), "yyyy-MM-dd"); // March 31
+  const label = `FY ${fyStartYear}-${(fyStartYear + 1).toString().slice(-2)}`;
+  
+  return { fromDate, toDate, label };
+}
+
+// Get quarter dates
+export function getCurrentQuarter(): { fromDate: string; toDate: string; label: string } {
+  const today = new Date();
+  const quarter = Math.floor(today.getMonth() / 3);
+  const quarterStart = new Date(today.getFullYear(), quarter * 3, 1);
+  const quarterEnd = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+  
+  const quarterNames = ["Q1", "Q2", "Q3", "Q4"];
+  
+  return {
+    fromDate: format(quarterStart, "yyyy-MM-dd"),
+    toDate: format(quarterEnd, "yyyy-MM-dd"),
+    label: `${quarterNames[quarter]} ${today.getFullYear()}`,
   };
 }

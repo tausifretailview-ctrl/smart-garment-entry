@@ -1026,6 +1026,47 @@ export type Database = {
           },
         ]
       }
+      expense_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          name: string
+          organization_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          organization_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          organization_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_redemptions: {
         Row: {
           customer_id: string
@@ -3171,6 +3212,7 @@ export type Database = {
       }
       voucher_entries: {
         Row: {
+          category: string | null
           created_at: string | null
           created_by: string | null
           deleted_at: string | null
@@ -3187,6 +3229,7 @@ export type Database = {
           voucher_type: string
         }
         Insert: {
+          category?: string | null
           created_at?: string | null
           created_by?: string | null
           deleted_at?: string | null
@@ -3203,6 +3246,7 @@ export type Database = {
           voucher_type: string
         }
         Update: {
+          category?: string | null
           created_at?: string | null
           created_by?: string | null
           deleted_at?: string | null
