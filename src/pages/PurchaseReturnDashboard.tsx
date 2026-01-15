@@ -644,7 +644,7 @@ const PurchaseReturnDashboard = () => {
                         </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1">
-                            {returnRecord.credit_status === 'pending' && returnRecord.credit_note_id && (
+                            {(returnRecord.credit_status === 'pending' || !returnRecord.credit_status) && (
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -692,14 +692,6 @@ const PurchaseReturnDashboard = () => {
                               ) : (
                                 <ChevronDown className="h-4 w-4" />
                               )}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(returnRecord)}
-                              title="Delete Return"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
                         </TableCell>
