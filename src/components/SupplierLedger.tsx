@@ -28,13 +28,14 @@ interface Supplier {
   opening_balance: number;
   totalPurchases: number;
   totalPaid: number;
+  totalCreditNotes: number;
   balance: number;
 }
 
 interface Transaction {
   id: string;
   date: string;
-  type: 'bill' | 'payment';
+  type: 'bill' | 'payment' | 'credit_note';
   reference: string;
   description: string;
   debit: number;
@@ -83,11 +84,29 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (voucherError) throw voucherError;
 
+      // Fetch credit notes (from purchase returns)
+      const { data: creditNotes, error: creditNoteError } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, total_amount")
+        .eq("organization_id", organizationId)
+        .eq("reference_type", "supplier")
+        .eq("voucher_type", "credit_note")
+        .is("deleted_at", null);
+
+      if (creditNoteError) throw creditNoteError;
+
       // Create a map of supplier ID -> total voucher payments
       const supplierVoucherPayments = new Map<string, number>();
       voucherPayments?.forEach((v: any) => {
         const current = supplierVoucherPayments.get(v.reference_id) || 0;
         supplierVoucherPayments.set(v.reference_id, current + (Number(v.total_amount) || 0));
+      });
+
+      // Create a map of supplier ID -> total credit notes
+      const supplierCreditNotes = new Map<string, number>();
+      creditNotes?.forEach((cn: any) => {
+        const current = supplierCreditNotes.get(cn.reference_id) || 0;
+        supplierCreditNotes.set(cn.reference_id, current + (Number(cn.total_amount) || 0));
       });
 
       // Calculate totals per supplier
@@ -97,15 +116,17 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         const totalPaidOnBills = supplierBills.reduce((sum: number, b: any) => sum + (b.paid_amount || 0), 0);
         const voucherPaymentTotal = supplierVoucherPayments.get(supplier.id) || 0;
         const totalPaid = totalPaidOnBills + voucherPaymentTotal;
+        const totalCreditNotes = supplierCreditNotes.get(supplier.id) || 0;
         const openingBalance = supplier.opening_balance || 0;
-        // Balance = Opening Balance + Total Purchases - Total Paid
-        const balance = openingBalance + totalPurchases - totalPaid;
+        // Balance = Opening Balance + Total Purchases - Total Paid - Credit Notes
+        const balance = openingBalance + totalPurchases - totalPaid - totalCreditNotes;
 
         return {
           ...supplier,
           opening_balance: openingBalance,
           totalPurchases,
           totalPaid,
+          totalCreditNotes,
           balance,
         };
       });
@@ -193,6 +214,26 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
 
       if (openingError) throw openingError;
 
+      // Fetch credit notes for this supplier
+      let creditNotesQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_type", "supplier")
+        .eq("reference_id", selectedSupplier.id)
+        .eq("voucher_type", "credit_note")
+        .is("deleted_at", null);
+
+      if (startDate) {
+        creditNotesQuery = creditNotesQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        creditNotesQuery = creditNotesQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: creditNotesData, error: creditNotesError } = await creditNotesQuery.order("voucher_date", { ascending: true });
+
+      if (creditNotesError) throw creditNotesError;
+
       // Merge bill payments and opening balance payments
       const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
 
@@ -226,7 +267,7 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
         });
       }
 
-      // Merge bills and payments chronologically
+      // Merge bills, payments, and credit notes chronologically
       const combined = [
         ...(billsData || []).map((bill) => ({
           date: bill.bill_date,
@@ -237,6 +278,11 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
           date: voucher.voucher_date,
           type: 'payment' as const,
           data: voucher,
+        })),
+        ...(creditNotesData || []).map((cn) => ({
+          date: cn.voucher_date,
+          type: 'credit_note' as const,
+          data: cn,
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -275,6 +321,20 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
               balance: runningBalance,
             });
           }
+        } else if (item.type === 'credit_note') {
+          const creditNote = item.data as any;
+          runningBalance -= creditNote.total_amount;
+          
+          allTransactions.push({
+            id: creditNote.id,
+            date: creditNote.voucher_date,
+            type: 'credit_note',
+            reference: creditNote.voucher_number,
+            description: creditNote.description || 'Supplier Credit Note (Purchase Return)',
+            debit: creditNote.total_amount,
+            credit: 0,
+            balance: runningBalance,
+          });
         } else {
           const voucher = item.data as any;
           runningBalance -= voucher.total_amount;
@@ -559,6 +619,10 @@ export function SupplierLedger({ organizationId }: SupplierLedgerProps) {
                           {transaction.id === 'opening-balance' ? (
                             <Badge variant="outline" className="bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400">
                               B/F
+                            </Badge>
+                          ) : transaction.type === 'credit_note' ? (
+                            <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                              <FileText className="h-3 w-3 mr-1" /> Credit Note
                             </Badge>
                           ) : (
                             <Badge variant={transaction.type === 'bill' ? 'default' : 'secondary'}>
