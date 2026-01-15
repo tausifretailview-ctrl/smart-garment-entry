@@ -627,7 +627,7 @@ export function SizeGridDialog({
         )}
 
         {/* SINGLE-COLOR MODE: Original color selection and grid */}
-        {!allowMultiColor && (
+        {(!allowMultiColor || !hasMultipleColors) && (
           <>
             {/* Color Selection - Show ONLY if multiple colors truly exist (required selection) */}
             {hasMultipleColors && !selectedColor && (
