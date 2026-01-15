@@ -10,13 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2, Search, Calendar, Package, TrendingDown, Plus, Printer, Receipt, IndianRupee, Edit, Eye, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PurchaseReturnPrint } from "@/components/PurchaseReturnPrint";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { AdjustCreditNoteDialog } from "@/components/AdjustCreditNoteDialog";
 
 interface PurchaseReturnItem {
   id: string;
@@ -45,6 +46,9 @@ interface PurchaseReturn {
   created_at: string;
   items?: PurchaseReturnItem[];
   total_qty?: number; // Calculated from items
+  credit_note_id?: string;
+  credit_status?: string; // 'pending', 'adjusted', 'refunded'
+  linked_bill_id?: string;
 }
 
 const PurchaseReturnDashboard = () => {
@@ -71,6 +75,10 @@ const PurchaseReturnDashboard = () => {
   // Supplier history dialog states
   const [showSupplierHistory, setShowSupplierHistory] = useState(false);
   const [selectedSupplierForHistory, setSelectedSupplierForHistory] = useState<{id: string; name: string} | null>(null);
+
+  // Credit note adjustment dialog states
+  const [showAdjustDialog, setShowAdjustDialog] = useState(false);
+  const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<PurchaseReturn | null>(null);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -552,6 +560,7 @@ const PurchaseReturnDashboard = () => {
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
                     <TableHead>Notes</TableHead>
+                    <TableHead>Credit Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -613,8 +622,41 @@ const PurchaseReturnDashboard = () => {
                         <TableCell className="max-w-xs truncate">
                           {returnRecord.notes || "-"}
                         </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {returnRecord.credit_status === 'pending' && (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                              Pending
+                            </Badge>
+                          )}
+                          {returnRecord.credit_status === 'adjusted' && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                              Adjusted
+                            </Badge>
+                          )}
+                          {returnRecord.credit_status === 'refunded' && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                              Refunded
+                            </Badge>
+                          )}
+                          {!returnRecord.credit_status && (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1">
+                            {returnRecord.credit_status === 'pending' && returnRecord.credit_note_id && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedReturnForAdjust(returnRecord);
+                                  setShowAdjustDialog(true);
+                                }}
+                                title="Adjust Credit Note"
+                              >
+                                <CreditCard className="h-4 w-4 text-purple-600" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -665,7 +707,7 @@ const PurchaseReturnDashboard = () => {
 
                       {expandedReturns.has(returnRecord.id) && (
                         <TableRow>
-                          <TableCell colSpan={11} className="bg-muted/30 p-0">
+                          <TableCell colSpan={12} className="bg-muted/30 p-0">
                             <div className="p-4">
                               <h4 className="font-semibold mb-3 flex items-center gap-2">
                                 <Package className="h-4 w-4" />
@@ -857,6 +899,23 @@ const PurchaseReturnDashboard = () => {
             />
           )}
           defaultFormat="a4"
+        />
+      )}
+
+      {/* Credit Note Adjustment Dialog */}
+      {selectedReturnForAdjust && (
+        <AdjustCreditNoteDialog
+          open={showAdjustDialog}
+          onOpenChange={setShowAdjustDialog}
+          creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
+          creditNoteNumber={selectedReturnForAdjust.return_number || ""}
+          creditAmount={selectedReturnForAdjust.net_amount}
+          supplierId={selectedReturnForAdjust.supplier_id || ""}
+          supplierName={selectedReturnForAdjust.supplier_name}
+          onSuccess={() => {
+            fetchReturns();
+            setSelectedReturnForAdjust(null);
+          }}
         />
       )}
 
