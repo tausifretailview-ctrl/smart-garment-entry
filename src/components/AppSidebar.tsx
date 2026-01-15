@@ -83,7 +83,7 @@ export function AppSidebar() {
   const masterPaths = ["/customers", "/suppliers", "/employees"];
   const inventoryPaths = ["/purchase-bills", "/purchase-returns", "/purchase-entry", "/product-entry", "/products", "/bulk-product-update"];
   const salesPaths = ["/quotation-entry", "/quotation-dashboard", "/sale-order-entry", "/sale-order-dashboard", "/pos-sales", "/pos-dashboard", "/sales-invoice", "/sales-invoice-dashboard", "/sale-return-entry", "/sale-returns", "/delivery-challan-entry", "/delivery-challan-dashboard"];
-  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics"];
+  const reportsPaths = ["/stock-report", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
 
@@ -552,6 +552,16 @@ export function AppSidebar() {
                               <NavLink to="/sales-analytics" className="flex items-center gap-3 group">
                                 <TrendingUp className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                                 <span className="dark:text-white">Sales Analytics</span>
+                              </NavLink>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )}
+                        {(isAdminPermissions || hasMenuAccess("accounting_reports")) && (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={isActive("/accounting-reports")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                              <NavLink to="/accounting-reports" className="flex items-center gap-3 group">
+                                <FileSpreadsheet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                                <span className="dark:text-white">Accounting Reports</span>
                               </NavLink>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
