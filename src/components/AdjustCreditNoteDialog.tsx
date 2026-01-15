@@ -15,6 +15,7 @@ import { Loader2, IndianRupee } from "lucide-react";
 interface AdjustCreditNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  purchaseReturnId: string; // Added to reliably identify the purchase return
   creditNoteId: string;
   creditNoteNumber: string;
   creditAmount: number;
@@ -26,6 +27,7 @@ interface AdjustCreditNoteDialogProps {
 export function AdjustCreditNoteDialog({
   open,
   onOpenChange,
+  purchaseReturnId,
   creditNoteId,
   creditNoteNumber,
   creditAmount,
@@ -99,26 +101,28 @@ export function AdjustCreditNoteDialog({
 
         if (billError) throw billError;
 
-        // Update the purchase return credit status
+        // Update the purchase return credit status using purchaseReturnId
         const { error: returnError } = await supabase
           .from("purchase_returns" as any)
           .update({
             credit_status: "adjusted",
             linked_bill_id: selectedBillId,
           })
-          .eq("credit_note_id", creditNoteId);
+          .eq("id", purchaseReturnId);
 
         if (returnError) throw returnError;
 
-        // Update the voucher entry description
-        const { error: voucherError } = await supabase
-          .from("voucher_entries")
-          .update({
-            description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
-          })
-          .eq("id", creditNoteId);
+        // Update the voucher entry description only if creditNoteId exists
+        if (creditNoteId) {
+          const { error: voucherError } = await supabase
+            .from("voucher_entries")
+            .update({
+              description: `Credit Note adjusted against Bill: ${selectedBill.supplier_invoice_no || selectedBill.software_bill_no}`,
+            })
+            .eq("id", creditNoteId);
 
-        if (voucherError) throw voucherError;
+          if (voucherError) throw voucherError;
+        }
 
         toast({
           title: "Success",
@@ -157,13 +161,13 @@ export function AdjustCreditNoteDialog({
 
         if (receiptError) throw receiptError;
 
-        // Update the purchase return credit status
+        // Update the purchase return credit status using purchaseReturnId
         const { error: returnError } = await supabase
           .from("purchase_returns" as any)
           .update({
             credit_status: "refunded",
           })
-          .eq("credit_note_id", creditNoteId);
+          .eq("id", purchaseReturnId);
 
         if (returnError) throw returnError;
 

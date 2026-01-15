@@ -899,6 +899,7 @@ const PurchaseReturnDashboard = () => {
         <AdjustCreditNoteDialog
           open={showAdjustDialog}
           onOpenChange={setShowAdjustDialog}
+          purchaseReturnId={selectedReturnForAdjust.id}
           creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
           creditNoteNumber={selectedReturnForAdjust.return_number || ""}
           creditAmount={selectedReturnForAdjust.net_amount}
