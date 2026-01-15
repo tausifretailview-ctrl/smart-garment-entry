@@ -287,8 +287,8 @@ export async function calculateProfitLoss(
     .from("sales")
     .select("gross_amount, net_amount")
     .eq("organization_id", organizationId)
-    .gte("invoice_date", fromDate)
-    .lte("invoice_date", toDate)
+    .gte("sale_date", fromDate)
+    .lte("sale_date", toDate)
     .is("deleted_at", null);
   
   // Use gross_amount (before GST) for GST-exclusive reporting
