@@ -30,6 +30,7 @@ interface ClassicTemplateProps {
   }>;
   subtotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   totalTax: number;
   grandTotal: number;
   totalSavings?: number;
@@ -90,6 +91,7 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   totalTax,
   grandTotal,
   totalSavings = 0,
@@ -371,6 +373,12 @@ export const ClassicTemplate: React.FC<ClassicTemplateProps> = ({
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>
                 <span>Discount:</span>
                 <span>- ₹{discount.toFixed(2)}</span>
+              </div>
+            )}
+            {saleReturnAdjust > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6', color: '#d97706' }}>
+                <span>S/R Adjust:</span>
+                <span>- ₹{saleReturnAdjust.toFixed(2)}</span>
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #dee2e6' }}>

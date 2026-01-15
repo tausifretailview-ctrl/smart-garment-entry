@@ -38,6 +38,7 @@ interface RetailTemplateProps {
 
   subtotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -115,6 +116,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   grandTotal,
   paymentMethod,
   paidAmount = 0,
@@ -493,6 +495,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
                 <span>Discount:</span>
                 <span>- ₹{formatAmount(discount)}</span>
+              </div>
+            )}
+            {saleReturnAdjust > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: "#d97706" }}>
+                <span>S/R Adjust:</span>
+                <span>- ₹{formatAmount(saleReturnAdjust)}</span>
               </div>
             )}
             <div

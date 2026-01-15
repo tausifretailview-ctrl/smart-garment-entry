@@ -34,6 +34,7 @@ interface ModernTemplateProps {
   }>;
   subtotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   taxableAmount?: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -83,6 +84,7 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -433,6 +435,13 @@ export const ModernTemplate: React.FC<ModernTemplateProps> = ({
                     <td style={{ padding: '3px 0' }}>TOTAL DISC</td>
                     <td style={{ padding: '3px 0', textAlign: 'right' }}>:</td>
                     <td style={{ padding: '3px 0', textAlign: 'right' }}>{discount.toFixed(2)}</td>
+                  </tr>
+                )}
+                {saleReturnAdjust > 0 && (
+                  <tr>
+                    <td style={{ padding: '3px 0', color: '#d97706' }}>S/R ADJUST</td>
+                    <td style={{ padding: '3px 0', textAlign: 'right', color: '#d97706' }}>:</td>
+                    <td style={{ padding: '3px 0', textAlign: 'right', color: '#d97706' }}>{saleReturnAdjust.toFixed(2)}</td>
                   </tr>
                 )}
                 <tr>

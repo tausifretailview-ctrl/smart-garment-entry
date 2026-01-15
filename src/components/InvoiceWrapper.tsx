@@ -49,6 +49,7 @@ interface InvoiceWrapperProps {
   // Amounts
   subTotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   grandTotal: number;
   
   // Payment
@@ -254,6 +255,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       subtotal: props.subTotal,
       discount: props.discount,
+      saleReturnAdjust: props.saleReturnAdjust || 0,
       taxableAmount,
       cgstAmount,
       sgstAmount,

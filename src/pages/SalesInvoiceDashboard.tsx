@@ -1503,6 +1503,9 @@ export default function SalesInvoiceDashboard() {
                             </TableCell>
                             <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               ₹{((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toFixed(2)}
+                              {(invoice.sale_return_adjust || 0) > 0 && (
+                                <span className="block text-xs text-amber-600">+S/R: ₹{invoice.sale_return_adjust.toFixed(2)}</span>
+                              )}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
                             {columnSettings.status && (
@@ -2154,6 +2157,7 @@ export default function SalesInvoiceDashboard() {
               })) || []}
                 subTotal={invoiceToPrint.gross_amount}
                 discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
+                saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
                 grandTotal={invoiceToPrint.net_amount}
                 cashPaid={invoiceToPrint.payment_method === 'cash' ? invoiceToPrint.net_amount : 0}
                 upiPaid={invoiceToPrint.payment_method === 'upi' ? invoiceToPrint.net_amount : 0}
@@ -2215,7 +2219,8 @@ export default function SalesInvoiceDashboard() {
                 gstPercent: item.gst_percent || 0,
               })) || []}
               subTotal={invoiceToPrint.gross_amount}
-              discount={invoiceToPrint.discount_amount}
+              discount={(invoiceToPrint.discount_amount || 0) + (invoiceToPrint.flat_discount_amount || 0)}
+              saleReturnAdjust={invoiceToPrint.sale_return_adjust || 0}
               grandTotal={invoiceToPrint.net_amount}
               paymentMethod={invoiceToPrint.payment_method}
               salesman={invoiceToPrint.salesman || ''}

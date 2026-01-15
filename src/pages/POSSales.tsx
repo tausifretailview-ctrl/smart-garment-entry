@@ -3038,6 +3038,7 @@ export default function POSSales() {
                 }))}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
+                saleReturnAdjust={saleReturnAdjust}
                 grandTotal={finalAmount}
                 cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
@@ -3217,6 +3218,7 @@ export default function POSSales() {
               }))}
                 subTotal={savedInvoiceData.totals.subtotal}
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
+                saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
                 cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
@@ -3288,6 +3290,7 @@ export default function POSSales() {
               }))}
               subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
               discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
+              saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
               grandTotal={savedInvoiceData?.finalAmount || finalAmount}
               cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
               upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}

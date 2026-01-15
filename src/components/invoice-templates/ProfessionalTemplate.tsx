@@ -50,6 +50,7 @@ interface ProfessionalTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -124,6 +125,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -669,6 +671,12 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
               <span>Discount:</span>
               <span>- {formatCurrency(discount)}</span>
+            </div>
+          )}
+          {saleReturnAdjust > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc', color: '#d97706' }}>
+              <span>S/R Adjust:</span>
+              <span>- {formatCurrency(saleReturnAdjust)}</span>
             </div>
           )}
           {pointsRedeemed > 0 && (

@@ -21,6 +21,7 @@ interface ThermalPrint80mmProps {
   items: ThermalItem[];
   subTotal: number;
   discount: number;
+  saleReturnAdjust?: number;
   grandTotal: number;
   gstBreakdown?: {
     cgst: number;
@@ -50,6 +51,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       items,
       subTotal,
       discount,
+      saleReturnAdjust = 0,
       grandTotal,
       gstBreakdown,
       paymentMethod,
@@ -280,6 +282,14 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '2px' }}>
             <span>Discount</span>
             <span>-{formatCurrency(discount)}</span>
+          </div>
+        )}
+
+        {/* Sale Return Adjust if any */}
+        {saleReturnAdjust > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', marginBottom: '2px', color: '#d97706' }}>
+            <span>S/R Adjust</span>
+            <span>-{formatCurrency(saleReturnAdjust)}</span>
           </div>
         )}
 
