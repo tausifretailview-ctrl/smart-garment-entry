@@ -61,6 +61,7 @@ import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import GSTReports from "./pages/GSTReports";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
+import AccountingReports from "./pages/AccountingReports";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
 import BulkProductUpdate from "./pages/BulkProductUpdate";
@@ -571,6 +572,18 @@ const App = () => {
                       <Layout>
                         <SalesAnalyticsDashboard />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="accounting-reports"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <AccountingReports />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
