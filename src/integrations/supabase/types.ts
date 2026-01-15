@@ -2005,11 +2005,14 @@ export type Database = {
       purchase_returns: {
         Row: {
           created_at: string
+          credit_note_id: string | null
+          credit_status: string | null
           deleted_at: string | null
           deleted_by: string | null
           gross_amount: number
           gst_amount: number
           id: string
+          linked_bill_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
@@ -2022,11 +2025,14 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credit_note_id?: string | null
+          credit_status?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -2039,11 +2045,14 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credit_note_id?: string | null
+          credit_status?: string | null
           deleted_at?: string | null
           deleted_by?: string | null
           gross_amount?: number
           gst_amount?: number
           id?: string
+          linked_bill_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -2055,6 +2064,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "purchase_returns_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_linked_bill_id_fkey"
+            columns: ["linked_bill_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_bills"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchase_returns_supplier_id_fkey"
             columns: ["supplier_id"]

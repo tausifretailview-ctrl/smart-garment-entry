@@ -616,6 +616,7 @@ const PurchaseReturnEntry = () => {
             net_amount: netAmount,
             notes: returnData.notes || null,
             return_number: returnNumber,
+            credit_status: "pending",
           })
           .select()
           .single();
@@ -642,9 +643,52 @@ const PurchaseReturnEntry = () => {
 
         if (itemsError) throw itemsError;
 
+        // Auto-create credit note voucher for proper accounting
+        try {
+          // Generate credit note number
+          const { data: lastVoucher } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("organization_id", currentOrganization?.id)
+            .eq("voucher_type", "credit_note")
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
+          const creditNoteNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+
+          // Create credit note voucher
+          const { data: creditNote, error: creditNoteError } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: currentOrganization?.id,
+              voucher_number: creditNoteNumber,
+              voucher_type: "credit_note",
+              voucher_date: format(returnDate, "yyyy-MM-dd"),
+              reference_type: "supplier",
+              reference_id: returnData.supplier_id,
+              description: `Supplier Credit Note for Purchase Return: ${returnNumber}`,
+              total_amount: netAmount,
+            })
+            .select()
+            .single();
+
+          if (creditNoteError) throw creditNoteError;
+
+          // Link credit note to purchase return
+          await supabase
+            .from("purchase_returns" as any)
+            .update({ credit_note_id: creditNote?.id })
+            .eq("id", (returnRecord as any).id);
+
+        } catch (creditError) {
+          console.error("Error creating credit note voucher:", creditError);
+          // Don't fail the whole save, just log it
+        }
+
         toast({
           title: "Success",
-          description: "Purchase return saved successfully",
+          description: "Purchase return saved successfully with credit note",
         });
       }
 
