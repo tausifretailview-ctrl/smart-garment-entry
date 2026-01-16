@@ -42,7 +42,24 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Loading fallback shown before React loads -->
+      <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;">
+        <div style="text-align:center;">
+          <div style="font-size:24px;margin-bottom:10px;">Loading...</div>
+          <div style="color:#94a3b8;">Smart Inventory</div>
+        </div>
+      </div>
+    </div>
+    <noscript>
+      <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;">
+        <div>
+          <h2 style="margin-bottom:16px;">JavaScript Required</h2>
+          <p style="color:#94a3b8;">Please enable JavaScript or update your browser to use this application.</p>
+          <p style="margin-top:16px;font-size:14px;color:#64748b;">Recommended: Chrome 80+, Firefox 75+, Edge 80+, Safari 13+</p>
+        </div>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
