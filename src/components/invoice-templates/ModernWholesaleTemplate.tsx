@@ -318,15 +318,16 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
       <thead>
         <tr>
-          <th style={{ ...headerCellStyle, width: "25px" }}>SR</th>
-          <th style={{ ...headerCellStyle, width: "130px" }}>PARTICULARS</th>
+          <th style={{ ...headerCellStyle, width: "22px" }}>SR</th>
+          <th style={{ ...headerCellStyle, width: "100px" }}>PARTICULARS</th>
+          <th style={{ ...headerCellStyle, width: "45px" }}>HSN</th>
           <th style={{ ...headerCellStyle, width: "100px" }}>SIZE / QTY</th>
-          <th style={{ ...headerCellStyle, width: "35px" }}>QTY</th>
-          <th style={{ ...headerCellStyle, width: "50px" }}>MRP</th>
-          <th style={{ ...headerCellStyle, width: "50px" }}>RATE</th>
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "35px" }}>GST%</th>}
-          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "50px" }}>GST AMT</th>}
-          <th style={{ ...headerCellStyle, width: "65px" }}>AMOUNT</th>
+          <th style={{ ...headerCellStyle, width: "32px" }}>QTY</th>
+          <th style={{ ...headerCellStyle, width: "45px" }}>MRP</th>
+          <th style={{ ...headerCellStyle, width: "45px" }}>RATE</th>
+          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "32px" }}>GST%</th>}
+          {showGSTBreakdown && <th style={{ ...headerCellStyle, width: "48px" }}>GST AMT</th>}
+          <th style={{ ...headerCellStyle, width: "60px" }}>AMOUNT</th>
         </tr>
       </thead>
       <tbody>
@@ -334,24 +335,25 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
           <tr key={index}>
             <td style={{ ...cellStyle, textAlign: "center" }}>{startIndex + index + 1}</td>
             <td style={cellStyle}>
-              <div style={{ fontWeight: "700" }}>{item.particulars}</div>
-              <div style={{ fontSize: "7pt", color: "#4b5563" }}>
+              <div style={{ fontWeight: "700", fontSize: "8pt" }}>{item.particulars}</div>
+              <div style={{ fontSize: "6.5pt", color: "#4b5563" }}>
                 {item.color} {item.brand}
               </div>
             </td>
-            <td style={{ ...cellStyle, fontSize: "8pt", fontWeight: "500" }}>
+            <td style={{ ...cellStyle, textAlign: "center", fontSize: "7.5pt" }}>{item.hsn || '-'}</td>
+            <td style={{ ...cellStyle, fontSize: "7.5pt", fontWeight: "500" }}>
               {formatSizeQty(item.sizeQtyList)}
             </td>
             <td style={{ ...cellStyle, textAlign: "center", fontWeight: "700" }}>{item.totalQty}</td>
-            <td style={{ ...cellStyle, textAlign: "right" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
-            <td style={{ ...cellStyle, textAlign: "right" }}>{item.rate.toFixed(2)}</td>
-            {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center" }}>{item.gstPercent}%</td>}
+            <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>{item.mrp ? item.mrp.toFixed(2) : '-'}</td>
+            <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>{item.rate.toFixed(2)}</td>
+            {showGSTBreakdown && <td style={{ ...cellStyle, textAlign: "center", fontSize: "7.5pt" }}>{item.gstPercent}%</td>}
             {showGSTBreakdown && (
-              <td style={{ ...cellStyle, textAlign: "right", fontSize: "7.5pt" }}>
+              <td style={{ ...cellStyle, textAlign: "right", fontSize: "7pt" }}>
                 {item.gstAmount > 0 ? `₹${item.gstAmount.toFixed(2)}` : '-'}
               </td>
             )}
-            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700" }}>
+            <td style={{ ...cellStyle, textAlign: "right", fontWeight: "700", fontSize: "7.5pt" }}>
               {formatCurrency(item.totalAmount)}
             </td>
           </tr>
@@ -359,6 +361,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
         {/* Fill empty rows only on last page to maintain layout */}
         {isLastPage && Array.from({ length: Math.max(0, minItemRows - pageItems.length) }).map((_, i) => (
           <tr key={`empty-${i}`} style={{ height: "25px" }}>
+            <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
             <td style={cellStyle}>&nbsp;</td>
@@ -375,7 +378,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
       {isLastPage && (
         <tfoot>
           <tr style={{ background: colors.light, fontWeight: "800" }}>
-            <td colSpan={3} style={{ ...cellStyle, textAlign: "right" }}>
+            <td colSpan={4} style={{ ...cellStyle, textAlign: "right" }}>
               TOTAL QTY:
             </td>
             <td style={{ ...cellStyle, textAlign: "center" }}>{totalQty}</td>
