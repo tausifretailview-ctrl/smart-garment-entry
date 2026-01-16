@@ -80,6 +80,7 @@ const WhatsAppLogs = () => {
       read: logs.filter(l => l.status === 'read').length,
       failed: logs.filter(l => l.status === 'failed').length,
       pending: logs.filter(l => l.status === 'pending').length,
+      retried: logs.filter(l => l.status === 'retried').length,
     };
   }, [logs]);
 
@@ -418,10 +419,26 @@ const WhatsAppLogs = () => {
                     {selectedLog.message}
                   </div>
                 </div>
-                {selectedLog.error_message && (
+                {selectedLog.status === 'retried' && (
+                  <div>
+                    <label className="text-sm font-medium text-amber-600">Retry Status</label>
+                    <div className="mt-1 p-3 bg-amber-50 text-amber-800 rounded-lg text-sm">
+                      ✅ This message was retried. A new message attempt has been created - check the logs for the new entry with the same phone number.
+                    </div>
+                  </div>
+                )}
+                {selectedLog.error_message && selectedLog.status !== 'retried' && (
                   <div>
                     <label className="text-sm font-medium text-red-600">Error</label>
                     <div className="mt-1 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
+                      {selectedLog.error_message}
+                    </div>
+                  </div>
+                )}
+                {selectedLog.error_message && selectedLog.status === 'retried' && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Original Error (before retry)</label>
+                    <div className="mt-1 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
                       {selectedLog.error_message}
                     </div>
                   </div>
