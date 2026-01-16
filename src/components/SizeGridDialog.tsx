@@ -970,14 +970,14 @@ export function SizeGridDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
-          {/* Multi-color mode confirm button */}
+        {/* Multi-color mode confirm button */}
           {allowMultiColor && hasMultipleColors && totalQty > 0 && (
             <Button onClick={handleConfirm}>
               Confirm (Enter)
             </Button>
           )}
-          {/* Single-color mode confirm button */}
-          {!allowMultiColor && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
+          {/* Single-color mode confirm button - show when in single-color mode (either disabled multi-color OR single-color product) */}
+          {(!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
             <Button onClick={handleConfirm}>
               Confirm (Enter)
             </Button>
