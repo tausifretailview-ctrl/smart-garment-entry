@@ -21,6 +21,7 @@ interface Product {
   product_name: string;
   brand: string | null;
   color: string | null;
+  size_group_name: string | null;
 }
 
 interface SizeWiseRow {
@@ -85,6 +86,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             product_name: v.products.product_name,
             brand: v.products.brand,
             color: v.products.color,
+            size_group_name: null, // Will be populated from products query
           });
         }
       });
@@ -92,7 +94,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       // Also search by product name, brand, style
       const { data: productData, error: productError } = await supabase
         .from("products")
-        .select("id, product_name, brand, color, style")
+        .select("id, product_name, brand, color, style, size_groups(group_name)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`)
@@ -111,6 +113,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             product_name: p.product_name,
             brand: p.brand,
             color: p.color,
+            size_group_name: p.size_groups?.group_name || null,
           });
         }
       });
@@ -460,8 +463,15 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                                 isSelected ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            <div className="flex flex-col">
-                              <span className="text-xs font-medium">{product.product_name}</span>
+                            <div className="flex flex-col flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium">{product.product_name}</span>
+                                {product.size_group_name && (
+                                  <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium shrink-0">
+                                    {product.size_group_name}
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[10px] text-muted-foreground">
                                 {[product.brand, product.color].filter(Boolean).join(" • ") || "-"}
                               </span>
