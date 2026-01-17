@@ -1012,6 +1012,12 @@ export default function Accounts() {
       toast.error("Please select a customer");
       return;
     }
+    // Prevent payment receipt when customer has no outstanding balance
+    if (voucherType === "receipt" && referenceType === "customer" && 
+        customerBalance !== undefined && customerBalance <= 0) {
+      toast.error("Cannot create payment receipt - customer balance is zero");
+      return;
+    }
     createVoucher.mutate({});
   };
 
@@ -1349,10 +1355,21 @@ export default function Accounts() {
                         </PopoverContent>
                       </Popover>
                       {referenceId && referenceType === "customer" && customerBalance !== undefined && (
-                        <div className="mt-2 p-3 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border border-amber-200 dark:border-amber-800 rounded-md">
-                          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                            Outstanding Balance: <span className="text-lg font-bold">₹{customerBalance.toFixed(2)}</span>
-                          </p>
+                        <div className={cn(
+                          "mt-2 p-3 border rounded-md",
+                          customerBalance <= 0 
+                            ? "bg-gradient-to-r from-red-50 to-red-100 dark:from-red-950 dark:to-red-900 border-red-200 dark:border-red-800" 
+                            : "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-950 dark:to-amber-900 border-amber-200 dark:border-amber-800"
+                        )}>
+                          {customerBalance <= 0 ? (
+                            <p className="text-sm font-medium text-red-900 dark:text-red-100">
+                              ⚠️ No outstanding balance - Payment receipt not allowed
+                            </p>
+                          ) : (
+                            <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                              Outstanding Balance: <span className="text-lg font-bold">₹{customerBalance.toFixed(2)}</span>
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -2012,7 +2029,11 @@ export default function Accounts() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button type="submit" className="w-full md:w-auto" disabled={createVoucher.isPending}>
+                    <Button 
+                      type="submit" 
+                      className="w-full md:w-auto" 
+                      disabled={createVoucher.isPending || (voucherType === "receipt" && referenceType === "customer" && customerBalance !== undefined && customerBalance <= 0)}
+                    >
                       <Plus className="mr-2 h-4 w-4" />
                       {createVoucher.isPending ? "Recording..." : "Record Payment"}
                     </Button>
