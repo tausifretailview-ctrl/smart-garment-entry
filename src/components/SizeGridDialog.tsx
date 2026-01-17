@@ -616,6 +616,54 @@ export function SizeGridDialog({
               })}
             </div>
             
+            {/* Add New Color Button for multi-color mode */}
+            {allowAddColor && !showAddColor && (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  className="border-dashed border-primary text-primary hover:bg-primary/10"
+                  onClick={() => setShowAddColor(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Colour
+                </Button>
+              </div>
+            )}
+            
+            {/* Add New Color Input for multi-color mode */}
+            {allowAddColor && showAddColor && (
+              <div className="mt-4 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs">Color Name *</Label>
+                  <Input
+                    ref={colorInputRef}
+                    placeholder="e.g., BK, RD, BL"
+                    value={newColorName}
+                    onChange={(e) => setNewColorName(e.target.value.toUpperCase())}
+                    className="w-32"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddColor();
+                      }
+                    }}
+                  />
+                </div>
+                <Button size="sm" onClick={handleAddColor}>
+                  Add
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => {
+                  setShowAddColor(false);
+                  setNewColorName("");
+                }}>
+                  Cancel
+                </Button>
+                <p className="text-xs text-muted-foreground w-full">
+                  💡 New color variant will be created for this product when you confirm.
+                </p>
+              </div>
+            )}
+            
             {/* Total Quantity Summary for multi-color mode */}
             <div className="flex items-center justify-between p-3 bg-muted rounded-lg my-4">
               <span className="font-medium">Total Quantity (All Colors):</span>
