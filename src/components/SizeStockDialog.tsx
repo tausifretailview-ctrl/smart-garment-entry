@@ -22,6 +22,7 @@ interface Product {
   brand: string | null;
   color: string | null;
   size_group_name: string | null;
+  mrp: number | null;
 }
 
 interface SizeWiseRow {
@@ -68,6 +69,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         .from("product_variants")
         .select(`
           product_id,
+          mrp,
           products!inner(id, product_name, brand, color)
         `)
         .eq("organization_id", currentOrganization.id)
@@ -86,7 +88,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             product_name: v.products.product_name,
             brand: v.products.brand,
             color: v.products.color,
-            size_group_name: null, // Will be populated from products query
+            size_group_name: null,
+            mrp: v.mrp,
           });
         }
       });
@@ -94,9 +97,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       // Also search by product name, brand, style
       const { data: productData, error: productError } = await supabase
         .from("products")
-        .select("id, product_name, brand, color, style, size_groups(group_name)")
+        .select("id, product_name, brand, color, style, size_groups(group_name), product_variants(mrp)")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .is("product_variants.deleted_at", null)
         .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`)
         .order("product_name")
         .limit(50);
@@ -108,12 +112,15 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       barcodeProducts.forEach((p, id) => allProducts.set(id, p));
       (productData || []).forEach((p: any) => {
         if (!allProducts.has(p.id)) {
+          // Get first non-null MRP from variants
+          const mrp = p.product_variants?.find((v: any) => v.mrp != null)?.mrp || null;
           allProducts.set(p.id, {
             id: p.id,
             product_name: p.product_name,
             brand: p.brand,
             color: p.color,
             size_group_name: p.size_groups?.group_name || null,
+            mrp: mrp,
           });
         }
       });
@@ -466,11 +473,18 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                             <div className="flex flex-col flex-1">
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium">{product.product_name}</span>
-                                {product.size_group_name && (
-                                  <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium shrink-0">
-                                    {product.size_group_name}
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-1">
+                                  {product.mrp && (
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded font-medium shrink-0">
+                                      ₹{product.mrp}
+                                    </span>
+                                  )}
+                                  {product.size_group_name && (
+                                    <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium shrink-0">
+                                      {product.size_group_name}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <span className="text-[10px] text-muted-foreground">
                                 {[product.brand, product.color].filter(Boolean).join(" • ") || "-"}
