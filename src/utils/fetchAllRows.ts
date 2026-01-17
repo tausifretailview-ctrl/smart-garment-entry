@@ -248,9 +248,10 @@ export async function fetchAllVariants(organizationId: string) {
   while (hasMore) {
     const { data, error } = await supabase
       .from("product_variants")
-      .select("*, products (product_name, brand, category)")
+      .select("*, products!inner (product_name, brand, category, deleted_at)")
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
+      .is("products.deleted_at", null)
       .range(offset, offset + pageSize - 1);
 
     if (error) {
