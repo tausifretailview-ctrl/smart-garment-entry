@@ -218,12 +218,14 @@ export default function StockReport() {
               product_name,
               brand,
               color,
-              product_type
+              product_type,
+              deleted_at
             )
           `)
           .eq("organization_id", currentOrganization.id)
           .eq("active", true)
           .is("deleted_at", null)
+          .is("products.deleted_at", null)
           .neq("products.product_type", "service");
         
         // Only fetch items with stock > 0 by default for faster loading
@@ -468,10 +470,12 @@ export default function StockReport() {
             product_variants!inner (
               size,
               barcode,
+              deleted_at,
               products!inner (
                 product_name,
                 brand,
-                product_type
+                product_type,
+                deleted_at
               )
             ),
             purchase_bills (
@@ -481,6 +485,8 @@ export default function StockReport() {
           `)
           .eq('organization_id', currentOrganization.id)
           .gt('quantity', 0)
+          .is('product_variants.deleted_at', null)
+          .is('product_variants.products.deleted_at', null)
           .neq('product_variants.products.product_type', 'service')
           .order('purchase_date', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1);
