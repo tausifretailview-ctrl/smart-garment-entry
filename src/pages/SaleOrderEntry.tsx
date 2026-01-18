@@ -1094,7 +1094,7 @@ export default function SaleOrderEntry() {
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
                   <CommandGroup>
-                    {filteredProducts.slice(0, 15).map(product => (
+                    {filteredProducts.slice(0, 50).map(product => (
                       product.product_variants?.map((variant: any) => (
                         <CommandItem
                           key={variant.id}

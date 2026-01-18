@@ -848,7 +848,7 @@ export default function DeliveryChallanEntry() {
                     {isSearching ? <CommandEmpty>Searching...</CommandEmpty> : 
                      productSearchResults.length === 0 ? <CommandEmpty>No products found.</CommandEmpty> : (
                       <CommandGroup>
-                        {productSearchResults.slice(0, 15).map((product: any) => (
+                        {productSearchResults.slice(0, 50).map((product: any) => (
                           <CommandItem key={product.id} onSelect={() => handleProductSelect(product)}>
                             <div className="flex justify-between w-full">
                               <div>
