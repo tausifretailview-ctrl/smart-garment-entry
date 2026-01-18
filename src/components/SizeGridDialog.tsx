@@ -485,7 +485,21 @@ export function SizeGridDialog({
         </DialogHeader>
 
         <div className="mb-4">
-          <h3 className="font-semibold text-lg">{product.product_name}</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-lg">{product.product_name}</h3>
+            {/* Add Colour Button - Prominently at top for multi-color mode */}
+            {allowMultiColor && hasMultipleColors && allowAddColor && !showAddColor && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-dashed border-primary text-primary hover:bg-primary/10"
+                onClick={() => setShowAddColor(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Colour
+              </Button>
+            )}
+          </div>
           {!allowMultiColor && selectedColor && (
             <Badge variant="outline" className="mt-1">{selectedColor}</Badge>
           )}
