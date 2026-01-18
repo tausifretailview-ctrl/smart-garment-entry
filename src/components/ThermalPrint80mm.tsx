@@ -256,9 +256,10 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 {item.particulars}
               </div>
               <div style={{ display: 'flex' }}>
+                <div style={{ width: '45%', textAlign: 'left' }}></div>
                 <div style={{ width: '15%', textAlign: 'center' }}>{item.qty}</div>
-                <div style={{ width: '42.5%', textAlign: 'right' }}>{item.rate.toFixed(2)}</div>
-                <div style={{ width: '42.5%', textAlign: 'right' }}>{item.total.toFixed(2)}</div>
+                <div style={{ width: '20%', textAlign: 'right' }}>{item.rate.toFixed(2)}</div>
+                <div style={{ width: '20%', textAlign: 'right' }}>{item.total.toFixed(2)}</div>
               </div>
             </div>
           ))}
