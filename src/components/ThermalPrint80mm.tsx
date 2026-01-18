@@ -247,18 +247,19 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
             <div 
               key={index} 
               style={{ 
-                display: 'flex', 
                 fontSize: '9px',
-                padding: '2px 0',
+                padding: '3px 0',
                 borderBottom: index < items.length - 1 ? '1px dotted #ccc' : 'none'
               }}
             >
-              <div style={{ width: '45%', textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ width: '100%', textAlign: 'left', wordWrap: 'break-word', marginBottom: '2px' }}>
                 {item.particulars}
               </div>
-              <div style={{ width: '15%', textAlign: 'center' }}>{item.qty}</div>
-              <div style={{ width: '20%', textAlign: 'right' }}>{item.rate.toFixed(2)}</div>
-              <div style={{ width: '20%', textAlign: 'right' }}>{item.total.toFixed(2)}</div>
+              <div style={{ display: 'flex' }}>
+                <div style={{ width: '15%', textAlign: 'center' }}>{item.qty}</div>
+                <div style={{ width: '42.5%', textAlign: 'right' }}>{item.rate.toFixed(2)}</div>
+                <div style={{ width: '42.5%', textAlign: 'right' }}>{item.total.toFixed(2)}</div>
+              </div>
             </div>
           ))}
         </div>
