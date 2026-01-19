@@ -78,6 +78,33 @@ import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
 import WhatsAppLogs from "./pages/WhatsAppLogs";
 import WhatsAppInbox from "./pages/WhatsAppInbox";
 
+// Helpers for redirecting when org slug is missing in URL (PWA resilience)
+function getStoredOrgSlug(): string | null {
+  return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
+}
+
+// Component to redirect root to org-specific URL
+function RootRedirect() {
+  const savedOrgSlug = getStoredOrgSlug();
+
+  if (savedOrgSlug) {
+    return <Navigate to={`/${savedOrgSlug}`} replace />;
+  }
+
+  return <Navigate to="/organization-setup" replace />;
+}
+
+// Redirect non-org routes (like /purchase-bills) to /:orgSlug/... when possible
+function NonOrgRedirect({ path }: { path: string }) {
+  const savedOrgSlug = getStoredOrgSlug();
+
+  if (savedOrgSlug) {
+    return <Navigate to={`/${savedOrgSlug}/${path}`} replace />;
+  }
+
+  return <Navigate to="/organization-setup" replace />;
+}
+
 const App = () => {
   const [queryClient] = useState(() => new QueryClient());
 
@@ -96,6 +123,12 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
+              
+              {/* Non-org fallbacks (in case org slug is missing in URL) */}
+              <Route path="/purchase-bills" element={<NonOrgRedirect path="purchase-bills" />} />
+              <Route path="/purchase-entry" element={<NonOrgRedirect path="purchase-entry" />} />
+              <Route path="/purchase-returns" element={<NonOrgRedirect path="purchase-returns" />} />
+              <Route path="/purchase-return-entry" element={<NonOrgRedirect path="purchase-return-entry" />} />
               
               {/* Platform admin route */}
               <Route
@@ -719,16 +752,5 @@ const App = () => {
   );
 };
 
-// Component to redirect root to org-specific URL
-const RootRedirect = () => {
-  const savedOrgSlug = localStorage.getItem("selectedOrgSlug");
-  
-  if (savedOrgSlug) {
-    return <Navigate to={`/${savedOrgSlug}`} replace />;
-  }
-  
-  // If no org slug saved, go to organization setup
-  return <Navigate to="/organization-setup" replace />;
-};
 
 export default App;
