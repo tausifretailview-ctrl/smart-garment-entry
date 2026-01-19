@@ -96,8 +96,10 @@ export default function OrgAuth() {
           .eq("organization_id", organization.id)
           .single();
 
-        if (membership) {
+      if (membership) {
+          // Store in both localStorage and sessionStorage for PWA resilience
           localStorage.setItem("selectedOrgSlug", organization.slug);
+          sessionStorage.setItem("selectedOrgSlug", organization.slug);
           navigate(`/${organization.slug}`);
         } else {
           setError("You are not a member of this organization. Please contact your administrator.");
@@ -162,7 +164,9 @@ export default function OrgAuth() {
         return;
       }
 
+      // Store in both localStorage and sessionStorage for PWA resilience
       localStorage.setItem("selectedOrgSlug", organization.slug);
+      sessionStorage.setItem("selectedOrgSlug", organization.slug);
       toast.success(`Welcome to ${organization.name}!`);
       navigate(`/${organization.slug}`);
     } catch (err) {
