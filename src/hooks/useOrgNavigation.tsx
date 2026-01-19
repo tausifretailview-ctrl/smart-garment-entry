@@ -11,8 +11,16 @@ export function useOrgNavigation() {
   const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
   const { currentOrganization } = useOrganization();
 
-  // Get the current org slug from URL params or organization context
-  const orgSlug = urlOrgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || "";
+  // Get the current org slug from URL params, organization context, or storage (PWA resilience)
+  const getOrgSlug = useCallback(() => {
+    return urlOrgSlug || 
+           currentOrganization?.slug || 
+           localStorage.getItem("selectedOrgSlug") || 
+           sessionStorage.getItem("selectedOrgSlug") || 
+           "";
+  }, [urlOrgSlug, currentOrganization?.slug]);
+
+  const orgSlug = getOrgSlug();
 
   /**
    * Navigate to an org-scoped path
@@ -20,37 +28,62 @@ export function useOrgNavigation() {
    * @param options - Optional navigation options (state, replace, etc.)
    */
   const orgNavigate = useCallback((path: string, options?: NavigateOptions) => {
-    if (!orgSlug) {
-      // Fallback to regular navigation if no org context
+    // Get fresh org slug at navigation time (in case context wasn't ready when hook mounted)
+    const effectiveOrgSlug = getOrgSlug();
+    
+    // Skip org-scoping for certain paths (public routes)
+    if (path.startsWith("/auth") || 
+        path.startsWith("/platform-admin") || 
+        path.startsWith("/invoice/view") ||
+        path.startsWith("/organization-setup") ||
+        path.startsWith("/pay")) {
+      navigate(path, options);
+      return;
+    }
+    
+    if (!effectiveOrgSlug) {
+      // If still no org slug available, log warning and fallback
+      console.warn("useOrgNavigation: No org slug available for path:", path);
       navigate(path, options);
       return;
     }
 
     // Handle root path
     if (path === "/" || path === "") {
-      navigate(`/${orgSlug}`, options);
+      navigate(`/${effectiveOrgSlug}`, options);
       return;
     }
 
     // Remove leading slash if present for consistent formatting
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-    navigate(`/${orgSlug}/${cleanPath}`, options);
-  }, [navigate, orgSlug]);
+    navigate(`/${effectiveOrgSlug}/${cleanPath}`, options);
+  }, [navigate, getOrgSlug]);
 
   /**
    * Get the org-prefixed path for use in Link components
    * @param path - The path without org slug
    */
   const getOrgPath = useCallback((path: string) => {
-    if (!orgSlug) return path;
+    const effectiveOrgSlug = getOrgSlug();
+    
+    // Skip org-scoping for certain paths (public routes)
+    if (path.startsWith("/auth") || 
+        path.startsWith("/platform-admin") || 
+        path.startsWith("/invoice/view") ||
+        path.startsWith("/organization-setup") ||
+        path.startsWith("/pay")) {
+      return path;
+    }
+    
+    if (!effectiveOrgSlug) return path;
     
     if (path === "/" || path === "") {
-      return `/${orgSlug}`;
+      return `/${effectiveOrgSlug}`;
     }
 
     const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-    return `/${orgSlug}/${cleanPath}`;
-  }, [orgSlug]);
+    return `/${effectiveOrgSlug}/${cleanPath}`;
+  }, [getOrgSlug]);
 
   return { 
     orgNavigate, 

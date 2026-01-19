@@ -14,31 +14,50 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
     const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
     const { currentOrganization } = useOrganization();
     
-    // Get org slug from URL params, context, or localStorage
-    const orgSlug = urlOrgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug") || "";
+    // Get org slug from URL params, context, localStorage, or sessionStorage (PWA resilience)
+    const orgSlug = useMemo(() => {
+      return urlOrgSlug || 
+             currentOrganization?.slug || 
+             localStorage.getItem("selectedOrgSlug") || 
+             sessionStorage.getItem("selectedOrgSlug") || 
+             "";
+    }, [urlOrgSlug, currentOrganization?.slug]);
 
     // Convert the path to org-scoped path
     const orgScopedTo = useMemo(() => {
-      if (!orgSlug) return to;
-      
       const path = typeof to === "string" ? to : to.pathname || "";
       
-      // Skip org-scoping for certain paths
+      // Skip org-scoping for certain paths (public routes)
       if (path.startsWith("/auth") || 
           path.startsWith("/platform-admin") || 
           path.startsWith("/invoice/view") ||
-          path.startsWith(`/${orgSlug}`)) {
+          path.startsWith("/organization-setup") ||
+          path.startsWith("/pay")) {
+        return to;
+      }
+      
+      // If no orgSlug available, still try to get it synchronously from storage
+      const effectiveOrgSlug = orgSlug || localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || "";
+      
+      if (!effectiveOrgSlug) {
+        // If still no org slug, return the path as-is (fallback, shouldn't happen in normal flow)
+        console.warn("NavLink: No org slug available for path:", path);
+        return to;
+      }
+      
+      // Skip if path already contains the org slug
+      if (path.startsWith(`/${effectiveOrgSlug}/`) || path === `/${effectiveOrgSlug}`) {
         return to;
       }
 
       // Handle root path
       if (path === "/" || path === "") {
-        return `/${orgSlug}`;
+        return `/${effectiveOrgSlug}`;
       }
 
       // Prepend org slug to path
       const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-      return `/${orgSlug}/${cleanPath}`;
+      return `/${effectiveOrgSlug}/${cleanPath}`;
     }, [to, orgSlug]);
 
     return (
