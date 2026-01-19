@@ -1538,13 +1538,32 @@ const ProductEntry = () => {
                           {color}
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={async () => {
+                              // In edit mode, check if this color has variants with transactions
+                              if (editingProductId) {
+                                const variantsWithColor = variants.filter(v => v.color === color);
+                                const protectedVariantsForColor = variantsWithColor.filter(v => v.id && protectedVariants.has(v.id));
+                                
+                                if (protectedVariantsForColor.length > 0) {
+                                  toast({
+                                    title: "Cannot Remove Colour",
+                                    description: `Colour "${color}" has variants with transactions and cannot be removed.`,
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                
+                                // Remove variants of this color from the variants list
+                                setVariants(prev => prev.filter(v => v.color !== color));
+                              }
+                              
                               setFormData({
                                 ...formData,
                                 colors: formData.colors.filter((_, i) => i !== idx)
                               });
                             }}
                             className="hover:text-destructive"
+                            title={editingProductId ? "Remove colour and its variants" : "Remove colour"}
                           >
                             <X className="h-2 w-2" />
                           </button>
