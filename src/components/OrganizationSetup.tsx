@@ -13,23 +13,42 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Loader2, LogIn, Shield } from "lucide-react";
 import { toast } from "sonner";
 
 export const OrganizationSetup = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { organizations, loading: orgLoading } = useOrganization();
   const [orgName, setOrgName] = useState("");
+  const [orgSlug, setOrgSlug] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"login" | "create">("login");
 
   // Redirect to org-specific dashboard if user already has organizations
   useEffect(() => {
-    if (!orgLoading && organizations.length > 0) {
+    if (user && !orgLoading && organizations.length > 0) {
       const firstOrg = organizations[0];
       navigate(`/${firstOrg.slug}`, { replace: true });
     }
-  }, [organizations, orgLoading, navigate]);
+  }, [user, organizations, orgLoading, navigate]);
+
+  // For unauthenticated users, show org slug entry form
+  const handleGoToOrgLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const slug = orgSlug.trim().toLowerCase();
+    
+    if (!slug) {
+      toast.error("Please enter your organization URL");
+      return;
+    }
+    
+    // Store the slug for future use
+    localStorage.setItem("selectedOrgSlug", slug);
+    
+    // Navigate to org-specific login
+    navigate(`/${slug}`, { replace: true });
+  };
 
   const handleCreateOrganization = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,6 +101,7 @@ export const OrganizationSetup = () => {
       // Wait a moment for the database to update, then navigate
       setTimeout(() => {
         const slug = newOrg?.slug || org.id;
+        localStorage.setItem("selectedOrgSlug", slug);
         navigate(`/${slug}`, { replace: true });
         window.location.reload(); // Reload to fetch organization data
       }, 500);
@@ -93,6 +113,83 @@ export const OrganizationSetup = () => {
     }
   };
 
+  // Show loading while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // For unauthenticated users, show organization login finder
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+              <Building2 className="h-8 w-8 text-primary" />
+            </div>
+            <CardTitle>Go to Your Organization</CardTitle>
+            <CardDescription>
+              Enter your organization URL to access your login page
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleGoToOrgLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="orgSlug">Organization URL</Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    inventoryshop.in/
+                  </span>
+                  <Input
+                    id="orgSlug"
+                    type="text"
+                    placeholder="your-org-name"
+                    value={orgSlug}
+                    onChange={(e) => setOrgSlug(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                    required
+                    className="flex-1"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Example: demo, sm-hair-replacement, gurukrupasarees
+                </p>
+              </div>
+              <Button type="submit" className="w-full">
+                <LogIn className="mr-2 h-4 w-4" />
+                Go to Login
+              </Button>
+            </form>
+            
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  Or
+                </span>
+              </div>
+            </div>
+            
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => navigate("/auth")}
+            >
+              <Shield className="mr-2 h-4 w-4" />
+              Platform Admin Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // For authenticated users without organizations, show create form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
       <Card className="w-full max-w-md">

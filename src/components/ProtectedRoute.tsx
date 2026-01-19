@@ -23,8 +23,9 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       return <Navigate to={`/${orgSlug}`} replace />;
     }
     
-    // Fallback to default auth page
-    return <Navigate to="/auth" replace />;
+    // Redirect to organization setup page instead of platform admin auth
+    // This allows users to enter their org slug and navigate to their login
+    return <Navigate to="/organization-setup" replace />;
   }
 
   return <>{children}</>;
