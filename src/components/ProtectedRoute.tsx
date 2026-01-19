@@ -2,6 +2,13 @@ import { Navigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
+// Helper to get org slug from multiple storage locations (PWA resilience)
+const getStoredOrgSlug = (): string | null => {
+  return localStorage.getItem("selectedOrgSlug") 
+    || sessionStorage.getItem("selectedOrgSlug") 
+    || null;
+};
+
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
@@ -15,8 +22,8 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
 
   if (!user) {
-    // Get org slug from URL params or localStorage
-    const orgSlug = urlOrgSlug || localStorage.getItem("selectedOrgSlug");
+    // Get org slug from URL params or storage (check both localStorage and sessionStorage)
+    const orgSlug = urlOrgSlug || getStoredOrgSlug();
     
     if (orgSlug) {
       // Redirect to organization-specific login

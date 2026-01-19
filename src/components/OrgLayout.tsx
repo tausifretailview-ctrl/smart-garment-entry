@@ -29,8 +29,9 @@ export const OrgLayout = () => {
           switchOrganization(targetOrg.id);
         }
         
-        // Store the slug for PWA support
+        // Store the slug in both localStorage and sessionStorage for PWA resilience
         localStorage.setItem("selectedOrgSlug", orgSlug);
+        sessionStorage.setItem("selectedOrgSlug", orgSlug);
       }
     }
   }, [orgSlug, user, organizations, orgLoading, currentOrganization, switchOrganization]);
@@ -44,9 +45,10 @@ export const OrgLayout = () => {
 
   // For public invoice routes, allow access without authentication
   if (isPublicInvoiceRoute) {
-    // Store org slug for context even for public views
+    // Store org slug for context even for public views (in both storages)
     if (orgSlug) {
       localStorage.setItem("selectedOrgSlug", orgSlug);
+      sessionStorage.setItem("selectedOrgSlug", orgSlug);
     }
     return <Outlet />;
   }
