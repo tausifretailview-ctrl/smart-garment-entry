@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery } from "@tanstack/react-query";
@@ -2384,7 +2385,7 @@ const PurchaseEntry = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-x-auto max-h-[60vh]">
+            <div className="border rounded-lg overflow-x-auto max-h-[60vh] overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -2562,13 +2563,13 @@ const PurchaseEntry = () => {
                   })}
                   
                   {/* Inline Search Row - Always visible at bottom */}
-                  <TableRow className="bg-accent/30">
+                  <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
                     <TableCell></TableCell>
                     <TableCell className="text-center font-medium text-muted-foreground">
                       {lineItems.length + 1}
                     </TableCell>
-                    <TableCell className="relative">
-                      <div className="relative">
+                    <TableCell className="relative overflow-visible" style={{ overflow: 'visible' }}>
+                      <div className="relative" style={{ overflow: 'visible' }}>
                         <Input
                           ref={inlineSearchInputRef}
                           value={inlineSearchQuery}
@@ -2609,9 +2610,18 @@ const PurchaseEntry = () => {
                         />
                         <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         
-                        {/* Inline Search Dropdown */}
-                        {showInlineSearch && (
-                          <div className="absolute top-full left-0 mt-1 w-full min-w-[400px] bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
+                        {/* Inline Search Dropdown - Using Portal to escape table overflow */}
+                        {showInlineSearch && inlineSearchInputRef.current && createPortal(
+                          <div 
+                            className="bg-popover border border-border rounded-md shadow-xl max-h-80 overflow-auto"
+                            style={{ 
+                              position: 'fixed',
+                              top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
+                              left: inlineSearchInputRef.current.getBoundingClientRect().left,
+                              width: Math.max(400, inlineSearchInputRef.current.getBoundingClientRect().width),
+                              zIndex: 9999,
+                            }}
+                          >
                             {inlineSearchResults.length > 0 ? (
                               <>
                                 {inlineSearchResults.map((result, idx) => (
@@ -2678,7 +2688,8 @@ const PurchaseEntry = () => {
                                 </button>
                               </>
                             ) : null}
-                          </div>
+                          </div>,
+                          document.body
                         )}
                       </div>
                     </TableCell>
