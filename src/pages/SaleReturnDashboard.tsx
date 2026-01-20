@@ -8,16 +8,18 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee } from "lucide-react";
+import { ChevronDown, ChevronUp, Printer, Trash2, Plus, Search, Receipt, TrendingDown, IndianRupee, CreditCard } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 
 interface SaleReturn {
   id: string;
   return_number: string | null;
   customer_name: string;
+  customer_id: string | null;
   original_sale_number: string | null;
   return_date: string;
   gross_amount: number;
@@ -25,6 +27,9 @@ interface SaleReturn {
   net_amount: number;
   notes: string | null;
   items?: SaleReturnItem[];
+  credit_note_id?: string;
+  credit_status?: string;
+  linked_sale_id?: string;
 }
 
 interface SaleReturnItem {
@@ -60,6 +65,10 @@ export default function SaleReturnDashboard() {
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Credit note adjustment dialog states
+  const [showAdjustDialog, setShowAdjustDialog] = useState(false);
+  const [selectedReturnForAdjust, setSelectedReturnForAdjust] = useState<SaleReturn | null>(null);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -252,6 +261,7 @@ export default function SaleReturnDashboard() {
                     <TableHead className="text-right">Gross</TableHead>
                     <TableHead className="text-right">GST</TableHead>
                     <TableHead className="text-right">Net Amount</TableHead>
+                    <TableHead>Credit Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -287,8 +297,46 @@ export default function SaleReturnDashboard() {
                         <TableCell className="text-right">₹{ret.gross_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-right">₹{ret.gst_amount.toFixed(2)}</TableCell>
                         <TableCell className="text-right font-medium">₹{ret.net_amount.toFixed(2)}</TableCell>
+                        <TableCell>
+                          {ret.credit_status === 'pending' && (
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                              Pending
+                            </Badge>
+                          )}
+                          {ret.credit_status === 'adjusted' && (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                              Adjusted
+                            </Badge>
+                          )}
+                          {ret.credit_status === 'refunded' && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                              Refunded
+                            </Badge>
+                          )}
+                          {ret.credit_status === 'adjusted_outstanding' && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                              Adjusted (Outstanding)
+                            </Badge>
+                          )}
+                          {!ret.credit_status && (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex justify-end gap-1">
+                            {(ret.credit_status === 'pending' || !ret.credit_status) && ret.customer_id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  setSelectedReturnForAdjust(ret);
+                                  setShowAdjustDialog(true);
+                                }}
+                                title="Adjust Credit Note"
+                              >
+                                <CreditCard className="h-4 w-4 text-purple-600" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -311,7 +359,7 @@ export default function SaleReturnDashboard() {
                       </TableRow>
                       {expandedRows.has(ret.id) && ret.items && (
                         <TableRow>
-                          <TableCell colSpan={9} className="bg-muted/50">
+                          <TableCell colSpan={10} className="bg-muted/50">
                             <div className="p-4">
                               <h4 className="font-medium mb-2">Return Items:</h4>
                               <Table>
@@ -373,6 +421,21 @@ export default function SaleReturnDashboard() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Credit Note Adjustment Dialog */}
+        {selectedReturnForAdjust && (
+          <AdjustCustomerCreditNoteDialog
+            open={showAdjustDialog}
+            onOpenChange={setShowAdjustDialog}
+            saleReturnId={selectedReturnForAdjust.id}
+            creditNoteId={selectedReturnForAdjust.credit_note_id || ""}
+            returnNumber={selectedReturnForAdjust.return_number || "N/A"}
+            creditAmount={selectedReturnForAdjust.net_amount}
+            customerId={selectedReturnForAdjust.customer_id || ""}
+            customerName={selectedReturnForAdjust.customer_name}
+            onSuccess={fetchReturns}
+          />
+        )}
 
         <div style={{ display: "none" }}>
           {returnToPrint && businessDetails && (
