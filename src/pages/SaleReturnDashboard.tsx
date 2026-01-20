@@ -324,7 +324,7 @@ export default function SaleReturnDashboard() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            {(ret.credit_status === 'pending' || !ret.credit_status) && ret.customer_id && (
+                            {(ret.credit_status === 'pending' || !ret.credit_status) && (
                               <Button
                                 variant="ghost"
                                 size="icon"
