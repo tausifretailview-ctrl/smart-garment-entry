@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -16,6 +16,10 @@ export function useDashboardColumnSettings(
 ) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  
+  // Use ref to store default settings to prevent dependency changes
+  const defaultsRef = useRef(defaultSettings);
+  
   const [columnSettings, setColumnSettings] = useState<Record<string, boolean>>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -37,19 +41,19 @@ export function useDashboardColumnSettings(
     enabled: !!currentOrganization?.id,
   });
 
-  // Load settings when data is fetched
+  // Load settings when data is fetched - use ref to avoid dependency on defaultSettings
   useEffect(() => {
     if (!isLoading && settings !== undefined) {
       const savedSettings = settings?.[dashboardType];
       if (savedSettings) {
         // Merge with defaults to handle new columns
-        setColumnSettings({ ...defaultSettings, ...savedSettings });
+        setColumnSettings({ ...defaultsRef.current, ...savedSettings });
       } else {
-        setColumnSettings(defaultSettings);
+        setColumnSettings(defaultsRef.current);
       }
       setIsLoaded(true);
     }
-  }, [settings, isLoading, dashboardType, defaultSettings]);
+  }, [settings, isLoading, dashboardType]);
 
   // Mutation to save settings
   const saveMutation = useMutation({

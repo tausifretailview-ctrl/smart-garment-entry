@@ -87,6 +87,19 @@ interface Sale {
   created_at: string;
 }
 
+// Default columns - defined OUTSIDE component to prevent re-render loops
+const DEFAULT_POS_COLUMNS = {
+  status: true,
+  refund: true,
+  refundStatus: true,
+  creditNoteStatus: true,
+  whatsapp: true,
+  copyLink: true,
+  preview: true,
+  print: true,
+  modify: true,
+};
+
 const POSDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -121,19 +134,6 @@ const POSDashboard = () => {
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<'professional' | 'modern' | 'classic' | 'compact'>('professional');
-  
-  // Column visibility state with database persistence
-  const defaultPosColumns = {
-    status: true,
-    refund: true,
-    refundStatus: true,
-    creditNoteStatus: true,
-    whatsapp: true,
-    copyLink: true,
-    preview: true,
-    print: true,
-    modify: true,
-  };
 
   // Handle period filter changes
   const handlePeriodChange = (period: string) => {
@@ -166,7 +166,7 @@ const POSDashboard = () => {
   
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
     "pos_dashboard",
-    defaultPosColumns
+    DEFAULT_POS_COLUMNS
   );
 
   // Payment recording state

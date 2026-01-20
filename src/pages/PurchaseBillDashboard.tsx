@@ -86,6 +86,15 @@ interface PurchaseBill {
   items?: PurchaseItem[];
 }
 
+// Default columns - defined OUTSIDE component to prevent re-render loops
+const DEFAULT_PURCHASE_COLUMNS = {
+  status: true,
+  recordPayment: true,
+  modify: true,
+  printBarcodes: true,
+  delete: true
+};
+
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -130,18 +139,10 @@ const PurchaseBillDashboard = () => {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase');
-  // Column visibility settings with database persistence
-  const defaultPurchaseColumns = {
-    status: true,
-    recordPayment: true,
-    modify: true,
-    printBarcodes: true,
-    delete: true
-  };
   
   const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
     "purchase_bill_dashboard",
-    defaultPurchaseColumns
+    DEFAULT_PURCHASE_COLUMNS
   );
   
   // Virtual scrolling ref
