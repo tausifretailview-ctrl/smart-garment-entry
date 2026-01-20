@@ -2603,6 +2603,8 @@ export type Database = {
       sale_returns: {
         Row: {
           created_at: string
+          credit_note_id: string | null
+          credit_status: string | null
           customer_id: string | null
           customer_name: string
           deleted_at: string | null
@@ -2610,6 +2612,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          linked_sale_id: string | null
           net_amount: number
           notes: string | null
           organization_id: string
@@ -2620,6 +2623,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          credit_note_id?: string | null
+          credit_status?: string | null
           customer_id?: string | null
           customer_name: string
           deleted_at?: string | null
@@ -2627,6 +2632,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id: string
@@ -2637,6 +2643,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          credit_note_id?: string | null
+          credit_status?: string | null
           customer_id?: string | null
           customer_name?: string
           deleted_at?: string | null
@@ -2644,6 +2652,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          linked_sale_id?: string | null
           net_amount?: number
           notes?: string | null
           organization_id?: string
@@ -2652,7 +2661,22 @@ export type Database = {
           return_number?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sale_returns_credit_note_id_fkey"
+            columns: ["credit_note_id"]
+            isOneToOne: false
+            referencedRelation: "voucher_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_returns_linked_sale_id_fkey"
+            columns: ["linked_sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sales: {
         Row: {
