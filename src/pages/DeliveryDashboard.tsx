@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle } from "lucide-react";
+import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle, Download } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { useState } from "react";
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 
 const DeliveryDashboard = () => {
@@ -296,6 +297,81 @@ const DeliveryDashboard = () => {
     }, 300);
   };
 
+  const exportToExcel = () => {
+    if (!filteredInvoices || filteredInvoices.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    // Get organization settings for header info
+    const settings = currentOrganization?.settings as any;
+    const businessName = settings?.business_name || currentOrganization?.name || "";
+    const businessPhone = settings?.business_phone || "";
+    
+    // Create header row with date and business info
+    const headerDate = format(new Date(), "do MMMM yyyy");
+    const headerText = `${headerDate} ${businessName} ${businessPhone ? `Contact: ${businessPhone}` : ""}`;
+    
+    // Prepare data rows
+    const exportData = filteredInvoices.map((invoice, index) => {
+      const pendingAmount = invoice.payment_status === "completed" 
+        ? 0 
+        : Number(invoice.net_amount) - Number(invoice.paid_amount || 0);
+      
+      return {
+        "Sr No": index + 1,
+        "Name": invoice.customer_name || "",
+        "Contact": invoice.customer_phone || "",
+        "Address": invoice.customer_address || "",
+        "Order ID": invoice.sale_number || "",
+        "Amount": Number(invoice.net_amount) || 0,
+        "Pending": pendingAmount,
+        "Sign": "",
+        "Remarks": ""
+      };
+    });
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    
+    // Create worksheet with header
+    const ws = XLSX.utils.aoa_to_sheet([
+      [headerText], // Header row
+      [], // Empty row
+      ["Sr No", "Name", "Contact", "Address", "Order ID", "Amount", "Pending", "Sign", "Remarks"]
+    ]);
+    
+    // Add data rows starting from row 4
+    XLSX.utils.sheet_add_json(ws, exportData, { origin: "A4", skipHeader: true });
+    
+    // Set column widths
+    ws["!cols"] = [
+      { wch: 6 },   // Sr No
+      { wch: 20 },  // Name
+      { wch: 15 },  // Contact
+      { wch: 40 },  // Address
+      { wch: 25 },  // Order ID
+      { wch: 12 },  // Amount
+      { wch: 12 },  // Pending
+      { wch: 10 },  // Sign
+      { wch: 15 }   // Remarks
+    ];
+    
+    // Merge header cells
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } } // Merge A1 to I1
+    ];
+    
+    XLSX.utils.book_append_sheet(wb, ws, "Delivery Report");
+    
+    // Generate filename with date
+    const fileName = `Delivery_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+    
+    // Export
+    XLSX.writeFile(wb, fileName);
+    toast.success("Excel exported successfully!");
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -450,6 +526,17 @@ const DeliveryDashboard = () => {
                       Clear
                     </Button>
                   )}
+
+                  {/* Export to Excel */}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={exportToExcel}
+                    disabled={!filteredInvoices || filteredInvoices.length === 0}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export Excel
+                  </Button>
                 </div>
               </div>
             </CardHeader>
