@@ -1354,6 +1354,12 @@ Thank you for choosing us!`;
   };
 
   const handleSaveInvoice = async () => {
+    // Prevent duplicate saves from rapid clicks
+    if (isSaving) {
+      console.log('Save already in progress, skipping duplicate call');
+      return;
+    }
+
     // Validation
     if (!selectedCustomerId || !selectedCustomer) {
       toast({

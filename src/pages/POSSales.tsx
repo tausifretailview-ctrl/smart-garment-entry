@@ -382,6 +382,9 @@ export default function POSSales() {
   // Keyboard shortcuts for POS actions
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Ignore shortcuts if already saving to prevent duplicate saves
+      if (isSaving) return;
+
       // F1 - Cash Payment (Save & Print)
       if (e.key === 'F1') {
         e.preventDefault();
@@ -423,7 +426,7 @@ export default function POSSales() {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData]);
+  }, [items, customerName, flatDiscountValue, roundOff, paymentMethod, savedInvoiceData, isSaving]);
 
   // Apply defaults when settings are loaded
   useEffect(() => {
@@ -1174,6 +1177,12 @@ export default function POSSales() {
   };
 
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
+    // Prevent duplicate saves from rapid clicks or keyboard shortcuts
+    if (isSaving) {
+      console.log('Payment already in progress, skipping duplicate call');
+      return;
+    }
+
     if (items.length === 0) {
       toast({
         title: "No Items",

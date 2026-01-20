@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -46,6 +46,7 @@ export const useSaveSale = () => {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
 
   const generateInvoiceNumber = async (format: string) => {
@@ -144,7 +145,15 @@ export const useSaveSale = () => {
     },
     saleType: 'pos' | 'sale_invoice' = 'pos'
   ) => {
+    // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
+    if (savingLockRef.current) {
+      console.log('Save already in progress (lock), skipping duplicate call');
+      return null;
+    }
+    savingLockRef.current = true;
+
     if (!user) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "You must be logged in to save sales",
@@ -154,6 +163,7 @@ export const useSaveSale = () => {
     }
 
     if (!currentOrganization?.id) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "No organization selected",
@@ -163,6 +173,7 @@ export const useSaveSale = () => {
     }
 
     if (saleData.items.length === 0) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "Cannot save sale with no items",
@@ -405,6 +416,7 @@ export const useSaveSale = () => {
       });
       return null;
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
@@ -423,7 +435,15 @@ export const useSaveSale = () => {
       refundAmount: number;
     }
   ) => {
+    // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
+    if (savingLockRef.current) {
+      console.log('Update already in progress (lock), skipping duplicate call');
+      return null;
+    }
+    savingLockRef.current = true;
+
     if (!user) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "You must be logged in to update sales",
@@ -433,6 +453,7 @@ export const useSaveSale = () => {
     }
 
     if (!currentOrganization?.id) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "No organization selected",
@@ -442,6 +463,7 @@ export const useSaveSale = () => {
     }
 
     if (saleData.items.length === 0) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "Cannot save sale with no items",
@@ -573,13 +595,22 @@ export const useSaveSale = () => {
       });
       return null;
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
 
   // Hold a sale (save without affecting stock - items stored in notes as JSON)
   const holdSale = async (saleData: SaleData) => {
+    // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
+    if (savingLockRef.current) {
+      console.log('Hold already in progress (lock), skipping duplicate call');
+      return null;
+    }
+    savingLockRef.current = true;
+
     if (!user) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "You must be logged in to hold sales",
@@ -589,6 +620,7 @@ export const useSaveSale = () => {
     }
 
     if (!currentOrganization?.id) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "No organization selected",
@@ -598,6 +630,7 @@ export const useSaveSale = () => {
     }
 
     if (saleData.items.length === 0) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "Cannot hold sale with no items",
@@ -683,6 +716,7 @@ export const useSaveSale = () => {
       });
       return null;
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
@@ -700,7 +734,15 @@ export const useSaveSale = () => {
       refundAmount: number;
     }
   ) => {
+    // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
+    if (savingLockRef.current) {
+      console.log('Resume already in progress (lock), skipping duplicate call');
+      return null;
+    }
+    savingLockRef.current = true;
+
     if (!user || !currentOrganization?.id) {
+      savingLockRef.current = false;
       toast({
         title: "Error",
         description: "You must be logged in to complete sales",
@@ -823,6 +865,7 @@ export const useSaveSale = () => {
       });
       return null;
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
