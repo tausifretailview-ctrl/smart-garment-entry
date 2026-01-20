@@ -104,8 +104,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         if (foundOrg && foundMembership) {
           selectedOrg = foundOrg;
           selectedMembership = foundMembership;
-          // Clear the stored slug after using it
-          localStorage.removeItem("selectedOrgSlug");
+          // Only clear from sessionStorage - keep in localStorage for resilience
+          sessionStorage.removeItem("selectedOrgSlug");
         }
       } else {
         // Fall back to stored organization ID
