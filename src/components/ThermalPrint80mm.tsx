@@ -152,7 +152,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     return (
       <div 
         ref={ref} 
-        className="thermal-print-80mm"
+        className="thermal-print-80mm thermal-receipt-container"
         style={{
           width: '72mm',
           maxWidth: '72mm',

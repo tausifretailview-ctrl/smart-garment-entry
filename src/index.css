@@ -373,6 +373,19 @@ All colors MUST be HSL.
     max-width: 72mm !important;
     font-size: 10px !important;
   }
+  
+  /* Auto-cut after thermal receipt - triggers paper cutter on thermal printers */
+  .thermal-receipt-container {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+  
+  /* Add bottom margin for clean cut separation */
+  .thermal-receipt-container::after {
+    content: '';
+    display: block;
+    height: 10mm;
+  }
 }
 
 @page thermal {
