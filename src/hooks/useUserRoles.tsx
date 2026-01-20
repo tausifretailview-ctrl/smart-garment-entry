@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -8,16 +8,27 @@ export const useUserRoles = (organizationId?: string) => {
   const { user } = useAuth();
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  
+  // Track retry count with ref to persist across effect runs
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   useEffect(() => {
+    // Reset retry count on dependency change
+    retryCountRef.current = 0;
+    
     const fetchRoles = async () => {
       if (!user) {
         setRoles([]);
         setLoading(false);
+        setError(null);
         return;
       }
 
       try {
+        setError(null);
+        
         // Fetch global user roles
         const { data: globalRoles, error: globalError } = await (supabase as any)
           .from("user_roles")
@@ -44,10 +55,27 @@ export const useUserRoles = (organizationId?: string) => {
         }
 
         setRoles(allRoles);
-      } catch (error) {
-        console.error("Error fetching roles:", error);
+        setLoading(false);
+        retryCountRef.current = 0; // Reset on success
+      } catch (err: any) {
+        console.error("Error fetching roles:", err);
+        
+        // Retry on network/fetch errors with exponential backoff
+        const isNetworkError = err?.message?.includes('fetch') || 
+                               err?.message?.includes('network') ||
+                               err?.message?.includes('Failed to fetch') ||
+                               err?.code === 'NETWORK_ERROR';
+        
+        if (isNetworkError && retryCountRef.current < maxRetries) {
+          retryCountRef.current++;
+          const delay = 1000 * Math.pow(2, retryCountRef.current - 1); // 1s, 2s, 4s
+          console.log(`Retrying role fetch (attempt ${retryCountRef.current}/${maxRetries}) in ${delay}ms...`);
+          setTimeout(fetchRoles, delay);
+          return;
+        }
+        
+        setError(err);
         setRoles([]);
-      } finally {
         setLoading(false);
       }
     };
@@ -65,6 +93,7 @@ export const useUserRoles = (organizationId?: string) => {
   return {
     roles,
     loading,
+    error,
     hasRole,
     isAdmin,
     isManager,

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -53,6 +53,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Use ref to track current session for visibility handler without triggering re-runs
+  const sessionRef = useRef<Session | null>(null);
+  
+  // Keep sessionRef in sync with session state
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   // Controlled token refresh with global lock
   const safelyRefreshSession = useCallback(async () => {
@@ -135,9 +143,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     });
 
-    // Visibility change handler - only refresh when becoming visible and session is near expiry
+    // Visibility change handler - use ref to access current session without stale closure
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && session && isSessionNearExpiry(session)) {
+      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNearExpiry(sessionRef.current)) {
         console.log("App became visible and session near expiry, refreshing...");
         safelyRefreshSession();
       }
@@ -149,7 +157,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [session, safelyRefreshSession]);
+  }, [safelyRefreshSession]); // Remove session from deps - use ref instead
 
   const signOut = async () => {
     // Store org slug before signing out for PWA recovery
