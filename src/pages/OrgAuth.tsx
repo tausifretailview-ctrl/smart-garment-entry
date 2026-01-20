@@ -129,6 +129,11 @@ export default function OrgAuth() {
     setError("");
 
     try {
+      // CRITICAL: Clear any existing stale session before login attempt
+      // This prevents conflicts with corrupted/expired tokens in Chrome regular mode
+      await supabase.auth.signOut({ scope: 'local' });
+      localStorage.removeItem('auth_refresh_lock');
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
