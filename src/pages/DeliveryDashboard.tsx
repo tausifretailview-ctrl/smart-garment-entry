@@ -310,56 +310,65 @@ const DeliveryDashboard = () => {
     
     // Create header row with date and business info
     const headerDate = format(new Date(), "do MMMM yyyy");
-    const headerText = `${headerDate} ${businessName} ${businessPhone ? `Contact: ${businessPhone}` : ""}`;
+    const headerText = `${headerDate} ${businessName}`;
+    
+    // Column headers
+    const headers = ["Sr No", "Name", "Contact", "Address", "Order ID", "Amount", "Pending", "Sign", "Remarks"];
     
     // Prepare data rows
-    const exportData = filteredInvoices.map((invoice, index) => {
+    const dataRows = filteredInvoices.map((invoice, index) => {
       const pendingAmount = invoice.payment_status === "completed" 
         ? 0 
         : Number(invoice.net_amount) - Number(invoice.paid_amount || 0);
       
-      return {
-        "Sr No": index + 1,
-        "Name": invoice.customer_name || "",
-        "Contact": invoice.customer_phone || "",
-        "Address": invoice.customer_address || "",
-        "Order ID": invoice.sale_number || "",
-        "Amount": Number(invoice.net_amount) || 0,
-        "Pending": pendingAmount,
-        "Sign": "",
-        "Remarks": ""
-      };
+      return [
+        index + 1,
+        invoice.customer_name || "",
+        invoice.customer_phone || "",
+        invoice.customer_address || "",
+        invoice.sale_number || "",
+        Number(invoice.net_amount) || 0,
+        pendingAmount,
+        "",
+        ""
+      ];
     });
 
-    // Create workbook and worksheet
+    // Create workbook
     const wb = XLSX.utils.book_new();
     
-    // Create worksheet with header
-    const ws = XLSX.utils.aoa_to_sheet([
-      [headerText], // Header row
-      [], // Empty row
-      ["Sr No", "Name", "Contact", "Address", "Order ID", "Amount", "Pending", "Sign", "Remarks"]
-    ]);
+    // Build worksheet data as array of arrays
+    const wsData = [
+      [headerText], // Header row (will be merged)
+      headers,      // Column headers row
+      ...dataRows   // Data rows
+    ];
     
-    // Add data rows starting from row 4
-    XLSX.utils.sheet_add_json(ws, exportData, { origin: "A4", skipHeader: true });
+    // Create worksheet from array
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
     
     // Set column widths
     ws["!cols"] = [
       { wch: 6 },   // Sr No
       { wch: 20 },  // Name
       { wch: 15 },  // Contact
-      { wch: 40 },  // Address
-      { wch: 25 },  // Order ID
+      { wch: 50 },  // Address
+      { wch: 20 },  // Order ID
       { wch: 12 },  // Amount
       { wch: 12 },  // Pending
       { wch: 10 },  // Sign
       { wch: 15 }   // Remarks
     ];
     
-    // Merge header cells
+    // Merge header cells (row 0, columns A to I)
     ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } } // Merge A1 to I1
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }
+    ];
+
+    // Set row heights (optional, for better readability)
+    ws["!rows"] = [
+      { hpt: 25 }, // Header row height
+      { hpt: 20 }, // Column headers row height
     ];
     
     XLSX.utils.book_append_sheet(wb, ws, "Delivery Report");
@@ -367,8 +376,8 @@ const DeliveryDashboard = () => {
     // Generate filename with date
     const fileName = `Delivery_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
     
-    // Export
-    XLSX.writeFile(wb, fileName);
+    // Export with bookType xlsx for proper table format
+    XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
     toast.success("Excel exported successfully!");
   };
 
