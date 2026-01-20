@@ -10,7 +10,7 @@ import { Loader2, Building2, AlertCircle, Phone, ArrowRight, Check, Globe, Faceb
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
-import safproLogo from "@/assets/safpro-logo-full.png";
+import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import posIllustration from "@/assets/pos-illustration.png";
 
 const BRAND_COLOR = "#6C5CE7";
@@ -307,14 +307,14 @@ export default function OrgAuth() {
       {/* Right Panel - Login Form */}
       <div className="flex-1 flex items-center justify-center p-8 lg:p-14 bg-white">
         <div className="w-full max-w-lg space-y-10">
-          {/* Mobile: Show SafPro logo */}
+          {/* Mobile: Show EzzyERP logo */}
           <div className="lg:hidden text-center mb-10">
             <img 
-              src={safproLogo} 
-              alt="SafPro ERP" 
+              src={ezzyerpLogo} 
+              alt="EzzyERP" 
               className="h-16 w-auto mx-auto object-contain"
             />
-            <p className="text-slate-500 mt-2 text-sm">Clean & Professional Software</p>
+            <p className="text-slate-500 mt-2 text-sm">Easy Billing, Smart Business</p>
           </div>
 
           {/* Login Section */}

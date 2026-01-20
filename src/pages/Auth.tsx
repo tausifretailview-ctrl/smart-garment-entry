@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Shield, Package } from "lucide-react";
+import { Loader2, Shield } from "lucide-react";
 import { validateAuth } from "@/lib/validations";
+import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 
 const Auth = () => {
   const [email, setEmail] = useState("");
@@ -89,17 +90,14 @@ const Auth = () => {
       
       <Card className="w-full max-w-md relative border-t-4 border-t-primary shadow-xl brand-glow">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
-            <Shield className="h-8 w-8 text-primary-foreground" />
+          <div className="mx-auto mb-4">
+            <img 
+              src={ezzyerpLogo} 
+              alt="EzzyERP" 
+              className="h-20 w-auto mx-auto object-contain"
+            />
           </div>
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <div className="bg-primary p-1.5 rounded-lg">
-              <Package className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <CardTitle className="text-2xl font-bold">
-              <span className="text-primary">Smart</span> Inventory
-            </CardTitle>
-          </div>
+          <p className="text-slate-500 text-sm mb-3">Easy Billing, Smart Business</p>
           <CardDescription className="text-base">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-medium text-sm">
               <Shield className="h-3.5 w-3.5" />
