@@ -94,6 +94,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  // Clear stale refresh locks on page load
+  useEffect(() => {
+    const lockValue = localStorage.getItem(REFRESH_LOCK_KEY);
+    if (lockValue) {
+      const lockTime = parseInt(lockValue, 10);
+      // If lock is older than 30 seconds, it's definitely stale - clear it
+      if (Date.now() - lockTime > 30000) {
+        console.log("Clearing stale auth refresh lock");
+        localStorage.removeItem(REFRESH_LOCK_KEY);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     // Rate limit protection for token refresh
     let isRefreshing = false;
@@ -136,8 +149,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
+    // Check for existing session with stale state recovery
+    supabase.auth.getSession().then(async ({ data: { session: existingSession }, error }) => {
+      // If there's an error getting session, clear stale data and reset
+      if (error) {
+        console.warn("Error getting session, clearing stale auth state:", error);
+        localStorage.removeItem(REFRESH_LOCK_KEY);
+        await supabase.auth.signOut({ scope: 'local' });
+        setSession(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      
+      // If session exists but is expired, clear it
+      if (existingSession && existingSession.expires_at) {
+        const expiryTime = existingSession.expires_at;
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (currentTime > expiryTime) {
+          console.warn("Session expired, clearing stale auth state");
+          localStorage.removeItem(REFRESH_LOCK_KEY);
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+      }
+      
       setSession(existingSession);
       setUser(existingSession?.user ?? null);
       setLoading(false);
