@@ -21,9 +21,30 @@ interface Product {
   product_name: string;
   brand: string | null;
   color: string | null;
+  category: string | null;
+  style: string | null;
   size_group_name: string | null;
   mrp: number | null;
+  barcode: string | null;
+  pur_price: number | null;
+  sale_price: number | null;
 }
+
+// Helper to format product description like Purchase/Sale entry
+const formatProductDescription = (product: {
+  product_name: string;
+  brand?: string | null;
+  category?: string | null;
+  style?: string | null;
+  color?: string | null;
+}) => {
+  const parts = [product.product_name];
+  if (product.brand) parts.push(product.brand);
+  if (product.category) parts.push(product.category);
+  if (product.style) parts.push(product.style);
+  if (product.color) parts.push(product.color);
+  return parts.join(' | ');
+};
 
 interface SizeWiseRow {
   productKey: string;
@@ -70,7 +91,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         .select(`
           product_id,
           mrp,
-          products!inner(id, product_name, brand, color)
+          pur_price,
+          sale_price,
+          barcode,
+          products!inner(id, product_name, brand, color, category, style)
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
@@ -88,8 +112,13 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             product_name: v.products.product_name,
             brand: v.products.brand,
             color: v.products.color,
+            category: v.products.category,
+            style: v.products.style,
             size_group_name: null,
             mrp: v.mrp,
+            barcode: v.barcode,
+            pur_price: v.pur_price,
+            sale_price: v.sale_price,
           });
         }
       });
@@ -97,7 +126,11 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       // Also search by product name, brand, style
       const { data: productData, error: productError } = await supabase
         .from("products")
-        .select("id, product_name, brand, color, style, size_groups(group_name), product_variants(mrp)")
+        .select(`
+          id, product_name, brand, color, category, style,
+          size_groups(group_name),
+          product_variants(mrp, pur_price, sale_price, barcode)
+        `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .is("product_variants.deleted_at", null)
@@ -112,15 +145,20 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       barcodeProducts.forEach((p, id) => allProducts.set(id, p));
       (productData || []).forEach((p: any) => {
         if (!allProducts.has(p.id)) {
-          // Get first non-null MRP from variants
-          const mrp = p.product_variants?.find((v: any) => v.mrp != null)?.mrp || null;
+          // Get first variant with data
+          const variant = p.product_variants?.find((v: any) => v.mrp != null) || p.product_variants?.[0];
           allProducts.set(p.id, {
             id: p.id,
             product_name: p.product_name,
             brand: p.brand,
             color: p.color,
+            category: p.category,
+            style: p.style,
             size_group_name: p.size_groups?.group_name || null,
-            mrp: mrp,
+            mrp: variant?.mrp || null,
+            barcode: variant?.barcode || null,
+            pur_price: variant?.pur_price || null,
+            sale_price: variant?.sale_price || null,
           });
         }
       });
@@ -462,7 +500,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                             key={product.id}
                             value={product.id}
                             onSelect={() => handleSelectProduct(product)}
-                            className="cursor-pointer py-1.5"
+                            className="cursor-pointer py-2"
                           >
                             <Check
                               className={cn(
@@ -470,25 +508,40 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                                 isSelected ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            <div className="flex flex-col flex-1">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-medium">{product.product_name}</span>
-                                <div className="flex items-center gap-1">
-                                  {product.mrp && (
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded font-medium shrink-0">
-                                      ₹{product.mrp}
-                                    </span>
-                                  )}
-                                  {product.size_group_name && (
-                                    <span className="text-[9px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium shrink-0">
-                                      {product.size_group_name}
-                                    </span>
-                                  )}
-                                </div>
+                            <div className="flex flex-col flex-1 gap-0.5">
+                              {/* Line 1: Formatted description with size range badge */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium">
+                                  {formatProductDescription(product)}
+                                </span>
+                                {product.size_group_name && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold shrink-0">
+                                    {product.size_group_name}
+                                  </span>
+                                )}
                               </div>
-                              <span className="text-[10px] text-muted-foreground">
-                                {[product.brand, product.color].filter(Boolean).join(" • ") || "-"}
-                              </span>
+                              
+                              {/* Line 2: Barcode and prices */}
+                              <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                                {product.barcode && (
+                                  <span>Barcode: {product.barcode}</span>
+                                )}
+                                {product.pur_price != null && (
+                                  <span className="text-primary font-medium">
+                                    Pur: ₹{product.pur_price.toFixed(2)}
+                                  </span>
+                                )}
+                                {product.sale_price != null && (
+                                  <span className="text-green-600 dark:text-green-400 font-medium">
+                                    Sale: ₹{product.sale_price.toFixed(2)}
+                                  </span>
+                                )}
+                                {product.mrp != null && (
+                                  <span className="text-amber-600 dark:text-amber-400 font-medium">
+                                    MRP: ₹{product.mrp.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </CommandItem>
                         );
