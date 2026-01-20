@@ -223,7 +223,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         )}
       </div>
 
-      {/* Tax Invoice Title */}
+      {/* Bill Of Supply Title */}
       <div
         style={{
           textAlign: "center",
@@ -234,7 +234,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           marginBottom: "6px",
         }}
       >
-        TAX INVOICE
+        Bill Of Supply
       </div>
 
       {/* Customer & Invoice Details */}
