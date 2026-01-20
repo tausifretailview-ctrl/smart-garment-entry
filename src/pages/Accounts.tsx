@@ -597,16 +597,17 @@ export default function Accounts() {
   };
 
   // Calculate payment stats from all sales
+  const salesArray = sales ?? [];
   const paymentStats = {
-    totalInvoices: sales?.length || 0,
-    totalAmount: sales?.reduce((sum, s) => sum + Number(s.net_amount || 0), 0) || 0,
-    paidAmount: sales?.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0) || 0,
-    pendingCount: sales?.filter(s => s.payment_status === 'pending').length || 0,
-    pendingAmount: sales?.filter(s => s.payment_status === 'pending').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0) || 0,
-    partialCount: sales?.filter(s => s.payment_status === 'partial').length || 0,
-    partialAmount: sales?.filter(s => s.payment_status === 'partial').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0) || 0,
-    completedCount: sales?.filter(s => s.payment_status === 'completed').length || 0,
-    completedAmount: sales?.filter(s => s.payment_status === 'completed').reduce((sum, s) => sum + Number(s.paid_amount || 0), 0) || 0,
+    totalInvoices: salesArray.length,
+    totalAmount: salesArray.reduce((sum, s) => sum + Number(s.net_amount || 0), 0),
+    paidAmount: salesArray.reduce((sum, s) => sum + Number(s.paid_amount || 0), 0),
+    pendingCount: salesArray.filter(s => s.payment_status === 'pending').length,
+    pendingAmount: salesArray.filter(s => s.payment_status === 'pending').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0),
+    partialCount: salesArray.filter(s => s.payment_status === 'partial').length,
+    partialAmount: salesArray.filter(s => s.payment_status === 'partial').reduce((sum, s) => sum + Number(s.net_amount || 0) - Number(s.paid_amount || 0), 0),
+    completedCount: salesArray.filter(s => s.payment_status === 'completed').length,
+    completedAmount: salesArray.filter(s => s.payment_status === 'completed').reduce((sum, s) => sum + Number(s.paid_amount || 0), 0),
   };
 
   // Handle card click
@@ -1925,7 +1926,8 @@ export default function Accounts() {
                             <span className="font-medium">
                               {selectedSupplierBillIds.length} bill(s) selected • 
                               Total: <span className="text-primary font-bold">
-                                ₹{supplierBills?.filter(b => selectedSupplierBillIds.includes(b.id))
+                                ₹{(supplierBills ?? [])
+                                  .filter(b => selectedSupplierBillIds.includes(b.id))
                                   .reduce((sum, b) => sum + (Number(b.net_amount || 0) - Number(b.paid_amount || 0)), 0)
                                   .toFixed(2)}
                               </span>
