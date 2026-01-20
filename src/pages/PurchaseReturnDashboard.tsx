@@ -638,6 +638,11 @@ const PurchaseReturnDashboard = () => {
                               Refunded
                             </Badge>
                           )}
+                          {returnRecord.credit_status === 'adjusted_outstanding' && (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
+                              Adjusted (Outstanding)
+                            </Badge>
+                          )}
                           {!returnRecord.credit_status && (
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
