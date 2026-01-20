@@ -19,10 +19,17 @@ export const RoleProtectedRoute = ({
 }: RoleProtectedRouteProps) => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const { currentOrganization, loading: orgLoading } = useOrganization();
-  const { roles, loading, error } = useUserRoles(currentOrganization?.id);
+  
+  // Check if this is a platform-admin-only route (no org context needed)
+  const isPlatformAdminOnly = allowedRoles.length === 1 && allowedRoles[0] === "platform_admin";
+  
+  // For platform admin routes, don't pass org ID - we only need global roles
+  const { roles, loading, error } = useUserRoles(
+    isPlatformAdminOnly ? undefined : currentOrganization?.id
+  );
 
-  // Show loading while fetching roles or organization
-  if (loading || orgLoading) {
+  // For platform admin routes, don't wait for org context
+  if (loading || (!isPlatformAdminOnly && orgLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -52,7 +59,12 @@ export const RoleProtectedRoute = ({
   const hasRequiredRole = roles.some(role => allowedRoles.includes(role));
 
   if (!hasRequiredRole) {
-    // Use org-scoped redirect if available
+    // For platform admin routes, redirect to root auth
+    if (isPlatformAdminOnly) {
+      return <Navigate to="/auth" replace />;
+    }
+    
+    // For org-scoped routes, redirect to org dashboard
     const slug = orgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug");
     const redirectPath = redirectTo || (slug ? `/${slug}` : "/");
     return <Navigate to={redirectPath} replace />;
