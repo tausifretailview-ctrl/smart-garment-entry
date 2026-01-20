@@ -37,7 +37,7 @@ export function AdjustCreditNoteDialog({
 }: AdjustCreditNoteDialogProps) {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const [adjustmentType, setAdjustmentType] = useState<"bill" | "refund">("bill");
+  const [adjustmentType, setAdjustmentType] = useState<"bill" | "refund" | "outstanding">("bill");
   const [selectedBillId, setSelectedBillId] = useState<string>("");
   const [refundMode, setRefundMode] = useState<"cash" | "bank">("cash");
   const [loading, setLoading] = useState(false);
@@ -128,7 +128,7 @@ export function AdjustCreditNoteDialog({
           title: "Success",
           description: `Credit note adjusted against bill. ₹${adjustAmount.toFixed(2)} applied.`,
         });
-      } else {
+      } else if (adjustmentType === "refund") {
         // Mark as refund - create a receipt voucher
         const today = format(new Date(), "yyyy-MM-dd");
 
@@ -175,6 +175,33 @@ export function AdjustCreditNoteDialog({
           title: "Success",
           description: `Credit note marked as refunded. Receipt voucher created.`,
         });
+      } else if (adjustmentType === "outstanding") {
+        // Adjust in Outstanding Balance - update status and voucher description
+        const { error: returnError } = await supabase
+          .from("purchase_returns" as any)
+          .update({
+            credit_status: "adjusted_outstanding",
+          })
+          .eq("id", purchaseReturnId);
+
+        if (returnError) throw returnError;
+
+        // Update voucher description if creditNoteId exists
+        if (creditNoteId) {
+          const { error: voucherError } = await supabase
+            .from("voucher_entries")
+            .update({
+              description: `Credit Note adjusted to Outstanding Balance: ${creditNoteNumber}`,
+            })
+            .eq("id", creditNoteId);
+
+          if (voucherError) throw voucherError;
+        }
+
+        toast({
+          title: "Success",
+          description: `Credit note adjusted to supplier outstanding balance. ₹${creditAmount.toFixed(2)} deducted.`,
+        });
       }
 
       onOpenChange(false);
@@ -211,7 +238,7 @@ export function AdjustCreditNoteDialog({
           {/* Adjustment Type */}
           <RadioGroup
             value={adjustmentType}
-            onValueChange={(value) => setAdjustmentType(value as "bill" | "refund")}
+            onValueChange={(value) => setAdjustmentType(value as "bill" | "refund" | "outstanding")}
             className="space-y-3"
           >
             <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
@@ -226,6 +253,13 @@ export function AdjustCreditNoteDialog({
               <Label htmlFor="refund" className="flex-1 cursor-pointer">
                 <div className="font-medium">Mark as Refund</div>
                 <div className="text-sm text-muted-foreground">Cash/bank refund received from supplier</div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+              <RadioGroupItem value="outstanding" id="outstanding" />
+              <Label htmlFor="outstanding" className="flex-1 cursor-pointer">
+                <div className="font-medium">Adjust in Outstanding Balance</div>
+                <div className="text-sm text-muted-foreground">Reduce supplier's overall balance without linking to a specific bill</div>
               </Label>
             </div>
           </RadioGroup>
