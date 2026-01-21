@@ -37,6 +37,8 @@ import QuotationEntry from "./pages/QuotationEntry";
 import QuotationDashboard from "./pages/QuotationDashboard";
 import SaleOrderEntry from "./pages/SaleOrderEntry";
 import SaleOrderDashboard from "./pages/SaleOrderDashboard";
+import PurchaseOrderEntry from "./pages/PurchaseOrderEntry";
+import PurchaseOrderDashboard from "./pages/PurchaseOrderDashboard";
 import CustomerMaster from "./pages/CustomerMaster";
 import SupplierMaster from "./pages/SupplierMaster";
 import EmployeeMaster from "./pages/EmployeeMaster";

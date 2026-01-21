@@ -1933,6 +1933,196 @@ export type Database = {
           },
         ]
       }
+      purchase_order_items: {
+        Row: {
+          barcode: string | null
+          color: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          discount_percent: number
+          fulfilled_qty: number
+          gst_percent: number
+          hsn_code: string | null
+          id: string
+          line_total: number
+          order_id: string
+          order_qty: number
+          pending_qty: number
+          product_id: string
+          product_name: string
+          size: string
+          unit_price: number
+          variant_id: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          color?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_percent?: number
+          fulfilled_qty?: number
+          gst_percent?: number
+          hsn_code?: string | null
+          id?: string
+          line_total: number
+          order_id: string
+          order_qty: number
+          pending_qty: number
+          product_id: string
+          product_name: string
+          size: string
+          unit_price: number
+          variant_id?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          color?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_percent?: number
+          fulfilled_qty?: number
+          gst_percent?: number
+          hsn_code?: string | null
+          id?: string
+          line_total?: number
+          order_id?: string
+          order_qty?: number
+          pending_qty?: number
+          product_id?: string
+          product_name?: string
+          size?: string
+          unit_price?: number
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_order_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      purchase_orders: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          discount_amount: number
+          expected_delivery_date: string | null
+          gross_amount: number
+          gst_amount: number
+          id: string
+          net_amount: number
+          notes: string | null
+          order_date: string
+          order_number: string
+          organization_id: string
+          other_charges: number
+          round_off: number
+          status: string
+          supplier_address: string | null
+          supplier_email: string | null
+          supplier_gst: string | null
+          supplier_id: string | null
+          supplier_name: string
+          supplier_phone: string | null
+          tax_type: string | null
+          terms_conditions: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          order_date?: string
+          order_number: string
+          organization_id: string
+          other_charges?: number
+          round_off?: number
+          status?: string
+          supplier_address?: string | null
+          supplier_email?: string | null
+          supplier_gst?: string | null
+          supplier_id?: string | null
+          supplier_name?: string
+          supplier_phone?: string | null
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          discount_amount?: number
+          expected_delivery_date?: string | null
+          gross_amount?: number
+          gst_amount?: number
+          id?: string
+          net_amount?: number
+          notes?: string | null
+          order_date?: string
+          order_number?: string
+          organization_id?: string
+          other_charges?: number
+          round_off?: number
+          status?: string
+          supplier_address?: string | null
+          supplier_email?: string | null
+          supplier_gst?: string | null
+          supplier_id?: string | null
+          supplier_name?: string
+          supplier_phone?: string | null
+          tax_type?: string | null
+          terms_conditions?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_orders_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_return_items: {
         Row: {
           barcode: string | null
@@ -3892,6 +4082,10 @@ export type Database = {
             Returns: string
           }
         | { Args: { p_organization_id: string }; Returns: string }
+      generate_purchase_order_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       generate_purchase_return_number: {
         Args: { p_organization_id: string }
         Returns: string

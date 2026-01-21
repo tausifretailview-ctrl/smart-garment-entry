@@ -13,6 +13,7 @@ export type SoftDeleteEntity =
   | "sale_returns"
   | "purchase_returns"
   | "sale_orders"
+  | "purchase_orders"
   | "quotations"
   | "voucher_entries"
   | "credit_notes";

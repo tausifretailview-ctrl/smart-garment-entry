@@ -37,6 +37,7 @@ export function DraftResumeDialog({
     quotation: "Quotation",
     sale_order: "Sale Order",
     sale_invoice: "Sales Invoice",
+    purchase_order: "Purchase Order",
   };
 
   return (
