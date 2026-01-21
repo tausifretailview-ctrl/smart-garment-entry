@@ -306,29 +306,29 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-8 lg:p-14 bg-white">
-        <div className="w-full max-w-lg space-y-10">
+      <div className="flex-1 flex items-start justify-center p-8 lg:p-14 pt-8 lg:pt-10 bg-white overflow-y-auto">
+        <div className="w-full max-w-lg space-y-6">
           {/* Mobile: Show EzzyERP logo */}
-          <div className="lg:hidden text-center mb-10">
+          <div className="lg:hidden text-center mb-6">
             <img 
               src={ezzyerpLogo} 
               alt="EzzyERP" 
-              className="h-16 w-auto mx-auto object-contain"
+              className="h-14 w-auto mx-auto object-contain"
             />
-            <p className="text-slate-500 mt-2 text-sm">Easy Billing, Smart Business</p>
+            <p className="text-slate-500 mt-1 text-sm">Easy Billing, Smart Business</p>
           </div>
 
           {/* EzzyERP Branding - Above Organization Logo */}
-          <div className="hidden lg:block text-center mb-6">
+          <div className="hidden lg:block text-center mb-4">
             <img 
               src={ezzyerpLogoFull} 
               alt="EzzyERP - Easy Billing, Smart Business" 
-              className="h-12 w-auto mx-auto object-contain"
+              className="h-10 w-auto mx-auto object-contain"
             />
           </div>
 
           {/* Login Section */}
-          <div className="space-y-10">
+          <div className="space-y-6">
             {/* Organization Branding */}
             <div className="text-center">
               {logoUrl ? (
