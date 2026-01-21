@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { 
   Loader2, Download, Printer, TrendingUp, TrendingDown, Wallet, PieChart, 
-  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock
+  FileSpreadsheet, Scale, Calculator, AlertTriangle, Calendar, Building2, Clock, ExternalLink
 } from "lucide-react";
 import { format, startOfYear } from "date-fns";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import {
   BalanceSheetData,
   NetProfitSummary,
 } from "@/utils/accountingReportUtils";
-import { NetProfitBreakdown } from "@/components/NetProfitBreakdown";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -108,6 +108,7 @@ const FYPresets = ({
 
 export default function AccountingReports() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const [activeTab, setActiveTab] = useState("trial-balance");
   const [loading, setLoading] = useState(false);
 
@@ -980,14 +981,21 @@ export default function AccountingReports() {
                     <p>Generated: {netProfitSummary.generatedAt}</p>
                   </div>
 
-                  {/* SUPPLIER-WISE & PRODUCT-WISE BREAKDOWN */}
-                  {currentOrganization?.id && (
-                    <NetProfitBreakdown
-                      organizationId={currentOrganization.id}
-                      fromDate={fromDate}
-                      toDate={toDate}
-                    />
-                  )}
+                  {/* LINK TO DETAILED ANALYSIS PAGE */}
+                  <div className="mt-6 text-center">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => orgNavigate("/net-profit-analysis")}
+                      className="gap-2"
+                    >
+                      <PieChart className="h-4 w-4" />
+                      View Supplier-wise & Product-wise Analysis
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Open full-page detailed profit breakdown by supplier and product
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">

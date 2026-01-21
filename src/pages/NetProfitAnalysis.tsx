@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Users, Package, TrendingUp, TrendingDown, Search } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { 
+  Loader2, Download, Printer, TrendingUp, TrendingDown, 
+  Users, Package, Search, Calendar, ArrowLeft, Building2, Clock
+} from "lucide-react";
+import { format, startOfYear } from "date-fns";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
+import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 interface SupplierProfitData {
   supplierId: string | null;
@@ -38,28 +50,73 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-interface NetProfitBreakdownProps {
-  organizationId: string;
-  fromDate: string;
-  toDate: string;
-}
+// Financial Year Presets
+const FYPresets = ({ 
+  onSelect, 
+  currentSelection 
+}: { 
+  onSelect: (from: string, to: string) => void; 
+  currentSelection?: string;
+}) => {
+  const currentFY = getIndiaFinancialYear(0);
+  const previousFY = getIndiaFinancialYear(-1);
+  const currentQ = getCurrentQuarter();
+  
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button
+        variant={currentSelection === "currentFY" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate)}
+      >
+        <Calendar className="h-3 w-3 mr-1" />
+        {currentFY.label}
+      </Button>
+      <Button
+        variant={currentSelection === "previousFY" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate)}
+      >
+        {previousFY.label}
+      </Button>
+      <Button
+        variant={currentSelection === "currentQ" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate)}
+      >
+        {currentQ.label}
+      </Button>
+    </div>
+  );
+};
 
-export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProfitBreakdownProps) {
+export default function NetProfitAnalysis() {
+  const { currentOrganization } = useOrganization();
+  const navigate = useNavigate();
+  const { orgNavigate } = useOrgNavigation();
+  
+  const currentFY = getIndiaFinancialYear(0);
+  const [fromDate, setFromDate] = useState(currentFY.fromDate);
+  const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [fyPreset, setFyPreset] = useState<string>("");
+  
   const [activeTab, setActiveTab] = useState("supplier-wise");
   const [loading, setLoading] = useState(false);
   const [supplierData, setSupplierData] = useState<SupplierProfitData[]>([]);
   const [productData, setProductData] = useState<ProductProfitData[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [hasGenerated, setHasGenerated] = useState(false);
 
   const fetchSupplierWiseProfit = async () => {
+    if (!currentOrganization?.id) return;
+    
     setLoading(true);
     try {
-      // Get all sales in the period
       const { data: sales } = await supabase
         .from("sales")
         .select("id")
-        .eq("organization_id", organizationId)
+        .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", toDate)
         .is("deleted_at", null);
@@ -72,7 +129,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const saleIds = sales.map(s => s.id);
 
-      // Get all sale items with variant info
       const { data: saleItems } = await supabase
         .from("sale_items")
         .select("variant_id, quantity, line_total, gst_percent")
@@ -85,10 +141,8 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         return;
       }
 
-      // Get variant IDs
       const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
 
-      // Get variant details with pur_price
       const { data: variants } = await supabase
         .from("product_variants")
         .select("id, pur_price, product_id")
@@ -96,10 +150,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
 
-      // Get product IDs
-      const productIds = [...new Set(variants?.map(v => v.product_id) || [])];
-
-      // Get supplier info from purchase_items (last purchase for each variant)
       const { data: purchaseItems } = await supabase
         .from("purchase_items")
         .select("sku_id, bill_id")
@@ -108,13 +158,11 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const billIds = [...new Set(purchaseItems?.map(pi => pi.bill_id) || [])];
 
-      // Get purchase bills with supplier info
       const { data: purchaseBills } = await supabase
         .from("purchase_bills")
         .select("id, supplier_id, supplier_name")
         .in("id", billIds);
 
-      // Create variant to supplier mapping (use first found)
       const variantToSupplier = new Map<string, { id: string | null; name: string }>();
       purchaseItems?.forEach(pi => {
         if (!variantToSupplier.has(pi.sku_id)) {
@@ -125,7 +173,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         }
       });
 
-      // Calculate profit by supplier
       const supplierProfitMap = new Map<string, SupplierProfitData>();
 
       saleItems.forEach(item => {
@@ -156,7 +203,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         data.itemsSold += qty;
       });
 
-      // Calculate gross profit and margin for each supplier
       const result: SupplierProfitData[] = [];
       supplierProfitMap.forEach(data => {
         data.grossProfit = data.totalSales - data.totalCOGS;
@@ -164,23 +210,24 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         result.push(data);
       });
 
-      // Sort by gross profit descending
       result.sort((a, b) => b.grossProfit - a.grossProfit);
       setSupplierData(result);
     } catch (error) {
       console.error("Error fetching supplier-wise profit:", error);
+      toast.error("Failed to load supplier-wise data");
     }
     setLoading(false);
   };
 
   const fetchProductWiseProfit = async () => {
+    if (!currentOrganization?.id) return;
+    
     setLoading(true);
     try {
-      // Get all sales in the period
       const { data: sales } = await supabase
         .from("sales")
         .select("id")
-        .eq("organization_id", organizationId)
+        .eq("organization_id", currentOrganization.id)
         .gte("sale_date", fromDate)
         .lte("sale_date", toDate)
         .is("deleted_at", null);
@@ -193,7 +240,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const saleIds = sales.map(s => s.id);
 
-      // Get all sale items
       const { data: saleItems } = await supabase
         .from("sale_items")
         .select("variant_id, quantity, line_total, product_name, product_id")
@@ -206,10 +252,8 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         return;
       }
 
-      // Get variant IDs
       const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
 
-      // Get variant details with pur_price
       const { data: variants } = await supabase
         .from("product_variants")
         .select("id, pur_price, product_id")
@@ -217,10 +261,8 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
 
-      // Get product IDs from sale_items
       const productIds = [...new Set(saleItems.map(si => si.product_id).filter(Boolean))];
 
-      // Get product details
       const { data: products } = await supabase
         .from("products")
         .select("id, product_name, brand, category")
@@ -228,7 +270,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
 
       const productMap = new Map(products?.map(p => [p.id, p]) || []);
 
-      // Calculate profit by product
       const productProfitMap = new Map<string, ProductProfitData>();
 
       saleItems.forEach(item => {
@@ -261,7 +302,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         data.quantitySold += qty;
       });
 
-      // Calculate gross profit and margin for each product
       const result: ProductProfitData[] = [];
       productProfitMap.forEach(data => {
         data.grossProfit = data.totalSales - data.totalCOGS;
@@ -269,24 +309,83 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
         result.push(data);
       });
 
-      // Sort by gross profit descending
       result.sort((a, b) => b.grossProfit - a.grossProfit);
       setProductData(result);
     } catch (error) {
       console.error("Error fetching product-wise profit:", error);
+      toast.error("Failed to load product-wise data");
     }
     setLoading(false);
   };
 
-  useEffect(() => {
+  const handleGenerate = () => {
+    setHasGenerated(true);
     if (activeTab === "supplier-wise") {
       fetchSupplierWiseProfit();
     } else {
       fetchProductWiseProfit();
     }
-  }, [activeTab, organizationId, fromDate, toDate]);
+  };
 
-  // Filter functions
+  // Refetch when tab changes (after initial generation)
+  useEffect(() => {
+    if (hasGenerated) {
+      if (activeTab === "supplier-wise" && supplierData.length === 0) {
+        fetchSupplierWiseProfit();
+      } else if (activeTab === "product-wise" && productData.length === 0) {
+        fetchProductWiseProfit();
+      }
+    }
+  }, [activeTab, hasGenerated]);
+
+  const handleFYPresetSelect = (from: string, to: string) => {
+    setFromDate(from);
+    setToDate(to);
+  };
+
+  const handleExportExcel = () => {
+    if (activeTab === "supplier-wise") {
+      if (filteredSupplierData.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(
+        filteredSupplierData.map((s) => ({
+          "Supplier": s.supplierName,
+          "Items Sold": s.itemsSold,
+          "Total Sales": s.totalSales,
+          "COGS": s.totalCOGS,
+          "Gross Profit": s.grossProfit,
+          "Margin %": `${s.marginPercent.toFixed(1)}%`,
+        }))
+      );
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Supplier Profit");
+      XLSX.writeFile(wb, `supplier-profit-analysis-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    } else {
+      if (filteredProductData.length === 0) {
+        toast.error("No data to export");
+        return;
+      }
+      const ws = XLSX.utils.json_to_sheet(
+        filteredProductData.map((p) => ({
+          "Product": p.productName,
+          "Brand": p.brand || "-",
+          "Category": p.category || "-",
+          "Qty Sold": p.quantitySold,
+          "Total Sales": p.totalSales,
+          "COGS": p.totalCOGS,
+          "Gross Profit": p.grossProfit,
+          "Margin %": `${p.marginPercent.toFixed(1)}%`,
+        }))
+      );
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Product Profit");
+      XLSX.writeFile(wb, `product-profit-analysis-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    }
+    toast.success("Excel exported successfully");
+  };
+
   const filteredSupplierData = supplierData.filter(s =>
     s.supplierName.toLowerCase().includes(supplierSearch.toLowerCase())
   );
@@ -297,7 +396,6 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
     (p.category && p.category.toLowerCase().includes(productSearch.toLowerCase()))
   );
 
-  // Totals
   const supplierTotals = filteredSupplierData.reduce(
     (acc, s) => ({
       sales: acc.sales + s.totalSales,
@@ -319,16 +417,102 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
   );
 
   return (
-    <Card className="mt-6">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Detailed Profit Analysis</CardTitle>
-        <p className="text-sm text-muted-foreground">
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => orgNavigate("/accounting-reports")}
+            className="gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Net Profit Analysis
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              {currentOrganization?.name || "Organization"} • Supplier & Product-wise Profit Breakdown
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="h-4 w-4 mr-1" />
+            Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel}>
+            <Download className="h-4 w-4 mr-1" />
+            Export Excel
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="px-4 py-3 border-b bg-muted/30 print:hidden">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex items-center gap-2">
+            <div>
+              <Label className="text-xs">From</Label>
+              <Input
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="h-8 w-36"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">To</Label>
+              <Input
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="h-8 w-36"
+              />
+            </div>
+            <div className="self-end">
+              <Button onClick={handleGenerate} disabled={loading} size="sm">
+                {loading && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Generate
+              </Button>
+            </div>
+          </div>
+          
+          <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
+        </div>
+        
+        <p className="text-xs text-muted-foreground mt-2">
           Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
         </p>
-      </CardHeader>
-      <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+      </div>
+
+      {/* Print Header */}
+      <div className="hidden print:block p-4 border-b">
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Building2 className="h-6 w-6" />
+          </div>
+          <h1 className="text-xl font-bold">{currentOrganization?.name || "Organization"}</h1>
+          <h2 className="text-lg font-semibold mt-1">Net Profit Analysis - {activeTab === "supplier-wise" ? "Supplier-wise" : "Product-wise"}</h2>
+          <p className="text-sm text-gray-600">
+            Period: {format(new Date(fromDate), "dd MMM yyyy")} - {format(new Date(toDate), "dd MMM yyyy")}
+          </p>
+          <p className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-1">
+            <Clock className="h-3 w-3" />
+            Generated: {format(new Date(), "dd MMM yyyy, hh:mm a")}
+          </p>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+          <TabsList className="grid w-full max-w-md grid-cols-2 mb-4 print:hidden">
             <TabsTrigger value="supplier-wise" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Supplier-wise
@@ -340,27 +524,34 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
           </TabsList>
 
           {/* Supplier-wise Tab */}
-          <TabsContent value="supplier-wise" className="space-y-4">
-            <div className="flex items-center gap-2">
+          <TabsContent value="supplier-wise" className="flex-1 flex flex-col mt-0">
+            <div className="flex items-center gap-2 mb-3 print:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search supplier..."
                 value={supplierSearch}
                 onChange={(e) => setSupplierSearch(e.target.value)}
-                className="max-w-sm"
+                className="max-w-sm h-8"
               />
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filteredSupplierData.length} suppliers
+              </span>
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
+            ) : !hasGenerated ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <p>Click Generate to load supplier-wise profit data</p>
+              </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <ScrollArea className="flex-1 border rounded-lg">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Supplier</TableHead>
+                  <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
+                    <TableRow>
+                      <TableHead className="w-[200px]">Supplier</TableHead>
                       <TableHead className="text-right">Items Sold</TableHead>
                       <TableHead className="text-right">Total Sales</TableHead>
                       <TableHead className="text-right">COGS</TableHead>
@@ -402,8 +593,8 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
                     )}
                   </TableBody>
                   {filteredSupplierData.length > 0 && (
-                    <TableFooter>
-                      <TableRow className="bg-muted font-bold">
+                    <TableFooter className="sticky bottom-0 bg-muted font-bold">
+                      <TableRow>
                         <TableCell>TOTAL</TableCell>
                         <TableCell className="text-right">{supplierTotals.items}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(supplierTotals.sales)}</TableCell>
@@ -422,32 +613,39 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
                     </TableFooter>
                   )}
                 </Table>
-              </div>
+              </ScrollArea>
             )}
           </TabsContent>
 
           {/* Product-wise Tab */}
-          <TabsContent value="product-wise" className="space-y-4">
-            <div className="flex items-center gap-2">
+          <TabsContent value="product-wise" className="flex-1 flex flex-col mt-0">
+            <div className="flex items-center gap-2 mb-3 print:hidden">
               <Search className="h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search product, brand, or category..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="max-w-sm"
+                className="max-w-sm h-8"
               />
+              <span className="text-xs text-muted-foreground ml-auto">
+                {filteredProductData.length} products
+              </span>
             </div>
 
             {loading ? (
-              <div className="flex items-center justify-center py-8">
+              <div className="flex items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
+            ) : !hasGenerated ? (
+              <div className="flex-1 flex items-center justify-center text-muted-foreground">
+                <p>Click Generate to load product-wise profit data</p>
+              </div>
             ) : (
-              <div className="border rounded-lg overflow-hidden">
+              <ScrollArea className="flex-1 border rounded-lg">
                 <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Product</TableHead>
+                  <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
+                    <TableRow>
+                      <TableHead className="w-[200px]">Product</TableHead>
                       <TableHead>Brand</TableHead>
                       <TableHead className="text-right">Qty Sold</TableHead>
                       <TableHead className="text-right">Total Sales</TableHead>
@@ -469,7 +667,11 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
                           <TableCell className="font-medium max-w-[200px] truncate" title={product.productName}>
                             {product.productName}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{product.brand || "-"}</TableCell>
+                          <TableCell>
+                            {product.brand ? (
+                              <Badge variant="outline">{product.brand}</Badge>
+                            ) : "-"}
+                          </TableCell>
                           <TableCell className="text-right">{product.quantitySold}</TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(product.totalSales)}</TableCell>
                           <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
@@ -493,9 +695,10 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
                     )}
                   </TableBody>
                   {filteredProductData.length > 0 && (
-                    <TableFooter>
-                      <TableRow className="bg-muted font-bold">
-                        <TableCell colSpan={2}>TOTAL</TableCell>
+                    <TableFooter className="sticky bottom-0 bg-muted font-bold">
+                      <TableRow>
+                        <TableCell>TOTAL</TableCell>
+                        <TableCell>-</TableCell>
                         <TableCell className="text-right">{productTotals.qty}</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(productTotals.sales)}</TableCell>
                         <TableCell className="text-right font-mono text-amber-600 dark:text-amber-400">
@@ -513,11 +716,11 @@ export function NetProfitBreakdown({ organizationId, fromDate, toDate }: NetProf
                     </TableFooter>
                   )}
                 </Table>
-              </div>
+              </ScrollArea>
             )}
           </TabsContent>
         </Tabs>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
