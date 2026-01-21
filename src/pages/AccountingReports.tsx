@@ -28,6 +28,7 @@ import {
   BalanceSheetData,
   NetProfitSummary,
 } from "@/utils/accountingReportUtils";
+import { NetProfitBreakdown } from "@/components/NetProfitBreakdown";
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -978,6 +979,15 @@ export default function AccountingReports() {
                     <p>Report Period: {netProfitSummary.periodLabel}</p>
                     <p>Generated: {netProfitSummary.generatedAt}</p>
                   </div>
+
+                  {/* SUPPLIER-WISE & PRODUCT-WISE BREAKDOWN */}
+                  {currentOrganization?.id && (
+                    <NetProfitBreakdown
+                      organizationId={currentOrganization.id}
+                      fromDate={fromDate}
+                      toDate={toDate}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
