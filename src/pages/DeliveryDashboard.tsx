@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Package, Clock, CheckCircle2, TrendingUp, Search, Calendar as CalendarIcon, MessageCircle, Download } from "lucide-react";
 import { AnimatedChart } from "@/components/dashboard/AnimatedChart";
 import { format, subDays, startOfDay, endOfDay } from "date-fns";
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
@@ -34,6 +35,7 @@ const DeliveryDashboard = () => {
   const [newDeliveryStatus, setNewDeliveryStatus] = useState<string>("");
   const [statusDate, setStatusDate] = useState<Date>(new Date());
   const [statusNarration, setStatusNarration] = useState("");
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
 
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
@@ -297,9 +299,46 @@ const DeliveryDashboard = () => {
     }, 300);
   };
 
+  // Selection handlers
+  const isAllSelected = useMemo(() => {
+    if (!filteredInvoices || filteredInvoices.length === 0) return false;
+    return filteredInvoices.every((inv) => selectedInvoiceIds.has(inv.id));
+  }, [filteredInvoices, selectedInvoiceIds]);
+
+  const handleSelectAll = useCallback(() => {
+    if (!filteredInvoices) return;
+    if (isAllSelected) {
+      setSelectedInvoiceIds(new Set());
+    } else {
+      setSelectedInvoiceIds(new Set(filteredInvoices.map((inv) => inv.id)));
+    }
+  }, [filteredInvoices, isAllSelected]);
+
+  const handleSelectRow = useCallback((invoiceId: string) => {
+    setSelectedInvoiceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId);
+      } else {
+        next.add(invoiceId);
+      }
+      return next;
+    });
+  }, []);
+
   const exportToExcel = () => {
     if (!filteredInvoices || filteredInvoices.length === 0) {
       toast.error("No data to export");
+      return;
+    }
+
+    // Determine which invoices to export
+    const invoicesToExport = selectedInvoiceIds.size > 0
+      ? filteredInvoices.filter((inv) => selectedInvoiceIds.has(inv.id))
+      : filteredInvoices;
+
+    if (invoicesToExport.length === 0) {
+      toast.error("No invoices selected for export");
       return;
     }
 
@@ -316,7 +355,7 @@ const DeliveryDashboard = () => {
     const headers = ["Sr No", "Name", "Contact", "Address", "Order ID", "Amount", "Pending", "Sign", "Remarks"];
     
     // Prepare data rows
-    const dataRows = filteredInvoices.map((invoice, index) => {
+    const dataRows = invoicesToExport.map((invoice, index) => {
       const pendingAmount = invoice.payment_status === "completed" 
         ? 0 
         : Number(invoice.net_amount) - Number(invoice.paid_amount || 0);
@@ -378,7 +417,7 @@ const DeliveryDashboard = () => {
     
     // Export with bookType xlsx for proper table format
     XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
-    toast.success("Excel exported successfully!");
+    toast.success(`Exported ${invoicesToExport.length} invoice(s) successfully!`);
   };
 
   return (
@@ -544,7 +583,7 @@ const DeliveryDashboard = () => {
                     disabled={!filteredInvoices || filteredInvoices.length === 0}
                   >
                     <Download className="mr-2 h-4 w-4" />
-                    Export Excel
+                    Export Excel {selectedInvoiceIds.size > 0 && `(${selectedInvoiceIds.size})`}
                   </Button>
                 </div>
               </div>
@@ -553,6 +592,13 @@ const DeliveryDashboard = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead>Invoice No</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Date</TableHead>
@@ -564,7 +610,14 @@ const DeliveryDashboard = () => {
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices?.map((invoice) => (
-                    <TableRow key={invoice.id}>
+                    <TableRow key={invoice.id} data-state={selectedInvoiceIds.has(invoice.id) ? "selected" : undefined}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedInvoiceIds.has(invoice.id)}
+                          onCheckedChange={() => handleSelectRow(invoice.id)}
+                          aria-label={`Select ${invoice.sale_number}`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{invoice.sale_number}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -605,7 +658,7 @@ const DeliveryDashboard = () => {
                   ))}
                   {(!filteredInvoices || filteredInvoices.length === 0) && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground">
                         No invoices found
                       </TableCell>
                     </TableRow>
