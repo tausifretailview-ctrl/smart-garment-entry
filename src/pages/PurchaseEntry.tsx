@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { FloatingTotalQty } from "@/components/FloatingTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -3030,6 +3031,12 @@ const PurchaseEntry = () => {
               description: `${supplier.supplier_name} has been selected`,
             });
           }}
+        />
+
+        {/* Floating Total Quantity Badge */}
+        <FloatingTotalQty 
+          totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
+          itemCount={lineItems.filter(i => i.product_id).length}
         />
       </div>
     </div>

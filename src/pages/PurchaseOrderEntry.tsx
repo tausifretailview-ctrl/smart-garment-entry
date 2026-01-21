@@ -11,6 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList } from "lucide-react";
+import { FloatingTotalQty } from "@/components/FloatingTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -1011,6 +1012,12 @@ export default function PurchaseOrderEntry() {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Floating Total Quantity Badge */}
+      <FloatingTotalQty 
+        totalQty={lineItems.reduce((sum, item) => sum + item.orderQty, 0)} 
+        itemCount={lineItems.filter(i => i.productId).length}
+      />
     </div>
   );
 }

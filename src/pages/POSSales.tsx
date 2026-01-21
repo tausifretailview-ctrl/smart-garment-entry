@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins } from "lucide-react";
+import { FloatingTotalQty } from "@/components/FloatingTotalQty";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -3419,6 +3420,12 @@ export default function POSSales() {
             />
           </div>
         )}
+
+        {/* Floating Total Quantity Badge */}
+        <FloatingTotalQty 
+          totalQty={items.reduce((sum, item) => sum + item.quantity, 0)} 
+          itemCount={items.length}
+        />
       </div>
     </div>
   );
