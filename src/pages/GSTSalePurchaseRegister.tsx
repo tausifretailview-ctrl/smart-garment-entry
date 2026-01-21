@@ -251,6 +251,7 @@ const GSTSalePurchaseRegister = () => {
           customer_id, customers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("return_date", fromDate)
         .lte("return_date", toDate)
         .order("return_date", { ascending: true });
@@ -301,6 +302,7 @@ const GSTSalePurchaseRegister = () => {
           supplier_id, suppliers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("bill_date", fromDate)
         .lte("bill_date", toDate)
         .order("bill_date", { ascending: true });
@@ -363,6 +365,7 @@ const GSTSalePurchaseRegister = () => {
           supplier_id, suppliers(gst_number)
         `)
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("return_date", fromDate)
         .lte("return_date", toDate)
         .order("return_date", { ascending: true });
