@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { validateProduct } from "@/lib/validations";
+import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -61,6 +62,7 @@ interface ProductForm {
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
+  uom: string; // Unit of Measurement
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
   default_mrp: number | undefined;
@@ -114,6 +116,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
+    uom: DEFAULT_UOM,
     default_pur_price: undefined,
     default_sale_price: undefined,
     default_mrp: undefined,
@@ -167,6 +170,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
       size_group_id: "",
       hsn_code: "",
       gst_per: 18,
+      uom: DEFAULT_UOM,
       default_pur_price: undefined,
       default_sale_price: undefined,
       default_mrp: undefined,
@@ -500,6 +504,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
         color: productColor,
         hsn_code: formData.hsn_code || null,
         gst_per: formData.gst_per,
+        uom: formData.uom || DEFAULT_UOM,
         default_pur_price: formData.default_pur_price,
         default_sale_price: formData.default_sale_price,
         status: formData.status,
@@ -800,6 +805,25 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                       <SelectItem value="12">12%</SelectItem>
                       <SelectItem value="18">18%</SelectItem>
                       <SelectItem value="28">28%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="uom">Unit (UOM)</Label>
+                  <Select
+                    value={formData.uom}
+                    onValueChange={(value) => setFormData({ ...formData, uom: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UOM_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

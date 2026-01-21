@@ -1688,6 +1688,7 @@ export type Database = {
           size_group_id: string | null
           status: string | null
           style: string | null
+          uom: string
           updated_at: string | null
         }
         Insert: {
@@ -1709,6 +1710,7 @@ export type Database = {
           size_group_id?: string | null
           status?: string | null
           style?: string | null
+          uom?: string
           updated_at?: string | null
         }
         Update: {
@@ -1730,6 +1732,7 @@ export type Database = {
           size_group_id?: string | null
           status?: string | null
           style?: string | null
+          uom?: string
           updated_at?: string | null
         }
         Relationships: [

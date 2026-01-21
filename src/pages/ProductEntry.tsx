@@ -18,6 +18,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
+import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
   Dialog,
   DialogContent,
@@ -67,6 +68,7 @@ interface ProductForm {
   size_group_id: string;
   hsn_code: string;
   gst_per: number;
+  uom: string; // Unit of Measurement
   default_pur_price: number | undefined;
   default_sale_price: number | undefined;
   default_mrp: number | undefined;
@@ -123,6 +125,7 @@ const ProductEntry = () => {
     size_group_id: "",
     hsn_code: "",
     gst_per: 18,
+    uom: "NOS", // Default Unit of Measurement
     default_pur_price: undefined,
     default_sale_price: undefined,
     default_mrp: undefined,
@@ -443,6 +446,7 @@ const ProductEntry = () => {
           size_group_id: product.size_group_id || "",
           hsn_code: product.hsn_code || "",
           gst_per: product.gst_per ?? 18,
+          uom: product.uom || DEFAULT_UOM,
           default_pur_price: product.default_pur_price || 0,
           default_sale_price: product.default_sale_price || 0,
           default_mrp: undefined,
@@ -860,6 +864,7 @@ const ProductEntry = () => {
           color: productColor,
           hsn_code: formData.hsn_code || null,
           gst_per: formData.gst_per,
+          uom: formData.uom || DEFAULT_UOM,
           default_pur_price: formData.default_pur_price,
           default_sale_price: formData.default_sale_price,
           status: formData.status,
@@ -965,6 +970,7 @@ const ProductEntry = () => {
           color: productColor, // Store first color for backward compatibility
           hsn_code: formData.hsn_code || null,
           gst_per: formData.gst_per,
+          uom: formData.uom || DEFAULT_UOM,
           default_pur_price: formData.default_pur_price,
           default_sale_price: formData.default_sale_price,
           status: formData.status,
@@ -1667,6 +1673,27 @@ const ProductEntry = () => {
                     {[0, 5, 12, 18, 28].map((rate) => (
                       <SelectItem key={rate} value={rate.toString()} className="text-xs">
                         {rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="uom" className="text-xs">Unit (UOM)</Label>
+                <Select
+                  value={formData.uom}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, uom: value })
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UOM_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                        {opt.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
