@@ -4143,6 +4143,15 @@ export type Database = {
         }
         Returns: string
       }
+      log_security_event: {
+        Args: {
+          p_details: Json
+          p_event_type: string
+          p_organization_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       platform_assign_user_to_org: {
         Args: {
           p_org_id: string

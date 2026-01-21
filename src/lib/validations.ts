@@ -16,6 +16,27 @@ export const authSchema = z.object({
 
 export type AuthFormData = z.infer<typeof authSchema>;
 
+// Strong password schema for enhanced security (optional for future use)
+export const strongPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(128, "Password must be less than 128 characters")
+  .regex(/[A-Z]/, "Must contain at least one uppercase letter")
+  .regex(/[a-z]/, "Must contain at least one lowercase letter")
+  .regex(/[0-9]/, "Must contain at least one number")
+  .regex(/[^A-Za-z0-9]/, "Must contain at least one special character");
+
+export type StrongPassword = z.infer<typeof strongPasswordSchema>;
+
+// Validate strong password
+export const validateStrongPassword = (password: string) => {
+  const result = strongPasswordSchema.safeParse(password);
+  if (!result.success) {
+    return { success: false, errors: result.error.errors.map(e => e.message) };
+  }
+  return { success: true, data: result.data };
+};
+
 // Product Entry validation schemas
 export const productSchema = z.object({
   product_type: z.enum(["goods", "service", "combo"]),
