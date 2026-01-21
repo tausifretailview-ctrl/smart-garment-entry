@@ -64,6 +64,7 @@ import GSTReports from "./pages/GSTReports";
 import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import AccountingReports from "./pages/AccountingReports";
+import NetProfitAnalysis from "./pages/NetProfitAnalysis";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
 import BulkProductUpdate from "./pages/BulkProductUpdate";
@@ -644,6 +645,18 @@ const App = () => {
                         <Layout>
                           <AccountingReports />
                         </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="net-profit-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <NetProfitAnalysis />
+                        </FullScreenLayout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
