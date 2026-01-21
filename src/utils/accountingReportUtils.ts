@@ -66,13 +66,34 @@ export interface BalanceSheetData {
 }
 
 export interface NetProfitSummary {
-  totalRevenue: number;
-  totalExpenses: number;
+  // Revenue Section
+  totalSales: number;
+  salesReturns: number;
+  netRevenue: number;
+  
+  // COGS Section (from actual sold items)
+  cogsFromSaleItems: number;
+  
+  // Gross Profit
   grossProfit: number;
+  isGrossLoss: boolean;
+  
+  // GST Section
+  outputGST: number;
+  inputGST: number;
+  netGSTLiability: number;
+  
+  // Expenses
+  totalExpenses: number;
+  
+  // Final Calculation
   netProfit: number;
-  profitMarginPercent: number;
-  cogs: number;
   isNetLoss: boolean;
+  profitMarginPercent: number;
+  
+  // Period info
+  periodLabel: string;
+  generatedAt: string;
 }
 
 // Calculate Trial Balance
@@ -501,21 +522,128 @@ export async function calculateBalanceSheet(
   };
 }
 
-// Calculate Net Profit Summary
+// Calculate Net Profit Summary - Income Statement Format
 export async function calculateNetProfitSummary(
   organizationId: string,
   fromDate: string,
   toDate: string
 ): Promise<NetProfitSummary> {
-  const plData = await calculateProfitLoss(organizationId, fromDate, toDate);
+  // 1. REVENUE: Total Sales
+  const { data: sales } = await supabase
+    .from("sales")
+    .select("id, net_amount")
+    .eq("organization_id", organizationId)
+    .gte("sale_date", fromDate)
+    .lte("sale_date", toDate)
+    .is("deleted_at", null);
+  
+  const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
+  const saleIds = sales?.map(s => s.id) || [];
+  
+  // 2. Sale Returns
+  const { data: saleReturns } = await supabase
+    .from("sale_returns")
+    .select("net_amount")
+    .eq("organization_id", organizationId)
+    .gte("return_date", fromDate)
+    .lte("return_date", toDate)
+    .is("deleted_at", null);
+  
+  const salesReturnsTotal = saleReturns?.reduce((sum, sr) => sum + (sr.net_amount || 0), 0) || 0;
+  const netRevenue = totalSales - salesReturnsTotal;
+  
+  // 3. COGS: Calculate from actual sold items (pur_price × quantity)
+  // Fetch sale items with their variant purchase prices
+  let cogsFromSaleItems = 0;
+  let outputGST = 0;
+  
+  if (saleIds.length > 0) {
+    const { data: saleItems } = await supabase
+      .from("sale_items")
+      .select(`
+        quantity, line_total, gst_percent, variant_id
+      `)
+      .in("sale_id", saleIds)
+      .is("deleted_at", null);
+    
+    if (saleItems && saleItems.length > 0) {
+      // Get variant purchase prices
+      const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
+      
+      const { data: variants } = await supabase
+        .from("product_variants")
+        .select("id, pur_price")
+        .in("id", variantIds);
+      
+      const variantPriceMap = new Map(variants?.map(v => [v.id, v.pur_price || 0]) || []);
+      
+      saleItems.forEach(item => {
+        const qty = item.quantity || 0;
+        const purPrice = variantPriceMap.get(item.variant_id) || 0;
+        cogsFromSaleItems += qty * purPrice;
+        
+        // Output GST = line_total × gst_percent / (100 + gst_percent)
+        const lineTotal = item.line_total || 0;
+        const gstPer = item.gst_percent || 0;
+        if (gstPer > 0) {
+          outputGST += (lineTotal * gstPer) / (100 + gstPer);
+        }
+      });
+    }
+  }
+  
+  // 4. Gross Profit
+  const grossProfit = netRevenue - cogsFromSaleItems;
+  const isGrossLoss = grossProfit < 0;
+  
+  // 5. INPUT GST: From purchase bills
+  const { data: purchases } = await supabase
+    .from("purchase_bills")
+    .select("gst_amount")
+    .eq("organization_id", organizationId)
+    .gte("bill_date", fromDate)
+    .lte("bill_date", toDate)
+    .is("deleted_at", null);
+  
+  const inputGST = purchases?.reduce((sum, p) => sum + (p.gst_amount || 0), 0) || 0;
+  
+  // 6. Net GST Liability
+  const netGSTLiability = outputGST - inputGST;
+  
+  // 7. EXPENSES: From voucher_entries
+  const { data: expenses } = await supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("organization_id", organizationId)
+    .eq("voucher_type", "expense")
+    .gte("voucher_date", fromDate)
+    .lte("voucher_date", toDate)
+    .is("deleted_at", null);
+  
+  const totalExpenses = expenses?.reduce((sum, e) => sum + (e.total_amount || 0), 0) || 0;
+  
+  // 8. NET PROFIT: Gross Profit - Net GST (if payable) - Expenses
+  const gstDeduction = netGSTLiability > 0 ? netGSTLiability : 0;
+  const netProfit = grossProfit - gstDeduction - totalExpenses;
+  const isNetLoss = netProfit < 0;
+  const profitMarginPercent = netRevenue > 0 ? (netProfit / netRevenue) * 100 : 0;
+  
   return {
-    totalRevenue: plData.netSales,
-    totalExpenses: plData.totalExpenses,
-    grossProfit: plData.grossProfit,
-    netProfit: plData.netProfit,
-    profitMarginPercent: plData.profitMargin,
-    cogs: plData.cogs,
-    isNetLoss: plData.isNetLoss,
+    totalSales,
+    salesReturns: salesReturnsTotal,
+    netRevenue,
+    cogsFromSaleItems,
+    grossProfit,
+    isGrossLoss,
+    outputGST,
+    inputGST,
+    netGSTLiability,
+    totalExpenses,
+    netProfit,
+    isNetLoss,
+    profitMarginPercent,
+    periodLabel: `${format(new Date(fromDate), "dd MMM yyyy")} to ${format(new Date(toDate), "dd MMM yyyy")}`,
+    generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
   };
 }
 
