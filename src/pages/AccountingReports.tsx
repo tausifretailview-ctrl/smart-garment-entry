@@ -761,7 +761,7 @@ export default function AccountingReports() {
           </Card>
         </TabsContent>
 
-        {/* Net Profit Summary */}
+        {/* Net Profit Summary - Income Statement Format */}
         <TabsContent value="net-profit" className="space-y-4">
           <Card className="print:shadow-none print:border-0">
             <CardHeader className="print:pb-2">
@@ -769,7 +769,8 @@ export default function AccountingReports() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <CardTitle className="flex items-center gap-2 print:hidden">
                     <PieChart className="h-5 w-5" />
-                    Net Profit Summary
+                    Income Statement
+                    <Badge variant="outline" className="ml-2">Net Profit Report</Badge>
                   </CardTitle>
                   <FYPresets onSelect={handleFYSelect} />
                 </div>
@@ -802,7 +803,7 @@ export default function AccountingReports() {
               </div>
               <div className="hidden print:block">
                 <ReportHeader 
-                  title="Net Profit Summary" 
+                  title="Income Statement" 
                   subtitle={`Period: ${format(new Date(fromDate), "dd MMM yyyy")} - ${format(new Date(toDate), "dd MMM yyyy")}`}
                   organization={currentOrganization || undefined}
                   generatedAt={format(new Date(), "dd MMM yyyy, hh:mm a")}
@@ -818,81 +819,165 @@ export default function AccountingReports() {
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
               ) : netProfitSummary ? (
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-                  <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Revenue</p>
-                          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 font-mono">
-                            {formatCurrency(netProfitSummary.totalRevenue)}
-                          </p>
-                        </div>
-                        <TrendingUp className="h-10 w-10 text-blue-500" />
+                <div className="max-w-2xl mx-auto space-y-4">
+                  {/* REVENUE SECTION */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5" />
+                      REVENUE
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Total Sales</span>
+                        <span className="font-mono">{formatCurrency(netProfitSummary.totalSales)}</span>
                       </div>
+                      <div className="flex justify-between text-red-600 dark:text-red-400">
+                        <span>Less: Sales Returns</span>
+                        <span className="font-mono">({formatCurrency(netProfitSummary.salesReturns)})</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>Net Revenue</span>
+                        <span className="font-mono text-blue-600 dark:text-blue-400">{formatCurrency(netProfitSummary.netRevenue)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* COGS SECTION */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                      <FileSpreadsheet className="h-5 w-5" />
+                      COST OF GOODS SOLD
+                    </h3>
+                    <div className="flex justify-between font-bold">
+                      <span>Purchase Cost of Items Sold</span>
+                      <span className="font-mono text-amber-700 dark:text-amber-300">({formatCurrency(netProfitSummary.cogsFromSaleItems)})</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Calculated from pur_price × quantity of all items sold
+                    </p>
+                  </div>
+
+                  {/* GROSS PROFIT */}
+                  <div className={`border-2 rounded-lg p-4 ${netProfitSummary.isGrossLoss ? 'border-red-500 bg-red-50 dark:bg-red-950/30' : 'border-purple-500 bg-purple-50 dark:bg-purple-950/30'}`}>
+                    <div className="flex justify-between font-bold text-lg">
+                      <span>{netProfitSummary.isGrossLoss ? 'GROSS LOSS' : 'GROSS PROFIT'}</span>
+                      <span className={`font-mono ${netProfitSummary.isGrossLoss ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                        {netProfitSummary.isGrossLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.grossProfit))}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Net Revenue - Cost of Goods Sold
+                    </p>
+                  </div>
+
+                  {/* GST SECTION */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                      <Calculator className="h-5 w-5" />
+                      GST ADJUSTMENT
+                    </h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>Output GST (Sales)</span>
+                        <span className="font-mono">{formatCurrency(netProfitSummary.outputGST)}</span>
+                      </div>
+                      <div className="flex justify-between text-green-600 dark:text-green-400">
+                        <span>Less: Input GST (Purchases)</span>
+                        <span className="font-mono">({formatCurrency(netProfitSummary.inputGST)})</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between font-bold">
+                        <span>{netProfitSummary.netGSTLiability >= 0 ? 'Net GST Payable' : 'Net GST Receivable'}</span>
+                        <span className={`font-mono ${netProfitSummary.netGSTLiability >= 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                          {netProfitSummary.netGSTLiability >= 0 ? formatCurrency(netProfitSummary.netGSTLiability) : `(${formatCurrency(Math.abs(netProfitSummary.netGSTLiability))})`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* EXPENSES */}
+                  <div className="border rounded-lg p-4">
+                    <h3 className="font-semibold text-lg mb-3 text-orange-600 dark:text-orange-400 flex items-center gap-2">
+                      <TrendingDown className="h-5 w-5" />
+                      OPERATING EXPENSES
+                    </h3>
+                    <div className="flex justify-between font-bold">
+                      <span>Total Expenses</span>
+                      <span className="font-mono text-red-600 dark:text-red-400">({formatCurrency(netProfitSummary.totalExpenses)})</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      From expense vouchers recorded in the period
+                    </p>
+                  </div>
+
+                  {/* FINAL NET PROFIT CARD */}
+                  <div className={`border-4 rounded-lg p-6 ${netProfitSummary.isNetLoss ? 'border-red-600 bg-red-100 dark:bg-red-950/50' : 'border-green-600 bg-green-100 dark:bg-green-950/50'}`}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h2 className="text-2xl font-bold">{netProfitSummary.isNetLoss ? 'NET LOSS' : 'NET PROFIT'}</h2>
+                        <p className="text-sm text-muted-foreground">Take-home Profit After All Deductions</p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-3xl font-bold font-mono ${netProfitSummary.isNetLoss ? 'text-red-700 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>
+                          {netProfitSummary.isNetLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.netProfit))}
+                        </span>
+                        <p className="text-sm text-muted-foreground">Margin: {netProfitSummary.profitMarginPercent.toFixed(2)}%</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SUMMARY TABLE */}
+                  <Card className="mt-6">
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-lg">Summary Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Component</TableHead>
+                            <TableHead>Calculation</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-medium">Actual Sales</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">Total Sales - Returns</TableCell>
+                            <TableCell className="text-right font-mono">{formatCurrency(netProfitSummary.netRevenue)}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Gross Profit</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">Revenue - Purchase Cost of Goods</TableCell>
+                            <TableCell className={`text-right font-mono ${netProfitSummary.isGrossLoss ? 'text-red-600' : ''}`}>
+                              {formatCurrency(netProfitSummary.grossProfit)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">GST Adjustment</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">Sales GST - Purchase GST</TableCell>
+                            <TableCell className={`text-right font-mono ${netProfitSummary.netGSTLiability >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {formatCurrency(netProfitSummary.netGSTLiability)}
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="font-bold bg-muted/50">
+                            <TableCell>Net Profit</TableCell>
+                            <TableCell className="text-sm">Gross Profit - Net GST - Expenses</TableCell>
+                            <TableCell className={`text-right font-mono ${netProfitSummary.isNetLoss ? 'text-red-600' : 'text-green-600'}`}>
+                              {formatCurrency(netProfitSummary.netProfit)}
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
                     </CardContent>
                   </Card>
 
-                  <Card className="bg-amber-50 dark:bg-amber-950 border-amber-200">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">Cost of Goods</p>
-                          <p className="text-2xl font-bold text-amber-700 dark:text-amber-300 font-mono">
-                            {formatCurrency(netProfitSummary.cogs)}
-                          </p>
-                        </div>
-                        <FileSpreadsheet className="h-10 w-10 text-amber-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-orange-50 dark:bg-orange-950 border-orange-200">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-orange-600 dark:text-orange-400 font-medium">Total Expenses</p>
-                          <p className="text-2xl font-bold text-orange-700 dark:text-orange-300 font-mono">
-                            {formatCurrency(netProfitSummary.totalExpenses)}
-                          </p>
-                        </div>
-                        <TrendingDown className="h-10 w-10 text-orange-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="bg-purple-50 dark:bg-purple-950 border-purple-200">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-purple-600 dark:text-purple-400 font-medium">Gross Profit</p>
-                          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 font-mono">
-                            {formatCurrency(netProfitSummary.grossProfit)}
-                          </p>
-                        </div>
-                        <Wallet className="h-10 w-10 text-purple-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className={`border-2 ${netProfitSummary.isNetLoss ? 'bg-red-50 dark:bg-red-950 border-red-500' : 'bg-green-50 dark:bg-green-950 border-green-500'}`}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-sm font-medium ${netProfitSummary.isNetLoss ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                            {netProfitSummary.isNetLoss ? 'Net Loss' : 'Net Profit'}
-                          </p>
-                          <p className={`text-2xl font-bold font-mono ${netProfitSummary.isNetLoss ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'}`}>
-                            {netProfitSummary.isNetLoss && '-'}{formatCurrency(Math.abs(netProfitSummary.netProfit))}
-                          </p>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Margin: {netProfitSummary.profitMarginPercent.toFixed(2)}%
-                          </p>
-                        </div>
-                        <PieChart className={`h-10 w-10 ${netProfitSummary.isNetLoss ? 'text-red-500' : 'text-green-500'}`} />
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {/* PERIOD INFO */}
+                  <div className="text-center text-sm text-muted-foreground pt-4 border-t">
+                    <p>Report Period: {netProfitSummary.periodLabel}</p>
+                    <p>Generated: {netProfitSummary.generatedAt}</p>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
