@@ -311,6 +311,7 @@ const GSTReports = () => {
           customer_id, customers(gst_number), original_sale_number
         `)
         .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
         .gte("return_date", fromDate)
         .lte("return_date", toDate);
 
