@@ -90,6 +90,7 @@ interface CartItem {
   productId: string;
   variantId: string;
   hsnCode?: string;
+  productType?: string; // Track product type to handle service items differently
 }
 
 export default function POSSales() {
@@ -771,7 +772,13 @@ export default function POSSales() {
   };
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
-    const existingItemIndex = items.findIndex(item => item.barcode === variant.barcode);
+    // Service products: NEVER merge - each scan is a unique item with manual price entry
+    // This is essential for saree shops where each piece has different MRP
+    const isServiceProduct = product.product_type === 'service';
+    
+    const existingItemIndex = isServiceProduct 
+      ? -1  // Always treat as new item for service products
+      : items.findIndex(item => item.barcode === variant.barcode);
     
     if (existingItemIndex >= 0) {
       // Real-time stock validation before incrementing
@@ -867,7 +874,8 @@ export default function POSSales() {
       const discountAmount = 0;
       
       const newItem: CartItem = {
-        id: variant.id,
+        // Generate unique ID for service products so each scan creates a distinct line item
+        id: isServiceProduct ? `${variant.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` : variant.id,
         barcode: variant.barcode || '',
         productName: description,
         size: variant.size,
@@ -883,6 +891,7 @@ export default function POSSales() {
         productId: product.id,
         variantId: variant.id,
         hsnCode: product.hsn_code || '',
+        productType: product.product_type,
       };
       setItems(prev => [...prev, newItem]);
       
