@@ -1279,6 +1279,13 @@ const PurchaseEntry = () => {
     
     const variantMap = new Map(variants.map(v => [v.id, v]));
     
+    // Helper function to compare prices with tolerance for floating-point precision
+    const arePricesEqual = (p1: number | null | undefined, p2: number | null | undefined): boolean => {
+      const v1 = Number(p1) || 0;
+      const v2 = Number(p2) || 0;
+      return Math.abs(v1 - v2) < 0.001; // Tolerance of 0.001 (less than 1 paisa)
+    };
+    
     // Compare prices for each unique item (by sku_id)
     const processedSkus = new Set<string>();
     
@@ -1289,8 +1296,8 @@ const PurchaseEntry = () => {
       const variant = variantMap.get(item.sku_id);
       if (!variant) continue;
       
-      // Check pur_price
-      if (variant.pur_price !== null && variant.pur_price !== item.pur_price) {
+      // Check pur_price - use tolerance-based comparison
+      if (variant.pur_price !== null && !arePricesEqual(variant.pur_price, item.pur_price)) {
         changes.push({
           sku_id: item.sku_id,
           product_name: item.product_name,
@@ -1302,8 +1309,8 @@ const PurchaseEntry = () => {
         });
       }
       
-      // Check sale_price
-      if (variant.sale_price !== null && variant.sale_price !== item.sale_price) {
+      // Check sale_price - use tolerance-based comparison
+      if (variant.sale_price !== null && !arePricesEqual(variant.sale_price, item.sale_price)) {
         changes.push({
           sku_id: item.sku_id,
           product_name: item.product_name,
@@ -1315,11 +1322,11 @@ const PurchaseEntry = () => {
         });
       }
       
-      // Check MRP only if MRP setting is enabled
+      // Check MRP only if MRP setting is enabled - use tolerance-based comparison
       if (showMrp) {
-        const itemMrp = item.mrp || 0;
-        const variantMrp = variant.mrp || 0;
-        if (variantMrp !== itemMrp && itemMrp > 0) {
+        const itemMrp = Number(item.mrp) || 0;
+        const variantMrp = Number(variant.mrp) || 0;
+        if (variantMrp > 0 && itemMrp > 0 && !arePricesEqual(variantMrp, itemMrp)) {
           changes.push({
             sku_id: item.sku_id,
             product_name: item.product_name,
