@@ -254,10 +254,10 @@ export default function OrgAuth() {
         />
 
         {/* Content - Single cohesive layout */}
-        <div className="relative z-10 flex-1 flex flex-col px-8 py-6">
+        <div className="relative z-10 flex-1 flex flex-col px-8 pt-4 pb-6">
 
           {/* POS Hero Image - Centered with desk shadow effect */}
-          <div className="flex-1 flex items-center justify-center relative">
+          <div className="flex-1 flex items-start justify-center relative pt-2">
             {/* Desk surface shadow */}
             <div 
               className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
@@ -272,7 +272,7 @@ export default function OrgAuth() {
               className="w-full h-auto object-contain relative z-10"
               style={{ 
                 filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-                maxHeight: 'calc(100vh - 320px)',
+                maxHeight: 'calc(100vh - 280px)',
                 imageRendering: 'auto'
               }}
             />
