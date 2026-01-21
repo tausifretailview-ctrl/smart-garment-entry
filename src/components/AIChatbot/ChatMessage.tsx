@@ -2,6 +2,7 @@ import { Bot, User, Copy, Check } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import DOMPurify from "dompurify";
 
 interface Message {
   id: string;
@@ -57,16 +58,20 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
         return;
       }
 
-      // Bold text
+      // Bold text - sanitize with DOMPurify to prevent XSS
       let processed = line.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      const sanitizedHtml = DOMPurify.sanitize(processed, {
+        ALLOWED_TAGS: ['strong', 'em', 'br', 'p', 'span'],
+        ALLOWED_ATTR: ['class']
+      });
       
       // List items
       if (line.startsWith("•") || line.startsWith("-") || line.startsWith("*")) {
-        const content = line.replace(/^[•\-*]\s*/, "");
+        const listContent = sanitizedHtml.replace(/^[•\-*]\s*/, "");
         elements.push(
           <div key={index} className="flex gap-2 text-sm">
             <span>•</span>
-            <span dangerouslySetInnerHTML={{ __html: processed.replace(/^[•\-*]\s*/, "") }} />
+            <span dangerouslySetInnerHTML={{ __html: listContent }} />
           </div>
         );
         return;
@@ -75,10 +80,14 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       // Numbered lists
       const numberedMatch = line.match(/^(\d+)\.\s+(.*)$/);
       if (numberedMatch) {
+        const numberedContent = DOMPurify.sanitize(
+          numberedMatch[2].replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>"),
+          { ALLOWED_TAGS: ['strong', 'em', 'br', 'span'], ALLOWED_ATTR: ['class'] }
+        );
         elements.push(
           <div key={index} className="flex gap-2 text-sm">
             <span>{numberedMatch[1]}.</span>
-            <span dangerouslySetInnerHTML={{ __html: numberedMatch[2].replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>") }} />
+            <span dangerouslySetInnerHTML={{ __html: numberedContent }} />
           </div>
         );
         return;
@@ -87,7 +96,7 @@ export const ChatMessage = ({ message }: ChatMessageProps) => {
       // Regular paragraph
       if (line.trim()) {
         elements.push(
-          <p key={index} className="text-sm" dangerouslySetInnerHTML={{ __html: processed }} />
+          <p key={index} className="text-sm" dangerouslySetInnerHTML={{ __html: sanitizedHtml }} />
         );
       } else {
         elements.push(<div key={index} className="h-2" />);

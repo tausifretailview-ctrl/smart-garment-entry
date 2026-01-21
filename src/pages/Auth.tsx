@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -10,15 +10,51 @@ import { Loader2, Shield } from "lucide-react";
 import { validateAuth } from "@/lib/validations";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60000; // 1 minute
+
 const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Check and clear lockout on mount
+  useEffect(() => {
+    const storedLockout = localStorage.getItem('auth_lockout');
+    if (storedLockout) {
+      const lockoutDate = new Date(storedLockout);
+      if (lockoutDate > new Date()) {
+        setLockoutUntil(lockoutDate);
+      } else {
+        localStorage.removeItem('auth_lockout');
+      }
+    }
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check for rate limiting lockout
+    if (lockoutUntil && new Date() < lockoutUntil) {
+      const remainingSeconds = Math.ceil((lockoutUntil.getTime() - Date.now()) / 1000);
+      toast({
+        title: "Too Many Attempts",
+        description: `Please wait ${remainingSeconds} seconds before trying again.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Clear lockout if expired
+    if (lockoutUntil && new Date() >= lockoutUntil) {
+      setLockoutUntil(null);
+      setLoginAttempts(0);
+      localStorage.removeItem('auth_lockout');
+    }
     
     // Validate with Zod schema
     const validation = validateAuth(email, password);
@@ -45,13 +81,37 @@ const Auth = () => {
 
     if (error) {
       setLoading(false);
+      
+      // Increment failed attempts
+      const newAttempts = loginAttempts + 1;
+      setLoginAttempts(newAttempts);
+      
+      // Check if lockout threshold reached
+      if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockoutDate = new Date(Date.now() + LOCKOUT_DURATION_MS);
+        setLockoutUntil(lockoutDate);
+        localStorage.setItem('auth_lockout', lockoutDate.toISOString());
+        setLoginAttempts(0);
+        
+        toast({
+          title: "Account Temporarily Locked",
+          description: "Too many failed attempts. Please wait 1 minute before trying again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
       toast({
         title: "Sign in failed",
-        description: error.message,
+        description: `${error.message} (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`,
         variant: "destructive",
       });
       return;
     }
+    
+    // Reset attempts on successful auth
+    setLoginAttempts(0);
+    localStorage.removeItem('auth_lockout');
 
     // Check if user is platform_admin
     const { data: roleData, error: roleError } = await (supabase as any)

@@ -32,6 +32,9 @@ interface OrgSettings {
   };
 }
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 60000; // 1 minute
+
 export default function OrgAuth() {
   const { orgSlug } = useParams<{ orgSlug: string }>();
   const navigate = useNavigate();
@@ -43,6 +46,21 @@ export default function OrgAuth() {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [orgSettings, setOrgSettings] = useState<OrgSettings | null>(null);
   const [error, setError] = useState<string>("");
+  const [loginAttempts, setLoginAttempts] = useState(0);
+  const [lockoutUntil, setLockoutUntil] = useState<Date | null>(null);
+
+  // Check and clear lockout on mount
+  useEffect(() => {
+    const storedLockout = localStorage.getItem(`org_auth_lockout_${orgSlug}`);
+    if (storedLockout) {
+      const lockoutDate = new Date(storedLockout);
+      if (lockoutDate > new Date()) {
+        setLockoutUntil(lockoutDate);
+      } else {
+        localStorage.removeItem(`org_auth_lockout_${orgSlug}`);
+      }
+    }
+  }, [orgSlug]);
 
   useEffect(() => {
     const fetchOrganization = async () => {
@@ -120,6 +138,20 @@ export default function OrgAuth() {
       return;
     }
 
+    // Check for rate limiting lockout
+    if (lockoutUntil && new Date() < lockoutUntil) {
+      const remainingSeconds = Math.ceil((lockoutUntil.getTime() - Date.now()) / 1000);
+      toast.error(`Too many failed attempts. Please wait ${remainingSeconds} seconds.`);
+      return;
+    }
+
+    // Clear lockout if expired
+    if (lockoutUntil && new Date() >= lockoutUntil) {
+      setLockoutUntil(null);
+      setLoginAttempts(0);
+      localStorage.removeItem(`org_auth_lockout_${orgSlug}`);
+    }
+
     const validation = validateAuth(email, password);
     if (!validation.success) {
       toast.error(validation.error);
@@ -141,14 +173,33 @@ export default function OrgAuth() {
       });
 
       if (authError) {
+        // Increment failed attempts
+        const newAttempts = loginAttempts + 1;
+        setLoginAttempts(newAttempts);
+        
+        // Check if lockout threshold reached
+        if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+          const lockoutDate = new Date(Date.now() + LOCKOUT_DURATION_MS);
+          setLockoutUntil(lockoutDate);
+          localStorage.setItem(`org_auth_lockout_${orgSlug}`, lockoutDate.toISOString());
+          setLoginAttempts(0);
+          setError("Too many failed attempts. Please wait 1 minute before trying again.");
+          setLoading(false);
+          return;
+        }
+        
         if (authError.message.includes("Invalid login credentials")) {
-          setError("Invalid email or password");
+          setError(`Invalid email or password (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`);
         } else {
-          setError(authError.message);
+          setError(`${authError.message} (${MAX_LOGIN_ATTEMPTS - newAttempts} attempts remaining)`);
         }
         setLoading(false);
         return;
       }
+      
+      // Reset attempts on successful auth
+      setLoginAttempts(0);
+      localStorage.removeItem(`org_auth_lockout_${orgSlug}`);
 
       if (!authData.user) {
         setError("Login failed. Please try again.");
