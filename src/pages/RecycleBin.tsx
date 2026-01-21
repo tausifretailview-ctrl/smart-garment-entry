@@ -133,6 +133,18 @@ const entityConfig: Record<SoftDeleteEntity, EntityConfigItem> = {
       { key: "status", label: "Status" },
     ]
   },
+  purchase_orders: { 
+    label: "Purchase Orders", 
+    icon: FileText, 
+    displayField: "order_number", 
+    secondaryField: "supplier_name",
+    detailFields: [
+      { key: "supplier_phone", label: "Phone" },
+      { key: "net_amount", label: "Amount", isAmount: true },
+      { key: "order_date", label: "Date", isDate: true },
+      { key: "status", label: "Status" },
+    ]
+  },
   quotations: { 
     label: "Quotations", 
     icon: FileText, 
