@@ -271,6 +271,32 @@ const App = () => {
                   }
                 />
 
+                {/* Purchase Orders */}
+                <Route
+                  path="purchase-order-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <PurchaseOrderEntry />
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="purchase-orders"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <PurchaseOrderDashboard />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
                 {/* Barcode & Stock */}
                 <Route
                   path="barcode-printing"
