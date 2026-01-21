@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { validateAuth } from "@/lib/validations";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
+import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
 import posIllustration from "@/assets/pos-illustration.png";
 
 const BRAND_COLOR = "#6C5CE7";
@@ -315,6 +316,15 @@ export default function OrgAuth() {
               className="h-16 w-auto mx-auto object-contain"
             />
             <p className="text-slate-500 mt-2 text-sm">Easy Billing, Smart Business</p>
+          </div>
+
+          {/* EzzyERP Branding - Above Organization Logo */}
+          <div className="hidden lg:block text-center mb-6">
+            <img 
+              src={ezzyerpLogoFull} 
+              alt="EzzyERP - Easy Billing, Smart Business" 
+              className="h-12 w-auto mx-auto object-contain"
+            />
           </div>
 
           {/* Login Section */}
