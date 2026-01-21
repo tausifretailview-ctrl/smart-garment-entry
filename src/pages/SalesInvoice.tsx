@@ -111,6 +111,7 @@ export default function SalesInvoice() {
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
   const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
+  const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
@@ -1354,9 +1355,17 @@ Thank you for choosing us!`;
   };
 
   const handleSaveInvoice = async () => {
-    // Prevent duplicate saves from rapid clicks
+    // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard shortcuts
+    if (savingLockRef.current) {
+      console.log('Save already in progress (lock), skipping duplicate call');
+      return;
+    }
+    savingLockRef.current = true;
+
+    // State-based check (secondary protection)
     if (isSaving) {
-      console.log('Save already in progress, skipping duplicate call');
+      console.log('Save already in progress (state), skipping duplicate call');
+      savingLockRef.current = false;
       return;
     }
 
@@ -1719,6 +1728,7 @@ Thank you for choosing us!`;
         description: error.message || "Failed to save invoice",
       });
     } finally {
+      savingLockRef.current = false;
       setIsSaving(false);
     }
   };
@@ -2415,17 +2425,13 @@ Thank you for choosing us!`;
 
         {/* Actions - simplified */}
         <div className="mt-6 flex gap-4">
-          <Button onClick={handleSaveInvoice} disabled={isSaving} className="flex-1">
+          <Button onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="flex-1">
             <Eye className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
           </Button>
           <Button 
-            onClick={() => {
-              handleSaveInvoice().then(() => {
-                if (savedInvoiceData) handlePrint();
-              });
-            }} 
-            disabled={isSaving} 
+            onClick={handleSaveInvoice}
+            disabled={isSaving || savingLockRef.current} 
             variant="outline" 
             className="flex-1"
           >
