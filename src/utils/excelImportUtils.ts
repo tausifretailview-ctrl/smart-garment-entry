@@ -54,6 +54,7 @@ export const purchaseBillFields: TargetField[] = [
   { key: 'color', label: 'Color', type: 'text' },
   { key: 'hsn_code', label: 'HSN Code', type: 'text' },
   { key: 'gst_per', label: 'GST %', type: 'number' }, // Not required - defaults to 0%
+  { key: 'uom', label: 'Unit (UOM)', type: 'text' },
   { key: 'size', label: 'Size', type: 'text', required: true },
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'pur_price', label: 'Purchase Price', type: 'number', required: true },
@@ -70,6 +71,7 @@ export const productEntryFields: TargetField[] = [
   { key: 'color', label: 'Color', type: 'text' },
   { key: 'hsn_code', label: 'HSN Code', type: 'text' },
   { key: 'gst_per', label: 'GST %', type: 'number' },
+  { key: 'uom', label: 'Unit (UOM)', type: 'text' },
   { key: 'size', label: 'Size', type: 'text', required: true },
   { key: 'barcode', label: 'Barcode', type: 'text' },
   { key: 'default_pur_price', label: 'Purchase Price', type: 'number' },
@@ -196,6 +198,7 @@ const fieldAliases: Record<string, string[]> = {
   color: ['color', 'colour', 'clr', 'shade'],
   hsn_code: ['hsn', 'hsncode', 'hsnno', 'saccode', 'sac', 'hsnorsac'],
   gst_per: ['gst', 'gstper', 'gstpercent', 'gstrate', 'tax', 'taxrate', 'taxper', 'taxpercentage', 'igst', 'cgst', 'sgst'],
+  uom: ['uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'units'],
   size: ['size', 'sz', 'productsize', 'itemsize', 'dimension'],
   barcode: ['barcode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'code', 'skucode'],
   pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate'],
@@ -498,9 +501,9 @@ export const generateSampleExcel = (fields: TargetField[], filename: string, sam
 };
 
 export const purchaseBillSampleData = [
-  { bill_supplier_name: 'XYZ Textiles', bill_supplier_invoice_no: 'INV-001', bill_date: '15/01/2026', bill_other_charges: 500, product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'M', barcode: '', pur_price: 495, sale_price: 899, qty: 25 },
-  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'L', barcode: '10001084', pur_price: 495, sale_price: 899, qty: 30 },
-  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Denim Jeans', category: 'Jeans', brand: 'XYZ', style: 'Slim', color: 'Black', hsn_code: '6203', gst_per: 12, size: '32', barcode: '', pur_price: 650, sale_price: 1299, qty: 20 },
+  { bill_supplier_name: 'XYZ Textiles', bill_supplier_invoice_no: 'INV-001', bill_date: '15/01/2026', bill_other_charges: 500, product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'M', barcode: '', pur_price: 495, sale_price: 899, qty: 25 },
+  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'L', barcode: '10001084', pur_price: 495, sale_price: 899, qty: 30 },
+  { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Denim Jeans', category: 'Jeans', brand: 'XYZ', style: 'Slim', color: 'Black', hsn_code: '6203', gst_per: 12, uom: 'PCS', size: '32', barcode: '', pur_price: 650, sale_price: 1299, qty: 20 },
 ];
 
 // Parse Excel date from various formats
@@ -550,9 +553,9 @@ export const parseExcelDate = (value: any): Date | null => {
 };
 
 export const productEntrySampleData = [
-  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'M', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 50 },
-  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, size: 'L', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 45 },
-  { product_name: 'Polo T-Shirt', category: 'T-Shirts', brand: 'DEF', style: 'Polo', color: 'White', hsn_code: '6109', gst_per: 5, size: 'Free', barcode: '', default_pur_price: 350, default_sale_price: 699, opening_qty: 100 },
+  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'M', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 50 },
+  { product_name: 'Cotton Shirt', category: 'Shirts', brand: 'ABC', style: 'Casual', color: 'Blue', hsn_code: '6206', gst_per: 12, uom: 'NOS', size: 'L', barcode: '', default_pur_price: 495, default_sale_price: 899, opening_qty: 45 },
+  { product_name: 'Polo T-Shirt', category: 'T-Shirts', brand: 'DEF', style: 'Polo', color: 'White', hsn_code: '6109', gst_per: 5, uom: 'PCS', size: 'Free', barcode: '', default_pur_price: 350, default_sale_price: 699, opening_qty: 100 },
 ];
 
 // Customer Master Fields
