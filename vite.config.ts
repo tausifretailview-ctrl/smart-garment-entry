@@ -73,9 +73,9 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       manifest: {
-        name: 'Smart Inventory - Garment Management',
-        short_name: 'SmartInv',
-        description: 'Smart Inventory Management System for Garments',
+        name: 'EzzyERP - Easy Billing, Smart Business',
+        short_name: 'EzzyERP',
+        description: 'EzzyERP - Easy Billing, Smart Business',
         theme_color: '#6366F1',
         background_color: '#0f172a',
         display: 'standalone',
