@@ -12,12 +12,12 @@ import {
   Loader2, Download, Printer, TrendingUp, TrendingDown, 
   Users, Package, Search, Calendar, ArrowLeft, Building2, Clock
 } from "lucide-react";
-import { format, startOfYear } from "date-fns";
+import { format, startOfYear, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 interface SupplierProfitData {
@@ -55,19 +55,55 @@ const FYPresets = ({
   onSelect, 
   currentSelection 
 }: { 
-  onSelect: (from: string, to: string) => void; 
+  onSelect: (from: string, to: string, key: string) => void; 
   currentSelection?: string;
 }) => {
   const currentFY = getIndiaFinancialYear(0);
   const previousFY = getIndiaFinancialYear(-1);
   const currentQ = getCurrentQuarter();
+  const now = new Date();
+  
+  const todayStart = format(now, "yyyy-MM-dd");
+  const todayEnd = format(now, "yyyy-MM-dd");
+  const weekStart = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const weekEnd = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+  const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
   
   return (
     <div className="flex flex-wrap gap-2">
       <Button
+        variant={currentSelection === "today" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(todayStart, todayEnd, "today")}
+      >
+        Today
+      </Button>
+      <Button
+        variant={currentSelection === "week" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(weekStart, weekEnd, "week")}
+      >
+        This Week
+      </Button>
+      <Button
+        variant={currentSelection === "month" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(monthStart, monthEnd, "month")}
+      >
+        This Month
+      </Button>
+      <Button
+        variant={currentSelection === "currentQ" ? "default" : "outline"}
+        size="sm"
+        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate, "currentQ")}
+      >
+        {currentQ.label}
+      </Button>
+      <Button
         variant={currentSelection === "currentFY" ? "default" : "outline"}
         size="sm"
-        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate)}
+        onClick={() => onSelect(currentFY.fromDate, currentFY.toDate, "currentFY")}
       >
         <Calendar className="h-3 w-3 mr-1" />
         {currentFY.label}
@@ -75,16 +111,9 @@ const FYPresets = ({
       <Button
         variant={currentSelection === "previousFY" ? "default" : "outline"}
         size="sm"
-        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate)}
+        onClick={() => onSelect(previousFY.fromDate, previousFY.toDate, "previousFY")}
       >
         {previousFY.label}
-      </Button>
-      <Button
-        variant={currentSelection === "currentQ" ? "default" : "outline"}
-        size="sm"
-        onClick={() => onSelect(currentQ.fromDate, currentQ.toDate)}
-      >
-        {currentQ.label}
       </Button>
     </div>
   );
@@ -93,12 +122,18 @@ const FYPresets = ({
 export default function NetProfitAnalysis() {
   const { currentOrganization } = useOrganization();
   const navigate = useNavigate();
+  const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
   
+  // Parse URL query parameters for date range
+  const searchParams = new URLSearchParams(location.search);
+  const urlFromDate = searchParams.get('from');
+  const urlToDate = searchParams.get('to');
+  
   const currentFY = getIndiaFinancialYear(0);
-  const [fromDate, setFromDate] = useState(currentFY.fromDate);
-  const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [fyPreset, setFyPreset] = useState<string>("");
+  const [fromDate, setFromDate] = useState(urlFromDate || currentFY.fromDate);
+  const [toDate, setToDate] = useState(urlToDate || format(new Date(), "yyyy-MM-dd"));
+  const [fyPreset, setFyPreset] = useState<string>(urlFromDate ? "" : "");
   
   const [activeTab, setActiveTab] = useState("supplier-wise");
   const [loading, setLoading] = useState(false);
@@ -338,9 +373,10 @@ export default function NetProfitAnalysis() {
     }
   }, [activeTab, hasGenerated]);
 
-  const handleFYPresetSelect = (from: string, to: string) => {
+  const handleFYPresetSelect = (from: string, to: string, key: string) => {
     setFromDate(from);
     setToDate(to);
+    setFyPreset(key);
   };
 
   const handleExportExcel = () => {

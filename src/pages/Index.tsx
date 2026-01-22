@@ -39,7 +39,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
+import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear, startOfWeek, endOfWeek } from "date-fns";
 
 const MetricCard = ({
   title,
@@ -489,12 +489,21 @@ const DashboardContent = () => {
                 <SelectItem value="all">All Time</SelectItem>
               </SelectContent>
             </Select>
-            {isLoading ? (
+      {isLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             ) : (
               <span className="text-xs font-medium text-primary">{dateLabel}</span>
             )}
           </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
+            className="h-7 text-xs"
+          >
+            <TrendingUp className="h-3.5 w-3.5 mr-1" />
+            Net Profit
+          </Button>
         </div>
       </div>
 
