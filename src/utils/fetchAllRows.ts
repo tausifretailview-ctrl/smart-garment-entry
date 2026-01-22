@@ -273,3 +273,84 @@ export async function fetchAllVariants(organizationId: string) {
   console.log(`Fetched ${allRows.length} total variants`);
   return allRows;
 }
+
+/**
+ * Fetch all sale items for given sale IDs using range pagination.
+ * Handles large datasets by batching sale IDs and paginating results.
+ */
+export async function fetchAllSaleItems(saleIds: string[]) {
+  const allRows: any[] = [];
+  const batchSize = 500; // Smaller batch for .in() queries
+
+  for (let i = 0; i < saleIds.length; i += batchSize) {
+    const batchIds = saleIds.slice(i, i + batchSize);
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("sale_items")
+        .select("variant_id, quantity, line_total, gst_percent, product_id, product_name, sale_id")
+        .in("sale_id", batchIds)
+        .is("deleted_at", null)
+        .range(offset, offset + pageSize - 1);
+
+      if (error) {
+        console.error("Error fetching sale items:", error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        allRows.push(...data);
+        offset += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  console.log(`Fetched ${allRows.length} total sale items`);
+  return allRows;
+}
+
+/**
+ * Fetch all purchase items for given variant IDs using range pagination.
+ */
+export async function fetchAllPurchaseItems(variantIds: string[]) {
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < variantIds.length; i += batchSize) {
+    const batchIds = variantIds.slice(i, i + batchSize);
+    let offset = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from("purchase_items")
+        .select("sku_id, bill_id")
+        .in("sku_id", batchIds)
+        .is("deleted_at", null)
+        .range(offset, offset + pageSize - 1);
+
+      if (error) {
+        console.error("Error fetching purchase items:", error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        allRows.push(...data);
+        offset += pageSize;
+        hasMore = data.length === pageSize;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  console.log(`Fetched ${allRows.length} total purchase items`);
+  return allRows;
+}

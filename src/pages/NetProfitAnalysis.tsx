@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getIndiaFinancialYear, getCurrentQuarter } from "@/utils/accountingReportUtils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { fetchAllSaleItems, fetchAllPurchaseItems } from "@/utils/fetchAllRows";
 
 interface SupplierProfitData {
   supplierId: string | null;
@@ -164,11 +165,8 @@ export default function NetProfitAnalysis() {
 
       const saleIds = sales.map(s => s.id);
 
-      const { data: saleItems } = await supabase
-        .from("sale_items")
-        .select("variant_id, quantity, line_total, gst_percent")
-        .in("sale_id", saleIds)
-        .is("deleted_at", null);
+      // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
+      const saleItems = await fetchAllSaleItems(saleIds);
 
       if (!saleItems || saleItems.length === 0) {
         setSupplierData([]);
@@ -185,11 +183,8 @@ export default function NetProfitAnalysis() {
 
       const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
 
-      const { data: purchaseItems } = await supabase
-        .from("purchase_items")
-        .select("sku_id, bill_id")
-        .in("sku_id", variantIds)
-        .is("deleted_at", null);
+      // Use paginated fetch for purchase items
+      const purchaseItems = await fetchAllPurchaseItems(variantIds);
 
       const billIds = [...new Set(purchaseItems?.map(pi => pi.bill_id) || [])];
 
@@ -275,11 +270,8 @@ export default function NetProfitAnalysis() {
 
       const saleIds = sales.map(s => s.id);
 
-      const { data: saleItems } = await supabase
-        .from("sale_items")
-        .select("variant_id, quantity, line_total, product_name, product_id")
-        .in("sale_id", saleIds)
-        .is("deleted_at", null);
+      // Use paginated fetch to get ALL sale items (bypasses 1000 row limit)
+      const saleItems = await fetchAllSaleItems(saleIds);
 
       if (!saleItems || saleItems.length === 0) {
         setProductData([]);
