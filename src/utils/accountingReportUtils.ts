@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { format, subDays } from "date-fns";
 
 export interface TrialBalanceEntry {
@@ -558,13 +559,8 @@ export async function calculateNetProfitSummary(
   let outputGST = 0;
   
   if (saleIds.length > 0) {
-    const { data: saleItems } = await supabase
-      .from("sale_items")
-      .select(`
-        quantity, line_total, gst_percent, variant_id
-      `)
-      .in("sale_id", saleIds)
-      .is("deleted_at", null);
+    // Use paginated fetch to bypass 1000-row limit
+    const saleItems = await fetchAllSaleItems(saleIds);
     
     if (saleItems && saleItems.length > 0) {
       // Get variant purchase prices
