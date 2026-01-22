@@ -274,21 +274,23 @@ export async function calculateStockValueAtDate(
     (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
   ) || 0;
   
-  // Get sales after the date
-  const { data: salesAfter } = await supabase
-    .from("sale_items")
-    .select(`
-      quantity, unit_price,
-      sales!inner(invoice_date, organization_id, deleted_at)
-    `)
-    .eq("sales.organization_id", organizationId)
-    .gt("sales.invoice_date", asOfDate)
-    .is("sales.deleted_at", null)
+  // Get sales after the date - fetch sale IDs first, then use paginated fetch
+  const { data: salesAfterList } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .gt("invoice_date", asOfDate)
     .is("deleted_at", null);
   
-  const salesValueAfter = salesAfter?.reduce(
-    (sum, s) => sum + ((s.quantity || 0) * (s.unit_price || 0)), 0
-  ) || 0;
+  const saleIdsAfter = salesAfterList?.map(s => s.id) || [];
+  let salesValueAfter = 0;
+  
+  if (saleIdsAfter.length > 0) {
+    const saleItemsAfter = await fetchAllSaleItems(saleIdsAfter);
+    salesValueAfter = saleItemsAfter.reduce(
+      (sum, s) => sum + ((s.quantity || 0) * (s.unit_price || 0)), 0
+    );
+  }
   
   // Stock at date = Current stock - Purchases after date + Sales after date
   // (Simplified - actual implementation would use FIFO/LIFO/Weighted Average)
