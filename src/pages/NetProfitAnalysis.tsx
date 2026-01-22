@@ -587,12 +587,12 @@ export default function NetProfitAnalysis() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
                     <TableRow>
-                      <TableHead className="w-[200px]">Supplier</TableHead>
-                      <TableHead className="text-right">Items Sold</TableHead>
-                      <TableHead className="text-right">Total Sales</TableHead>
-                      <TableHead className="text-right">COGS</TableHead>
-                      <TableHead className="text-right">Gross Profit</TableHead>
-                      <TableHead className="text-right">Margin %</TableHead>
+                      <TableHead className="w-[200px] text-foreground font-semibold">Supplier</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Items Sold</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Total Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -681,13 +681,13 @@ export default function NetProfitAnalysis() {
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted/90 backdrop-blur">
                     <TableRow>
-                      <TableHead className="w-[200px]">Product</TableHead>
-                      <TableHead>Brand</TableHead>
-                      <TableHead className="text-right">Qty Sold</TableHead>
-                      <TableHead className="text-right">Total Sales</TableHead>
-                      <TableHead className="text-right">COGS</TableHead>
-                      <TableHead className="text-right">Gross Profit</TableHead>
-                      <TableHead className="text-right">Margin %</TableHead>
+                      <TableHead className="w-[200px] text-foreground font-semibold">Product</TableHead>
+                      <TableHead className="text-foreground font-semibold">Brand</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Qty Sold</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Total Sales</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">COGS</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Gross Profit</TableHead>
+                      <TableHead className="text-right text-foreground font-semibold">Margin %</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
