@@ -22,6 +22,7 @@ import {
   PurchaseRegisterRow,
   PurchaseReturnRegisterRow,
 } from "@/utils/gstRegisterUtils";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 
@@ -153,19 +154,13 @@ const GSTSalePurchaseRegister = () => {
         .lte("sale_date", toDateObj.toISOString())
         .order("sale_date", { ascending: true });
 
-      // Fetch sale items for GST breakup (invoice sales)
+      // Fetch sale items for GST breakup (invoice sales) - use paginated fetch
       const saleIds = salesData?.map(s => s.id) || [];
-      const { data: saleItems } = saleIds.length > 0 ? await supabase
-        .from("sale_items")
-        .select("sale_id, gst_percent, line_total")
-        .in("sale_id", saleIds) : { data: [] };
+      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
-      // Fetch POS sale items for GST breakup
+      // Fetch POS sale items for GST breakup - use paginated fetch
       const posSaleIds = posSalesData?.map(s => s.id) || [];
-      const { data: posSaleItems } = posSaleIds.length > 0 ? await supabase
-        .from("sale_items")
-        .select("sale_id, gst_percent, line_total")
-        .in("sale_id", posSaleIds) : { data: [] };
+      const posSaleItems = posSaleIds.length > 0 ? await fetchAllSaleItems(posSaleIds) : [];
 
       // Group items by sale_id
       const saleItemsMap = new Map<string, typeof saleItems>();

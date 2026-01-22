@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -83,19 +84,13 @@ export default function SalesAnalyticsDashboard() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch sale items for top products
+  // Fetch sale items for top products - use paginated fetch to bypass 1000 row limit
   const { data: saleItemsData } = useQuery({
     queryKey: ["sale-items-analytics", currentOrganization?.id, dateRange],
     queryFn: async () => {
       if (!currentOrganization?.id || !salesData?.length) return [];
       const saleIds = salesData.map(s => s.id);
-      const { data, error } = await supabase
-        .from("sale_items")
-        .select("*")
-        .in("sale_id", saleIds)
-        .is("deleted_at", null);
-      if (error) throw error;
-      return data || [];
+      return await fetchAllSaleItems(saleIds);
     },
     enabled: !!currentOrganization?.id && !!salesData?.length,
   });
