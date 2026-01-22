@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -145,14 +146,11 @@ const DashboardContent = () => {
       const total = data?.reduce((sum, item) => sum + (item.net_amount || 0), 0) || 0;
       const count = data?.length || 0;
       
-      // Fetch sold quantity
+      // Fetch sold quantity - use paginated fetch to bypass 1000 row limit
       const saleIds = data?.map(s => s.id) || [];
       let soldQty = 0;
       if (saleIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from("sale_items")
-          .select("quantity")
-          .in("sale_id", saleIds);
+        const itemsData = await fetchAllSaleItems(saleIds);
         soldQty = itemsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
       }
       
@@ -373,11 +371,8 @@ const DashboardContent = () => {
       const totalSalesRevenue = salesList.reduce((sum, sale) => sum + (Number(sale.net_amount) || 0), 0);
       const saleIds = salesList.map(s => s.id);
       
-      // Get all sale items with their variant_id and quantity
-      const { data: saleItemsList } = await supabase
-        .from("sale_items")
-        .select("variant_id, quantity, unit_price, line_total")
-        .in("sale_id", saleIds);
+      // Get all sale items - use paginated fetch to bypass 1000 row limit
+      const saleItemsList = await fetchAllSaleItems(saleIds);
       
       if (!saleItemsList || saleItemsList.length === 0) return totalSalesRevenue;
       

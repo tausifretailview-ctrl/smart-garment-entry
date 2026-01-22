@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -95,22 +96,8 @@ export default function ItemWiseSalesReport() {
 
       const saleIds = salesData.map((s) => s.id);
 
-      // Then get sale items for those sales
-      const { data: saleItemsData, error: saleItemsError } = await supabase
-        .from("sale_items")
-        .select(`
-          barcode,
-          product_name,
-          size,
-          quantity,
-          unit_price,
-          line_total,
-          product_id,
-          sale_id
-        `)
-        .in("sale_id", saleIds);
-
-      if (saleItemsError) throw saleItemsError;
+      // Use paginated fetch to bypass 1000 row limit
+      const saleItemsData = await fetchAllSaleItems(saleIds);
       if (!saleItemsData || saleItemsData.length === 0) return [];
 
       // Get unique product IDs and fetch product details

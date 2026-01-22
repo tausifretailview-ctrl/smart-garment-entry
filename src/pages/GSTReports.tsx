@@ -38,6 +38,7 @@ import {
   PurchaseRegisterRow,
   PurchaseReturnRegisterRow,
 } from "@/utils/gstRegisterUtils";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 
 type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "last-quarter" | "this-fy" | "last-fy";
 type ReportType = "gstr1" | "gstr2" | "gstr3b" | "hsn-summary" | "register";
@@ -207,10 +208,8 @@ const GSTReports = () => {
         .order("sale_date", { ascending: true });
 
       const saleIds = salesData?.map(s => s.id) || [];
-      const { data: saleItems } = saleIds.length > 0 ? await supabase
-        .from("sale_items")
-        .select("sale_id, gst_percent, line_total, hsn_code, quantity, product_name")
-        .in("sale_id", saleIds) : { data: [] };
+      // Use paginated fetch to bypass 1000 row limit
+      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
       // Group items by sale
       const saleItemsMap = new Map<string, typeof saleItems>();
@@ -375,12 +374,9 @@ const GSTReports = () => {
         .gte("sale_date", fromDateObj.toISOString())
         .lte("sale_date", toDateObj.toISOString());
 
-      // Fetch sale items to calculate GST
+      // Fetch sale items to calculate GST - use paginated fetch to bypass 1000 row limit
       const saleIds = salesData?.map(s => s.id) || [];
-      const { data: saleItems } = saleIds.length > 0 ? await supabase
-        .from("sale_items")
-        .select("sale_id, gst_percent, line_total")
-        .in("sale_id", saleIds) : { data: [] };
+      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
       // Calculate GST from sale items
       let outwardTaxable = 0;
@@ -464,10 +460,8 @@ const GSTReports = () => {
         .lte("sale_date", toDateObj.toISOString());
 
       const saleIds = salesData?.map(s => s.id) || [];
-      const { data: saleItems } = saleIds.length > 0 ? await supabase
-        .from("sale_items")
-        .select("hsn_code, product_name, quantity, line_total, gst_percent")
-        .in("sale_id", saleIds) : { data: [] };
+      // Use paginated fetch to bypass 1000 row limit
+      const saleItems = saleIds.length > 0 ? await fetchAllSaleItems(saleIds) : [];
 
       const hsnMap = new Map<string, HSNSummary>();
 
