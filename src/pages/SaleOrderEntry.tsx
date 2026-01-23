@@ -667,6 +667,24 @@ export default function SaleOrderEntry() {
     ));
   };
 
+  const updateMrp = (id: string, mrp: number) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? { ...item, mrp } : item
+    ));
+  };
+
+  const updateSalePrice = (id: string, salePrice: number) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
+    ));
+  };
+
+  const updateGstPercent = (id: string, gstPercent: number) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
+    ));
+  };
+
   const removeItem = (id: string) => {
     setLineItems(prev => prev.map(item => 
       item.id === id ? {
@@ -1151,10 +1169,11 @@ export default function SaleOrderEntry() {
                 <TableHead className="w-20">Stock</TableHead>
                 <TableHead className="w-28">Difference</TableHead>
                 {(settings?.sale_settings as any)?.showMRP !== false && (
-                  <TableHead className="w-20">MRP</TableHead>
+                  <TableHead className="w-24">MRP</TableHead>
                 )}
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-20">Disc %</TableHead>
+                <TableHead className="w-20">GST %</TableHead>
                 <TableHead className="w-24 text-right">Total</TableHead>
                 <TableHead className="w-10"></TableHead>
               </TableRow>
@@ -1191,9 +1210,33 @@ export default function SaleOrderEntry() {
                       )}
                     </TableCell>
                     {(settings?.sale_settings as any)?.showMRP !== false && (
-                      <TableCell>₹{item.mrp.toFixed(2)}</TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.mrp}
+                            onChange={(e) => updateMrp(item.id, parseFloat(e.target.value) || 0)}
+                            onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                            className="w-20 h-8"
+                          />
+                        )}
+                      </TableCell>
                     )}
-                    <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.salePrice}
+                          onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-20 h-8"
+                        />
+                      )}
+                    </TableCell>
                     <TableCell>
                       {item.productId && (
                         <Input
@@ -1202,6 +1245,20 @@ export default function SaleOrderEntry() {
                           max="100"
                           value={item.discountPercent}
                           onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-16 h-8"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={item.gstPercent}
+                          onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-16 h-8"
                         />
                       )}
