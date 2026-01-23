@@ -175,19 +175,39 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
   
-  // Fetch total stock quantity
+  // Fetch total stock quantity - also filter out variants whose parent products are soft-deleted
   const { data: stockData } = useQuery({
     queryKey: ["total-stock", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("stock_qty")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-      if (error) throw error;
-      return data?.reduce((sum, item) => sum + (item.stock_qty || 0), 0) || 0;
+      // Use pagination to bypass 1000 row limit
+      const allVariants: { stock_qty: number }[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("stock_qty, products!inner(deleted_at)")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return allVariants.reduce((sum, item) => sum + (item.stock_qty || 0), 0);
     },
     enabled: !!currentOrganization,
   });
