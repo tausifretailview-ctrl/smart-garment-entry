@@ -132,6 +132,8 @@ const App = () => {
               <Route path="/purchase-entry" element={<NonOrgRedirect path="purchase-entry" />} />
               <Route path="/purchase-returns" element={<NonOrgRedirect path="purchase-returns" />} />
               <Route path="/purchase-return-entry" element={<NonOrgRedirect path="purchase-return-entry" />} />
+              <Route path="/payments-dashboard" element={<NonOrgRedirect path="payments-dashboard" />} />
+              <Route path="/accounts" element={<NonOrgRedirect path="accounts" />} />
               
               {/* Platform admin route */}
               <Route
