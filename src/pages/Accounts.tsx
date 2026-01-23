@@ -1517,8 +1517,8 @@ export default function Accounts() {
                       </div>
                     )}
 
-                    {/* Other payment - Transaction ID field */}
-                    {paymentMethod === 'other' && (
+                    {/* UPI/Other payment - Transaction ID field */}
+                    {(paymentMethod === 'upi' || paymentMethod === 'other' || paymentMethod === 'bank_transfer') && (
                       <div className="space-y-2">
                         <Label>Transaction ID</Label>
                         <Input
