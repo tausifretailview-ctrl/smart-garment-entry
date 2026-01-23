@@ -314,23 +314,32 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           }
         } else {
           const voucher = item.data as any;
-          runningBalance -= voucher.total_amount;
+          const discountAmount = voucher.discount_amount || 0;
+          const totalCredit = voucher.total_amount + discountAmount;
+          runningBalance -= totalCredit;
           
           // Determine if this is an opening balance payment or invoice payment
           const isOpeningBalancePayment = voucher.reference_type === 'customer';
           const relatedSale = !isOpeningBalancePayment ? salesData.find(s => s.id === voucher.reference_id) : null;
           const invoiceRef = relatedSale ? ` - for ${relatedSale.sale_number}` : '';
           
+          // Build description including discount if any
+          let description = isOpeningBalancePayment 
+            ? (voucher.description || 'Opening balance payment')
+            : (voucher.description || 'Payment received') + invoiceRef;
+          
+          if (discountAmount > 0) {
+            description += ` (incl. Discount: ₹${discountAmount.toLocaleString('en-IN')}${voucher.discount_reason ? ` - ${voucher.discount_reason}` : ''})`;
+          }
+          
           allTransactions.push({
             id: voucher.id,
             date: voucher.voucher_date,
             type: 'payment',
             reference: voucher.voucher_number,
-            description: isOpeningBalancePayment 
-              ? (voucher.description || 'Opening balance payment')
-              : (voucher.description || 'Payment received') + invoiceRef,
+            description: description,
             debit: 0,
-            credit: voucher.total_amount,
+            credit: totalCredit,
             balance: runningBalance,
             paymentBreakdown: voucher.metadata?.paymentMethod ? { method: voucher.metadata.paymentMethod } : undefined,
           });

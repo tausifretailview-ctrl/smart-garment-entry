@@ -17,6 +17,8 @@ interface PaymentReceiptProps {
     paymentMethod: string;
     previousBalance: number;
     currentBalance: number;
+    discountAmount?: number;
+    discountReason?: string;
   };
   companyDetails: {
     businessName?: string;
@@ -45,6 +47,9 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
     const previousBalance = receiptData?.previousBalance || 0;
     const paidAmount = receiptData?.paidAmount || 0;
     const currentBalance = receiptData?.currentBalance || 0;
+    const discountAmount = receiptData?.discountAmount || 0;
+    const discountReason = receiptData?.discountReason || '';
+    const totalSettled = paidAmount + discountAmount;
 
     useEffect(() => {
       if (receiptSettings.showQrCode && companyDetails.upiId && paidAmount > 0) {
@@ -167,6 +172,29 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                 ₹{paidAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </td>
             </tr>
+            {discountAmount > 0 && (
+              <tr className="bg-amber-50">
+                <td className="border border-gray-300 p-2 font-medium">
+                  Discount Applied
+                  {discountReason && (
+                    <span className="block text-xs text-gray-500 font-normal">
+                      Reason: {discountReason}
+                    </span>
+                  )}
+                </td>
+                <td className="border border-gray-300 p-2 text-right font-medium text-amber-700">
+                  ₹{discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </td>
+              </tr>
+            )}
+            {discountAmount > 0 && (
+              <tr className="bg-emerald-50">
+                <td className="border border-gray-300 p-2 font-bold">Total Settled</td>
+                <td className="border border-gray-300 p-2 text-right font-bold text-emerald-700">
+                  ₹{totalSettled.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </td>
+              </tr>
+            )}
             <tr>
               <td className="border border-gray-300 p-2 font-medium">Payment Method</td>
               <td className="border border-gray-300 p-2 text-right">
@@ -187,6 +215,11 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
           <p className="font-semibold text-gray-900">Amount in Words:</p>
           <p className="text-gray-700 italic">
             Rupees {numberToWords(paidAmount)} Only
+            {discountAmount > 0 && (
+              <span className="block text-sm mt-1">
+                (Discount: Rupees {numberToWords(discountAmount)} Only)
+              </span>
+            )}
           </p>
         </div>
 
