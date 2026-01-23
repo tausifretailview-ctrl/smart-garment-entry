@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -11,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer } from "lucide-react";
+import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -136,6 +137,13 @@ export default function SaleOrderEntry() {
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
+
+  // Inline search state for table row
+  const [inlineSearchQuery, setInlineSearchQuery] = useState("");
+  const [inlineSearchResults, setInlineSearchResults] = useState<any[]>([]);
+  const [showInlineSearch, setShowInlineSearch] = useState(false);
+  const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
+  const inlineSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Draft save hook
   const {
@@ -747,6 +755,116 @@ export default function SaleOrderEntry() {
     return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
   };
 
+  // Inline search for product row - debounced
+  useEffect(() => {
+    if (!inlineSearchQuery || inlineSearchQuery.length < 1) {
+      setInlineSearchResults([]);
+      setShowInlineSearch(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const query = inlineSearchQuery.toLowerCase();
+        
+        // Search products
+        const { data: matchingProducts } = await supabase
+          .from("products")
+          .select("id")
+          .is("deleted_at", null)
+          .eq("organization_id", currentOrganization?.id)
+          .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`);
+
+        const productIds = matchingProducts?.map(p => p.id) || [];
+
+        // Search variants
+        let variantsQuery = supabase
+          .from("product_variants")
+          .select(`
+            id, size, pur_price, sale_price, mrp, barcode, color, stock_qty, product_id,
+            products (id, product_name, brand, category, style, color, hsn_code, gst_per)
+          `)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .eq("organization_id", currentOrganization?.id);
+
+        if (productIds.length > 0) {
+          variantsQuery = variantsQuery.or(`barcode.ilike.%${query}%,product_id.in.(${productIds.join(",")})`);
+        } else {
+          variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
+        }
+
+        const { data } = await variantsQuery.limit(50);
+
+        const results = (data || []).map((v: any) => ({
+          id: v.id,
+          product_id: v.products?.id || "",
+          size: v.size,
+          sale_price: v.sale_price,
+          mrp: v.mrp || 0,
+          barcode: v.barcode || "",
+          stock_qty: v.stock_qty || 0,
+          product_name: v.products?.product_name || "",
+          brand: v.products?.brand || "",
+          category: v.products?.category || "",
+          color: v.color || v.products?.color || "",
+          style: v.products?.style || "",
+          gst_per: v.products?.gst_per || 0,
+          hsn_code: v.products?.hsn_code || "",
+        }));
+
+        // Smart sort - exact barcode match first
+        const sorted = sortSearchResults(results, query, { barcode: 'barcode', style: 'style', productName: 'product_name' });
+
+        setInlineSearchResults(sorted);
+        setSelectedInlineIndex(0);
+        setShowInlineSearch(true);
+      } catch (error) {
+        console.error("Inline search error:", error);
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [inlineSearchQuery, currentOrganization?.id]);
+
+  const handleInlineProductSelect = (result: any) => {
+    setInlineSearchQuery("");
+    setShowInlineSearch(false);
+    setInlineSearchResults([]);
+
+    // Find the full product from productsData
+    const product = productsData?.find(p => p.id === result.product_id);
+    const variant = product?.product_variants?.find((v: any) => v.id === result.id);
+
+    if (product && variant) {
+      addProductToOrder(product, variant);
+    } else {
+      // Fallback: create minimal product/variant from result
+      const fallbackProduct = {
+        id: result.product_id,
+        product_name: result.product_name,
+        brand: result.brand,
+        category: result.category,
+        style: result.style,
+        color: result.color,
+        gst_per: result.gst_per,
+        hsn_code: result.hsn_code,
+        product_variants: [result],
+      };
+      addProductToOrder(fallbackProduct, result);
+    }
+  };
+
+  const formatInlineProductDescription = (result: any) => {
+    const parts = [result.product_name];
+    if (result.brand) parts.push(result.brand);
+    if (result.category) parts.push(result.category);
+    if (result.style) parts.push(result.style);
+    if (result.color) parts.push(result.color);
+    parts.push(result.size);
+    return parts.join(' | ');
+  };
+
   const handleSaveOrder = async () => {
     if (filledItems.length === 0) {
       toast({ title: "Error", description: "Add at least one item", variant: "destructive" });
@@ -1274,6 +1392,100 @@ export default function SaleOrderEntry() {
                   </TableRow>
                 );
               })}
+              
+              {/* Inline Search Row - Always visible at bottom */}
+              <TableRow className="bg-accent/30 relative" style={{ zIndex: 50 }}>
+                <TableCell className="font-medium text-muted-foreground">
+                  {lineItems.filter(item => item.productId).length + 1}
+                </TableCell>
+                <TableCell colSpan={2} className="relative overflow-visible" style={{ overflow: 'visible' }}>
+                  <div className="relative" style={{ overflow: 'visible' }}>
+                    <Input
+                      ref={inlineSearchInputRef}
+                      value={inlineSearchQuery}
+                      onChange={(e) => setInlineSearchQuery(e.target.value)}
+                      onFocus={() => {
+                        if (inlineSearchQuery.length >= 1) {
+                          setShowInlineSearch(true);
+                        }
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => setShowInlineSearch(false), 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          if (inlineSearchResults.length > 0) {
+                            setSelectedInlineIndex(prev => 
+                              prev < inlineSearchResults.length - 1 ? prev + 1 : 0
+                            );
+                          }
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          if (inlineSearchResults.length > 0) {
+                            setSelectedInlineIndex(prev => 
+                              prev > 0 ? prev - 1 : inlineSearchResults.length - 1
+                            );
+                          }
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (inlineSearchResults.length > 0) {
+                            handleInlineProductSelect(inlineSearchResults[selectedInlineIndex]);
+                          }
+                        }
+                      }}
+                      placeholder="Search product name, brand, barcode..."
+                      className="w-full pr-8"
+                    />
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                    
+                    {/* Inline Search Dropdown - Using Portal */}
+                    {showInlineSearch && inlineSearchInputRef.current && createPortal(
+                      <div 
+                        className="bg-popover border border-border rounded-md shadow-xl max-h-80 overflow-auto"
+                        style={{ 
+                          position: 'fixed',
+                          top: inlineSearchInputRef.current.getBoundingClientRect().bottom + 4,
+                          left: inlineSearchInputRef.current.getBoundingClientRect().left,
+                          width: Math.max(450, inlineSearchInputRef.current.getBoundingClientRect().width),
+                          zIndex: 9999,
+                        }}
+                      >
+                        {inlineSearchResults.length > 0 ? (
+                          inlineSearchResults.map((result, idx) => (
+                            <button
+                              key={result.id + idx}
+                              onClick={() => handleInlineProductSelect(result)}
+                              onMouseEnter={() => setSelectedInlineIndex(idx)}
+                              className={cn(
+                                "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
+                                idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
+                              )}
+                            >
+                              <div className="font-medium">{formatInlineProductDescription(result)}</div>
+                              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                {result.barcode && <span>Barcode: {result.barcode}</span>}
+                                <span className="text-primary font-medium">₹{result.sale_price?.toFixed(2) || '0.00'}</span>
+                                <span className={result.stock_qty > 5 ? 'text-green-600' : result.stock_qty > 0 ? 'text-orange-500' : 'text-destructive'}>
+                                  Stock: {result.stock_qty}
+                                </span>
+                              </div>
+                            </button>
+                          ))
+                        ) : inlineSearchQuery.length >= 1 ? (
+                          <div className="px-4 py-3 text-sm text-muted-foreground">
+                            No products found for "{inlineSearchQuery}"
+                          </div>
+                        ) : null}
+                      </div>,
+                      document.body
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell colSpan={12} className="text-muted-foreground text-sm">
+                  Type to search or use the search button above
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
           <div ref={tableEndRef} />
