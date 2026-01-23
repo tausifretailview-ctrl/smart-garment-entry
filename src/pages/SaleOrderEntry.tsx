@@ -1273,7 +1273,7 @@ export default function SaleOrderEntry() {
         </div>
 
         {/* Line Items Table with Stock Difference */}
-        <ScrollArea className="max-h-[400px]">
+        <ScrollArea className="max-h-[400px]" showScrollbar>
           <Table>
             <TableHeader>
               <TableRow>
