@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import { SupplierLedger } from "@/components/SupplierLedger";
@@ -55,6 +56,8 @@ export default function Accounts() {
   const [chequeDate, setChequeDate] = useState<Date | undefined>(undefined);
   const [transactionId, setTransactionId] = useState("");
   const [nextReceiptNumber, setNextReceiptNumber] = useState<string>("");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
   
   // Receipt states
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
@@ -653,13 +656,15 @@ export default function Accounts() {
       }
 
       const paymentAmount = parseFloat(amount);
-      let remainingAmount = paymentAmount;
+      const discountValue = parseFloat(discountAmount) || 0;
+      const totalSettlement = paymentAmount + discountValue;
+      let remainingAmount = totalSettlement;
       const processedInvoices: any[] = [];
       const processedBills: any[] = [];
       const isOpeningBalancePayment = voucherType === "receipt" && invoicesToProcess.length === 0;
       const isSupplierOpeningBalancePayment = voucherType === "payment" && referenceType === "supplier" && billsToProcess.length === 0;
 
-      // For customer payments with invoices, update the sales invoices (distribute payment across selected invoices)
+      // For customer payments with invoices, update the sales invoices (distribute payment + discount across selected invoices)
       if (voucherType === "receipt" && invoicesToProcess.length > 0) {
         for (const invoiceId of invoicesToProcess) {
           if (remainingAmount <= 0) break;
@@ -788,7 +793,12 @@ export default function Accounts() {
           : `Payment for: ${invoiceNumbers}${paymentDetails}`;
       }
 
-      // Create voucher entry
+      // Build discount description suffix
+      const discountSuffix = discountValue > 0 
+        ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ''}`
+        : '';
+
+      // Create voucher entry with discount
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher_entries")
         .insert({
@@ -801,15 +811,27 @@ export default function Accounts() {
                         isSupplierOpeningBalancePayment ? referenceId :
                         processedBills.length > 0 ? referenceId :
                         (invoicesToProcess[0] || referenceId || null),
-          description: finalDescription,
+          description: finalDescription + discountSuffix,
           total_amount: paymentAmount,
+          discount_amount: discountValue,
+          discount_reason: discountReason || null,
         })
         .select()
         .single();
 
       if (voucherError) throw voucherError;
 
-      return { voucher, voucherNumber, processedInvoices, processedBills, isOpeningBalancePayment, isSupplierOpeningBalancePayment, paymentMethod };
+      return { 
+        voucher, 
+        voucherNumber, 
+        processedInvoices, 
+        processedBills, 
+        isOpeningBalancePayment, 
+        isSupplierOpeningBalancePayment, 
+        paymentMethod,
+        discountAmount: discountValue,
+        discountReason: discountReason,
+      };
     },
     onSuccess: (data) => {
       toast.success("Payment recorded successfully");
@@ -826,10 +848,12 @@ export default function Accounts() {
       // Generate receipt for customer payments
       if (voucherType === "receipt") {
         const totalPaid = parseFloat(amount);
+        const discountValue = data.discountAmount || 0;
         
         if (data.isOpeningBalancePayment) {
           // Opening balance payment - no invoice
           const customer = customersWithBalance?.find(c => c.id === referenceId);
+          const totalSettled = totalPaid + discountValue;
           setReceiptData({
             voucherNumber: data.voucherNumber,
             voucherDate: format(voucherDate, 'yyyy-MM-dd'),
@@ -840,8 +864,10 @@ export default function Accounts() {
             invoiceDate: format(voucherDate, 'yyyy-MM-dd'),
             invoiceAmount: customerBalance || 0,
             paidAmount: totalPaid,
+            discountAmount: discountValue,
+            discountReason: data.discountReason || '',
             previousBalance: customerBalance || 0,
-            currentBalance: (customerBalance || 0) - totalPaid,
+            currentBalance: (customerBalance || 0) - totalSettled,
             paymentMethod: paymentMethod,
             multipleInvoices: [],
           });
@@ -861,6 +887,8 @@ export default function Accounts() {
             invoiceDate: firstInvoice.sale_date,
             invoiceAmount: data.processedInvoices.reduce((sum: number, p: any) => sum + p.invoice.net_amount, 0),
             paidAmount: totalPaid,
+            discountAmount: discountValue,
+            discountReason: data.discountReason || '',
             previousBalance: totalPreviousBalance,
             currentBalance: totalCurrentBalance,
             paymentMethod: paymentMethod,
@@ -968,6 +996,8 @@ export default function Accounts() {
     setChequeNumber("");
     setChequeDate(undefined);
     setTransactionId("");
+    setDiscountAmount("");
+    setDiscountReason("");
     // Refetch next receipt number
     queryClient.invalidateQueries({ queryKey: ["next-receipt-number"] });
   };
@@ -1017,6 +1047,12 @@ export default function Accounts() {
     if (voucherType === "receipt" && referenceType === "customer" && 
         customerBalance !== undefined && customerBalance <= 0) {
       toast.error("Cannot create payment receipt - customer balance is zero");
+      return;
+    }
+    // Validate discount reason when discount is applied
+    const discountValue = parseFloat(discountAmount) || 0;
+    if (discountValue > 0 && !discountReason.trim()) {
+      toast.error("Please enter a discount reason");
       return;
     }
     createVoucher.mutate({});
@@ -1540,6 +1576,82 @@ export default function Accounts() {
                         required
                       />
                     </div>
+
+                    {/* Discount Fields - Show when payment amount is less than total outstanding */}
+                    {(() => {
+                      const selectedInvoiceTotal = selectedInvoiceIds.length > 0
+                        ? customerInvoices
+                            ?.filter(inv => selectedInvoiceIds.includes(inv.id))
+                            .reduce((sum, inv) => sum + (inv.net_amount - (inv.paid_amount || 0)), 0) || 0
+                        : (customerBalance || 0);
+                      const paymentValue = parseFloat(amount) || 0;
+                      const suggestedDiscount = Math.max(0, selectedInvoiceTotal - paymentValue);
+                      const showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
+
+                      return showDiscountFields && (
+                        <div className="space-y-4 p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 rounded-lg">
+                          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                            <TrendingDown className="h-4 w-4" />
+                            <span className="text-sm font-medium">Discount Settlement</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Discount Amount</Label>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder={`Suggested: ₹${suggestedDiscount.toFixed(2)}`}
+                                value={discountAmount}
+                                onChange={(e) => setDiscountAmount(e.target.value)}
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDiscountAmount(suggestedDiscount.toFixed(2))}
+                                className="text-xs text-amber-600 hover:text-amber-700"
+                              >
+                                Apply ₹{suggestedDiscount.toFixed(2)} discount
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Discount Reason <span className="text-red-500">*</span></Label>
+                              <Input
+                                placeholder="e.g., Customer loyalty, Settlement discount"
+                                value={discountReason}
+                                onChange={(e) => setDiscountReason(e.target.value)}
+                                required={parseFloat(discountAmount) > 0}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Settlement Summary */}
+                          {parseFloat(discountAmount) > 0 && (
+                            <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-md">
+                              <div className="flex justify-between items-center text-sm">
+                                <span>Payment Amount:</span>
+                                <span className="font-medium">₹{paymentValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-sm text-amber-600 dark:text-amber-400">
+                                <span>+ Discount:</span>
+                                <span className="font-medium">₹{parseFloat(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              <Separator className="my-2" />
+                              <div className="flex justify-between items-center text-sm font-bold text-green-700 dark:text-green-400">
+                                <span>Total Settled:</span>
+                                <span>₹{(paymentValue + parseFloat(discountAmount)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                              {(paymentValue + parseFloat(discountAmount)) >= selectedInvoiceTotal && (
+                                <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                                  ✓ Invoice(s) will be marked as fully paid
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="space-y-2">
                       <Label>Description</Label>

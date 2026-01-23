@@ -3458,6 +3458,8 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
+          discount_amount: number | null
+          discount_reason: string | null
           id: string
           organization_id: string | null
           reference_id: string | null
@@ -3475,6 +3477,8 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_reason?: string | null
           id?: string
           organization_id?: string | null
           reference_id?: string | null
@@ -3492,6 +3496,8 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          discount_amount?: number | null
+          discount_reason?: string | null
           id?: string
           organization_id?: string | null
           reference_id?: string | null
