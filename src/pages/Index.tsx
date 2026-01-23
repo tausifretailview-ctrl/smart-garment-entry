@@ -75,7 +75,7 @@ const AnimatedMetricCard = ({
   isCurrency?: boolean;
 }) => {
   const { displayValue, direction, isAnimating } = useAnimatedCounter(value, {
-    duration: 600,
+    duration: 2000,
     formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
   });
 
