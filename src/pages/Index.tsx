@@ -329,7 +329,7 @@ const DashboardContent = () => {
     enabled: !!currentOrganization,
   });
 
-  // Fetch stock value
+  // Fetch stock value (using purchase price for accurate inventory valuation)
   const { data: stockValue } = useQuery({
     queryKey: ["stock-value", currentOrganization?.id],
     queryFn: async () => {
@@ -337,13 +337,14 @@ const DashboardContent = () => {
       
       const { data, error } = await supabase
         .from("product_variants")
-        .select("stock_qty, sale_price")
-        .eq("organization_id", currentOrganization.id);
+        .select("stock_qty, pur_price")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return (
         data?.reduce(
           (sum, item) =>
-            sum + (item.stock_qty || 0) * (Number(item.sale_price) || 0),
+            sum + (item.stock_qty || 0) * (Number(item.pur_price) || 0),
           0
         ) || 0
       );
