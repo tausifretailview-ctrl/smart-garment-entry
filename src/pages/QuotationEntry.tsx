@@ -1156,7 +1156,7 @@ export default function QuotationEntry() {
         </div>
 
         {/* Line Items Table */}
-        <ScrollArea className="max-h-[400px]">
+        <ScrollArea className="max-h-[400px]" showScrollbar>
           <Table>
             <TableHeader>
               <TableRow>
