@@ -3073,7 +3073,12 @@ export default function BarcodePrinting() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {location.state?.purchaseItems ? (
-        <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
+        <div className="flex gap-2">
+          <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />
+          {location.state?.billId && (
+            <BackToDashboard label="Back to Purchase Bill" to={`/purchase-entry?edit=${location.state.billId}`} />
+          )}
+        </div>
       ) : (
         <BackToDashboard />
       )}
