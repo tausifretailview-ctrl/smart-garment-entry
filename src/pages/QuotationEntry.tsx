@@ -602,6 +602,18 @@ export default function QuotationEntry() {
     ));
   };
 
+  const updateSalePrice = (id: string, salePrice: number) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, salePrice }) : item
+    ));
+  };
+
+  const updateGstPercent = (id: string, gstPercent: number) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? calculateLineTotal({ ...item, gstPercent }) : item
+    ));
+  };
+
   const removeItem = (id: string) => {
     setLineItems(prev => prev.map(item => 
       item.id === id ? {
@@ -1067,7 +1079,19 @@ export default function QuotationEntry() {
                       />
                     )}
                   </TableCell>
-                  <TableCell>₹{item.salePrice.toFixed(2)}</TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.salePrice}
+                        onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-20 h-8"
+                      />
+                    )}
+                  </TableCell>
                   <TableCell>
                     {item.productId && (
                       <Input
@@ -1076,11 +1100,24 @@ export default function QuotationEntry() {
                         max="100"
                         value={item.discountPercent}
                         onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
                         className="w-16 h-8"
                       />
                     )}
                   </TableCell>
-                  <TableCell>{item.gstPercent}%</TableCell>
+                  <TableCell>
+                    {item.productId && (
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={item.gstPercent}
+                        onChange={(e) => updateGstPercent(item.id, parseFloat(e.target.value) || 0)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-16 h-8"
+                      />
+                    )}
+                  </TableCell>
                   <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
                   <TableCell>
                     {item.productId && (
