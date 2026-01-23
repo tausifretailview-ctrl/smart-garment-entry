@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import {
   Package,
   ShoppingCart,
@@ -21,6 +22,9 @@ import {
   ClipboardList,
   IndianRupee,
   Loader2,
+  RefreshCw,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,50 +44,98 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear, startOfWeek, endOfWeek } from "date-fns";
+import { format, startOfMonth, startOfQuarter, startOfYear, endOfMonth, endOfQuarter, endOfYear } from "date-fns";
+import { cn } from "@/lib/utils";
 
-const MetricCard = ({
+// Currency formatter helper
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+// Animated Metric Card Component
+const AnimatedMetricCard = ({
   title,
   value,
   icon: Icon,
   bgColor,
   onClick,
   tooltip,
+  isCurrency = false,
 }: {
   title: string;
-  value: string | number;
+  value: number;
   icon: any;
   bgColor: string;
   onClick?: () => void;
   tooltip?: string;
-}) => (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <div className="group relative" onClick={onClick}>
-        <Card className={`${bgColor} relative overflow-hidden border-0 shadow-sm group-hover:shadow-md transition-all duration-300 group-hover:scale-[1.02] cursor-pointer`}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
-            <CardTitle className="text-xs font-bold text-foreground">
-              {title}
-            </CardTitle>
-            <div className="p-1.5 rounded-lg bg-white/20">
-              <Icon className="h-3.5 w-3.5 text-white" />
-            </div>
-          </CardHeader>
-          <CardContent className="p-2 pt-0">
-            <div className="text-lg font-extrabold text-foreground">
-              {value}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </TooltipTrigger>
-    {tooltip && (
-      <TooltipContent side="bottom" className="max-w-[200px]">
-        <p className="text-xs">{tooltip}</p>
-      </TooltipContent>
-    )}
-  </Tooltip>
-);
+  isCurrency?: boolean;
+}) => {
+  const { displayValue, direction, isAnimating } = useAnimatedCounter(value, {
+    duration: 600,
+    formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
+  });
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="group relative" onClick={onClick}>
+          <Card 
+            className={cn(
+              `${bgColor} relative overflow-hidden border-0 shadow-sm transition-all duration-300 cursor-pointer`,
+              "group-hover:shadow-md group-hover:scale-[1.02]",
+              isAnimating && "animate-pulse"
+            )}
+          >
+            {/* Change indicator overlay */}
+            <div 
+              className={cn(
+                "absolute inset-0 transition-opacity duration-500 pointer-events-none",
+                direction === "up" && "bg-green-500/20",
+                direction === "down" && "bg-red-500/20",
+                direction === "none" && "opacity-0"
+              )}
+            />
+            
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardTitle className="text-xs font-bold text-foreground flex items-center gap-1">
+                {title}
+                {/* Direction indicator */}
+                {direction === "up" && (
+                  <TrendingUp className="h-3 w-3 text-green-600 animate-bounce" />
+                )}
+                {direction === "down" && (
+                  <TrendingDown className="h-3 w-3 text-red-600 animate-bounce" />
+                )}
+              </CardTitle>
+              <div className="p-1.5 rounded-lg bg-white/20">
+                <Icon className="h-3.5 w-3.5 text-white" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-2 pt-0">
+              <div 
+                className={cn(
+                  "text-lg font-extrabold text-foreground transition-all duration-300",
+                  isAnimating && "scale-105"
+                )}
+              >
+                {displayValue}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </TooltipTrigger>
+      {tooltip && (
+        <TooltipContent side="bottom" className="max-w-[200px]">
+          <p className="text-xs">{tooltip}</p>
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
+};
 
 type DateRangeType = "monthly" | "quarterly" | "yearly" | "all";
 
@@ -117,16 +169,48 @@ const getDateRange = (type: DateRangeType) => {
   }
 };
 
+// Refresh intervals in milliseconds
+const REFRESH_INTERVALS = {
+  FAST: 15000,    // 15 seconds - sales, purchase
+  MEDIUM: 30000,  // 30 seconds - stock, profit, receivables
+  SLOW: 60000,    // 60 seconds - counts
+};
+
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
   const { isAdmin, hasSpecialPermission } = useUserPermissions();
   const [dateRange, setDateRange] = useState<DateRangeType>("monthly");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const queryClient = useQueryClient();
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(dateRange);
+
+  // Manual refresh all
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["total-sales"] });
+    await queryClient.invalidateQueries({ queryKey: ["purchase-total"] });
+    await queryClient.invalidateQueries({ queryKey: ["total-stock"] });
+    await queryClient.invalidateQueries({ queryKey: ["stock-value"] });
+    await queryClient.invalidateQueries({ queryKey: ["receivables"] });
+    await queryClient.invalidateQueries({ queryKey: ["profit-data-cogs"] });
+    await queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+    await queryClient.invalidateQueries({ queryKey: ["suppliers-count"] });
+    await queryClient.invalidateQueries({ queryKey: ["products-count"] });
+    await queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
+    await queryClient.invalidateQueries({ queryKey: ["purchase-returns"] });
+    await queryClient.invalidateQueries({ queryKey: ["cash-collection"] });
+    setLastUpdated(new Date());
+    setTimeout(() => setIsRefreshing(false), 500);
+  };
+
+  // Update lastUpdated on successful fetches
+  const onSuccessUpdate = () => setLastUpdated(new Date());
 
   // Fetch total sales for selected period
   const { data: salesData, isFetching: salesFetching } = useQuery({
@@ -157,6 +241,7 @@ const DashboardContent = () => {
       return { total, count, soldQty };
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.FAST,
   });
 
   // Fetch total customers
@@ -173,6 +258,7 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.SLOW,
   });
   
   // Fetch total stock quantity - also filter out variants whose parent products are soft-deleted
@@ -210,6 +296,7 @@ const DashboardContent = () => {
       return allVariants.reduce((sum, item) => sum + (item.stock_qty || 0), 0);
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
   // Fetch total products
@@ -227,6 +314,7 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.SLOW,
   });
 
   // Fetch total purchase for selected period
@@ -261,6 +349,7 @@ const DashboardContent = () => {
       return { total, count, purchaseQty };
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.FAST,
   });
   
   const isLoading = salesFetching || purchaseFetching;
@@ -297,6 +386,7 @@ const DashboardContent = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.FAST,
   });
 
   // Fetch purchase returns for selected period
@@ -331,6 +421,7 @@ const DashboardContent = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.FAST,
   });
 
   // Fetch total suppliers
@@ -347,6 +438,7 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.SLOW,
   });
 
   // Fetch stock value (using purchase price for accurate inventory valuation)
@@ -370,6 +462,7 @@ const DashboardContent = () => {
       );
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
   // Calculate Gross Profit using actual COGS (Cost of Goods Sold)
@@ -422,6 +515,7 @@ const DashboardContent = () => {
       return totalSalesRevenue - totalCOGS;
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
   // Fetch cash collection
@@ -441,6 +535,7 @@ const DashboardContent = () => {
       return data?.reduce((sum, item) => sum + (item.cash_amount || item.paid_amount || 0), 0) || 0;
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
   // Fetch total receivables (outstanding balance from all pending/partial payments)
@@ -465,15 +560,8 @@ const DashboardContent = () => {
       return { total, count };
     },
     enabled: !!currentOrganization,
+    refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
 
   return (
     <TooltipProvider>
@@ -492,6 +580,19 @@ const DashboardContent = () => {
         {/* Date Range Selector & Theme Toggle */}
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          
+          {/* Refresh Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={isRefreshing}
+            className="h-7 text-xs"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isRefreshing && "animate-spin")} />
+            Refresh
+          </Button>
+          
           <div className="flex items-center gap-2 bg-card border rounded-md px-2 py-1 shadow-sm">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
@@ -522,6 +623,12 @@ const DashboardContent = () => {
           </Button>
         </div>
       </div>
+      
+      {/* Last Updated Indicator */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+        <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
+      </div>
 
       {/* Sales Overview */}
       <div>
@@ -530,15 +637,16 @@ const DashboardContent = () => {
           Sales Overview
         </h2>
         <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
-          <MetricCard
+          <AnimatedMetricCard
             title="Total Sales"
-            value={formatCurrency(salesData?.total || 0)}
+            value={salesData?.total || 0}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-blue-300 to-blue-400"
             onClick={() => navigate("/sales-invoice-dashboard")}
             tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
+            isCurrency
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Invoices"
             value={salesData?.count || 0}
             icon={FileText}
@@ -546,7 +654,7 @@ const DashboardContent = () => {
             onClick={() => navigate("/sales-invoice-dashboard")}
             tooltip="Number of sales invoices generated. Click to view all invoices."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Sold Qty"
             value={salesData?.soldQty || 0}
             icon={ShoppingCart}
@@ -554,15 +662,16 @@ const DashboardContent = () => {
             onClick={() => navigate("/stock-report")}
             tooltip="Total quantity of items sold. Click to view Stock Report."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="S/R Amount"
-            value={formatCurrency(saleReturnData?.total || 0)}
+            value={saleReturnData?.total || 0}
             icon={RotateCcw}
             bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
             onClick={() => navigate("/sale-return-dashboard")}
             tooltip="Total sale return amount. Click to view Sale Returns."
+            isCurrency
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="S/R Qty"
             value={saleReturnData?.returnQty || 0}
             icon={RotateCcw}
@@ -570,7 +679,7 @@ const DashboardContent = () => {
             onClick={() => navigate("/sale-return-dashboard")}
             tooltip="Total sale return quantity. Click to view Sale Returns."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Customers"
             value={customersCount || 0}
             icon={Users}
@@ -588,15 +697,16 @@ const DashboardContent = () => {
           Purchase Overview
         </h2>
         <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
-          <MetricCard
+          <AnimatedMetricCard
             title="Total Purchase"
-            value={formatCurrency(purchaseData?.total || 0)}
+            value={purchaseData?.total || 0}
             icon={ShoppingCart}
             bgColor="bg-gradient-to-br from-emerald-300 to-emerald-400"
             onClick={() => navigate("/purchase-bills")}
             tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
+            isCurrency
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Bills"
             value={purchaseData?.count || 0}
             icon={FileText}
@@ -604,7 +714,7 @@ const DashboardContent = () => {
             onClick={() => navigate("/purchase-bills")}
             tooltip="Number of purchase bills recorded. Click to view all bills."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Purchase Qty"
             value={purchaseData?.purchaseQty || 0}
             icon={Package}
@@ -612,15 +722,16 @@ const DashboardContent = () => {
             onClick={() => navigate("/stock-report")}
             tooltip="Total quantity of items purchased. Click to view Stock Report."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="P/R Amount"
-            value={formatCurrency(purchaseReturnData?.total || 0)}
+            value={purchaseReturnData?.total || 0}
             icon={RotateCcw}
             bgColor="bg-gradient-to-br from-amber-300 to-amber-400"
             onClick={() => navigate("/purchase-return-dashboard")}
             tooltip="Total purchase return amount. Click to view Purchase Returns."
+            isCurrency
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="P/R Qty"
             value={purchaseReturnData?.returnQty || 0}
             icon={RotateCcw}
@@ -628,7 +739,7 @@ const DashboardContent = () => {
             onClick={() => navigate("/purchase-return-dashboard")}
             tooltip="Total purchase return quantity. Click to view Purchase Returns."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Suppliers"
             value={suppliersCount || 0}
             icon={Store}
@@ -646,7 +757,7 @@ const DashboardContent = () => {
           Inventory & Financial
         </h2>
         <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
-          <MetricCard
+          <AnimatedMetricCard
             title="Products"
             value={productsCount || 0}
             icon={Package}
@@ -654,7 +765,7 @@ const DashboardContent = () => {
             onClick={() => navigate("/products")}
             tooltip="Total unique products in inventory. Click to view Product Dashboard."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Stock Qty"
             value={stockData || 0}
             icon={Package}
@@ -662,39 +773,43 @@ const DashboardContent = () => {
             onClick={() => navigate("/stock-report")}
             tooltip="Total items in stock across all variants. Click to view Stock Report."
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Stock Value"
-            value={formatCurrency(stockValue || 0)}
+            value={stockValue || 0}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-fuchsia-300 to-fuchsia-400"
             onClick={() => navigate("/stock-report")}
             tooltip="Total value of current inventory at sale price. Click to view details."
+            isCurrency
           />
           {canViewGrossProfit && (
-            <MetricCard
+            <AnimatedMetricCard
               title="Gross Profit"
-              value={formatCurrency(profitData || 0)}
+              value={profitData || 0}
               icon={TrendingUp}
               bgColor="bg-gradient-to-br from-green-400 to-green-500"
               onClick={() => navigate("/daily-cashier-report")}
               tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
+              isCurrency
             />
           )}
-          <MetricCard
+          <AnimatedMetricCard
             title="Receivables"
-            value={formatCurrency(receivablesData?.total || 0)}
+            value={receivablesData?.total || 0}
             icon={AlertCircle}
             bgColor="bg-gradient-to-br from-red-300 to-red-400"
             onClick={() => navigate("/payments-dashboard")}
             tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
+            isCurrency
           />
-          <MetricCard
+          <AnimatedMetricCard
             title="Cash Collection"
-            value={formatCurrency(cashCollection || 0)}
+            value={cashCollection || 0}
             icon={DollarSign}
             bgColor="bg-gradient-to-br from-sky-300 to-sky-400"
             onClick={() => navigate("/payments-dashboard")}
             tooltip="Total cash collected from sales. Click to view Payments Dashboard."
+            isCurrency
           />
         </div>
       </div>
