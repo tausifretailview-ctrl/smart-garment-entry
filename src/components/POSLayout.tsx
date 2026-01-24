@@ -177,8 +177,6 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       <main className="flex-1 animate-fade-in p-4">{children}</main>
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
-      <FloatingWhatsAppInbox />
-      <FloatingChatButton />
     </div>
   );
 };
