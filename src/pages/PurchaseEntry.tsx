@@ -20,7 +20,6 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
-import { FloatingTotalQty } from "@/components/FloatingTotalQty";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -3041,11 +3040,6 @@ const PurchaseEntry = () => {
           }}
         />
 
-        {/* Floating Total Quantity Badge */}
-        <FloatingTotalQty 
-          totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
-          itemCount={lineItems.filter(i => i.product_id).length}
-        />
       </div>
     </div>
   );

@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
-import { FloatingTotalQty } from "@/components/FloatingTotalQty";
 import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
@@ -2643,11 +2642,6 @@ Thank you for choosing us!`;
           />
         </div>
 
-        {/* Floating Total Quantity Badge */}
-        <FloatingTotalQty 
-          totalQty={lineItems.filter(i => i.productId).reduce((sum, item) => sum + item.quantity, 0)} 
-          itemCount={lineItems.filter(i => i.productId).length}
-        />
     </div>
   );
 }
