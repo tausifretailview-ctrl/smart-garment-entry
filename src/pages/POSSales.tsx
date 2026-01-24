@@ -170,6 +170,10 @@ export default function POSSales() {
   // Price selection dialog state
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
+  
+  // Stock not available dialog state
+  const [showStockNotAvailableDialog, setShowStockNotAvailableDialog] = useState(false);
+  const [stockNotAvailableMessage, setStockNotAvailableMessage] = useState("");
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -786,12 +790,9 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, newQty);
       
       if (!stockCheck.isAvailable) {
-        showStockError(
-          stockCheck.productName,
-          stockCheck.size,
-          newQty,
-          stockCheck.availableStock
-        );
+        setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) - Only ${stockCheck.availableStock} in stock, cannot add ${newQty}`);
+        setShowStockNotAvailableDialog(true);
+        setSearchInput("");
         return;
       }
       
@@ -807,12 +808,9 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, 1);
       
       if (!stockCheck.isAvailable) {
-        showStockError(
-          stockCheck.productName,
-          stockCheck.size,
-          1,
-          stockCheck.availableStock
-        );
+        setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) is out of stock`);
+        setShowStockNotAvailableDialog(true);
+        setSearchInput("");
         return;
       }
       
@@ -3429,6 +3427,26 @@ export default function POSSales() {
             />
           </div>
         )}
+
+        {/* Stock Not Available Dialog */}
+        <AlertDialog open={showStockNotAvailableDialog} onOpenChange={setShowStockNotAvailableDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Stock Not Available</AlertDialogTitle>
+              <AlertDialogDescription>
+                {stockNotAvailableMessage}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => {
+                setShowStockNotAvailableDialog(false);
+                barcodeInputRef.current?.focus();
+              }}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </div>
     </div>
