@@ -22,6 +22,7 @@ import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
+import { useBeepSound } from "@/hooks/useBeepSound";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -174,6 +175,9 @@ export default function POSSales() {
   // Stock not available dialog state
   const [showStockNotAvailableDialog, setShowStockNotAvailableDialog] = useState(false);
   const [stockNotAvailableMessage, setStockNotAvailableMessage] = useState("");
+
+  // Beep sound feedback
+  const { playSuccessBeep, playErrorBeep } = useBeepSound();
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -790,11 +794,15 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, newQty);
       
       if (!stockCheck.isAvailable) {
+        playErrorBeep();
         setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) - Only ${stockCheck.availableStock} in stock, cannot add ${newQty}`);
         setShowStockNotAvailableDialog(true);
         setSearchInput("");
         return;
       }
+      
+      // Play success beep for quantity increment
+      playSuccessBeep();
       
       // Increment quantity if already in cart - use functional update to prevent race conditions
       setItems(prev => {
@@ -808,6 +816,7 @@ export default function POSSales() {
       const stockCheck = await checkStock(variant.id, 1);
       
       if (!stockCheck.isAvailable) {
+        playErrorBeep();
         setStockNotAvailableMessage(`${stockCheck.productName} (${stockCheck.size}) is out of stock`);
         setShowStockNotAvailableDialog(true);
         setSearchInput("");
@@ -892,6 +901,9 @@ export default function POSSales() {
         productType: product.product_type,
       };
       setItems(prev => [...prev, newItem]);
+      
+      // Play success beep for new item added
+      playSuccessBeep();
       
       // Show toast if brand discount was applied
       if (brandDiscount > 0) {
