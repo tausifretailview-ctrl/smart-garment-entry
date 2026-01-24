@@ -431,7 +431,7 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-12 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base"
+                      className="h-12 rounded-xl bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base text-gray-900"
                     />
                   </div>
                   
@@ -445,7 +445,7 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-12 rounded-xl bg-slate-50 border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base"
+                      className="h-12 rounded-xl bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base text-gray-900"
                     />
                   </div>
 
