@@ -1156,8 +1156,9 @@ export default function QuotationEntry() {
         </div>
 
         {/* Line Items Table */}
-        <ScrollArea className="max-h-[400px]" showScrollbar>
-          <Table>
+        <div className="border rounded-md overflow-hidden">
+          <ScrollArea className="max-h-[400px]" showScrollbar>
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
@@ -1340,7 +1341,11 @@ export default function QuotationEntry() {
             </TableBody>
           </Table>
           <div ref={tableEndRef} />
-        </ScrollArea>
+          </ScrollArea>
+        </div>
+        <div className="mt-2 text-sm text-muted-foreground">
+          Total Items: {lineItems.filter(item => item.productId).length}
+        </div>
 
         {/* Summary with Flat Discount & Round Off */}
         <div className="mt-4 flex justify-between items-start">
