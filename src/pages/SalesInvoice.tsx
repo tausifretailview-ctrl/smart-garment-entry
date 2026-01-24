@@ -2362,6 +2362,25 @@ Thank you for choosing us!`;
                   );
                 });
               })()}
+              {/* Total Qty Row */}
+              <TableRow className="bg-muted/50 font-medium">
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell className="text-right text-xs text-muted-foreground">Total:</TableCell>
+                <TableCell className="font-bold text-primary">
+                  {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
+                </TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell></TableCell>
+                <TableCell className="text-right font-bold">₹{grossAmount.toFixed(2)}</TableCell>
+                <TableCell></TableCell>
+              </TableRow>
             </TableBody>
           </Table>
         </div>
