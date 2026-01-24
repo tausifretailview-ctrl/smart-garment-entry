@@ -261,7 +261,7 @@ const PurchaseEntry = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("settings")
-        .select("purchase_settings, product_settings")
+        .select("purchase_settings, product_settings, bill_barcode_settings")
         .eq("organization_id", currentOrganization?.id)
         .single();
       if (error) throw error;
@@ -271,6 +271,9 @@ const PurchaseEntry = () => {
   });
 
   const showMrp = (settings?.purchase_settings as any)?.show_mrp || false;
+  
+  // Check if barcode prompt is enabled (defaults to true if not set)
+  const enableBarcodePrompt = (settings?.bill_barcode_settings as any)?.enable_barcode_prompt !== false;
   
   // Check if color field is enabled in product settings
   const isColorFieldEnabled = (() => {
@@ -1628,8 +1631,10 @@ const PurchaseEntry = () => {
           setNewlyAddedItems([]);
         }
         
-        // Show print dialog after update
-        setShowPrintDialog(true);
+        // Show print dialog after update (only if barcode prompt is enabled)
+        if (enableBarcodePrompt) {
+          setShowPrintDialog(true);
+        }
 
         // Clear draft after successful save
         await deleteDraft();
@@ -1748,11 +1753,13 @@ const PurchaseEntry = () => {
           })
         );
 
-        // Store items for barcode printing and show dialog
+        // Store items for barcode printing and show dialog (only if barcode prompt is enabled)
         setSavedPurchaseItems(itemsWithDetails);
         setSavedBillId(billDataResult.id);
         setNewlyAddedItems([]); // All items are new for a new bill
-        setShowPrintDialog(true);
+        if (enableBarcodePrompt) {
+          setShowPrintDialog(true);
+        }
 
         // Clear draft after successful save and prevent re-save on cleanup
         await deleteDraft();

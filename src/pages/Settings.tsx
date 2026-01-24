@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { UserManagement } from "@/components/UserManagement";
@@ -174,6 +175,7 @@ interface BillBarcodeSettings {
   instagram_link?: string;
   website_link?: string;
   google_review_link?: string;
+  enable_barcode_prompt?: boolean;  // Enable/disable barcode print prompt after purchase save
 }
 
 interface ReportSettings {
@@ -3168,6 +3170,31 @@ export default function Settings() {
                     <Eye className="h-4 w-4 mr-2" />
                     Test Print Preview
                   </Button>
+                </div>
+
+                {/* Enable/Disable Barcode Prompt after Purchase Save */}
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enable_barcode_prompt" className="cursor-pointer">
+                      Show Barcode Print Prompt After Purchase Save
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, a dialog will appear after saving a purchase bill asking if you want to print barcode labels
+                    </p>
+                  </div>
+                  <Switch
+                    id="enable_barcode_prompt"
+                    checked={settings.bill_barcode_settings?.enable_barcode_prompt !== false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        bill_barcode_settings: {
+                          ...settings.bill_barcode_settings,
+                          enable_barcode_prompt: checked,
+                        },
+                      })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-3">
