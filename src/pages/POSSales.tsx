@@ -23,6 +23,7 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useCustomerPoints, useCustomerPointsBalance } from "@/hooks/useCustomerPoints";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { useBeepSound } from "@/hooks/useBeepSound";
+import { useCashDrawer } from "@/hooks/useCashDrawer";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import {
   Command,
@@ -178,6 +179,9 @@ export default function POSSales() {
 
   // Beep sound feedback
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
+
+  // Cash drawer hook
+  const { openDrawer: openCashDrawer } = useCashDrawer();
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -1581,11 +1585,18 @@ export default function POSSales() {
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
     pageStyle: getPageStyle(),
-    onAfterPrint: () => {
+    onAfterPrint: async () => {
       toast({
         title: "Success",
         description: "Invoice printed successfully",
       });
+
+      // Open cash drawer if enabled in settings
+      const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
+      if (billBarcodeSettings?.enable_cash_drawer) {
+        const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
+        await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
+      }
     },
   });
 

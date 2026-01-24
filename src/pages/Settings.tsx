@@ -176,6 +176,10 @@ interface BillBarcodeSettings {
   website_link?: string;
   google_review_link?: string;
   enable_barcode_prompt?: boolean;  // Enable/disable barcode print prompt after purchase save
+  // Cash Drawer Settings
+  enable_cash_drawer?: boolean;  // Enable/disable auto cash drawer open after POS print
+  cash_drawer_printer?: string;  // Printer name where cash drawer is connected
+  cash_drawer_pin?: 'pin2' | 'pin5';  // Drawer kick pin (most use pin2)
 }
 
 interface ReportSettings {
@@ -3196,6 +3200,83 @@ export default function Settings() {
                     }
                   />
                 </div>
+
+                {/* Cash Drawer Settings */}
+                <Card className="border-dashed">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      💵 Cash Drawer Settings
+                    </CardTitle>
+                    <CardDescription>
+                      Configure automatic cash drawer opening after POS receipt printing
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="enable_cash_drawer" className="cursor-pointer">
+                          Open Cash Drawer After Print
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Automatically opens the cash drawer after printing a POS receipt
+                        </p>
+                      </div>
+                      <Switch
+                        id="enable_cash_drawer"
+                        checked={settings.bill_barcode_settings?.enable_cash_drawer === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            bill_barcode_settings: {
+                              ...settings.bill_barcode_settings,
+                              enable_cash_drawer: checked,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+
+                    {settings.bill_barcode_settings?.enable_cash_drawer && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Drawer Pin</Label>
+                          <Select
+                            value={settings.bill_barcode_settings?.cash_drawer_pin || 'pin2'}
+                            onValueChange={(value: 'pin2' | 'pin5') =>
+                              setSettings({
+                                ...settings,
+                                bill_barcode_settings: {
+                                  ...settings.bill_barcode_settings,
+                                  cash_drawer_pin: value,
+                                },
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select drawer pin" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pin2">Pin 2 (Most common - RUGTEK)</SelectItem>
+                              <SelectItem value="pin5">Pin 5 (Alternative)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Most cash drawers including RUGTEK use Pin 2. Try Pin 5 if drawer doesn't open.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                          <p className="font-medium">Setup Requirements:</p>
+                          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                            <li>QZ Tray must be installed on the POS computer</li>
+                            <li>Cash drawer connected to thermal printer via RJ11/RJ12 cable</li>
+                            <li>Thermal printer must support ESC/POS commands</li>
+                          </ul>
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
