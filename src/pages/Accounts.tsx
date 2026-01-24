@@ -1715,8 +1715,8 @@ export default function Accounts() {
                       const showDiscountFields = paymentValue > 0 && paymentValue < selectedInvoiceTotal;
 
                       return showDiscountFields && (
-                        <div className="space-y-4 p-4 border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 rounded-lg">
-                          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                        <div className="space-y-4 p-4 border border-slate-200 bg-slate-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-lg">
+                          <div className="flex items-center gap-2 text-foreground">
                             <TrendingDown className="h-4 w-4" />
                             <span className="text-sm font-medium">Discount Settlement</span>
                           </div>
@@ -1736,7 +1736,7 @@ export default function Accounts() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setDiscountAmount(suggestedDiscount.toFixed(2))}
-                                className="text-xs text-amber-600 hover:text-amber-700"
+                                className="text-xs text-primary hover:text-primary/80"
                               >
                                 Apply ₹{suggestedDiscount.toFixed(2)} discount
                               </Button>
@@ -1759,7 +1759,7 @@ export default function Accounts() {
                                 <span>Payment Amount:</span>
                                 <span className="font-medium">₹{paymentValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                               </div>
-                              <div className="flex justify-between items-center text-sm text-amber-600 dark:text-amber-400">
+                              <div className="flex justify-between items-center text-sm text-muted-foreground">
                                 <span>+ Discount:</span>
                                 <span className="font-medium">₹{parseFloat(discountAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                               </div>
