@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search, Pencil } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
@@ -78,6 +78,17 @@ export default function Accounts() {
 
   // Selected payment receipts for deletion
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+
+  // Edit payment receipt state
+  const [showEditPaymentDialog, setShowEditPaymentDialog] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editPaymentDate, setEditPaymentDate] = useState<Date>(new Date());
+  const [editPaymentAmount, setEditPaymentAmount] = useState("");
+  const [editPaymentMethod, setEditPaymentMethod] = useState("cash");
+  const [editChequeNumber, setEditChequeNumber] = useState("");
+  const [editChequeDate, setEditChequeDate] = useState<Date | undefined>(undefined);
+  const [editTransactionId, setEditTransactionId] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   // Reconciliation filters
   const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
@@ -982,6 +993,115 @@ export default function Accounts() {
     },
   });
 
+  // Edit payment mutation
+  const updatePayment = useMutation({
+    mutationFn: async () => {
+      if (!editingPayment) throw new Error("No payment selected for editing");
+      
+      const newAmount = parseFloat(editPaymentAmount);
+      const oldAmount = editingPayment.total_amount || 0;
+      const amountDiff = newAmount - oldAmount;
+      
+      // Build payment details for description
+      let paymentDetails = '';
+      if (editPaymentMethod === 'cheque' && editChequeNumber) {
+        paymentDetails = ` | Cheque No: ${editChequeNumber}`;
+        if (editChequeDate) {
+          paymentDetails += `, Date: ${format(editChequeDate, 'dd/MM/yyyy')}`;
+        }
+      } else if ((editPaymentMethod === 'upi' || editPaymentMethod === 'bank_transfer' || editPaymentMethod === 'other') && editTransactionId) {
+        paymentDetails = ` | Transaction ID: ${editTransactionId}`;
+      }
+      
+      // Extract base description (remove old payment details)
+      let baseDescription = editDescription.split(' | Cheque No:')[0].split(' | Transaction ID:')[0];
+      const finalDescription = baseDescription + paymentDetails;
+      
+      // Update voucher entry
+      const { error: voucherError } = await supabase
+        .from("voucher_entries")
+        .update({
+          voucher_date: format(editPaymentDate, "yyyy-MM-dd"),
+          total_amount: newAmount,
+          description: finalDescription,
+        })
+        .eq("id", editingPayment.id);
+      
+      if (voucherError) throw voucherError;
+      
+      // If linked to a sale (invoice payment), adjust the invoice paid_amount
+      if (editingPayment.reference_type === "sale" && editingPayment.reference_id && amountDiff !== 0) {
+        // Get current invoice data
+        const { data: invoice, error: invoiceError } = await supabase
+          .from("sales")
+          .select("paid_amount, net_amount")
+          .eq("id", editingPayment.reference_id)
+          .maybeSingle();
+        
+        if (!invoiceError && invoice) {
+          const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) + amountDiff);
+          const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
+                           newPaidAmount > 0 ? 'partial' : 'pending';
+          
+          await supabase
+            .from("sales")
+            .update({
+              paid_amount: newPaidAmount,
+              payment_status: newStatus,
+            })
+            .eq("id", editingPayment.reference_id);
+        }
+      }
+      
+      return { oldAmount, newAmount };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      toast.success(`Payment updated successfully. Amount changed from ₹${data.oldAmount.toFixed(2)} to ₹${data.newAmount.toFixed(2)}`);
+      setShowEditPaymentDialog(false);
+      setEditingPayment(null);
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to update payment: ${error.message}`);
+    },
+  });
+
+  // Open edit payment dialog
+  const openEditPaymentDialog = (voucher: any) => {
+    setEditingPayment(voucher);
+    setEditPaymentDate(new Date(voucher.voucher_date));
+    setEditPaymentAmount(voucher.total_amount?.toString() || "");
+    
+    // Parse payment method from description
+    const desc = voucher.description || "";
+    if (desc.includes("Cheque No:")) {
+      setEditPaymentMethod("cheque");
+      const chequeMatch = desc.match(/Cheque No: (\d+)/);
+      const dateMatch = desc.match(/Date: (\d{2}\/\d{2}\/\d{4})/);
+      if (chequeMatch) setEditChequeNumber(chequeMatch[1]);
+      if (dateMatch) {
+        const [day, month, year] = dateMatch[1].split('/');
+        setEditChequeDate(new Date(parseInt(year), parseInt(month) - 1, parseInt(day)));
+      }
+    } else if (desc.includes("Transaction ID:")) {
+      const txMatch = desc.match(/Transaction ID: (\S+)/);
+      if (txMatch) setEditTransactionId(txMatch[1]);
+      // Determine if UPI or bank transfer based on context
+      setEditPaymentMethod("upi");
+    } else {
+      setEditPaymentMethod("cash");
+      setEditChequeNumber("");
+      setEditChequeDate(undefined);
+      setEditTransactionId("");
+    }
+    
+    setEditDescription(desc);
+    setShowEditPaymentDialog(true);
+  };
+
   const resetForm = () => {
     setVoucherDate(new Date());
     setReferenceType("");
@@ -1754,32 +1874,43 @@ export default function Accounts() {
                             <TableCell className="max-w-xs truncate">{voucher.description}</TableCell>
                             {isAdmin && (
                               <TableCell>
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  onClick={() => {
-                                    const customer = customers?.find((c) => c.id === voucher.reference_id);
-                                    setReceiptData({
-                                      voucherNumber: voucher.voucher_number,
-                                      voucherDate: voucher.voucher_date,
-                                      customerName: customerName,
-                                      customerPhone: customer?.phone || "",
-                                      customerAddress: customer?.address || "",
-                                      invoiceNumber: voucher.description?.includes("Against Invoice") 
-                                        ? voucher.description.replace("Against Invoice: ", "")
-                                        : voucher.description || "-",
-                                      invoiceDate: voucher.voucher_date,
-                                      invoiceAmount: voucher.total_amount,
-                                      paidAmount: voucher.total_amount,
-                                      paymentMethod: voucher.payment_method || "cash",
-                                      previousBalance: 0,
-                                      currentBalance: 0
-                                    });
-                                    setShowReceiptDialog(true);
-                                  }}
-                                >
-                                  <Printer className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    title="Edit Payment"
+                                    onClick={() => openEditPaymentDialog(voucher)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    title="Print Receipt"
+                                    onClick={() => {
+                                      const customer = customers?.find((c) => c.id === voucher.reference_id);
+                                      setReceiptData({
+                                        voucherNumber: voucher.voucher_number,
+                                        voucherDate: voucher.voucher_date,
+                                        customerName: customerName,
+                                        customerPhone: customer?.phone || "",
+                                        customerAddress: customer?.address || "",
+                                        invoiceNumber: voucher.description?.includes("Against Invoice") 
+                                          ? voucher.description.replace("Against Invoice: ", "")
+                                          : voucher.description || "-",
+                                        invoiceDate: voucher.voucher_date,
+                                        invoiceAmount: voucher.total_amount,
+                                        paidAmount: voucher.total_amount,
+                                        paymentMethod: voucher.payment_method || "cash",
+                                        previousBalance: 0,
+                                        currentBalance: 0
+                                      });
+                                      setShowReceiptDialog(true);
+                                    }}
+                                  >
+                                    <Printer className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             )}
                           </TableRow>
@@ -3029,6 +3160,146 @@ export default function Accounts() {
                 Loading receipt data...
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Payment Dialog */}
+        <Dialog open={showEditPaymentDialog} onOpenChange={setShowEditPaymentDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Edit Payment Receipt</DialogTitle>
+              <DialogDescription>
+                Update payment details for {editingPayment?.voucher_number}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !editPaymentDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editPaymentDate ? format(editPaymentDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={editPaymentDate}
+                      onSelect={(date) => date && setEditPaymentDate(date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Amount</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="Enter amount"
+                  value={editPaymentAmount}
+                  onChange={(e) => setEditPaymentAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={editPaymentMethod} onValueChange={(value) => {
+                  setEditPaymentMethod(value);
+                  if (value !== 'cheque') {
+                    setEditChequeNumber("");
+                    setEditChequeDate(undefined);
+                  }
+                  if (value !== 'upi' && value !== 'bank_transfer' && value !== 'other') {
+                    setEditTransactionId("");
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {editPaymentMethod === 'cheque' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Cheque Number</Label>
+                    <Input
+                      placeholder="Enter cheque number"
+                      value={editChequeNumber}
+                      onChange={(e) => setEditChequeNumber(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Cheque Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {editChequeDate ? format(editChequeDate, "dd/MM/yyyy") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={editChequeDate}
+                          onSelect={setEditChequeDate}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              )}
+
+              {(editPaymentMethod === 'upi' || editPaymentMethod === 'bank_transfer' || editPaymentMethod === 'other') && (
+                <div className="space-y-2">
+                  <Label>Transaction ID</Label>
+                  <Input
+                    placeholder="Enter transaction ID"
+                    value={editTransactionId}
+                    onChange={(e) => setEditTransactionId(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  placeholder="Payment description"
+                  value={editDescription.split(' | Cheque No:')[0].split(' | Transaction ID:')[0]}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditPaymentDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => updatePayment.mutate()}
+                disabled={updatePayment.isPending || !editPaymentAmount || parseFloat(editPaymentAmount) <= 0}
+              >
+                {updatePayment.isPending ? "Saving..." : "Save Changes"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
