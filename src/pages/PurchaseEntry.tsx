@@ -21,6 +21,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { FloatingTotalQty } from "@/components/FloatingTotalQty";
+import { InlineTotalQty } from "@/components/InlineTotalQty";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
@@ -2170,19 +2171,26 @@ const PurchaseEntry = () => {
         <Card className="shadow-lg border-border mb-6">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Bill Information</CardTitle>
-            {!isEditMode && lastPurchaseBill && (
-              <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
-                <span className="font-medium">Last Bill:</span>{" "}
-                <span className="text-foreground">{lastPurchaseBill.software_bill_no}</span>
-                {lastPurchaseBill.supplier_invoice_no && (
-                  <>
-                    {" | "}
-                    <span className="font-medium">Supplier Inv:</span>{" "}
-                    <span className="text-foreground">{lastPurchaseBill.supplier_invoice_no}</span>
-                  </>
-                )}
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Inline Total Qty */}
+              <InlineTotalQty 
+                totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
+                itemCount={lineItems.filter(i => i.product_id).length}
+              />
+              {!isEditMode && lastPurchaseBill && (
+                <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
+                  <span className="font-medium">Last Bill:</span>{" "}
+                  <span className="text-foreground">{lastPurchaseBill.software_bill_no}</span>
+                  {lastPurchaseBill.supplier_invoice_no && (
+                    <>
+                      {" | "}
+                      <span className="font-medium">Supplier Inv:</span>{" "}
+                      <span className="text-foreground">{lastPurchaseBill.supplier_invoice_no}</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
