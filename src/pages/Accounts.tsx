@@ -1029,15 +1029,17 @@ export default function Accounts() {
       
       if (voucherError) throw voucherError;
       
-      // If linked to a sale (invoice payment), adjust the invoice paid_amount
-      if (editingPayment.reference_type === "sale" && editingPayment.reference_id && amountDiff !== 0) {
-        // Get current invoice data
+      // Check if reference_id is a valid sale (invoice payment vs opening balance payment)
+      // Payments are stored with reference_type: "customer" but reference_id can be either sale_id or customer_id
+      if (editingPayment.reference_id && amountDiff !== 0) {
+        // Try to find if reference_id is a sale (invoice payment)
         const { data: invoice, error: invoiceError } = await supabase
           .from("sales")
           .select("paid_amount, net_amount")
           .eq("id", editingPayment.reference_id)
           .maybeSingle();
         
+        // If invoice exists, this is an invoice payment - update its paid_amount
         if (!invoiceError && invoice) {
           const newPaidAmount = Math.max(0, (invoice.paid_amount || 0) + amountDiff);
           const newStatus = newPaidAmount >= invoice.net_amount ? 'completed' : 
@@ -1051,6 +1053,7 @@ export default function Accounts() {
             })
             .eq("id", editingPayment.reference_id);
         }
+        // If invoice not found, this is an opening balance payment - no invoice to update
       }
       
       return { oldAmount, newAmount };
@@ -1060,6 +1063,9 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       toast.success(`Payment updated successfully. Amount changed from ₹${data.oldAmount.toFixed(2)} to ₹${data.newAmount.toFixed(2)}`);
       setShowEditPaymentDialog(false);
       setEditingPayment(null);
