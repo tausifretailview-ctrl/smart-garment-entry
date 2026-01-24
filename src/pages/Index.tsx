@@ -74,7 +74,7 @@ const AnimatedMetricCard = ({
   tooltip?: string;
   isCurrency?: boolean;
 }) => {
-  const { displayValue, direction, isAnimating } = useAnimatedCounter(value, {
+  const { displayValue } = useAnimatedCounter(value, {
     duration: 2000,
     formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
   });
@@ -86,42 +86,19 @@ const AnimatedMetricCard = ({
           <Card 
             className={cn(
               `${bgColor} relative overflow-hidden border-0 shadow-sm transition-all duration-300 cursor-pointer`,
-              "group-hover:shadow-md group-hover:scale-[1.02]",
-              isAnimating && "animate-pulse"
+              "group-hover:shadow-md group-hover:scale-[1.02]"
             )}
           >
-            {/* Change indicator overlay */}
-            <div 
-              className={cn(
-                "absolute inset-0 transition-opacity duration-500 pointer-events-none",
-                direction === "up" && "bg-green-500/20",
-                direction === "down" && "bg-red-500/20",
-                direction === "none" && "opacity-0"
-              )}
-            />
-            
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
-              <CardTitle className="text-xs font-bold text-foreground flex items-center gap-1">
+              <CardTitle className="text-xs font-bold text-foreground">
                 {title}
-                {/* Direction indicator */}
-                {direction === "up" && (
-                  <TrendingUp className="h-3 w-3 text-green-600 animate-bounce" />
-                )}
-                {direction === "down" && (
-                  <TrendingDown className="h-3 w-3 text-red-600 animate-bounce" />
-                )}
               </CardTitle>
               <div className="p-1.5 rounded-lg bg-white/20">
                 <Icon className="h-3.5 w-3.5 text-white" />
               </div>
             </CardHeader>
             <CardContent className="p-2 pt-0">
-              <div 
-                className={cn(
-                  "text-lg font-extrabold text-foreground transition-all duration-300",
-                  isAnimating && "scale-105"
-                )}
-              >
+              <div className="text-lg font-extrabold text-foreground">
                 {displayValue}
               </div>
             </CardContent>
