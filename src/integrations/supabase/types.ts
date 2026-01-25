@@ -3594,6 +3594,7 @@ export type Database = {
           handoff_keywords: string[] | null
           id: string
           invoice_link_message: string | null
+          invoice_pdf_template: string | null
           invoice_template_name: string | null
           invoice_template_params: Json | null
           is_active: boolean
@@ -3612,6 +3613,7 @@ export type Database = {
           selected_quotation_template_id: string | null
           selected_sale_order_template_id: string | null
           send_followup_on_button_click: boolean | null
+          send_invoice_pdf: boolean | null
           social_links: Json | null
           updated_at: string
           use_default_api: boolean | null
@@ -3642,6 +3644,7 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           invoice_link_message?: string | null
+          invoice_pdf_template?: string | null
           invoice_template_name?: string | null
           invoice_template_params?: Json | null
           is_active?: boolean
@@ -3660,6 +3663,7 @@ export type Database = {
           selected_quotation_template_id?: string | null
           selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
+          send_invoice_pdf?: boolean | null
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
@@ -3690,6 +3694,7 @@ export type Database = {
           handoff_keywords?: string[] | null
           id?: string
           invoice_link_message?: string | null
+          invoice_pdf_template?: string | null
           invoice_template_name?: string | null
           invoice_template_params?: Json | null
           is_active?: boolean
@@ -3708,6 +3713,7 @@ export type Database = {
           selected_quotation_template_id?: string | null
           selected_sale_order_template_id?: string | null
           send_followup_on_button_click?: boolean | null
+          send_invoice_pdf?: boolean | null
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null

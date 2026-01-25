@@ -24,6 +24,10 @@ interface SendWhatsAppRequest {
   saleData?: Record<string, unknown>; // Dynamic data for parameter building
   referenceId?: string;
   referenceType?: string;
+  // Document attachment for PDF sending
+  documentUrl?: string; // Public URL of PDF document
+  documentFilename?: string; // Display filename for the document
+  documentCaption?: string; // Caption for the document message
 }
 
 
@@ -214,7 +218,10 @@ serve(async (req) => {
       templateParams,
       saleData,
       referenceId, 
-      referenceType 
+      referenceType,
+      documentUrl,
+      documentFilename,
+      documentCaption
     }: SendWhatsAppRequest = await req.json();
 
     // Validate required fields - message is optional for template messages
@@ -693,10 +700,69 @@ serve(async (req) => {
       }
     }
 
+    // Send document attachment if provided (after template message)
+    let documentMessageId: string | undefined;
+    if (documentUrl && response.ok) {
+      console.log('Sending document attachment:', documentUrl);
+      
+      const documentPayload = {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "document",
+        document: {
+          link: documentUrl,
+          filename: documentFilename || "Invoice.pdf",
+          caption: documentCaption || ""
+        }
+      };
+
+      try {
+        const docResponse = await fetch(metaApiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${settings.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(documentPayload),
+        });
+
+        const docResponseData = await docResponse.json();
+        console.log('Document API Response:', JSON.stringify(docResponseData));
+
+        if (docResponse.ok && docResponseData.messages?.[0]?.id) {
+          documentMessageId = docResponseData.messages[0].id;
+          console.log('Document sent successfully:', documentMessageId);
+          
+          // Log the document message separately
+          await supabase
+            .from('whatsapp_logs')
+            .insert({
+              organization_id: organizationId,
+              phone_number: formattedPhone,
+              message: `PDF Document: ${documentFilename || 'Invoice.pdf'}`,
+              template_type: 'document_attachment',
+              status: 'sent',
+              wamid: documentMessageId,
+              reference_id: referenceId || null,
+              reference_type: referenceType || null,
+              sent_at: new Date().toISOString(),
+              provider_response: docResponseData,
+            });
+        } else {
+          console.error('Document send failed:', docResponseData);
+        }
+      } catch (docError) {
+        console.error('Error sending document:', docError);
+        // Don't fail the main request if document fails
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         messageId: responseData.messages?.[0]?.id,
+        documentMessageId,
         logId: logEntry?.id
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

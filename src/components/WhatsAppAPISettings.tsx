@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
   Settings2, 
@@ -35,7 +36,8 @@ import {
     Globe,
     Instagram,
     Facebook,
-    Star
+    Star,
+    FileText
   } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -95,6 +97,9 @@ export const WhatsAppAPISettings = () => {
     followup_review_message: "⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}\n\nYour review helps us serve you better! 🙏",
     followup_chat_message: "💬 Chat with us directly!\n\nClick here to start a conversation:\n{whatsapp_link}\n\nOur team is ready to assist you!",
     social_links: { website: "", instagram: "", facebook: "", google_review: "" } as SocialLinks,
+    // Invoice PDF attachment settings
+    send_invoice_pdf: false,
+    invoice_pdf_template: "professional",
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -142,6 +147,9 @@ export const WhatsAppAPISettings = () => {
         followup_review_message: (settings as any).followup_review_message || "⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}\n\nYour review helps us serve you better! 🙏",
         followup_chat_message: (settings as any).followup_chat_message || "💬 Chat with us directly!\n\nClick here to start a conversation:\n{whatsapp_link}\n\nOur team is ready to assist you!",
         social_links: settings.social_links || { website: "", instagram: "", facebook: "", google_review: "" },
+        // Invoice PDF attachment settings
+        send_invoice_pdf: (settings as any).send_invoice_pdf || false,
+        invoice_pdf_template: (settings as any).invoice_pdf_template || "professional",
       });
     }
   }, [settings]);
@@ -688,6 +696,83 @@ export const WhatsAppAPISettings = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 Enable WhatsApp API integration above to configure auto-send options
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Invoice PDF Attachment Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Invoice PDF Attachment
+            {formData.send_invoice_pdf && (
+              <Badge variant="default" className="ml-2">Enabled</Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Send invoice PDF document along with the WhatsApp template message
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              When enabled, a PDF copy of the invoice will be generated and sent as a document attachment 
+              along with the template message. Customer receives both: the text preview AND the downloadable PDF.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="send_invoice_pdf">Send Invoice PDF</Label>
+              <p className="text-xs text-muted-foreground">Attach PDF invoice with WhatsApp messages</p>
+            </div>
+            <Switch
+              id="send_invoice_pdf"
+              checked={formData.send_invoice_pdf}
+              onCheckedChange={(checked) => handleInputChange("send_invoice_pdf", checked)}
+              disabled={!formData.is_active}
+            />
+          </div>
+
+          {formData.send_invoice_pdf && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label htmlFor="invoice_pdf_template">PDF Template</Label>
+                <Select
+                  value={formData.invoice_pdf_template}
+                  onValueChange={(value) => handleInputChange("invoice_pdf_template", value)}
+                >
+                  <SelectTrigger id="invoice_pdf_template">
+                    <SelectValue placeholder="Select template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="professional">Professional</SelectItem>
+                    <SelectItem value="modern">Modern</SelectItem>
+                    <SelectItem value="classic">Classic</SelectItem>
+                    <SelectItem value="retail">Retail</SelectItem>
+                    <SelectItem value="minimal">Minimal</SelectItem>
+                    <SelectItem value="compact">Compact</SelectItem>
+                    <SelectItem value="detailed">Detailed</SelectItem>
+                    <SelectItem value="tax-invoice">Tax Invoice</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose which invoice template format to use for PDF generation
+                </p>
+              </div>
+            </>
+          )}
+
+          {!formData.is_active && (
+            <Alert variant="destructive" className="mt-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Enable WhatsApp API integration above to use PDF attachments
               </AlertDescription>
             </Alert>
           )}
