@@ -204,43 +204,51 @@ export async function generateAndUploadInvoicePDF(
   data: InvoicePdfData,
   organizationId: string
 ): Promise<string> {
+  console.log('generateAndUploadInvoicePDF called for:', data.billNo);
+  
+  // Generate PDF blob
+  let pdfBlob: Blob;
   try {
-    // Generate PDF blob
-    const pdfBlob = generateInvoicePdfBlob(data);
-    
-    // Create unique filename
-    const timestamp = Date.now();
-    const safeInvoiceNo = data.billNo.replace(/[^a-zA-Z0-9-]/g, '_');
-    const fileName = `${organizationId}/${safeInvoiceNo}_${timestamp}.pdf`;
-    
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('invoice-pdfs')
-      .upload(fileName, pdfBlob, {
-        contentType: 'application/pdf',
-        upsert: false
-      });
-    
-    if (uploadError) {
-      console.error('Error uploading invoice PDF:', uploadError);
-      throw new Error(`Failed to upload PDF: ${uploadError.message}`);
-    }
-    
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('invoice-pdfs')
-      .getPublicUrl(fileName);
-    
-    if (!urlData?.publicUrl) {
-      throw new Error('Failed to get public URL for uploaded PDF');
-    }
-    
-    console.log('Invoice PDF uploaded successfully:', urlData.publicUrl);
-    return urlData.publicUrl;
-  } catch (error) {
-    console.error('Error in generateAndUploadInvoicePDF:', error);
-    throw error;
+    pdfBlob = generateInvoicePdfBlob(data);
+    console.log('PDF blob generated, size:', pdfBlob.size);
+  } catch (blobError: any) {
+    console.error('Error generating PDF blob:', blobError);
+    throw new Error(`Failed to generate PDF: ${blobError?.message || 'Unknown error'}`);
   }
+  
+  // Create unique filename - sanitize invoice number for file path
+  const timestamp = Date.now();
+  const safeInvoiceNo = data.billNo.replace(/[^a-zA-Z0-9-]/g, '_');
+  const fileName = `${organizationId}/${safeInvoiceNo}_${timestamp}.pdf`;
+  console.log('Uploading to storage path:', fileName);
+  
+  // Upload to Supabase Storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('invoice-pdfs')
+    .upload(fileName, pdfBlob, {
+      contentType: 'application/pdf',
+      upsert: true // Changed to upsert to avoid conflicts
+    });
+  
+  if (uploadError) {
+    console.error('Storage upload error:', uploadError);
+    throw new Error(`Failed to upload PDF: ${uploadError.message}`);
+  }
+  
+  console.log('Upload successful:', uploadData?.path);
+  
+  // Get public URL
+  const { data: urlData } = supabase.storage
+    .from('invoice-pdfs')
+    .getPublicUrl(fileName);
+  
+  if (!urlData?.publicUrl) {
+    console.error('Failed to get public URL');
+    throw new Error('Failed to get public URL for uploaded PDF');
+  }
+  
+  console.log('Invoice PDF uploaded successfully:', urlData.publicUrl);
+  return urlData.publicUrl;
 }
 
 /**
