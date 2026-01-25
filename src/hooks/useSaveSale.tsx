@@ -395,7 +395,11 @@ export const useSaveSale = () => {
             let useDocumentHeaderTemplate = false;
             let documentHeaderTemplateName: string | undefined;
 
-            if (whatsappSettings.send_invoice_pdf) {
+            // Check if we need PDF: either regular PDF attachment OR document header template (bypasses 24h)
+            const needsPdf = whatsappSettings.send_invoice_pdf || 
+              (whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name);
+
+            if (needsPdf) {
               try {
                 console.log('Starting PDF generation for invoice:', saleNumber);
                 
