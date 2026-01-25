@@ -702,6 +702,7 @@ serve(async (req) => {
 
     // Send document attachment if provided (after template message)
     let documentMessageId: string | undefined;
+    let documentError: string | undefined;
     if (documentUrl && response.ok) {
       console.log('Sending document attachment:', documentUrl);
       
@@ -734,7 +735,7 @@ serve(async (req) => {
           documentMessageId = docResponseData.messages[0].id;
           console.log('Document sent successfully:', documentMessageId);
           
-          // Log the document message separately
+          // Log the document message separately with success status
           await supabase
             .from('whatsapp_logs')
             .insert({
@@ -750,10 +751,54 @@ serve(async (req) => {
               provider_response: docResponseData,
             });
         } else {
-          console.error('Document send failed:', docResponseData);
+          // Document failed - extract error details
+          const errorCode = docResponseData?.error?.code || 'UNKNOWN';
+          const errorTitle = docResponseData?.error?.message || docResponseData?.error?.title || 'Document send failed';
+          documentError = `${errorCode}: ${errorTitle}`;
+          console.error('Document send failed:', documentError, docResponseData);
+          
+          // Log the failed document attempt - but DON'T let it affect the main success
+          // Error 131047 = "Re-engagement message" - customer hasn't replied in 24h so document (non-template) can't be sent
+          const isReEngagementError = errorCode === 131047 || 
+            docResponseData?.error?.title === 'Re-engagement message' ||
+            String(docResponseData?.error?.message || '').includes('Re-engagement');
+          
+          await supabase
+            .from('whatsapp_logs')
+            .insert({
+              organization_id: organizationId,
+              phone_number: formattedPhone,
+              message: `PDF Document: ${documentFilename || 'Invoice.pdf'}`,
+              template_type: 'document_attachment',
+              status: 'failed',
+              reference_id: referenceId || null,
+              reference_type: referenceType || null,
+              sent_at: new Date().toISOString(),
+              provider_response: docResponseData,
+              error_message: isReEngagementError 
+                ? 'Document not sent: Customer must reply first (24-hour window expired). Template message was sent successfully.'
+                : documentError,
+            });
         }
       } catch (docError) {
+        const errMsg = docError instanceof Error ? docError.message : 'Unknown error';
+        documentError = errMsg;
         console.error('Error sending document:', docError);
+        
+        // Log the exception
+        await supabase
+          .from('whatsapp_logs')
+          .insert({
+            organization_id: organizationId,
+            phone_number: formattedPhone,
+            message: `PDF Document: ${documentFilename || 'Invoice.pdf'}`,
+            template_type: 'document_attachment',
+            status: 'failed',
+            reference_id: referenceId || null,
+            reference_type: referenceType || null,
+            sent_at: new Date().toISOString(),
+            error_message: `Exception: ${errMsg}`,
+          });
         // Don't fail the main request if document fails
       }
     }
