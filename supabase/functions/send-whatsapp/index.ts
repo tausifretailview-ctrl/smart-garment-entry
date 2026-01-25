@@ -28,6 +28,10 @@ interface SendWhatsAppRequest {
   documentUrl?: string; // Public URL of PDF document
   documentFilename?: string; // Display filename for the document
   documentCaption?: string; // Caption for the document message
+  // Document header template (direct PDF in template - bypasses 24h window)
+  useDocumentHeaderTemplate?: boolean;
+  documentHeaderTemplateName?: string;
+  pdfBlob?: string; // Base64 encoded PDF for Meta upload
 }
 
 
@@ -196,6 +200,127 @@ function buildTemplateParams(
   });
 }
 
+// Upload PDF to Meta's media endpoint and get media_id for template with document header
+async function uploadPdfToMeta(
+  pdfBlob: string, // Base64 encoded PDF
+  filename: string,
+  phoneNumberId: string,
+  accessToken: string
+): Promise<string | null> {
+  try {
+    console.log('Uploading PDF to Meta media endpoint...');
+    
+    // Decode base64 to binary
+    const binaryString = atob(pdfBlob);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    
+    // Create form data for upload
+    const formData = new FormData();
+    formData.append('file', new Blob([bytes], { type: 'application/pdf' }), filename);
+    formData.append('messaging_product', 'whatsapp');
+    formData.append('type', 'application/pdf');
+    
+    const uploadUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/media`;
+    
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+      body: formData,
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.id) {
+      console.log('PDF uploaded to Meta, media_id:', data.id);
+      return data.id;
+    } else {
+      console.error('Meta media upload failed:', data);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error uploading PDF to Meta:', error);
+    return null;
+  }
+}
+
+// Send template message with document header (PDF embedded in template)
+async function sendDocumentHeaderTemplate(
+  phoneNumberId: string,
+  accessToken: string,
+  toPhone: string,
+  templateName: string,
+  templateLanguage: string,
+  mediaId: string,
+  filename: string,
+  bodyParameters: Array<Record<string, string>>
+): Promise<{ success: boolean; messageId?: string; error?: string; responseData?: any }> {
+  const metaApiUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  
+  const components: Array<Record<string, unknown>> = [
+    {
+      type: "header",
+      parameters: [
+        {
+          type: "document",
+          document: {
+            id: mediaId,
+            filename: filename,
+          },
+        },
+      ],
+    },
+  ];
+  
+  // Add body parameters if present
+  if (bodyParameters.length > 0) {
+    components.push({
+      type: "body",
+      parameters: bodyParameters,
+    });
+  }
+  
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: toPhone,
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: templateLanguage },
+      components: components,
+    },
+  };
+  
+  console.log('Sending document header template:', JSON.stringify(payload));
+  
+  const response = await fetch(metaApiUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  
+  const responseData = await response.json();
+  console.log('Document header template response:', JSON.stringify(responseData));
+  
+  if (response.ok && responseData.messages?.[0]?.id) {
+    return { success: true, messageId: responseData.messages[0].id, responseData };
+  } else {
+    return { 
+      success: false, 
+      error: responseData.error?.message || 'Failed to send document header template',
+      responseData 
+    };
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -221,7 +346,10 @@ serve(async (req) => {
       referenceType,
       documentUrl,
       documentFilename,
-      documentCaption
+      documentCaption,
+      useDocumentHeaderTemplate,
+      documentHeaderTemplateName,
+      pdfBlob
     }: SendWhatsAppRequest = await req.json();
 
     // Validate required fields - message is optional for template messages
@@ -374,6 +502,110 @@ serve(async (req) => {
 
     if (logError) {
       console.error('Error creating log entry:', logError);
+    }
+
+    // Check if we should use document header template (PDF embedded in template header)
+    // This bypasses the 24-hour window restriction since it's a template message
+    const shouldUseDocumentHeader = useDocumentHeaderTemplate && 
+      pdfBlob && 
+      (documentHeaderTemplateName || orgSettings?.invoice_document_template_name);
+    
+    if (shouldUseDocumentHeader) {
+      console.log('Using document header template for direct PDF delivery');
+      
+      const docTemplateName = documentHeaderTemplateName || orgSettings?.invoice_document_template_name;
+      
+      // Fetch template language
+      let docTemplateLanguage = 'en_US';
+      const { data: docMetaTemplates } = await supabase
+        .from('whatsapp_meta_templates')
+        .select('template_language')
+        .eq('organization_id', organizationId)
+        .eq('template_name', docTemplateName);
+      
+      if (docMetaTemplates && docMetaTemplates.length > 0) {
+        const enUSTemplate = docMetaTemplates.find((t: any) => t.template_language === 'en_US');
+        docTemplateLanguage = (enUSTemplate || docMetaTemplates[0]).template_language;
+      }
+      
+      // Upload PDF to Meta
+      const mediaId = await uploadPdfToMeta(
+        pdfBlob,
+        documentFilename || 'Invoice.pdf',
+        settings.phone_number_id,
+        settings.access_token
+      );
+      
+      if (!mediaId) {
+        console.error('Failed to upload PDF to Meta, falling back to regular template');
+        // Continue with regular flow below
+      } else {
+        // Build body parameters for document header template
+        let docBodyParams: Array<Record<string, string>> = [];
+        
+        // Get param mapping from orgSettings if available
+        const docParamMapping = orgSettings?.invoice_document_template_params as any[] | null;
+        
+        if (docParamMapping && docParamMapping.length > 0 && saleData) {
+          const { data: companySettings } = await supabase
+            .from('settings')
+            .select('business_name')
+            .eq('organization_id', organizationId)
+            .maybeSingle();
+          
+          const orgName = companySettings?.business_name || 'Our Company';
+          const params = buildTemplateParams(docParamMapping, saleData, orgName);
+          docBodyParams = params.map((text) => ({ type: 'text', text }));
+        }
+        
+        // Send document header template
+        const docResult = await sendDocumentHeaderTemplate(
+          settings.phone_number_id,
+          settings.access_token,
+          formattedPhone,
+          docTemplateName,
+          docTemplateLanguage,
+          mediaId,
+          documentFilename || 'Invoice.pdf',
+          docBodyParams
+        );
+        
+        // Update log entry
+        if (logEntry) {
+          await supabase
+            .from('whatsapp_logs')
+            .update({
+              status: docResult.success ? 'sent' : 'failed',
+              wamid: docResult.messageId || null,
+              sent_at: new Date().toISOString(),
+              error_message: docResult.error || null,
+              provider_response: docResult.responseData,
+              template_name: docTemplateName,
+            })
+            .eq('id', logEntry.id);
+        }
+        
+        if (docResult.success) {
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              messageId: docResult.messageId,
+              documentEmbedded: true,
+              logId: logEntry?.id
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: docResult.error || 'Failed to send document header template',
+              details: docResult.responseData
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     }
 
     // Call Meta WhatsApp Business API

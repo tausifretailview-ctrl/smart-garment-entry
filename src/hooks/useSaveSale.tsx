@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
-import { generateAndUploadInvoicePDF, InvoicePdfData } from "@/utils/invoicePdfUploader";
+import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 
 interface CartItem {
   id: string;
@@ -342,7 +342,7 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await (supabase as any)
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template')
+            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template, use_document_header_template, invoice_document_template_name')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
@@ -387,10 +387,13 @@ export const useSaveSale = () => {
               facebook: whatsappSettings.social_links?.facebook || '',
             };
 
-            // Generate and upload PDF if enabled
+            // Generate PDF if enabled (either for document header template or regular attachment)
             let documentUrl: string | undefined;
             let documentFilename: string | undefined;
             let documentCaption: string | undefined;
+            let pdfBase64: string | undefined;
+            let useDocumentHeaderTemplate = false;
+            let documentHeaderTemplateName: string | undefined;
 
             if (whatsappSettings.send_invoice_pdf) {
               try {
@@ -431,11 +434,24 @@ export const useSaveSale = () => {
                   companyGst: companySettings?.gst_number || undefined,
                 };
 
-                console.log('PDF data prepared, uploading...');
-                documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
                 documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
                 documentCaption = `Invoice ${saleNumber} - Rs ${formattedAmount}`;
-                console.log('Invoice PDF generated and uploaded:', documentUrl);
+
+                // Check if document header template is configured (bypasses 24h window)
+                if (whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name) {
+                  console.log('Using document header template for direct PDF delivery');
+                  useDocumentHeaderTemplate = true;
+                  documentHeaderTemplateName = whatsappSettings.invoice_document_template_name;
+                  
+                  // Generate base64 PDF for Meta upload
+                  pdfBase64 = generateInvoicePdfBase64(pdfData);
+                  console.log('PDF base64 generated, length:', pdfBase64?.length);
+                } else {
+                  // Use regular flow - upload to Supabase storage
+                  console.log('PDF data prepared, uploading to storage...');
+                  documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
+                  console.log('Invoice PDF generated and uploaded:', documentUrl);
+                }
               } catch (pdfError: any) {
                 console.error('Failed to generate/upload invoice PDF:', pdfError?.message || pdfError);
                 // Don't fail the sale if PDF generation fails
@@ -452,10 +468,14 @@ export const useSaveSale = () => {
                 saleData: saleDataForWhatsApp,
                 referenceId: sale.id,
                 referenceType: 'sale',
-                // Include PDF attachment if generated
+                // Include PDF attachment if generated (regular flow)
                 documentUrl,
                 documentFilename,
                 documentCaption,
+                // Document header template options (bypasses 24h window)
+                useDocumentHeaderTemplate,
+                documentHeaderTemplateName,
+                pdfBlob: pdfBase64,
               }
             });
             console.log('WhatsApp invoice notification sent');

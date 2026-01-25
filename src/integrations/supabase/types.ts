@@ -3593,6 +3593,8 @@ export type Database = {
           followup_social_message: string | null
           handoff_keywords: string[] | null
           id: string
+          invoice_document_template_name: string | null
+          invoice_document_template_params: Json | null
           invoice_link_message: string | null
           invoice_pdf_template: string | null
           invoice_template_name: string | null
@@ -3617,6 +3619,7 @@ export type Database = {
           social_links: Json | null
           updated_at: string
           use_default_api: boolean | null
+          use_document_header_template: boolean | null
           waba_id: string | null
           webhook_verify_token: string | null
         }
@@ -3643,6 +3646,8 @@ export type Database = {
           followup_social_message?: string | null
           handoff_keywords?: string[] | null
           id?: string
+          invoice_document_template_name?: string | null
+          invoice_document_template_params?: Json | null
           invoice_link_message?: string | null
           invoice_pdf_template?: string | null
           invoice_template_name?: string | null
@@ -3667,6 +3672,7 @@ export type Database = {
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
+          use_document_header_template?: boolean | null
           waba_id?: string | null
           webhook_verify_token?: string | null
         }
@@ -3693,6 +3699,8 @@ export type Database = {
           followup_social_message?: string | null
           handoff_keywords?: string[] | null
           id?: string
+          invoice_document_template_name?: string | null
+          invoice_document_template_params?: Json | null
           invoice_link_message?: string | null
           invoice_pdf_template?: string | null
           invoice_template_name?: string | null
@@ -3717,6 +3725,7 @@ export type Database = {
           social_links?: Json | null
           updated_at?: string
           use_default_api?: boolean | null
+          use_document_header_template?: boolean | null
           waba_id?: string | null
           webhook_verify_token?: string | null
         }

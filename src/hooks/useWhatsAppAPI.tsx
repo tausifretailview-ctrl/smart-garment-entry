@@ -62,6 +62,10 @@ export interface WhatsAppSettings {
   // Invoice PDF attachment settings
   send_invoice_pdf: boolean;
   invoice_pdf_template: string | null;
+  // Document header template (PDF embedded in template - bypasses 24h window)
+  use_document_header_template: boolean;
+  invoice_document_template_name: string | null;
+  invoice_document_template_params: TemplateParam[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,10 +98,14 @@ export interface SendMessageParams {
   saleData?: Record<string, unknown>;
   referenceId?: string;
   referenceType?: string;
-  // Document attachment for PDF sending
+  // Document attachment for PDF
   documentUrl?: string;
   documentFilename?: string;
   documentCaption?: string;
+  // Document header template (PDF embedded in template)
+  useDocumentHeaderTemplate?: boolean;
+  documentHeaderTemplateName?: string;
+  pdfBlob?: string; // Base64 encoded PDF
 }
 
 export const useWhatsAppAPI = () => {
@@ -134,6 +142,10 @@ export const useWhatsAppAPI = () => {
         payment_reminder_template_params: Array.isArray(data.payment_reminder_template_params) 
           ? data.payment_reminder_template_params as unknown as TemplateParam[] 
           : [],
+        // Parse document header template params
+        invoice_document_template_params: Array.isArray(data.invoice_document_template_params)
+          ? data.invoice_document_template_params as unknown as TemplateParam[]
+          : [],
         // Parse social_links JSONB
         social_links: data.social_links && typeof data.social_links === 'object'
           ? data.social_links as unknown as SocialLinks
@@ -165,6 +177,9 @@ export const useWhatsAppAPI = () => {
           : undefined,
         payment_reminder_template_params: newSettings.payment_reminder_template_params 
           ? JSON.parse(JSON.stringify(newSettings.payment_reminder_template_params)) 
+          : undefined,
+        invoice_document_template_params: newSettings.invoice_document_template_params
+          ? JSON.parse(JSON.stringify(newSettings.invoice_document_template_params))
           : undefined,
       };
 
@@ -220,6 +235,10 @@ export const useWhatsAppAPI = () => {
           documentUrl: params.documentUrl,
           documentFilename: params.documentFilename,
           documentCaption: params.documentCaption,
+          // Document header template (PDF embedded in template)
+          useDocumentHeaderTemplate: params.useDocumentHeaderTemplate,
+          documentHeaderTemplateName: params.documentHeaderTemplateName,
+          pdfBlob: params.pdfBlob,
         },
       });
 
