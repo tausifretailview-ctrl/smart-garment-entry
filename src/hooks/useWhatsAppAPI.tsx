@@ -59,6 +59,9 @@ export interface WhatsAppSettings {
   followup_review_message: string | null;
   followup_chat_message: string | null;
   social_links: SocialLinks | null;
+  // Invoice PDF attachment settings
+  send_invoice_pdf: boolean;
+  invoice_pdf_template: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -91,6 +94,10 @@ export interface SendMessageParams {
   saleData?: Record<string, unknown>;
   referenceId?: string;
   referenceType?: string;
+  // Document attachment for PDF sending
+  documentUrl?: string;
+  documentFilename?: string;
+  documentCaption?: string;
 }
 
 export const useWhatsAppAPI = () => {
@@ -209,6 +216,10 @@ export const useWhatsAppAPI = () => {
           referenceId: params.referenceId,
           referenceType: params.referenceType,
           saleData: params.saleData, // Pass saleData for template parameter building
+          // Document attachment for PDF
+          documentUrl: params.documentUrl,
+          documentFilename: params.documentFilename,
+          documentCaption: params.documentCaption,
         },
       });
 

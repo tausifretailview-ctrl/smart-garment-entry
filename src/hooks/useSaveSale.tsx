@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
+import { generateAndUploadInvoicePDF, InvoicePdfData } from "@/utils/invoicePdfUploader";
 
 interface CartItem {
   id: string;
@@ -341,7 +342,7 @@ export const useSaveSale = () => {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await (supabase as any)
             .from('whatsapp_api_settings')
-            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links')
+            .select('is_active, auto_send_invoice, invoice_template_name, auto_send_invoice_link, invoice_link_message, social_links, send_invoice_pdf, invoice_pdf_template')
             .eq('organization_id', currentOrganization.id)
             .maybeSingle();
 
@@ -349,7 +350,7 @@ export const useSaveSale = () => {
             // Fetch company settings from settings table (not organizations.settings)
             const { data: companySettings } = await supabase
               .from('settings')
-              .select('business_name, mobile_number')
+              .select('business_name, mobile_number, address, gst_number')
               .eq('organization_id', currentOrganization.id)
               .maybeSingle();
 
@@ -386,6 +387,57 @@ export const useSaveSale = () => {
               facebook: whatsappSettings.social_links?.facebook || '',
             };
 
+            // Generate and upload PDF if enabled
+            let documentUrl: string | undefined;
+            let documentFilename: string | undefined;
+            let documentCaption: string | undefined;
+
+            if (whatsappSettings.send_invoice_pdf) {
+              try {
+                // Calculate tax amount
+                const taxAmount = saleData.items.reduce((sum, item) => {
+                  const taxableAmount = item.netAmount / (1 + item.gstPer / 100);
+                  return sum + (item.netAmount - taxableAmount);
+                }, 0);
+
+                const pdfData: InvoicePdfData = {
+                  billNo: saleNumber,
+                  billDate: new Date(sale.sale_date || Date.now()),
+                  customerName: saleData.customerName,
+                  customerPhone: saleData.customerPhone || undefined,
+                  items: saleData.items.map(item => ({
+                    particulars: item.productName,
+                    size: item.size,
+                    quantity: item.quantity,
+                    rate: item.unitCost,
+                    mrp: item.mrp,
+                    discount: item.discountPercent,
+                    gstPercent: item.gstPer,
+                    total: item.netAmount,
+                    hsnCode: item.hsnCode,
+                    color: item.color,
+                  })),
+                  grossAmount: saleData.grossAmount,
+                  discountAmount: saleData.discountAmount,
+                  taxAmount: taxAmount,
+                  netAmount: saleData.netAmount,
+                  paymentMethod: finalPaymentMethod,
+                  paidAmount: paidAmt,
+                  companyName: companyName,
+                  companyAddress: companySettings?.address || undefined,
+                  companyGst: companySettings?.gst_number || undefined,
+                };
+
+                documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
+                documentFilename = `Invoice_${saleNumber}.pdf`;
+                documentCaption = `Invoice ${saleNumber} - Rs ${formattedAmount}`;
+                console.log('Invoice PDF generated:', documentUrl);
+              } catch (pdfError) {
+                console.error('Failed to generate invoice PDF:', pdfError);
+                // Don't fail the sale if PDF generation fails
+              }
+            }
+
             await supabase.functions.invoke('send-whatsapp', {
               body: {
                 organizationId: currentOrganization.id,
@@ -395,7 +447,11 @@ export const useSaveSale = () => {
                 templateName: whatsappSettings.invoice_template_name || null,
                 saleData: saleDataForWhatsApp,
                 referenceId: sale.id,
-                referenceType: 'sale'
+                referenceType: 'sale',
+                // Include PDF attachment if generated
+                documentUrl,
+                documentFilename,
+                documentCaption,
               }
             });
             console.log('WhatsApp invoice notification sent');
