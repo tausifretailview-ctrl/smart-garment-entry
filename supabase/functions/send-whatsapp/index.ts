@@ -506,9 +506,16 @@ serve(async (req) => {
 
     // Check if we should use document header template (PDF embedded in template header)
     // This bypasses the 24-hour window restriction since it's a template message
+    console.log('Document header check - useDocumentHeaderTemplate:', useDocumentHeaderTemplate);
+    console.log('Document header check - pdfBlob present:', !!pdfBlob, pdfBlob ? `length: ${pdfBlob.length}` : 'N/A');
+    console.log('Document header check - documentHeaderTemplateName:', documentHeaderTemplateName);
+    console.log('Document header check - orgSettings template:', orgSettings?.invoice_document_template_name);
+    
     const shouldUseDocumentHeader = useDocumentHeaderTemplate && 
       pdfBlob && 
       (documentHeaderTemplateName || orgSettings?.invoice_document_template_name);
+    
+    console.log('shouldUseDocumentHeader:', shouldUseDocumentHeader);
     
     if (shouldUseDocumentHeader) {
       console.log('Using document header template for direct PDF delivery');

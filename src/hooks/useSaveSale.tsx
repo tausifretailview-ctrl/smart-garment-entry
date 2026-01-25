@@ -458,13 +458,19 @@ export const useSaveSale = () => {
               }
             }
 
+            // When using document header template, don't pass regular templateName 
+            // to avoid the edge function trying to send it as a regular template
+            const effectiveTemplateName = useDocumentHeaderTemplate 
+              ? null 
+              : (whatsappSettings.invoice_template_name || null);
+
             await supabase.functions.invoke('send-whatsapp', {
               body: {
                 organizationId: currentOrganization.id,
                 phone: saleData.customerPhone,
                 message: messageText,
                 templateType: 'sales_invoice',
-                templateName: whatsappSettings.invoice_template_name || null,
+                templateName: effectiveTemplateName,
                 saleData: saleDataForWhatsApp,
                 referenceId: sale.id,
                 referenceType: 'sale',
