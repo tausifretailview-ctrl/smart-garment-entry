@@ -100,6 +100,9 @@ export const WhatsAppAPISettings = () => {
     // Invoice PDF attachment settings
     send_invoice_pdf: false,
     invoice_pdf_template: "professional",
+    // Document header template (PDF embedded in template - bypasses 24h window)
+    use_document_header_template: false,
+    invoice_document_template_name: "",
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -150,6 +153,9 @@ export const WhatsAppAPISettings = () => {
         // Invoice PDF attachment settings
         send_invoice_pdf: (settings as any).send_invoice_pdf || false,
         invoice_pdf_template: (settings as any).invoice_pdf_template || "professional",
+        // Document header template
+        use_document_header_template: (settings as any).use_document_header_template || false,
+        invoice_document_template_name: (settings as any).invoice_document_template_name || "",
       });
     }
   }, [settings]);
@@ -764,6 +770,42 @@ export const WhatsAppAPISettings = () => {
                 <p className="text-xs text-muted-foreground">
                   Choose which invoice template format to use for PDF generation
                 </p>
+              </div>
+
+              <Separator />
+
+              {/* Document Header Template - Direct PDF Delivery */}
+              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <Label htmlFor="use_document_header_template" className="font-medium text-green-800 dark:text-green-200">
+                      📎 Direct PDF Delivery (Recommended)
+                    </Label>
+                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                      Embed PDF in template header - <strong>bypasses 24-hour window restriction!</strong>
+                    </p>
+                  </div>
+                  <Switch
+                    id="use_document_header_template"
+                    checked={formData.use_document_header_template}
+                    onCheckedChange={(checked) => handleInputChange("use_document_header_template", checked)}
+                  />
+                </div>
+
+                {formData.use_document_header_template && (
+                  <div className="space-y-2 mt-3">
+                    <Label htmlFor="invoice_document_template_name">Document Header Template Name</Label>
+                    <Input
+                      id="invoice_document_template_name"
+                      placeholder="e.g., invoice_with_pdf"
+                      value={formData.invoice_document_template_name}
+                      onChange={(e) => handleInputChange("invoice_document_template_name", e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Create a template with DOCUMENT header type in Meta Business Suite first
+                    </p>
+                  </div>
+                )}
               </div>
             </>
           )}
