@@ -464,6 +464,13 @@ export const useSaveSale = () => {
               ? null 
               : (whatsappSettings.invoice_template_name || null);
 
+            console.log('WhatsApp invoke params:', {
+              useDocumentHeaderTemplate,
+              documentHeaderTemplateName,
+              pdfBase64Length: pdfBase64?.length,
+              effectiveTemplateName,
+            });
+
             await supabase.functions.invoke('send-whatsapp', {
               body: {
                 organizationId: currentOrganization.id,
@@ -479,9 +486,9 @@ export const useSaveSale = () => {
                 documentFilename,
                 documentCaption,
                 // Document header template options (bypasses 24h window)
-                useDocumentHeaderTemplate,
-                documentHeaderTemplateName,
-                pdfBlob: pdfBase64,
+                useDocumentHeaderTemplate: useDocumentHeaderTemplate || false,
+                documentHeaderTemplateName: documentHeaderTemplateName || null,
+                pdfBlob: pdfBase64 || null,
               }
             });
             console.log('WhatsApp invoice notification sent');

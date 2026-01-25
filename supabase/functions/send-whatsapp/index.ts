@@ -655,6 +655,47 @@ serve(async (req) => {
         console.log('Template not found in DB, using default language: en_US');
       }
 
+      // Check if this template requires a DOCUMENT header - if so, we cannot send without PDF
+      const headerComponent = templateComponents?.find((c: any) => c?.type?.toUpperCase() === 'HEADER');
+      const requiresDocumentHeader = headerComponent?.format?.toUpperCase() === 'DOCUMENT';
+      
+      if (requiresDocumentHeader) {
+        console.error('Template requires DOCUMENT header but pdfBlob was not provided');
+        console.log('This template should be configured as Document Header Template, not regular Invoice Template');
+        
+        // Update log entry with clear error
+        if (logEntry) {
+          await supabase
+            .from('whatsapp_logs')
+            .update({
+              status: 'failed',
+              sent_at: new Date().toISOString(),
+              error_message: 'Template requires PDF document header. Please configure this template in "Direct PDF Delivery" settings, not as regular Invoice Template.',
+              provider_response: {
+                error: {
+                  code: 'DOCUMENT_HEADER_REQUIRED',
+                  message: 'This template has a DOCUMENT header type and requires PDF to be embedded. Use Direct PDF Delivery setting instead.',
+                  templateName: cleanedTemplateName,
+                },
+              },
+            })
+            .eq('id', logEntry.id);
+        }
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Template requires PDF document header. Configure it in "Direct PDF Delivery" settings instead of "Invoice Template".',
+            details: {
+              templateName: cleanedTemplateName,
+              headerType: 'DOCUMENT',
+              suggestion: 'Move this template name from "Invoice Template" to "Document Header Template Name" field and enable "Direct PDF Delivery"',
+            },
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // Determine which params to use - either directly provided or built from saleData
       let finalTemplateParams: string[] = [];
       
