@@ -394,6 +394,8 @@ export const useSaveSale = () => {
 
             if (whatsappSettings.send_invoice_pdf) {
               try {
+                console.log('Starting PDF generation for invoice:', saleNumber);
+                
                 // Calculate tax amount
                 const taxAmount = saleData.items.reduce((sum, item) => {
                   const taxableAmount = item.netAmount / (1 + item.gstPer / 100);
@@ -402,7 +404,7 @@ export const useSaveSale = () => {
 
                 const pdfData: InvoicePdfData = {
                   billNo: saleNumber,
-                  billDate: new Date(sale.sale_date || Date.now()),
+                  billDate: new Date(sale.sale_date || sale.created_at || Date.now()),
                   customerName: saleData.customerName,
                   customerPhone: saleData.customerPhone || undefined,
                   items: saleData.items.map(item => ({
@@ -425,15 +427,17 @@ export const useSaveSale = () => {
                   paidAmount: paidAmt,
                   companyName: companyName,
                   companyAddress: companySettings?.address || undefined,
+                  companyPhone: companySettings?.mobile_number || undefined,
                   companyGst: companySettings?.gst_number || undefined,
                 };
 
+                console.log('PDF data prepared, uploading...');
                 documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
-                documentFilename = `Invoice_${saleNumber}.pdf`;
+                documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
                 documentCaption = `Invoice ${saleNumber} - Rs ${formattedAmount}`;
-                console.log('Invoice PDF generated:', documentUrl);
-              } catch (pdfError) {
-                console.error('Failed to generate invoice PDF:', pdfError);
+                console.log('Invoice PDF generated and uploaded:', documentUrl);
+              } catch (pdfError: any) {
+                console.error('Failed to generate/upload invoice PDF:', pdfError?.message || pdfError);
                 // Don't fail the sale if PDF generation fails
               }
             }
