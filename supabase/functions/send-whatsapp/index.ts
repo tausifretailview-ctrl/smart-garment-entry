@@ -686,6 +686,10 @@ serve(async (req) => {
                 google_review: String(orgSettings.social_links?.google_review || ''),
                 whatsapp_link: whatsappLink,
                 message_template: orgSettings.button_followup_message || '📄 Thank you for viewing your invoice!\n\nHere are your links:\n🌐 Website: {website}\n📷 Instagram: {instagram}\n\nRate us: ⭐⭐⭐⭐⭐',
+                // If a PDF was generated for this invoice, store it so we can send it after user interaction
+                document_url: String(documentUrl || ''),
+                document_filename: String(documentFilename || ''),
+                document_caption: String(documentCaption || ''),
               }
             })
             .eq('id', logEntry.id);

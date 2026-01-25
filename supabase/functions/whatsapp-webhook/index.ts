@@ -334,6 +334,49 @@ async function sendWhatsAppMessage(
   }
 }
 
+// Send WhatsApp document (PDF) - only works within the 24-hour customer service window
+async function sendWhatsAppDocument(
+  settings: any,
+  recipientPhone: string,
+  documentUrl: string,
+  filename: string,
+  caption?: string
+) {
+  const url = `https://graph.facebook.com/v18.0/${settings.phone_number_id}/messages`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: recipientPhone,
+        type: 'document',
+        document: {
+          link: documentUrl,
+          filename: filename || 'Invoice.pdf',
+          caption: caption || '',
+        },
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('WhatsApp document send error:', data);
+      return { wamid: null, error: data?.error || data };
+    }
+
+    return { wamid: data?.messages?.[0]?.id || null, error: null };
+  } catch (error) {
+    console.error('WhatsApp document send error:', error);
+    return { wamid: null, error };
+  }
+}
+
 // Check if message contains handoff keywords
 function shouldHandoff(message: string, keywords: string[]): boolean {
   const lowerMessage = message.toLowerCase();
@@ -600,11 +643,61 @@ Deno.serve(async (req) => {
                         .order('created_at', { ascending: false })
                         .limit(1);
                       
-                      if (pendingLogs && pendingLogs.length > 0) {
+                        if (pendingLogs && pendingLogs.length > 0) {
                         const log = pendingLogs[0];
                         const followupData = log.followup_data as Record<string, string> | null;
                         
                         if (followupData && followupData.invoice_link) {
+                            // If a PDF is queued, send it first (button click opens the 24h window)
+                            const docUrl = String(followupData.document_url || '').trim();
+                            if (docUrl) {
+                              const { wamid: docWamid, error: docErr } = await sendWhatsAppDocument(
+                                settings,
+                                senderPhone,
+                                docUrl,
+                                String(followupData.document_filename || 'Invoice.pdf'),
+                                String(followupData.document_caption || '')
+                              );
+
+                              if (docWamid) {
+                                await supabase.from('whatsapp_messages').insert({
+                                  organization_id: organizationId,
+                                  conversation_id: conversation.id,
+                                  wamid: docWamid,
+                                  direction: 'outbound',
+                                  message_type: 'document',
+                                  media_url: docUrl,
+                                  message_text: `PDF Document: ${String(followupData.document_filename || 'Invoice.pdf')}`,
+                                  status: 'sent',
+                                  sent_at: new Date().toISOString(),
+                                });
+                                await supabase.from('whatsapp_logs').insert({
+                                  organization_id: organizationId,
+                                  phone_number: senderPhone,
+                                  message: `PDF Document: ${String(followupData.document_filename || 'Invoice.pdf')}`,
+                                  template_type: 'document_attachment',
+                                  status: 'sent',
+                                  wamid: docWamid,
+                                  sent_at: new Date().toISOString(),
+                                });
+
+                                // Clear the doc so we don't resend it on future clicks
+                                await supabase
+                                  .from('whatsapp_logs')
+                                  .update({
+                                    followup_data: {
+                                      ...followupData,
+                                      document_url: '',
+                                      document_filename: '',
+                                      document_caption: '',
+                                    },
+                                  })
+                                  .eq('id', log.id);
+                              } else {
+                                console.log('Queued PDF send failed after feedback click:', docErr);
+                              }
+                            }
+
                           const invoiceMessage = (settings.followup_invoice_message || '📄 Thank you for your feedback! 🙏\n\nHere is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nWe appreciate your business! 💫')
                             .replace('{invoice_link}', followupData.invoice_link || '')
                             .replace('{sale_number}', followupData.sale_number || '')
@@ -654,11 +747,61 @@ Deno.serve(async (req) => {
                         .order('created_at', { ascending: false })
                         .limit(1);
                       
-                      if (pendingLogs && pendingLogs.length > 0) {
+                        if (pendingLogs && pendingLogs.length > 0) {
                         const log = pendingLogs[0];
                         const followupData = log.followup_data as Record<string, string> | null;
                         
                         if (followupData && followupData.invoice_link) {
+                            // If a PDF is queued, send it first (button click opens the 24h window)
+                            const docUrl = String(followupData.document_url || '').trim();
+                            if (docUrl) {
+                              const { wamid: docWamid, error: docErr } = await sendWhatsAppDocument(
+                                settings,
+                                senderPhone,
+                                docUrl,
+                                String(followupData.document_filename || 'Invoice.pdf'),
+                                String(followupData.document_caption || '')
+                              );
+
+                              if (docWamid) {
+                                await supabase.from('whatsapp_messages').insert({
+                                  organization_id: organizationId,
+                                  conversation_id: conversation.id,
+                                  wamid: docWamid,
+                                  direction: 'outbound',
+                                  message_type: 'document',
+                                  media_url: docUrl,
+                                  message_text: `PDF Document: ${String(followupData.document_filename || 'Invoice.pdf')}`,
+                                  status: 'sent',
+                                  sent_at: new Date().toISOString(),
+                                });
+                                await supabase.from('whatsapp_logs').insert({
+                                  organization_id: organizationId,
+                                  phone_number: senderPhone,
+                                  message: `PDF Document: ${String(followupData.document_filename || 'Invoice.pdf')}`,
+                                  template_type: 'document_attachment',
+                                  status: 'sent',
+                                  wamid: docWamid,
+                                  sent_at: new Date().toISOString(),
+                                });
+
+                                // Clear the doc so we don't resend it on future clicks
+                                await supabase
+                                  .from('whatsapp_logs')
+                                  .update({
+                                    followup_data: {
+                                      ...followupData,
+                                      document_url: '',
+                                      document_filename: '',
+                                      document_caption: '',
+                                    },
+                                  })
+                                  .eq('id', log.id);
+                              } else {
+                                console.log('Queued PDF send failed after Order Details click:', docErr);
+                              }
+                            }
+
                           // Step 1: Send Invoice Link
                           const invoiceMessage = (settings.followup_invoice_message || '📄 Here is your invoice link:\n{invoice_link}\n\nInvoice No: {sale_number}\nThank you for your business!')
                             .replace('{invoice_link}', followupData.invoice_link || '')
