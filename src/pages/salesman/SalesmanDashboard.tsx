@@ -91,17 +91,17 @@ const SalesmanDashboard = () => {
   };
 
   const statCards = [
-    { label: "Today's Orders", value: stats.todayOrders, icon: ShoppingCart, color: "text-blue-500" },
-    { label: "Pending", value: stats.pendingOrders, icon: Clock, color: "text-yellow-500" },
-    { label: "Customers", value: stats.customersVisited, icon: Users, color: "text-green-500" },
-    { label: "Total Value", value: `₹${stats.todayValue.toLocaleString("en-IN")}`, icon: IndianRupee, color: "text-purple-500" },
+    { label: "Today's Orders", value: stats.todayOrders, icon: ShoppingCart, gradient: "from-orange-500 to-amber-500" },
+    { label: "Pending", value: stats.pendingOrders, icon: Clock, gradient: "from-yellow-500 to-orange-400" },
+    { label: "Customers", value: stats.customersVisited, icon: Users, gradient: "from-amber-500 to-yellow-500" },
+    { label: "Total Value", value: `₹${stats.todayValue.toLocaleString("en-IN")}`, icon: IndianRupee, gradient: "from-orange-600 to-amber-500" },
   ];
 
   const quickActions = [
-    { label: "New Sales Order", icon: Plus, path: "/salesman/order/new", variant: "default" as const },
-    { label: "Customer List", icon: Users, path: "/salesman/customers", variant: "outline" as const },
-    { label: "My Orders Today", icon: ListOrdered, path: "/salesman/orders", variant: "outline" as const },
-    { label: "Outstanding Report", icon: Wallet, path: "/salesman/outstanding", variant: "outline" as const },
+    { label: "New Sales Order", icon: Plus, path: "/salesman/order/new", primary: true },
+    { label: "Customer List", icon: Users, path: "/salesman/customers", primary: false },
+    { label: "My Orders Today", icon: ListOrdered, path: "/salesman/orders", primary: false },
+    { label: "Outstanding Report", icon: Wallet, path: "/salesman/outstanding", primary: false },
   ];
 
   if (loading) {
@@ -125,20 +125,20 @@ const SalesmanDashboard = () => {
         <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE, dd MMM yyyy")}</p>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Orange gradient cards */}
       <div className="grid grid-cols-2 gap-2">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.label} className="border shadow-sm">
-              <CardContent className="p-2">
+            <Card key={stat.label} className={`bg-gradient-to-br ${stat.gradient} text-white border-0 shadow-lg`}>
+              <CardContent className="p-3">
                 <div className="flex items-center gap-2">
-                  <div className={`p-1.5 rounded-full bg-muted ${stat.color}`}>
+                  <div className="p-2 rounded-full bg-white/20">
                     <Icon className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">{stat.value}</p>
-                    <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                    <p className="text-lg font-bold">{stat.value}</p>
+                    <p className="text-[10px] text-white/80">{stat.label}</p>
                   </div>
                 </div>
               </CardContent>
@@ -155,13 +155,17 @@ const SalesmanDashboard = () => {
           return (
             <Button
               key={action.label}
-              variant={action.variant}
-              className="w-full h-10 justify-start text-left text-sm"
+              variant={action.primary ? "default" : "outline"}
+              className={`w-full h-10 justify-start text-left text-sm ${
+                action.primary 
+                  ? "bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white border-0" 
+                  : "border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-500"
+              }`}
               onClick={() => navigate(action.path)}
             >
               <Icon className="h-4 w-4 mr-2" />
               <span className="flex-1">{action.label}</span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              <ChevronRight className={`h-4 w-4 ${action.primary ? "text-white/70" : "text-muted-foreground"}`} />
             </Button>
           );
         })}
@@ -174,13 +178,13 @@ const SalesmanDashboard = () => {
           {recentOrders.map((order) => (
             <Card
               key={order.id}
-              className="border shadow-sm cursor-pointer hover:bg-muted/50 transition-colors"
+              className="border border-orange-500/20 shadow-sm cursor-pointer hover:bg-orange-500/5 transition-colors"
               onClick={() => navigate(`/salesman/order/${order.id}`)}
             >
               <CardContent className="p-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-xs">{order.order_number}</p>
+                    <p className="font-medium text-xs text-orange-500">{order.order_number}</p>
                     <p className="text-xs text-muted-foreground">{order.customer_name}</p>
                   </div>
                   <div className="text-right">

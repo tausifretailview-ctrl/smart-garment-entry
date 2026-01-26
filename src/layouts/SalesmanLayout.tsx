@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Outlet, useLocation, Navigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Outlet, useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Home, Users, ShoppingCart, ListOrdered, LogOut, Download, AlertCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,45 @@ const SalesmanLayout = () => {
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
 
+  // Dynamic manifest and theme for Field Sales PWA
+  useEffect(() => {
+    // Update manifest link for Field Sales
+    const manifestLink = document.querySelector('link[rel="manifest"]');
+    const originalManifest = manifestLink?.getAttribute('href');
+    if (manifestLink) {
+      manifestLink.setAttribute('href', '/manifest-field-sales.webmanifest');
+    }
+
+    // Update theme-color meta tag to orange
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    const originalThemeColor = themeColor?.getAttribute('content');
+    if (themeColor) {
+      themeColor.setAttribute('content', '#F97316');
+    }
+
+    // Update apple-mobile-web-app-title
+    let appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!appleTitle) {
+      appleTitle = document.createElement('meta');
+      appleTitle.setAttribute('name', 'apple-mobile-web-app-title');
+      document.head.appendChild(appleTitle);
+    }
+    appleTitle.setAttribute('content', 'Field Sales');
+
+    return () => {
+      // Restore original values when leaving Field Sales
+      if (manifestLink && originalManifest) {
+        manifestLink.setAttribute('href', originalManifest);
+      }
+      if (themeColor && originalThemeColor) {
+        themeColor.setAttribute('content', originalThemeColor);
+      }
+      if (appleTitle) {
+        appleTitle.setAttribute('content', 'EzzyERP');
+      }
+    };
+  }, []);
+
   const navItems = [
     { icon: Home, label: "Home", path: "/salesman" },
     { icon: Users, label: "Customers", path: "/salesman/customers" },
@@ -33,30 +72,30 @@ const SalesmanLayout = () => {
 
   const handleInstall = async () => {
     if (isInstalled) {
-      toast.info("App is already installed!");
+      toast.info("Field Sales app is already installed!");
       return;
     }
     
     if (isInstallable) {
       const installed = await promptInstall();
       if (installed) {
-        toast.success("App installed successfully!");
+        toast.success("Field Sales app installed successfully!");
       }
     } else {
       // Show manual installation instructions
       toast.info(
-        "To install: Open browser menu → 'Add to Home Screen' or 'Install App'",
+        "To install Field Sales: Open browser menu → 'Add to Home Screen'",
         { duration: 5000 }
       );
     }
   };
 
-  // Show loading state
+  // Show loading state with orange spinner
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
           <p className="mt-4 text-muted-foreground">Checking access...</p>
         </div>
       </div>
@@ -67,10 +106,10 @@ const SalesmanLayout = () => {
   if (!hasAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
+        <Card className="max-w-md w-full border-orange-500/20">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="h-6 w-6 text-destructive" />
+            <div className="mx-auto w-12 h-12 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="h-6 w-6 text-orange-500" />
             </div>
             <CardTitle className="text-xl">Access Denied</CardTitle>
           </CardHeader>
@@ -79,7 +118,7 @@ const SalesmanLayout = () => {
               You don't have access to the Field Sales app. Please contact your administrator to enable Field Sales access for your employee account.
             </p>
             <div className="flex flex-col gap-2">
-              <Button variant="outline" onClick={() => signOut()}>
+              <Button variant="outline" onClick={() => signOut()} className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white">
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
@@ -95,14 +134,14 @@ const SalesmanLayout = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-primary text-primary-foreground px-4 py-3 flex items-center justify-between shadow-md">
+      {/* Header - Orange gradient theme */}
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white px-4 py-3 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
           <ShoppingCart className="h-6 w-6" />
           <div>
             <span className="font-semibold text-lg">Field Sales</span>
             {employeeName && (
-              <p className="text-xs text-primary-foreground/70">{employeeName}</p>
+              <p className="text-xs text-white/80">{employeeName}</p>
             )}
           </div>
         </div>
@@ -111,7 +150,7 @@ const SalesmanLayout = () => {
             variant="ghost"
             size="icon"
             onClick={() => setSizeStockOpen(true)}
-            className="text-primary-foreground hover:bg-primary-foreground/20"
+            className="text-white hover:bg-white/20"
             title="Size Stock"
           >
             <Package className="h-5 w-5" />
@@ -121,7 +160,7 @@ const SalesmanLayout = () => {
               variant="ghost"
               size="icon"
               onClick={handleInstall}
-              className="text-primary-foreground hover:bg-primary-foreground/20"
+              className="text-white hover:bg-white/20"
               title="Install App"
             >
               <Download className="h-5 w-5" />
@@ -131,7 +170,7 @@ const SalesmanLayout = () => {
             variant="ghost"
             size="icon"
             onClick={() => signOut()}
-            className="text-primary-foreground hover:bg-primary-foreground/20"
+            className="text-white hover:bg-white/20"
             title="Logout"
           >
             <LogOut className="h-5 w-5" />
@@ -147,7 +186,7 @@ const SalesmanLayout = () => {
         <Outlet />
       </main>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation - Orange active state */}
       <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50 safe-area-pb">
         <div className="flex items-center justify-around h-16">
           {navItems.map((item) => {
@@ -160,11 +199,11 @@ const SalesmanLayout = () => {
                 className={cn(
                   "flex flex-col items-center justify-center flex-1 h-full transition-colors",
                   active
-                    ? "text-primary"
+                    ? "text-orange-500"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className={cn("h-6 w-6", active && "fill-primary/20")} />
+                <Icon className={cn("h-6 w-6", active && "fill-orange-500/20")} />
                 <span className="text-xs mt-1 font-medium">{item.label}</span>
               </a>
             );
