@@ -157,19 +157,19 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                 </span>
               </td>
               <td className="border border-gray-300 p-2 text-right">
-                ₹{invoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{Math.round(invoiceAmount).toLocaleString("en-IN")}
               </td>
             </tr>
             <tr>
               <td className="border border-gray-300 p-2 font-medium">Previous Balance</td>
               <td className="border border-gray-300 p-2 text-right font-medium">
-                ₹{previousBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{Math.round(previousBalance).toLocaleString("en-IN")}
               </td>
             </tr>
             <tr className="bg-green-50">
               <td className="border border-gray-300 p-2 font-bold">Amount Received</td>
               <td className="border border-gray-300 p-2 text-right font-bold text-green-700">
-                ₹{paidAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{Math.round(paidAmount).toLocaleString("en-IN")}
               </td>
             </tr>
             {discountAmount > 0 && (
@@ -183,7 +183,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                   )}
                 </td>
                 <td className="border border-gray-300 p-2 text-right font-medium text-amber-700">
-                  ₹{discountAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{Math.round(discountAmount).toLocaleString("en-IN")}
                 </td>
               </tr>
             )}
@@ -191,7 +191,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
               <tr className="bg-emerald-50">
                 <td className="border border-gray-300 p-2 font-bold">Total Settled</td>
                 <td className="border border-gray-300 p-2 text-right font-bold text-emerald-700">
-                  ₹{totalSettled.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{Math.round(totalSettled).toLocaleString("en-IN")}
                 </td>
               </tr>
             )}
@@ -204,7 +204,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
             <tr className="bg-blue-50">
               <td className="border border-gray-300 p-2 font-bold">Current Balance</td>
               <td className="border border-gray-300 p-2 text-right font-bold text-blue-700">
-                ₹{currentBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{Math.round(currentBalance).toLocaleString("en-IN")}
               </td>
             </tr>
           </tbody>

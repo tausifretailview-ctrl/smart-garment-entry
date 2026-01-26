@@ -128,7 +128,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   };
 
   const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₹${Math.round(amount).toLocaleString('en-IN')}`;
   };
 
   const width = format === 'a4' ? '210mm' : format === 'a5-horizontal' ? '210mm' : '148mm';
