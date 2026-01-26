@@ -750,6 +750,16 @@ const ProductEntry = () => {
         });
         return false;
       }
+      
+      // Check barcode is present
+      if (!variant.barcode || variant.barcode.trim() === '') {
+        toast({
+          title: "Barcode Required",
+          description: `Barcode is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please generate barcode first.`,
+          variant: "destructive",
+        });
+        return false;
+      }
     }
 
     // Check for duplicate barcodes within the current variants
@@ -1901,7 +1911,7 @@ const ProductEntry = () => {
                         <TableHead className="text-xs py-1">Sale Price<span className="text-destructive">*</span></TableHead>
                         {showMrp && <TableHead className="text-xs py-1">MRP<span className="text-destructive">*</span></TableHead>}
                         {showMrp && <TableHead className="text-xs py-1">Disc</TableHead>}
-                        <TableHead className="text-xs py-1">Barcode</TableHead>
+                        <TableHead className="text-xs py-1">Barcode<span className="text-destructive">*</span></TableHead>
                         {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Open Qty</TableHead>}
                         <TableHead className="text-xs py-1 text-center">Active</TableHead>
                         <TableHead className="text-xs py-1"></TableHead>
