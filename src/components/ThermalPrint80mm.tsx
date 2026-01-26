@@ -140,7 +140,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     };
 
     const formatCurrency = (amount: number) => {
-      return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
     };
 
     // Calculate GST if not provided
@@ -266,8 +266,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '45%', textAlign: 'left' }}></div>
                 <div style={{ width: '15%', textAlign: 'center', fontWeight: 700 }}>{item.qty}</div>
-                <div style={{ width: '20%', textAlign: 'right' }}>{item.rate.toFixed(2)}</div>
-                <div style={{ width: '20%', textAlign: 'right', fontWeight: 700 }}>{item.total.toFixed(2)}</div>
+                <div style={{ width: '20%', textAlign: 'right' }}>{Math.round(item.rate)}</div>
+                <div style={{ width: '20%', textAlign: 'right', fontWeight: 700 }}>{Math.round(item.total)}</div>
               </div>
             </div>
           ))}

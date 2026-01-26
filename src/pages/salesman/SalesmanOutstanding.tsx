@@ -145,7 +145,8 @@ const SalesmanOutstanding = () => {
           const salesBalance = balanceMap[c.id] || { balance: 0, invoiceCount: 0 };
           const openingBalance = c.opening_balance || 0;
           const openingBalancePaid = openingBalancePayments[c.id] || 0;
-          const totalBalance = openingBalance + salesBalance.balance - openingBalancePaid;
+          // Round balance to whole number (no decimals)
+          const totalBalance = Math.round(openingBalance + salesBalance.balance - openingBalancePaid);
           return {
             id: c.id,
             customer_name: c.customer_name,

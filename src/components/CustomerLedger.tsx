@@ -135,14 +135,14 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
         const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
-        // Balance = Opening Balance + Total Sales - Total Paid
-        const balance = openingBalance + totalSales - totalPaid;
+        // Balance = Opening Balance + Total Sales - Total Paid (rounded to whole number)
+        const balance = Math.round(openingBalance + totalSales - totalPaid);
 
         return {
           ...customer,
-          opening_balance: openingBalance,
-          totalSales,
-          totalPaid,
+          opening_balance: Math.round(openingBalance),
+          totalSales: Math.round(totalSales),
+          totalPaid: Math.round(totalPaid),
           balance,
         };
       });
@@ -669,7 +669,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
 
     // Outstanding Balance
     doc.setFont("helvetica", "bold");
-    const balanceText = `Outstanding Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    const balanceText = `Outstanding Balance: Rs. ${Math.abs(selectedCustomer.balance).toLocaleString("en-IN")}`;
     doc.text(balanceText, pageWidth - margin, yPos, { align: "right" });
     yPos += 10;
 
@@ -703,9 +703,9 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         t.type === 'invoice' ? 'Invoice' : 'Payment',
         t.reference,
         t.description.length > 28 ? t.description.substring(0, 28) + "..." : t.description,
-        t.debit > 0 ? `Rs. ${t.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "",
-        t.credit > 0 ? `Rs. ${t.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "",
-        `Rs. ${Math.abs(t.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+        t.debit > 0 ? `Rs. ${Math.round(t.debit).toLocaleString("en-IN")}` : "",
+        t.credit > 0 ? `Rs. ${Math.round(t.credit).toLocaleString("en-IN")}` : "",
+        `Rs. ${Math.abs(Math.round(t.balance)).toLocaleString("en-IN")}`,
       ];
 
       rowData.forEach((cell, i) => {
@@ -727,9 +727,9 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       "",
       "",
       "TOTAL",
-      `Rs. ${transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
-      `Rs. ${transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
-      `Rs. ${transactions.length > 0 ? Math.abs(transactions[transactions.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}`,
+      `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`,
+      `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`,
+      `Rs. ${transactions.length > 0 ? Math.abs(Math.round(transactions[transactions.length - 1].balance)).toLocaleString("en-IN") : "0"}`,
     ];
 
     totalsData.forEach((cell, i) => {

@@ -90,14 +90,14 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       // Total paid = payments on sales + opening balance voucher payments
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
 
-      // Balance = Opening Balance + Total Sales - Total Paid
-      const balance = openingBalance + totalSales - totalPaid;
+      // Balance = Opening Balance + Total Sales - Total Paid (rounded to whole number)
+      const balance = Math.round(openingBalance + totalSales - totalPaid);
 
       return {
         balance,
-        openingBalance,
-        totalSales,
-        totalPaid,
+        openingBalance: Math.round(openingBalance),
+        totalSales: Math.round(totalSales),
+        totalPaid: Math.round(totalPaid),
       };
     },
     enabled: !!customerId && !!organizationId,

@@ -1824,7 +1824,23 @@ Thank you for choosing us!`;
   }, 0);
   
   const netBeforeRoundOff = taxType === "inclusive" ? amountAfterDiscount : amountAfterDiscount + totalGST;
-  const netAmount = netBeforeRoundOff + roundOff;
+  
+  // Auto-calculate round-off to make final amount a whole number
+  const calculatedRoundOff = Math.round(netBeforeRoundOff) - netBeforeRoundOff;
+  
+  // Auto-update roundOff when line items change (if not manually set)
+  useEffect(() => {
+    if (lineItems.filter(i => i.productId).length > 0) {
+      const newRoundOff = parseFloat(calculatedRoundOff.toFixed(2));
+      if (Math.abs(newRoundOff - roundOff) > 0.001) {
+        setRoundOff(newRoundOff);
+      }
+    } else if (roundOff !== 0) {
+      setRoundOff(0);
+    }
+  }, [netBeforeRoundOff, lineItems]);
+  
+  const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
   return (
     <div className="p-4 space-y-4">
@@ -1850,7 +1866,7 @@ Thank you for choosing us!`;
                 <span className="text-muted-foreground"> | Qty: </span>
                 <span className="font-semibold">{lastInvoice.total_qty}</span>
                 <span className="text-muted-foreground"> | Amt: </span>
-                <span className="font-semibold">₹{lastInvoice.net_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}</span>
+                <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground"> | </span>
                 <span className="font-semibold">{lastInvoice.customer_name}</span>
               </div>
@@ -2439,7 +2455,7 @@ Thank you for choosing us!`;
               />
             </div>
             <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
+              <span>Net Amount:</span><span>₹{netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
