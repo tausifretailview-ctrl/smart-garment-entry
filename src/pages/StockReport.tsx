@@ -80,6 +80,9 @@ export default function StockReport() {
   const [loading, setLoading] = useState(true);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [productNameFilter, setProductNameFilter] = useState("");
+  const [sizeFilter, setSizeFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams.get("tab");
     return tabParam === "sizewise" ? "sizewise" : "all";
@@ -527,6 +530,7 @@ export default function StockReport() {
   // Get unique values for filters
   const uniqueBrands = useMemo(() => [...new Set(stockItems.map(i => i.brand).filter(Boolean))].sort(), [stockItems]);
   const uniqueColors = useMemo(() => [...new Set(stockItems.map(i => i.color).filter(Boolean))].sort(), [stockItems]);
+  const uniqueSizes = useMemo(() => [...new Set(stockItems.map(i => i.size).filter(Boolean))].sort(), [stockItems]);
   const uniqueSuppliers = useMemo(() => [...new Set(stockItems.map(i => i.supplier_name).filter(Boolean))].sort(), [stockItems]);
   const uniqueSupplierInvoices = useMemo(() => [...new Set(stockItems.map(i => i.supplier_invoice_no).filter(Boolean))].sort(), [stockItems]);
 
@@ -544,7 +548,13 @@ export default function StockReport() {
     }
 
     return stockItems.filter(item => {
-      // Search filter
+      // Product name filter (separate input)
+      if (productNameFilter) {
+        const nameSearch = productNameFilter.toLowerCase();
+        if (!item.product_name.toLowerCase().includes(nameSearch)) return false;
+      }
+      
+      // General search filter (searches barcode and other fields)
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
         const matchesSearch = (
@@ -566,6 +576,9 @@ export default function StockReport() {
       // Color filter
       if (colorFilter !== "all" && item.color !== colorFilter) return false;
       
+      // Size filter
+      if (sizeFilter !== "all" && item.size !== sizeFilter) return false;
+      
       // Supplier filter
       if (supplierFilter !== "all" && item.supplier_name !== supplierFilter) return false;
       
@@ -579,7 +592,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
 
   const filteredBatchStock = useMemo(() => {
     // Get variant IDs that match old barcodes
@@ -704,18 +717,20 @@ export default function StockReport() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, brandFilter, colorFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+  }, [searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
+    setProductNameFilter("");
     setBrandFilter("all");
     setColorFilter("all");
+    setSizeFilter("all");
     setSupplierFilter("all");
     setSupplierInvoiceFilter("all");
     setStockStatusFilter("all");
   };
 
-  const hasActiveFilters = brandFilter !== "all" || colorFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters = productNameFilter || brandFilter !== "all" || colorFilter !== "all" || sizeFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
@@ -852,114 +867,137 @@ export default function StockReport() {
         <p className="text-muted-foreground">Monitor inventory levels and stock movements</p>
       </div>
 
-      {/* Search Bar with Filters */}
+      {/* Search Bar */}
       <div className="space-y-3">
         <div className="flex gap-2 items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by supplier, product name, barcode, brand, color, size, bill number..."
+              placeholder="Search by barcode, bill number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-11"
+              className="pl-10 h-11 !bg-white !text-gray-900"
             />
           </div>
           <Badge variant={includeZeroStock ? "secondary" : "outline"} className="h-7 whitespace-nowrap text-xs">
             {includeZeroStock ? "All Items" : "In-Stock Only"}
           </Badge>
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" className="h-11 gap-2">
-                <Filter className="h-4 w-4" />
-                Filters
-                {hasActiveFilters && <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-xs">!</Badge>}
-                {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </CollapsibleTrigger>
-          </Collapsible>
           {hasActiveFilters && (
             <Button variant="ghost" onClick={clearFilters} className="h-11">
-              Clear
+              Clear All
             </Button>
           )}
         </div>
         
+        {/* Always visible multi-field filters */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Product Name</label>
+            <Input
+              placeholder="Filter by name..."
+              value={productNameFilter}
+              onChange={(e) => setProductNameFilter(e.target.value)}
+              className="h-9 !bg-white !text-gray-900"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Brand</label>
+            <Select value={brandFilter} onValueChange={setBrandFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Brands" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Brands</SelectItem>
+                {uniqueBrands.map(brand => (
+                  <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Color</label>
+            <Select value={colorFilter} onValueChange={setColorFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Colors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Colors</SelectItem>
+                {uniqueColors.map(color => (
+                  <SelectItem key={color} value={color}>{color}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Size</label>
+            <Select value={sizeFilter} onValueChange={setSizeFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Sizes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sizes</SelectItem>
+                {uniqueSizes.map(size => (
+                  <SelectItem key={size} value={size}>{size}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Stock Status</label>
+            <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="in">In Stock</SelectItem>
+                <SelectItem value="low">Low Stock</SelectItem>
+                <SelectItem value="out">Out of Stock</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Additional filters in collapsible */}
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-          <CollapsibleContent>
-            <Card className="p-4">
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Brand</label>
-                  <Select value={brandFilter} onValueChange={setBrandFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Brands" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Brands</SelectItem>
-                      {uniqueBrands.map(brand => (
-                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Color</label>
-                  <Select value={colorFilter} onValueChange={setColorFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Colors" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Colors</SelectItem>
-                      {uniqueColors.map(color => (
-                        <SelectItem key={color} value={color}>{color}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Supplier</label>
-                  <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Suppliers" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Suppliers</SelectItem>
-                      {uniqueSuppliers.map(supplier => (
-                        <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Supplier Invoice</label>
-                  <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Invoices" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Invoices</SelectItem>
-                      {uniqueSupplierInvoices.map(invoice => (
-                        <SelectItem key={invoice} value={invoice}>{invoice}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Stock Status</label>
-                  <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="in">In Stock</SelectItem>
-                      <SelectItem value="low">Low Stock</SelectItem>
-                      <SelectItem value="out">Out of Stock</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Filter className="h-3 w-3" />
+              More Filters
+              {filtersOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="pt-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Supplier</label>
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                  <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                    <SelectValue placeholder="All Suppliers" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {uniqueSuppliers.map(supplier => (
+                      <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </Card>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Supplier Invoice</label>
+                <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
+                  <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                    <SelectValue placeholder="All Invoices" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Invoices</SelectItem>
+                    {uniqueSupplierInvoices.map(invoice => (
+                      <SelectItem key={invoice} value={invoice}>{invoice}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CollapsibleContent>
         </Collapsible>
       </div>
