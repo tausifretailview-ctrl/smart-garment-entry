@@ -809,6 +809,30 @@ export default function Accounts() {
         ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ''}`
         : '';
 
+      // Determine correct reference_type and reference_id
+      // - For opening balance payments: reference_type='customer', reference_id=customer_id
+      // - For invoice payments: reference_type='sale', reference_id=sale_id
+      // - For supplier opening balance: reference_type='supplier', reference_id=supplier_id
+      // - For supplier bill payments: reference_type='supplier', reference_id=supplier_id (bills tracked via description)
+      let finalReferenceType = referenceType;
+      let finalReferenceId = referenceId;
+      
+      if (voucherType === 'receipt' && referenceType === 'customer') {
+        if (isOpeningBalancePayment) {
+          // Opening balance payment - reference the customer
+          finalReferenceType = 'customer';
+          finalReferenceId = referenceId;
+        } else if (invoicesToProcess.length > 0) {
+          // Invoice payment - reference the sale with type='sale'
+          finalReferenceType = 'sale';
+          finalReferenceId = invoicesToProcess[0];
+        }
+      } else if (voucherType === 'payment' && referenceType === 'supplier') {
+        // Supplier payments always reference the supplier
+        finalReferenceType = 'supplier';
+        finalReferenceId = referenceId;
+      }
+
       // Create voucher entry with discount
       const { data: voucher, error: voucherError } = await supabase
         .from("voucher_entries")
@@ -817,11 +841,8 @@ export default function Accounts() {
           voucher_number: voucherNumber,
           voucher_type: voucherType,
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: (isOpeningBalancePayment || isSupplierOpeningBalancePayment) ? referenceType : referenceType,
-          reference_id: isOpeningBalancePayment ? referenceId : 
-                        isSupplierOpeningBalancePayment ? referenceId :
-                        processedBills.length > 0 ? referenceId :
-                        (invoicesToProcess[0] || referenceId || null),
+          reference_type: finalReferenceType,
+          reference_id: finalReferenceId,
           description: finalDescription + discountSuffix,
           total_amount: paymentAmount,
           discount_amount: discountValue,
