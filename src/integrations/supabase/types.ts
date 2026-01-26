@@ -4137,6 +4137,14 @@ export type Database = {
         Args: { p_date?: string; p_type: string }
         Returns: string
       }
+      get_product_relations: {
+        Args: { p_product_id: string }
+        Returns: {
+          record_count: number
+          relation_type: string
+          sample_references: string[]
+        }[]
+      }
       get_user_organization_ids: {
         Args: { user_id: string }
         Returns: string[]

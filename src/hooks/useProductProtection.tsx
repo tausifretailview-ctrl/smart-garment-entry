@@ -5,6 +5,17 @@ interface TransactionCheckResult {
   usedIn: string[];
 }
 
+interface ProductRelation {
+  type: string;
+  count: number;
+  samples: string[];
+}
+
+interface ProductRelationDetails {
+  hasTransactions: boolean;
+  relations: ProductRelation[];
+}
+
 export function useProductProtection() {
   // Check if a variant is used in any transaction
   const checkVariantHasTransactions = async (variantId: string): Promise<TransactionCheckResult> => {
@@ -54,5 +65,33 @@ export function useProductProtection() {
     return { hasTransactions: usedIn.length > 0, usedIn };
   };
 
-  return { checkVariantHasTransactions, checkProductHasTransactions };
+  // Get detailed product relations using database function
+  const getProductRelationDetails = async (productId: string): Promise<ProductRelationDetails> => {
+    const { data, error } = await supabase.rpc("get_product_relations", {
+      p_product_id: productId,
+    });
+
+    if (error) {
+      console.error("Error fetching product relations:", error);
+      // Fallback to basic check
+      const basicCheck = await checkProductHasTransactions(productId);
+      return {
+        hasTransactions: basicCheck.hasTransactions,
+        relations: basicCheck.usedIn.map(type => ({ type, count: 1, samples: [] })),
+      };
+    }
+
+    const relations: ProductRelation[] = (data || []).map((row: any) => ({
+      type: row.relation_type,
+      count: row.record_count,
+      samples: row.sample_references || [],
+    }));
+
+    return {
+      hasTransactions: relations.length > 0,
+      relations,
+    };
+  };
+
+  return { checkVariantHasTransactions, checkProductHasTransactions, getProductRelationDetails };
 }
