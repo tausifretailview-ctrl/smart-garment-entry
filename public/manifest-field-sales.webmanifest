@@ -1,0 +1,25 @@
+{
+  "name": "Field Sales - EzzyERP",
+  "short_name": "Field Sales",
+  "description": "Field Sales Mobile App for EzzyERP",
+  "theme_color": "#F97316",
+  "background_color": "#1a1a1a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/",
+  "start_url": "/?app=fieldsales",
+  "icons": [
+    {
+      "src": "/icon-field-sales-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-field-sales-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
