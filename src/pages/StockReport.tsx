@@ -34,6 +34,9 @@ interface StockItem {
   barcode: string;
   supplier_name: string;
   supplier_invoice_no: string;
+  category: string;
+  department: string;
+  style_code: string;
 }
 
 interface StockMovement {
@@ -66,6 +69,9 @@ interface SizeWiseRow {
   productName: string;
   brand: string;
   color: string;
+  category: string;
+  department: string;
+  style_code: string;
   sizeStocks: Record<string, number>;
   totalStock: number;
 }
@@ -83,6 +89,7 @@ export default function StockReport() {
   const [productNameFilter, setProductNameFilter] = useState("");
   const [sizeFilter, setSizeFilter] = useState<string>("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams.get("tab");
     return tabParam === "sizewise" ? "sizewise" : "all";
@@ -221,6 +228,9 @@ export default function StockReport() {
               product_name,
               brand,
               color,
+              category,
+              department,
+              style_code,
               product_type,
               deleted_at
             )
@@ -381,6 +391,9 @@ export default function StockReport() {
           barcode: item.barcode || "",
           supplier_name: supplierInfo.supplier_name || "",
           supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
+          category: item.products?.category || "",
+          department: item.products?.department || "",
+          style_code: item.products?.style_code || "",
         };
       }) || [];
 
@@ -531,6 +544,8 @@ export default function StockReport() {
   const uniqueBrands = useMemo(() => [...new Set(stockItems.map(i => i.brand).filter(Boolean))].sort(), [stockItems]);
   const uniqueColors = useMemo(() => [...new Set(stockItems.map(i => i.color).filter(Boolean))].sort(), [stockItems]);
   const uniqueSizes = useMemo(() => [...new Set(stockItems.map(i => i.size).filter(Boolean))].sort(), [stockItems]);
+  const uniqueCategories = useMemo(() => [...new Set(stockItems.map(i => i.category).filter(Boolean))].sort(), [stockItems]);
+  const uniqueDepartments = useMemo(() => [...new Set(stockItems.map(i => i.department).filter(Boolean))].sort(), [stockItems]);
   const uniqueSuppliers = useMemo(() => [...new Set(stockItems.map(i => i.supplier_name).filter(Boolean))].sort(), [stockItems]);
   const uniqueSupplierInvoices = useMemo(() => [...new Set(stockItems.map(i => i.supplier_invoice_no).filter(Boolean))].sort(), [stockItems]);
 
@@ -585,6 +600,12 @@ export default function StockReport() {
       // Supplier Invoice filter
       if (supplierInvoiceFilter !== "all" && item.supplier_invoice_no !== supplierInvoiceFilter) return false;
       
+      // Category filter
+      if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
+      
+      // Department filter
+      if (departmentFilter !== "all" && item.department !== departmentFilter) return false;
+      
       // Stock status filter
       if (stockStatusFilter === "out" && item.stock_qty !== 0) return false;
       if (stockStatusFilter === "low" && (item.stock_qty === 0 || item.stock_qty > lowStockThreshold)) return false;
@@ -592,7 +613,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, departmentFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
 
   const filteredBatchStock = useMemo(() => {
     // Get variant IDs that match old barcodes
@@ -672,6 +693,9 @@ export default function StockReport() {
           productName: item.product_name,
           brand: item.brand,
           color: item.color,
+          category: item.category,
+          department: item.department,
+          style_code: item.style_code,
           sizeStocks: {},
           totalStock: 0
         });
@@ -717,7 +741,7 @@ export default function StockReport() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+  }, [searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, departmentFilter, stockStatusFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -725,27 +749,32 @@ export default function StockReport() {
     setBrandFilter("all");
     setColorFilter("all");
     setSizeFilter("all");
+    setCategoryFilter("all");
+    setDepartmentFilter("all");
     setSupplierFilter("all");
     setSupplierInvoiceFilter("all");
     setStockStatusFilter("all");
   };
 
-  const hasActiveFilters = productNameFilter || brandFilter !== "all" || colorFilter !== "all" || sizeFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters = productNameFilter || brandFilter !== "all" || colorFilter !== "all" || sizeFilter !== "all" || categoryFilter !== "all" || departmentFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
-    const headers = ["Product", "Brand", "Color", ...sizeWiseData.sizes, "Total Stock"];
+    const headers = ["Product", "Style Code", "Brand", "Color", "Category", "Department", ...sizeWiseData.sizes, "Total Stock"];
     const data = sizeWiseData.rows.map(row => [
       row.productName,
+      row.style_code,
       row.brand,
       row.color,
+      row.category,
+      row.department,
       ...sizeWiseData.sizes.map(size => row.sizeStocks[size] || 0),
       row.totalStock
     ]);
     
     // Add totals row
     data.push([
-      "TOTAL", "", "",
+      "TOTAL", "", "", "", "", "",
       ...sizeWiseData.sizes.map(size => sizeWiseTotals.sizeTotals[size] || 0),
       sizeWiseTotals.grandTotal
     ]);
@@ -755,8 +784,11 @@ export default function StockReport() {
     // Set column widths
     const colWidths = [
       { wch: 40 }, // Product
+      { wch: 15 }, // Style Code
       { wch: 15 }, // Brand
       { wch: 15 }, // Color
+      { wch: 15 }, // Category
+      { wch: 15 }, // Department
       ...sizeWiseData.sizes.map(() => ({ wch: 8 })), // Size columns
       { wch: 12 }, // Total
     ];
@@ -812,7 +844,7 @@ export default function StockReport() {
         doc.rect(startX, y - 4, pageWidth - 20, 6, "F");
       }
       
-      const productLabel = `${row.productName} ${row.brand ? `(${row.brand})` : ''}`.substring(0, 50);
+      const productLabel = `${row.productName} ${row.style_code ? `[${row.style_code}]` : ''} ${row.brand ? `(${row.brand})` : ''}`.substring(0, 60);
       doc.text(productLabel, startX + 2, y);
       sizes.forEach((size, i) => {
         const qty = row.sizeStocks[size] || 0;
@@ -890,7 +922,7 @@ export default function StockReport() {
         </div>
         
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Product Name</label>
             <Input
@@ -910,6 +942,34 @@ export default function StockReport() {
                 <SelectItem value="all">All Brands</SelectItem>
                 {uniqueBrands.map(brand => (
                   <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Category</label>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {uniqueCategories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">Department</label>
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                <SelectValue placeholder="All Departments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {uniqueDepartments.map(dept => (
+                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1334,9 +1394,12 @@ export default function StockReport() {
                           <TableCell className="font-medium">
                             <div className="flex flex-col">
                               <span>{row.productName}</span>
-                              {(row.brand || row.color) && (
-                                <span className="text-xs text-muted-foreground">
-                                  {[row.brand, row.color].filter(Boolean).join(' - ')}
+                              <span className="text-xs text-muted-foreground">
+                                {[row.style_code, row.brand, row.color].filter(Boolean).join(' - ')}
+                              </span>
+                              {(row.category || row.department) && (
+                                <span className="text-xs text-muted-foreground/70">
+                                  {[row.category, row.department].filter(Boolean).join(' | ')}
                                 </span>
                               )}
                             </div>
