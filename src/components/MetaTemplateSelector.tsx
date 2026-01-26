@@ -39,6 +39,19 @@ interface MetaTemplate {
   updated_at: string;
 }
 
+// Helper to detect template header type (TEXT, DOCUMENT, IMAGE, etc.)
+export function getTemplateHeaderType(components: any): 'TEXT' | 'DOCUMENT' | 'IMAGE' | 'VIDEO' | 'NONE' {
+  if (!components || !Array.isArray(components)) return 'NONE';
+  const headerComponent = components.find((c: any) => c?.type?.toUpperCase() === 'HEADER');
+  if (!headerComponent) return 'NONE';
+  const format = headerComponent?.format?.toUpperCase();
+  if (format === 'DOCUMENT') return 'DOCUMENT';
+  if (format === 'IMAGE') return 'IMAGE';
+  if (format === 'VIDEO') return 'VIDEO';
+  if (format === 'TEXT') return 'TEXT';
+  return 'NONE';
+}
+
 interface MetaTemplateSelectorProps {
   templateType: 'invoice' | 'quotation' | 'sale_order' | 'payment_reminder';
   selectedTemplateId: string | null;
@@ -423,17 +436,35 @@ export const MetaTemplateSelector = ({
                   Loading templates...
                 </div>
               ) : templates && templates.length > 0 ? (
-                templates.map((template) => (
-                  <SelectItem key={template.id} value={template.id}>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-3 w-3 text-green-600" />
-                      <span>{template.template_name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({template.template_language})
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))
+                templates.map((template) => {
+                  const headerType = getTemplateHeaderType(template.components);
+                  return (
+                    <SelectItem key={template.id} value={template.id}>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                        <span>{template.template_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          ({template.template_language})
+                        </span>
+                        {headerType === 'DOCUMENT' && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300">
+                            PDF
+                          </Badge>
+                        )}
+                        {headerType === 'TEXT' && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-100 text-green-700 border-green-300">
+                            TEXT
+                          </Badge>
+                        )}
+                        {headerType === 'NONE' && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-100 text-gray-600 border-gray-300">
+                            UTILITY
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  );
+                })
               ) : (
                 <div className="p-2 text-center text-muted-foreground text-sm">
                   No approved templates found. Add templates manually below.

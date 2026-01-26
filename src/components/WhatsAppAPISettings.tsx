@@ -569,25 +569,60 @@ export const WhatsAppAPISettings = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              <strong>Important:</strong> Configure template parameters to match your Meta template exactly. 
-              The order and count of parameters must match what you defined in Meta Business Manager.
+          {/* Two PDF Sending Methods Explanation */}
+          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-800 dark:text-blue-200">Two Ways to Send Invoice PDF</AlertTitle>
+            <AlertDescription className="text-sm text-blue-700 dark:text-blue-300">
+              <div className="mt-2 space-y-2">
+                <div className="flex items-start gap-2">
+                  <Badge className="mt-0.5 shrink-0 bg-green-600">Method 1</Badge>
+                  <div>
+                    <strong>Standard Attachment:</strong> Select a TEXT/UTILITY template below + enable "Send Invoice PDF" checkbox. 
+                    PDF sent as separate message. <span className="text-amber-600">(May fail outside 24h window)</span>
+                  </div>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Badge className="mt-0.5 shrink-0 bg-purple-600">Method 2</Badge>
+                  <div>
+                    <strong>Direct PDF Delivery:</strong> Use DOCUMENT header template with "Direct PDF Delivery" enabled. 
+                    PDF embedded in template. <span className="text-green-600">(Works anytime!)</span>
+                  </div>
+                </div>
+              </div>
             </AlertDescription>
           </Alert>
 
+          {/* Warning when Direct PDF is enabled */}
+          {formData.use_document_header_template && formData.invoice_document_template_name && (
+            <Alert className="border-purple-200 bg-purple-50 dark:bg-purple-950/20">
+              <AlertCircle className="h-4 w-4 text-purple-600" />
+              <AlertTitle className="text-purple-800 dark:text-purple-200">Direct PDF Delivery Active</AlertTitle>
+              <AlertDescription className="text-sm text-purple-700 dark:text-purple-300">
+                Invoice Template below is <strong>disabled</strong> because you're using Direct PDF Delivery with template "{formData.invoice_document_template_name}". 
+                The PDF will be embedded directly in the template header.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Invoice Template */}
-          <MetaTemplateSelector
-            templateType="invoice"
-            selectedTemplateId={null}
-            selectedTemplateName={formData.invoice_template_name}
-            params={formData.invoice_template_params}
-            onTemplateChange={(id, name) => handleInputChange("invoice_template_name", name)}
-            onParamsChange={(params) => handleInputChange("invoice_template_params", params)}
-            isOpen={openTemplateSection === 'invoice'}
-            onOpenChange={(open) => setOpenTemplateSection(open ? 'invoice' : null)}
-          />
+          <div className={formData.use_document_header_template && formData.invoice_document_template_name ? 'opacity-50 pointer-events-none' : ''}>
+            <MetaTemplateSelector
+              templateType="invoice"
+              selectedTemplateId={null}
+              selectedTemplateName={formData.invoice_template_name}
+              params={formData.invoice_template_params}
+              onTemplateChange={(id, name) => handleInputChange("invoice_template_name", name)}
+              onParamsChange={(params) => handleInputChange("invoice_template_params", params)}
+              isOpen={openTemplateSection === 'invoice'}
+              onOpenChange={(open) => setOpenTemplateSection(open ? 'invoice' : null)}
+            />
+            {formData.use_document_header_template && formData.invoice_document_template_name && (
+              <p className="text-xs text-muted-foreground mt-1 italic">
+                ⚠️ Disabled - Using Direct PDF Delivery instead
+              </p>
+            )}
+          </div>
 
           {/* Quotation Template */}
           <MetaTemplateSelector
@@ -717,20 +752,15 @@ export const WhatsAppAPISettings = () => {
             {formData.send_invoice_pdf && (
               <Badge variant="default" className="ml-2">Enabled</Badge>
             )}
+            {formData.use_document_header_template && formData.invoice_document_template_name && (
+              <Badge className="ml-2 bg-purple-600">Direct PDF</Badge>
+            )}
           </CardTitle>
           <CardDescription>
             Send invoice PDF document along with the WhatsApp template message
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              When enabled, a PDF copy of the invoice will be generated and sent as a document attachment 
-              along with the template message. Customer receives both: the text preview AND the downloadable PDF.
-            </AlertDescription>
-          </Alert>
-
           <div className="flex items-center justify-between">
             <div>
               <Label htmlFor="send_invoice_pdf">Send Invoice PDF</Label>
@@ -774,39 +804,106 @@ export const WhatsAppAPISettings = () => {
 
               <Separator />
 
-              {/* Document Header Template - Direct PDF Delivery */}
-              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <Label htmlFor="use_document_header_template" className="font-medium text-green-800 dark:text-green-200">
-                      📎 Direct PDF Delivery (Recommended)
-                    </Label>
-                    <p className="text-xs text-green-700 dark:text-green-300 mt-1">
-                      Embed PDF in template header - <strong>bypasses 24-hour window restriction!</strong>
-                    </p>
+              {/* Method Selection */}
+              <div className="space-y-3">
+                <Label className="font-medium">PDF Delivery Method</Label>
+                
+                {/* Method 1: Standard Attachment */}
+                <div className={`p-4 rounded-lg border-2 transition-colors ${
+                  !formData.use_document_header_template 
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                    : 'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="method_standard"
+                        name="pdf_method"
+                        checked={!formData.use_document_header_template}
+                        onChange={() => handleInputChange("use_document_header_template", false)}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="method_standard" className="font-medium cursor-pointer">
+                        Standard Attachment
+                      </Label>
+                      <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                        TEXT Template
+                      </Badge>
+                    </div>
                   </div>
-                  <Switch
-                    id="use_document_header_template"
-                    checked={formData.use_document_header_template}
-                    onCheckedChange={(checked) => handleInputChange("use_document_header_template", checked)}
-                  />
+                  <p className="text-xs text-muted-foreground ml-6">
+                    Uses TEXT/UTILITY template from "Invoice Template" above. PDF sent as separate message after template.
+                    <span className="text-amber-600 font-medium"> Note: May fail if customer hasn't replied in 24 hours.</span>
+                  </p>
                 </div>
 
-                {formData.use_document_header_template && (
-                  <div className="space-y-2 mt-3">
-                    <Label htmlFor="invoice_document_template_name">Document Header Template Name</Label>
-                    <Input
-                      id="invoice_document_template_name"
-                      placeholder="e.g., invoice_with_pdf"
-                      value={formData.invoice_document_template_name}
-                      onChange={(e) => handleInputChange("invoice_document_template_name", e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Create a template with DOCUMENT header type in Meta Business Suite first
-                    </p>
+                {/* Method 2: Direct PDF Delivery */}
+                <div className={`p-4 rounded-lg border-2 transition-colors ${
+                  formData.use_document_header_template 
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20' 
+                    : 'border-muted bg-muted/30'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        id="method_direct"
+                        name="pdf_method"
+                        checked={formData.use_document_header_template}
+                        onChange={() => handleInputChange("use_document_header_template", true)}
+                        className="h-4 w-4"
+                      />
+                      <Label htmlFor="method_direct" className="font-medium cursor-pointer">
+                        📎 Direct PDF Delivery (Recommended)
+                      </Label>
+                      <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                        DOCUMENT Template
+                      </Badge>
+                    </div>
                   </div>
-                )}
+                  <p className="text-xs text-muted-foreground ml-6">
+                    Uses DOCUMENT header template. PDF embedded directly in template header.
+                    <span className="text-green-600 font-medium"> ✓ Bypasses 24-hour window restriction!</span>
+                  </p>
+
+                  {formData.use_document_header_template && (
+                    <div className="space-y-2 mt-3 ml-6">
+                      <Label htmlFor="invoice_document_template_name" className="text-sm">Document Header Template Name</Label>
+                      <Input
+                        id="invoice_document_template_name"
+                        placeholder="e.g., invoice_with_pdf"
+                        value={formData.invoice_document_template_name}
+                        onChange={(e) => handleInputChange("invoice_document_template_name", e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Create a template with DOCUMENT header type in Meta Business Suite first. The PDF badge templates work here.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
+
+              {/* Configuration Summary */}
+              <Alert className={formData.use_document_header_template ? 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' : 'border-green-200 bg-green-50 dark:bg-green-950/20'}>
+                <CheckCircle className={`h-4 w-4 ${formData.use_document_header_template ? 'text-purple-600' : 'text-green-600'}`} />
+                <AlertTitle className={formData.use_document_header_template ? 'text-purple-800 dark:text-purple-200' : 'text-green-800 dark:text-green-200'}>
+                  Current Configuration
+                </AlertTitle>
+                <AlertDescription className="text-sm">
+                  {formData.use_document_header_template ? (
+                    <span>
+                      Using <strong>Direct PDF Delivery</strong> with template "{formData.invoice_document_template_name || 'Not set'}". 
+                      The "Invoice Template" in Message Templates section is <strong>disabled</strong>.
+                    </span>
+                  ) : (
+                    <span>
+                      Using <strong>Standard Attachment</strong>. 
+                      Make sure "Invoice Template" above is set to a TEXT/UTILITY template (not DOCUMENT).
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
             </>
           )}
 
