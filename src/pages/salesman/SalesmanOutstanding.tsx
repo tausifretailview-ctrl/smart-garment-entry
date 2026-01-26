@@ -76,16 +76,51 @@ const SalesmanOutstanding = () => {
 
       if (customersError) throw customersError;
 
-      // Fetch sales
+      // Fetch sales with IDs for voucher matching
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("customer_id, net_amount, paid_amount, payment_status")
+        .select("id, customer_id, net_amount, paid_amount, payment_status")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null);
 
       if (salesError) throw salesError;
 
-      // Calculate balances
+      // Fetch ALL voucher payments
+      const { data: allVouchers, error: vouchersError } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, reference_type, total_amount")
+        .eq("organization_id", currentOrganization!.id)
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null);
+
+      if (vouchersError) throw vouchersError;
+
+      // Build sale_id -> customer_id map
+      const saleToCustomerMap: Record<string, string> = {};
+      (salesData || []).forEach(sale => {
+        if (sale.customer_id) {
+          saleToCustomerMap[sale.id] = sale.customer_id;
+        }
+      });
+
+      // Separate opening balance payments from invoice payments
+      const openingBalancePayments: Record<string, number> = {};
+      const invoiceVoucherPayments: Record<string, number> = {};
+
+      (allVouchers || []).forEach(v => {
+        if (!v.reference_id) return;
+        
+        const customerId = saleToCustomerMap[v.reference_id];
+        if (v.reference_type === 'sale' || customerId) {
+          invoiceVoucherPayments[v.reference_id] = 
+            (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+        } else if (v.reference_type === 'customer') {
+          openingBalancePayments[v.reference_id] = 
+            (openingBalancePayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+        }
+      });
+
+      // Calculate balances with consistent logic
       const balanceMap: Record<string, { balance: number; invoiceCount: number }> = {};
 
       (salesData || []).forEach(sale => {
@@ -93,7 +128,12 @@ const SalesmanOutstanding = () => {
           if (!balanceMap[sale.customer_id]) {
             balanceMap[sale.customer_id] = { balance: 0, invoiceCount: 0 };
           }
-          balanceMap[sale.customer_id].balance += (sale.net_amount || 0) - (sale.paid_amount || 0);
+          // Use Math.max to avoid double-counting
+          const salePaidAmount = sale.paid_amount || 0;
+          const voucherAmount = invoiceVoucherPayments[sale.id] || 0;
+          const totalPaid = Math.max(salePaidAmount, voucherAmount);
+          
+          balanceMap[sale.customer_id].balance += (sale.net_amount || 0) - totalPaid;
           if (sale.payment_status !== "completed") {
             balanceMap[sale.customer_id].invoiceCount += 1;
           }
@@ -103,13 +143,15 @@ const SalesmanOutstanding = () => {
       const outstandingCustomers: CustomerOutstanding[] = (customersData || [])
         .map(c => {
           const salesBalance = balanceMap[c.id] || { balance: 0, invoiceCount: 0 };
-          const totalBalance = (c.opening_balance || 0) + salesBalance.balance;
+          const openingBalance = c.opening_balance || 0;
+          const openingBalancePaid = openingBalancePayments[c.id] || 0;
+          const totalBalance = openingBalance + salesBalance.balance - openingBalancePaid;
           return {
             id: c.id,
             customer_name: c.customer_name,
             phone: c.phone,
             balance: totalBalance,
-            invoiceCount: salesBalance.invoiceCount + (c.opening_balance && c.opening_balance > 0 ? 1 : 0),
+            invoiceCount: salesBalance.invoiceCount + (openingBalance - openingBalancePaid > 0 ? 1 : 0),
           };
         })
         .filter(c => c.balance > 0)

@@ -77,36 +77,62 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       // Fetch ALL sales using range pagination (bypasses 1000-row limit)
       const salesData = await fetchAllSalesSummary(organizationId);
 
-      // Fetch opening balance payments (voucher entries with reference_type='customer')
-      const { data: openingBalancePayments, error: voucherError } = await supabase
+      // Fetch ALL voucher payments (both opening balance and invoice payments)
+      const { data: allVouchers, error: voucherError } = await supabase
         .from('voucher_entries')
-        .select('reference_id, total_amount')
+        .select('reference_id, reference_type, total_amount')
         .eq('organization_id', organizationId)
-        .eq('reference_type', 'customer')
         .eq('voucher_type', 'receipt')
         .is('deleted_at', null);
 
       if (voucherError) {
-        console.error('Error fetching opening balance payments:', voucherError);
+        console.error('Error fetching voucher payments:', voucherError);
       }
 
-      // Create a map of customer ID -> total voucher payments for opening balance
-      const customerVoucherPayments = new Map<string, number>();
-      openingBalancePayments?.forEach((v: any) => {
-        const current = customerVoucherPayments.get(v.reference_id) || 0;
-        customerVoucherPayments.set(v.reference_id, current + (Number(v.total_amount) || 0));
+      // Build sale_id -> customer_id map for invoice vouchers
+      const saleToCustomerMap = new Map<string, string>();
+      salesData.forEach((s: any) => {
+        if (s.customer_id) {
+          saleToCustomerMap.set(s.id, s.customer_id);
+        }
       });
 
-      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${openingBalancePayments?.length || 0} opening balance payments`);
+      // Separate opening balance payments from invoice payments
+      const openingBalancePayments = new Map<string, number>(); // customer_id -> amount
+      const invoiceVoucherPayments = new Map<string, number>(); // sale_id -> amount
 
-      // Calculate totals per customer - using paid_amount directly from sales table
+      allVouchers?.forEach((v: any) => {
+        if (!v.reference_id) return;
+        
+        // Check if this is an invoice payment (reference_type='sale' or reference_id is a sale)
+        const customerId = saleToCustomerMap.get(v.reference_id);
+        if (v.reference_type === 'sale' || customerId) {
+          invoiceVoucherPayments.set(v.reference_id, 
+            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        } else if (v.reference_type === 'customer') {
+          // This is an opening balance payment (reference_id = customer_id)
+          openingBalancePayments.set(v.reference_id, 
+            (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        }
+      });
+
+      console.log(`CustomerLedger: Fetched ${customersData.length} customers, ${salesData.length} sales, ${allVouchers?.length || 0} voucher payments`);
+
+      // Calculate totals per customer using Math.max to avoid double-counting
       const customerTotals = customersData.map((customer: any) => {
         const customerSales = salesData.filter((s: any) => s.customer_id === customer.id);
         const totalSales = customerSales.reduce((sum: number, s: any) => sum + (s.net_amount || 0), 0);
-        // Use paid_amount from sales table (includes cash, card, upi from mixed payments)
-        const totalPaidOnSales = customerSales.reduce((sum: number, s: any) => sum + (s.paid_amount || 0), 0);
-        // Add opening balance payments (voucher entries with reference_type='customer')
-        const openingBalancePaymentTotal = customerVoucherPayments.get(customer.id) || 0;
+        
+        // For each sale, use MAX of paid_amount or voucher payments to avoid double-counting
+        let totalPaidOnSales = 0;
+        customerSales.forEach((sale: any) => {
+          const salePaidAmount = sale.paid_amount || 0;
+          const voucherAmount = invoiceVoucherPayments.get(sale.id) || 0;
+          totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+        });
+        
+        // Add opening balance payments
+        const openingBalancePaymentTotal = openingBalancePayments.get(customer.id) || 0;
         const totalPaid = totalPaidOnSales + openingBalancePaymentTotal;
         const openingBalance = customer.opening_balance || 0;
         // Balance = Opening Balance + Total Sales - Total Paid
