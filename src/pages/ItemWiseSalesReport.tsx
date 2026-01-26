@@ -100,19 +100,17 @@ export default function ItemWiseSalesReport() {
       const saleItemsData = await fetchAllSaleItems(saleIds);
       if (!saleItemsData || saleItemsData.length === 0) return [];
 
-      // Get unique product IDs and fetch product details
+      // Get unique product IDs and fetch product details - use batched fetch to bypass 1000 limit
       const productIds = [...new Set(saleItemsData.map(item => item.product_id).filter(Boolean))];
       
       let productsMap: Record<string, { brand: string | null; category: string | null; color: string | null }> = {};
       
       if (productIds.length > 0) {
-        const { data: productsData } = await supabase
-          .from("products")
-          .select("id, brand, category, color")
-          .in("id", productIds);
+        const { fetchProductsByIds } = await import("@/utils/fetchAllRows");
+        const productsData = await fetchProductsByIds(productIds, "id, brand, category, color");
         
         if (productsData) {
-          productsMap = productsData.reduce((acc, p) => {
+          productsMap = productsData.reduce((acc: any, p: any) => {
             acc[p.id] = { brand: p.brand, category: p.category, color: p.color };
             return acc;
           }, {} as Record<string, { brand: string | null; category: string | null; color: string | null }>);

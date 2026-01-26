@@ -568,12 +568,11 @@ export async function calculateNetProfitSummary(
       // Get variant purchase prices
       const variantIds = [...new Set(saleItems.map(item => item.variant_id).filter(Boolean))];
       
-      const { data: variants } = await supabase
-        .from("product_variants")
-        .select("id, pur_price")
-        .in("id", variantIds);
+      // Use batched fetch to bypass 1000-row limit
+      const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
+      const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
       
-      const variantPriceMap = new Map(variants?.map(v => [v.id, v.pur_price || 0]) || []);
+      const variantPriceMap = new Map(variants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
       
       saleItems.forEach(item => {
         const qty = item.quantity || 0;

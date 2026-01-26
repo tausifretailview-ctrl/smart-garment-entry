@@ -252,13 +252,14 @@ const GSTSalePurchaseRegister = () => {
         .order("return_date", { ascending: true });
 
       const saleReturnIds = saleReturnsData?.map(sr => sr.id) || [];
-      const { data: saleReturnItems } = saleReturnIds.length > 0 ? await supabase
-        .from("sale_return_items")
-        .select("return_id, gst_percent, line_total")
-        .in("return_id", saleReturnIds) : { data: [] };
+      // Use batched fetch to bypass 1000-row limit
+      const { fetchSaleReturnItemsByIds } = await import("@/utils/fetchAllRows");
+      const saleReturnItems = saleReturnIds.length > 0 
+        ? await fetchSaleReturnItemsByIds(saleReturnIds, "return_id, gst_percent, line_total") 
+        : [];
 
       const saleReturnItemsMap = new Map<string, typeof saleReturnItems>();
-      saleReturnItems?.forEach(item => {
+      saleReturnItems?.forEach((item: any) => {
         const existing = saleReturnItemsMap.get(item.return_id) || [];
         existing.push(item);
         saleReturnItemsMap.set(item.return_id, existing);
@@ -303,13 +304,14 @@ const GSTSalePurchaseRegister = () => {
         .order("bill_date", { ascending: true });
 
       const purchaseIds = purchaseData?.map(p => p.id) || [];
-      const { data: purchaseItems } = purchaseIds.length > 0 ? await supabase
-        .from("purchase_items")
-        .select("bill_id, gst_per, line_total")
-        .in("bill_id", purchaseIds) : { data: [] };
+      // Use batched fetch to bypass 1000-row limit
+      const { fetchPurchaseItemsByBillIds } = await import("@/utils/fetchAllRows");
+      const purchaseItems = purchaseIds.length > 0 
+        ? await fetchPurchaseItemsByBillIds(purchaseIds, "bill_id, gst_per, line_total") 
+        : [];
 
       const purchaseItemsMap = new Map<string, typeof purchaseItems>();
-      purchaseItems?.forEach(item => {
+      purchaseItems?.forEach((item: any) => {
         const existing = purchaseItemsMap.get(item.bill_id) || [];
         existing.push(item);
         purchaseItemsMap.set(item.bill_id, existing);
@@ -366,13 +368,14 @@ const GSTSalePurchaseRegister = () => {
         .order("return_date", { ascending: true });
 
       const purchaseReturnIds = purchaseReturnsData?.map(pr => pr.id) || [];
-      const { data: purchaseReturnItems } = purchaseReturnIds.length > 0 ? await supabase
-        .from("purchase_return_items")
-        .select("return_id, gst_per, line_total")
-        .in("return_id", purchaseReturnIds) : { data: [] };
+      // Use batched fetch to bypass 1000-row limit
+      const { fetchPurchaseReturnItemsByIds } = await import("@/utils/fetchAllRows");
+      const purchaseReturnItems = purchaseReturnIds.length > 0 
+        ? await fetchPurchaseReturnItemsByIds(purchaseReturnIds, "return_id, gst_per, line_total") 
+        : [];
 
       const purchaseReturnItemsMap = new Map<string, typeof purchaseReturnItems>();
-      purchaseReturnItems?.forEach(item => {
+      purchaseReturnItems?.forEach((item: any) => {
         const existing = purchaseReturnItemsMap.get(item.return_id) || [];
         existing.push(item);
         purchaseReturnItemsMap.set(item.return_id, existing);

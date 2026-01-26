@@ -177,12 +177,19 @@ const TallyExport = () => {
       let receiptVouchers: any[] = [];
       let paymentVouchers: any[] = [];
 
-      // Fetch Masters
+      // Import fetchAllRows utilities
+      const { 
+        fetchAllCustomers, 
+        fetchAllSuppliers, 
+        fetchAllProducts,
+        fetchAllSalesWithFilters,
+        fetchAllPurchaseBillsWithFilters,
+        fetchAllVouchersWithFilters
+      } = await import("@/utils/fetchAllRows");
+
+      // Fetch Masters with paginated fetch to bypass 1000 limit
       if (includeCustomers) {
-        const { data: customers } = await supabase
-          .from("customers")
-          .select("*")
-          .eq("organization_id", currentOrganization.id);
+        const customers = await fetchAllCustomers(currentOrganization.id);
         if (customers) {
           ledgerMasters = [...ledgerMasters, ...transformCustomersToLedgers(customers)];
           setCounts(prev => ({ ...prev, customers: customers.length }));
@@ -190,10 +197,7 @@ const TallyExport = () => {
       }
 
       if (includeSuppliers) {
-        const { data: suppliers } = await supabase
-          .from("suppliers")
-          .select("*")
-          .eq("organization_id", currentOrganization.id);
+        const suppliers = await fetchAllSuppliers(currentOrganization.id);
         if (suppliers) {
           ledgerMasters = [...ledgerMasters, ...transformSuppliersToLedgers(suppliers)];
           setCounts(prev => ({ ...prev, suppliers: suppliers.length }));
@@ -201,34 +205,48 @@ const TallyExport = () => {
       }
 
       if (includeProducts) {
-        const { data: products } = await supabase
-          .from("products")
-          .select("*")
-          .eq("organization_id", currentOrganization.id);
+        const products = await fetchAllProducts(currentOrganization.id);
         if (products) {
           stockItems = transformProductsToStockItems(products);
           setCounts(prev => ({ ...prev, products: products.length }));
         }
       }
 
-      // Fetch Transactions
+      // Fetch Transactions using paginated fetch
       if (includeSales) {
-        const { data: sales } = await supabase
-          .from("sales")
-          .select(`
-            *,
-            sale_items (*),
-            customers (gst_number)
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("sale_date", fromDate)
-          .lte("sale_date", toDate + "T23:59:59");
+        // First get all sales IDs, then fetch with items separately for Tally
+        const sales = await fetchAllSalesWithFilters(currentOrganization.id, {
+          startDate: fromDate,
+          endDate: toDate + "T23:59:59",
+        });
         
-        if (sales) {
-          const salesWithGstin = sales.map(s => ({
+        if (sales && sales.length > 0) {
+          // Fetch sale items for all sales
+          const { fetchAllSaleItems } = await import("@/utils/fetchAllRows");
+          const saleIds = sales.map((s: any) => s.id);
+          const allSaleItems = await fetchAllSaleItems(saleIds);
+          
+          // Group items by sale_id
+          const itemsBySale = new Map();
+          allSaleItems.forEach((item: any) => {
+            const existing = itemsBySale.get(item.sale_id) || [];
+            existing.push(item);
+            itemsBySale.set(item.sale_id, existing);
+          });
+          
+          // Fetch customer GSTINs
+          const customerIds = [...new Set(sales.map((s: any) => s.customer_id).filter(Boolean))];
+          const { data: customers } = customerIds.length > 0 ? await supabase
+            .from("customers")
+            .select("id, gst_number")
+            .in("id", customerIds) : { data: [] };
+          
+          const customerGstinMap = new Map<string, string>(customers?.map(c => [c.id, c.gst_number || ''] as [string, string]) || []);
+          
+          const salesWithGstin = sales.map((s: any) => ({
             ...s,
-            customer_gstin: s.customers?.gst_number || ''
+            sale_items: itemsBySale.get(s.id) || [],
+            customer_gstin: customerGstinMap.get(s.customer_id) || ''
           }));
           salesVouchers = transformSalesToVouchers(salesWithGstin, orgGstin);
           setCounts(prev => ({ ...prev, sales: sales.length }));
@@ -236,84 +254,133 @@ const TallyExport = () => {
       }
 
       if (includePurchases) {
-        const { data: purchases } = await supabase
-          .from("purchase_bills")
-          .select(`
-            *,
-            purchase_items (*),
-            supplier:suppliers (gst_number)
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("bill_date", fromDate)
-          .lte("bill_date", toDate);
+        const purchases = await fetchAllPurchaseBillsWithFilters(currentOrganization.id, {
+          startDate: fromDate,
+          endDate: toDate,
+        });
         
-        if (purchases) {
-          purchaseVouchers = transformPurchasesToVouchers(purchases, orgGstin);
+        if (purchases && purchases.length > 0) {
+          // Fetch purchase items for all bills
+          const { fetchPurchaseItemsByBillIds } = await import("@/utils/fetchAllRows");
+          const billIds = purchases.map((p: any) => p.id);
+          const allPurchaseItems = await fetchPurchaseItemsByBillIds(billIds, "*");
+          
+          // Group items by bill_id
+          const itemsByBill = new Map();
+          allPurchaseItems.forEach((item: any) => {
+            const existing = itemsByBill.get(item.bill_id) || [];
+            existing.push(item);
+            itemsByBill.set(item.bill_id, existing);
+          });
+          
+          // Fetch supplier GSTINs
+          const supplierIds = [...new Set(purchases.map((p: any) => p.supplier_id).filter(Boolean))];
+          const { data: suppliers } = supplierIds.length > 0 ? await supabase
+            .from("suppliers")
+            .select("id, gst_number")
+            .in("id", supplierIds) : { data: [] };
+          
+          const supplierGstinMap = new Map<string, string>(suppliers?.map(s => [s.id, s.gst_number || ''] as [string, string]) || []);
+          
+          const purchasesWithItems = purchases.map((p: any) => ({
+            ...p,
+            purchase_items: itemsByBill.get(p.id) || [],
+            supplier: { gst_number: supplierGstinMap.get(p.supplier_id) || '' }
+          }));
+          purchaseVouchers = transformPurchasesToVouchers(purchasesWithItems, orgGstin);
           setCounts(prev => ({ ...prev, purchases: purchases.length }));
         }
       }
 
       if (includeSaleReturns) {
-        const { data: saleReturns } = await supabase
-          .from("sale_returns")
-          .select(`
-            *,
-            sale_return_items (*)
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("return_date", fromDate)
-          .lte("return_date", toDate);
+        // Fetch sale returns with range pagination
+        let allReturns: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
         
-        if (saleReturns) {
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("sale_returns")
+            .select(`*, sale_return_items (*)`)
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .gte("return_date", fromDate)
+            .lte("return_date", toDate)
+            .range(offset, offset + pageSize - 1);
+          
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allReturns.push(...data);
+            offset += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        if (allReturns.length > 0) {
           // Fetch customer GSTIN separately if customer_id exists
-          const returnsWithGstin = await Promise.all(saleReturns.map(async (sr) => {
+          const returnsWithGstin = await Promise.all(allReturns.map(async (sr) => {
             let customerGstin = '';
             if (sr.customer_id) {
               const { data: customer } = await supabase
                 .from("customers")
                 .select("gst_number")
                 .eq("id", sr.customer_id)
-                .single();
+                .maybeSingle();
               customerGstin = customer?.gst_number || '';
             }
             return { ...sr, customer_gstin: customerGstin };
           }));
           creditNotes = transformSaleReturnsToCreditNotes(returnsWithGstin, orgGstin);
-          setCounts(prev => ({ ...prev, saleReturns: saleReturns.length }));
+          setCounts(prev => ({ ...prev, saleReturns: allReturns.length }));
         }
       }
 
       if (includePurchaseReturns) {
-        const { data: purchaseReturns } = await supabase
-          .from("purchase_returns")
-          .select(`
-            *,
-            purchase_return_items (*),
-            supplier:suppliers (gst_number)
-          `)
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("return_date", fromDate)
-          .lte("return_date", toDate);
+        // Fetch purchase returns with range pagination
+        let allPurchaseReturns: any[] = [];
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
         
-        if (purchaseReturns) {
-          debitNotes = transformPurchaseReturnsToDebitNotes(purchaseReturns, orgGstin);
-          setCounts(prev => ({ ...prev, purchaseReturns: purchaseReturns.length }));
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from("purchase_returns")
+            .select(`*, purchase_return_items (*), supplier:suppliers (gst_number)`)
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .gte("return_date", fromDate)
+            .lte("return_date", toDate)
+            .range(offset, offset + pageSize - 1);
+          
+          if (error) throw error;
+          
+          if (data && data.length > 0) {
+            allPurchaseReturns.push(...data);
+            offset += pageSize;
+            hasMore = data.length === pageSize;
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        if (allPurchaseReturns.length > 0) {
+          debitNotes = transformPurchaseReturnsToDebitNotes(allPurchaseReturns, orgGstin);
+          setCounts(prev => ({ ...prev, purchaseReturns: allPurchaseReturns.length }));
         }
       }
 
       if (includeReceipts || includePayments) {
-        const { data: vouchers } = await supabase
-          .from("voucher_entries")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("voucher_date", fromDate)
-          .lte("voucher_date", toDate);
+        // Use paginated fetch for voucher entries
+        const vouchers = await fetchAllVouchersWithFilters(currentOrganization.id, {
+          startDate: fromDate,
+          endDate: toDate,
+        });
         
-        if (vouchers) {
+        if (vouchers && vouchers.length > 0) {
           if (includeReceipts) {
             receiptVouchers = transformReceiptsToVouchers(vouchers);
             setCounts(prev => ({ ...prev, receipts: receiptVouchers.length }));
