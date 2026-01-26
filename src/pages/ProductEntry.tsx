@@ -780,12 +780,34 @@ const ProductEntry = () => {
       return true; // No barcodes to validate
     }
 
+    // Step 1: Check for duplicate barcodes within the same product's variants
+    const barcodeSet = new Set<string>();
+    const internalDuplicates: string[] = [];
+    for (const barcode of barcodesToCheck) {
+      if (barcodeSet.has(barcode)) {
+        internalDuplicates.push(barcode);
+      } else {
+        barcodeSet.add(barcode);
+      }
+    }
+
+    if (internalDuplicates.length > 0) {
+      const uniqueDuplicates = [...new Set(internalDuplicates)];
+      toast({
+        title: "Duplicate Barcode Error",
+        description: `The same barcode "${uniqueDuplicates.join(", ")}" is used for multiple variants. Each variant must have a unique barcode.`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
     try {
-      // Check if any of these barcodes already exist in the database
+      // Step 2: Check if any of these barcodes already exist in the database
       const { data: existingVariants, error } = await supabase
         .from("product_variants")
         .select("barcode, product_id, products(product_name)")
-        .in("barcode", barcodesToCheck);
+        .in("barcode", barcodesToCheck)
+        .is("deleted_at", null);
 
       if (error) throw error;
 
