@@ -8,6 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { 
   ArrowLeft, 
   Eye, 
@@ -15,11 +25,14 @@ import {
   Calendar,
   ShoppingCart,
   RefreshCw,
-  Plus
+  Plus,
+  Check,
+  Loader2
 } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface SaleOrder {
   id: string;
@@ -30,6 +43,7 @@ interface SaleOrder {
   net_amount: number;
   status: string;
   created_at: string;
+  customer_accepted: boolean | null;
 }
 
 const SalesmanOrders = () => {
@@ -38,10 +52,14 @@ const SalesmanOrders = () => {
   const { user } = useAuth();
   const { sendWhatsApp } = useWhatsAppSend();
 
+  const { toast } = useToast();
+
   const [orders, setOrders] = useState<SaleOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("today");
+  const [orderToAccept, setOrderToAccept] = useState<SaleOrder | null>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   useEffect(() => {
     if (currentOrganization?.id && user?.id) {
@@ -53,7 +71,7 @@ const SalesmanOrders = () => {
     try {
       let query = supabase
         .from("sale_orders")
-        .select("id, order_number, order_date, customer_name, customer_phone, net_amount, status, created_at")
+        .select("id, order_number, order_date, customer_name, customer_phone, net_amount, status, created_at, customer_accepted")
         .eq("organization_id", currentOrganization!.id)
         .eq("created_by", user!.id)
         .is("deleted_at", null)
@@ -96,6 +114,28 @@ const SalesmanOrders = () => {
         return "bg-red-500/10 text-red-600";
       default:
         return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleAcceptOrder = async () => {
+    if (!orderToAccept) return;
+
+    setIsAccepting(true);
+    try {
+      const { error } = await supabase
+        .from('sale_orders')
+        .update({ customer_accepted: true })
+        .eq('id', orderToAccept.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `Order ${orderToAccept.order_number} accepted` });
+      fetchOrders();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+      setOrderToAccept(null);
     }
   };
 
@@ -237,6 +277,26 @@ const SalesmanOrders = () => {
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
+                      {order.customer_accepted ? (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1 bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
+                          disabled
+                        >
+                          <Check className="h-4 w-4 mr-1" />
+                          Accepted
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setOrderToAccept(order)}
+                        >
+                          Accept
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -263,6 +323,24 @@ const SalesmanOrders = () => {
       >
         <Plus className="h-6 w-6" />
       </Button>
+
+      {/* Accept Order Dialog */}
+      <AlertDialog open={!!orderToAccept} onOpenChange={() => setOrderToAccept(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Accept Sale Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to accept this order ({orderToAccept?.order_number})?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAcceptOrder} disabled={isAccepting}>
+              {isAccepting ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

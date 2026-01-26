@@ -41,6 +41,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { Check } from "lucide-react";
 
 interface ConversionItem {
   id: string;
@@ -83,6 +84,8 @@ export default function SaleOrderDashboard() {
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [orderToAccept, setOrderToAccept] = useState<any>(null);
+  const [isAccepting, setIsAccepting] = useState(false);
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -329,6 +332,28 @@ export default function SaleOrderDashboard() {
     } finally {
       setIsDeleting(false);
       setOrderToDelete(null);
+    }
+  };
+
+  const handleAcceptOrder = async () => {
+    if (!orderToAccept) return;
+
+    setIsAccepting(true);
+    try {
+      const { error } = await supabase
+        .from('sale_orders')
+        .update({ customer_accepted: true })
+        .eq('id', orderToAccept.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `Sale Order ${orderToAccept.order_number} accepted` });
+      refetch();
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsAccepting(false);
+      setOrderToAccept(null);
     }
   };
 
@@ -592,6 +617,7 @@ export default function SaleOrderDashboard() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Accept</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -621,6 +647,27 @@ export default function SaleOrderDashboard() {
                       </TableCell>
                       <TableCell>{getStatusBadge(order.status)}</TableCell>
                       <TableCell>
+                        {order.customer_accepted ? (
+                          <Button 
+                            variant="secondary" 
+                            size="sm" 
+                            disabled 
+                            className="bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
+                          >
+                            <Check className="h-4 w-4 mr-1" />
+                            Accepted
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => setOrderToAccept(order)}
+                          >
+                            Accept
+                          </Button>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(order)} title="WhatsApp">
                             <MessageCircle className="h-4 w-4" />
@@ -649,7 +696,7 @@ export default function SaleOrderDashboard() {
                     </TableRow>
                     {expandedRows.has(order.id) && (
                       <TableRow>
-                        <TableCell colSpan={8} className="bg-muted/50">
+                        <TableCell colSpan={9} className="bg-muted/50">
                           <div className="p-4">
                             <h4 className="font-medium mb-2">Order Items</h4>
                             <Table>
@@ -718,6 +765,24 @@ export default function SaleOrderDashboard() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteOrder} disabled={isDeleting}>
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Accept Dialog */}
+      <AlertDialog open={!!orderToAccept} onOpenChange={() => setOrderToAccept(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Accept Sale Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to accept this order ({orderToAccept?.order_number})?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAcceptOrder} disabled={isAccepting}>
+              {isAccepting ? <Loader2 className="h-4 w-4 animate-spin" /> : "OK"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
