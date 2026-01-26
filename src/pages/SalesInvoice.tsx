@@ -2472,15 +2472,6 @@ Thank you for choosing us!`;
             <Eye className="mr-2 h-4 w-4" />
             {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
           </Button>
-          <Button 
-            onClick={handleSaveInvoice}
-            disabled={isSaving || savingLockRef.current} 
-            variant="outline" 
-            className="flex-1"
-          >
-            <Search className="mr-2 h-4 w-4" />
-            Save & Print
-          </Button>
         </div>
       </Card>
 
