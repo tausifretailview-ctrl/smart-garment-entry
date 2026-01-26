@@ -470,15 +470,13 @@ const DashboardContent = () => {
       // Get unique variant IDs
       const variantIds = [...new Set(saleItemsList.map(item => item.variant_id))];
       
-      // Fetch purchase prices for all variants
-      const { data: variants } = await supabase
-        .from("product_variants")
-        .select("id, pur_price")
-        .in("id", variantIds);
+      // Fetch purchase prices for all variants - use batched fetch to bypass 1000 limit
+      const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
+      const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
       
       // Create a map of variant_id to pur_price
       const variantPriceMap = new Map<string, number>();
-      variants?.forEach(v => {
+      variants?.forEach((v: any) => {
         variantPriceMap.set(v.id, Number(v.pur_price) || 0);
       });
       

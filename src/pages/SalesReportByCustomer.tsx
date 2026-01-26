@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllCustomers, fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,49 +32,36 @@ interface Sale {
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8884d8', '#82ca9d', '#ffc658'];
 
 const SalesReportByCustomer = () => {
+  const { currentOrganization } = useOrganization();
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
 
-  // Fetch customers
+  // Fetch customers using paginated fetch to bypass 1000 limit
   const { data: customers = [] } = useQuery({
-    queryKey: ["customers"],
+    queryKey: ["customers-all", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("*")
-        .order("customer_name");
-      if (error) throw error;
-      return data;
+      if (!currentOrganization?.id) return [];
+      return await fetchAllCustomers(currentOrganization.id);
     },
+    enabled: !!currentOrganization?.id,
   });
 
-  // Fetch sales
+  // Fetch sales using paginated fetch to bypass 1000 limit
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-report", selectedCustomerId, startDate, endDate],
+    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, startDate, endDate],
     queryFn: async () => {
-      let query = supabase
-        .from("sales")
-        .select("*")
-        .is("deleted_at", null)
-        .order("sale_date", { ascending: false });
-
-      if (selectedCustomerId !== "all") {
-        query = query.eq("customer_id", selectedCustomerId);
-      }
-
-      if (startDate) {
-        query = query.gte("sale_date", format(startDate, "yyyy-MM-dd"));
-      }
-
-      if (endDate) {
-        query = query.lte("sale_date", format(endDate, "yyyy-MM-dd"));
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Sale[];
+      if (!currentOrganization?.id) return [];
+      
+      const filters: any = {};
+      if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
+      if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
+      if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
+      
+      const allSales = await fetchAllSalesWithFilters(currentOrganization.id, filters);
+      return allSales as Sale[];
     },
+    enabled: !!currentOrganization?.id,
   });
 
   // Calculate totals

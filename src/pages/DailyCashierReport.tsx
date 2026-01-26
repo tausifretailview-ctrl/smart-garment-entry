@@ -55,28 +55,24 @@ const DailyCashierReport = () => {
 
   const { startDate, endDate } = getDateRange();
 
-  // Fetch sales for selected period
+  // Fetch sales for selected period using range pagination
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ["cashier-report-sales", currentOrganization?.id, selectedDate, period],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
 
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .gte("sale_date", startDate.toISOString())
-        .lte("sale_date", endDate.toISOString())
-        .is("deleted_at", null)
-        .order("sale_date", { ascending: true });
-
-      if (error) throw error;
-      return data;
+      const { fetchAllSalesWithFilters } = await import("@/utils/fetchAllRows");
+      const allSales = await fetchAllSalesWithFilters(currentOrganization.id, {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
+      
+      return allSales;
     },
     enabled: !!currentOrganization?.id,
   });
 
-  // Fetch payment receipts (RCP) for selected period - includes opening balance collections
+  // Fetch payment receipts (RCP) for selected period using range pagination
   const { data: receiptData, isLoading: receiptsLoading } = useQuery({
     queryKey: ["cashier-report-receipts", currentOrganization?.id, selectedDate, period],
     queryFn: async () => {
@@ -85,18 +81,14 @@ const DailyCashierReport = () => {
       const startDateStr = format(startDate, 'yyyy-MM-dd');
       const endDateStr = format(endDate, 'yyyy-MM-dd');
 
-      const { data, error } = await supabase
-        .from("voucher_entries")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .eq("voucher_type", "receipt")
-        .gte("voucher_date", startDateStr)
-        .lte("voucher_date", endDateStr)
-        .is("deleted_at", null)
-        .order("voucher_date", { ascending: true });
-
-      if (error) throw error;
-      return data;
+      const { fetchAllVouchersWithFilters } = await import("@/utils/fetchAllRows");
+      const allReceipts = await fetchAllVouchersWithFilters(currentOrganization.id, {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        voucherType: "receipt",
+      });
+      
+      return allReceipts;
     },
     enabled: !!currentOrganization?.id,
   });

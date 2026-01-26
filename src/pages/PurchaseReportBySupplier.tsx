@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAllSuppliers, fetchAllPurchaseBillsWithFilters } from "@/utils/fetchAllRows";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,49 +26,36 @@ interface PurchaseBill {
 }
 
 const PurchaseReportBySupplier = () => {
+  const { currentOrganization } = useOrganization();
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("all");
   const [startDate, setStartDate] = useState<Date>();
   const [endDate, setEndDate] = useState<Date>();
 
-  // Fetch suppliers
+  // Fetch suppliers using paginated fetch to bypass 1000 limit
   const { data: suppliers = [] } = useQuery({
-    queryKey: ["suppliers"],
+    queryKey: ["suppliers-all", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .order("supplier_name");
-      if (error) throw error;
-      return data;
+      if (!currentOrganization?.id) return [];
+      return await fetchAllSuppliers(currentOrganization.id);
     },
+    enabled: !!currentOrganization?.id,
   });
 
-  // Fetch purchase bills
+  // Fetch purchase bills using paginated fetch to bypass 1000 limit
   const { data: purchaseBills = [], isLoading } = useQuery({
-    queryKey: ["purchase-bills", selectedSupplierId, startDate, endDate],
+    queryKey: ["purchase-bills-report", currentOrganization?.id, selectedSupplierId, startDate, endDate],
     queryFn: async () => {
-      let query = supabase
-        .from("purchase_bills")
-        .select("*")
-        .is("deleted_at", null)
-        .order("bill_date", { ascending: false });
-
-      if (selectedSupplierId !== "all") {
-        query = query.eq("supplier_id", selectedSupplierId);
-      }
-
-      if (startDate) {
-        query = query.gte("bill_date", format(startDate, "yyyy-MM-dd"));
-      }
-
-      if (endDate) {
-        query = query.lte("bill_date", format(endDate, "yyyy-MM-dd"));
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as PurchaseBill[];
+      if (!currentOrganization?.id) return [];
+      
+      const filters: any = {};
+      if (startDate) filters.startDate = format(startDate, "yyyy-MM-dd");
+      if (endDate) filters.endDate = format(endDate, "yyyy-MM-dd");
+      if (selectedSupplierId !== "all") filters.supplierId = selectedSupplierId;
+      
+      const allBills = await fetchAllPurchaseBillsWithFilters(currentOrganization.id, filters);
+      return allBills as PurchaseBill[];
     },
+    enabled: !!currentOrganization?.id,
   });
 
   // Calculate totals

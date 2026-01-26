@@ -354,3 +354,329 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
   console.log(`Fetched ${allRows.length} total purchase items`);
   return allRows;
 }
+
+/**
+ * Fetch product variants by IDs using batched queries to bypass the 1000 limit.
+ * Used for COGS calculation, profit reports, etc.
+ */
+export async function fetchVariantsByIds(
+  variantIds: string[], 
+  selectFields: string = "id, pur_price"
+) {
+  if (variantIds.length === 0) return [];
+  
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < variantIds.length; i += batchSize) {
+    const batchIds = variantIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select(selectFields)
+      .in("id", batchIds);
+    
+    if (error) {
+      console.error("Error fetching variants by IDs:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  console.log(`Fetched ${allRows.length} variants by IDs`);
+  return allRows;
+}
+
+/**
+ * Fetch products by IDs using batched queries to bypass the 1000 limit.
+ */
+export async function fetchProductsByIds(
+  productIds: string[], 
+  selectFields: string = "id, product_name, brand, category, color"
+) {
+  if (productIds.length === 0) return [];
+  
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    const batchIds = productIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("products")
+      .select(selectFields)
+      .in("id", batchIds);
+    
+    if (error) {
+      console.error("Error fetching products by IDs:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  console.log(`Fetched ${allRows.length} products by IDs`);
+  return allRows;
+}
+
+/**
+ * Fetch sale return items by return IDs using batched queries.
+ */
+export async function fetchSaleReturnItemsByIds(
+  returnIds: string[],
+  selectFields: string = "return_id, gst_percent, line_total"
+) {
+  if (returnIds.length === 0) return [];
+  
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < returnIds.length; i += batchSize) {
+    const batchIds = returnIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("sale_return_items")
+      .select(selectFields)
+      .in("return_id", batchIds);
+    
+    if (error) {
+      console.error("Error fetching sale return items:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  console.log(`Fetched ${allRows.length} sale return items`);
+  return allRows;
+}
+
+/**
+ * Fetch purchase return items by return IDs using batched queries.
+ */
+export async function fetchPurchaseReturnItemsByIds(
+  returnIds: string[],
+  selectFields: string = "return_id, gst_per, line_total"
+) {
+  if (returnIds.length === 0) return [];
+  
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < returnIds.length; i += batchSize) {
+    const batchIds = returnIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("purchase_return_items")
+      .select(selectFields)
+      .in("return_id", batchIds);
+    
+    if (error) {
+      console.error("Error fetching purchase return items:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  console.log(`Fetched ${allRows.length} purchase return items`);
+  return allRows;
+}
+
+/**
+ * Fetch purchase items by bill IDs using batched queries.
+ */
+export async function fetchPurchaseItemsByBillIds(
+  billIds: string[],
+  selectFields: string = "bill_id, gst_per, line_total"
+) {
+  if (billIds.length === 0) return [];
+  
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < billIds.length; i += batchSize) {
+    const batchIds = billIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("purchase_items")
+      .select(selectFields)
+      .in("bill_id", batchIds);
+    
+    if (error) {
+      console.error("Error fetching purchase items by bill IDs:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  console.log(`Fetched ${allRows.length} purchase items by bill IDs`);
+  return allRows;
+}
+
+/**
+ * Fetch all sales with filters using range pagination.
+ */
+export async function fetchAllSalesWithFilters(
+  organizationId: string,
+  filters?: {
+    startDate?: string;
+    endDate?: string;
+    customerId?: string;
+    saleType?: string;
+  }
+) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("sales")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("sale_date", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (filters?.startDate) {
+      query = query.gte("sale_date", filters.startDate);
+    }
+    if (filters?.endDate) {
+      query = query.lte("sale_date", filters.endDate);
+    }
+    if (filters?.customerId) {
+      query = query.eq("customer_id", filters.customerId);
+    }
+    if (filters?.saleType) {
+      query = query.eq("sale_type", filters.saleType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching sales with filters:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      offset += pageSize;
+      if (data.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  console.log(`Fetched ${allRows.length} total sales with filters`);
+  return allRows;
+}
+
+/**
+ * Fetch all purchase bills with filters using range pagination.
+ */
+export async function fetchAllPurchaseBillsWithFilters(
+  organizationId: string,
+  filters?: {
+    startDate?: string;
+    endDate?: string;
+    supplierId?: string;
+  }
+) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("purchase_bills")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("bill_date", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (filters?.startDate) {
+      query = query.gte("bill_date", filters.startDate);
+    }
+    if (filters?.endDate) {
+      query = query.lte("bill_date", filters.endDate);
+    }
+    if (filters?.supplierId) {
+      query = query.eq("supplier_id", filters.supplierId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching purchase bills with filters:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      offset += pageSize;
+      if (data.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  console.log(`Fetched ${allRows.length} total purchase bills with filters`);
+  return allRows;
+}
+
+/**
+ * Fetch all vouchers with filters using range pagination.
+ */
+export async function fetchAllVouchersWithFilters(
+  organizationId: string,
+  filters?: {
+    startDate?: string;
+    endDate?: string;
+    voucherType?: string;
+  }
+) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("voucher_entries")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("voucher_date", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (filters?.startDate) {
+      query = query.gte("voucher_date", filters.startDate);
+    }
+    if (filters?.endDate) {
+      query = query.lte("voucher_date", filters.endDate);
+    }
+    if (filters?.voucherType) {
+      query = query.eq("voucher_type", filters.voucherType);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Error fetching vouchers with filters:", error);
+      throw error;
+    }
+
+    if (data && data.length > 0) {
+      allRows.push(...data);
+      offset += pageSize;
+      if (data.length < pageSize) {
+        hasMore = false;
+      }
+    } else {
+      hasMore = false;
+    }
+  }
+
+  console.log(`Fetched ${allRows.length} total vouchers with filters`);
+  return allRows;
+}
