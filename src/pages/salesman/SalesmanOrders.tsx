@@ -281,7 +281,7 @@ const SalesmanOrders = () => {
                         <Button
                           variant="secondary"
                           size="sm"
-                          className="flex-1 bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
+                          className="flex-1 !bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
                           disabled
                         >
                           <Check className="h-4 w-4 mr-1" />

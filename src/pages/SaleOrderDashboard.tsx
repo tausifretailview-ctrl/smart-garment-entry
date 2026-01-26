@@ -652,7 +652,7 @@ export default function SaleOrderDashboard() {
                             variant="secondary" 
                             size="sm" 
                             disabled 
-                            className="bg-gray-400 hover:bg-gray-400 text-white cursor-not-allowed"
+                            className="!bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
                           >
                             <Check className="h-4 w-4 mr-1" />
                             Accepted
