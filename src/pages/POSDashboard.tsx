@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock } from "lucide-react";
 import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -1394,7 +1394,14 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.sale_number}
+                              <div className="flex items-center gap-1.5">
+                                {sale.sale_number}
+                                {sale.payment_status === 'completed' && (
+                                  <span title="Invoice is locked (Fully Paid)">
+                                    <Lock className="h-3.5 w-3.5 text-green-600" />
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell 
                               className="cursor-pointer text-blue-600 hover:underline"
@@ -1578,13 +1585,24 @@ const POSDashboard = () => {
                                   </Button>
                                 )}
                                 {columnSettings.modify && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => handleEditSale(sale.id, e)}
-                                  >
-                                    <Edit className="h-4 w-4" />
-                                  </Button>
+                                  sale.payment_status === 'completed' ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      disabled
+                                      title="Invoice is locked (Fully Paid)"
+                                    >
+                                      <Lock className="h-4 w-4 text-muted-foreground" />
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => handleEditSale(sale.id, e)}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  )
                                 )}
                               </div>
                             </TableCell>
