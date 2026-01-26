@@ -468,6 +468,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
         });
         return false;
       }
+      
+      // Check barcode is present
+      if (!variant.barcode || variant.barcode.trim() === '') {
+        toast({
+          title: "Barcode Required",
+          description: `Barcode is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please generate barcode first.`,
+          variant: "destructive",
+        });
+        return false;
+      }
     }
 
     const barcodesInForm = variants
@@ -955,7 +965,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                           <TableHead>Purchase Price<span className="text-destructive">*</span></TableHead>
                           <TableHead>Sale Price<span className="text-destructive">*</span></TableHead>
                           {showMrp && <TableHead>MRP<span className="text-destructive">*</span></TableHead>}
-                          <TableHead>Barcode</TableHead>
+                          <TableHead>Barcode<span className="text-destructive">*</span></TableHead>
                           <TableHead>Opening Qty</TableHead>
                           <TableHead>Active</TableHead>
                           <TableHead></TableHead>
