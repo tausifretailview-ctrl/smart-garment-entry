@@ -2593,7 +2593,7 @@ export default function POSSales() {
           {/* Running Total Display */}
           <div className="h-12 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-4 flex items-center justify-center min-w-[180px]">
             <div className="text-white font-bold text-xl">
-              ₹{finalAmount.toFixed(2)}
+              ₹{Math.round(finalAmount).toLocaleString('en-IN')}
             </div>
           </div>
               
@@ -2810,9 +2810,9 @@ export default function POSSales() {
                           step="0.01"
                         />
                       </div>
-                      <div className="flex items-center">₹{item.unitCost.toFixed(2)}</div>
+                      <div className="flex items-center">₹{Math.round(item.unitCost).toLocaleString('en-IN')}</div>
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold">₹{item.netAmount.toFixed(2)}</span>
+                        <span className="font-semibold">₹{Math.round(item.netAmount).toLocaleString('en-IN')}</span>
                         <Button
                           size="icon"
                           variant="ghost"
@@ -2929,21 +2929,21 @@ export default function POSSales() {
               <div className="text-xs md:text-sm mt-1">Quantity</div>
             </div>
             <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{totals.mrp.toFixed(2)}</div>
+              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.mrp).toLocaleString('en-IN')}</div>
               <div className="text-xs md:text-sm mt-1">MRP</div>
             </div>
             {totals.savings > 0 && (
               <div className="text-center bg-green-600 rounded-md py-1">
-                <div className="text-xl md:text-2xl font-bold">₹{totals.savings.toFixed(0)}</div>
+                <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.savings).toLocaleString('en-IN')}</div>
                 <div className="text-xs md:text-sm mt-1">You Save!</div>
               </div>
             )}
             <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹0.00</div>
+              <div className="text-xl md:text-2xl font-bold">₹0</div>
               <div className="text-xs md:text-sm mt-1">Add. Charges</div>
             </div>
             <div className="text-center">
-              <div className="text-xl md:text-2xl font-bold">₹{totals.discount.toFixed(2)}</div>
+              <div className="text-xl md:text-2xl font-bold">₹{Math.round(totals.discount).toLocaleString('en-IN')}</div>
               <div className="text-xs md:text-sm mt-1">Discount</div>
             </div>
             <div className="text-center">
