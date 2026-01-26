@@ -661,6 +661,7 @@ export default function SaleOrderDashboard() {
                           <Button 
                             variant="default" 
                             size="sm"
+                            className="bg-blue-800 hover:bg-blue-900 text-white"
                             onClick={() => setOrderToAccept(order)}
                           >
                             Accept

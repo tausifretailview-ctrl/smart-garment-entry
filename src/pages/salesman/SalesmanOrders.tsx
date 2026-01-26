@@ -291,7 +291,7 @@ const SalesmanOrders = () => {
                         <Button
                           variant="default"
                           size="sm"
-                          className="flex-1"
+                          className="flex-1 bg-blue-800 hover:bg-blue-900 text-white"
                           onClick={() => setOrderToAccept(order)}
                         >
                           Accept
