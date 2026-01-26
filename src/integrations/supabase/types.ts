@@ -2611,6 +2611,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          customer_accepted: boolean | null
           customer_address: string | null
           customer_email: string | null
           customer_id: string | null
@@ -2643,6 +2644,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          customer_accepted?: boolean | null
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
@@ -2675,6 +2677,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          customer_accepted?: boolean | null
           customer_address?: string | null
           customer_email?: string | null
           customer_id?: string | null
