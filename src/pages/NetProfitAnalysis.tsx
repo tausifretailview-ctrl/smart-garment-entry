@@ -176,12 +176,19 @@ export default function NetProfitAnalysis() {
 
       const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
 
-      const { data: variants } = await supabase
-        .from("product_variants")
-        .select("id, pur_price, product_id")
-        .in("id", variantIds);
+      // Batch fetch variants to handle more than 1000 IDs
+      const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
+      const variantBatchSize = 500;
+      for (let i = 0; i < variantIds.length; i += variantBatchSize) {
+        const batchIds = variantIds.slice(i, i + variantBatchSize);
+        const { data: batchVariants } = await supabase
+          .from("product_variants")
+          .select("id, pur_price, product_id")
+          .in("id", batchIds);
+        if (batchVariants) allVariants.push(...batchVariants);
+      }
 
-      const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
+      const variantMap = new Map(allVariants.map(v => [v.id, v]));
 
       // Use paginated fetch for purchase items
       const purchaseItems = await fetchAllPurchaseItems(variantIds);
@@ -281,12 +288,19 @@ export default function NetProfitAnalysis() {
 
       const variantIds = [...new Set(saleItems.map(si => si.variant_id))];
 
-      const { data: variants } = await supabase
-        .from("product_variants")
-        .select("id, pur_price, product_id")
-        .in("id", variantIds);
+      // Batch fetch variants to handle more than 1000 IDs
+      const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
+      const variantBatchSize = 500;
+      for (let i = 0; i < variantIds.length; i += variantBatchSize) {
+        const batchIds = variantIds.slice(i, i + variantBatchSize);
+        const { data: batchVariants } = await supabase
+          .from("product_variants")
+          .select("id, pur_price, product_id")
+          .in("id", batchIds);
+        if (batchVariants) allVariants.push(...batchVariants);
+      }
 
-      const variantMap = new Map(variants?.map(v => [v.id, v]) || []);
+      const variantMap = new Map(allVariants.map(v => [v.id, v]));
 
       const productIds = [...new Set(saleItems.map(si => si.product_id).filter(Boolean))];
 
