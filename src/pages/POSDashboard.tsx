@@ -713,7 +713,7 @@ const POSDashboard = () => {
     if (amount > pendingAmount) {
       toast({
         title: "Amount Exceeds Pending",
-        description: `Payment amount cannot exceed pending amount of ₹${pendingAmount.toFixed(2)}`,
+        description: `Payment amount cannot exceed pending amount of ₹${Math.round(pendingAmount).toLocaleString('en-IN')}`,
         variant: "destructive",
       });
       return;
@@ -751,7 +751,7 @@ const POSDashboard = () => {
           voucher_number: voucherData,
           voucher_type: 'receipt',
           voucher_date: format(paymentDate, 'yyyy-MM-dd'),
-          reference_type: 'customer',
+          reference_type: 'sale',
           reference_id: selectedSaleForPayment.id,
           total_amount: amount,
           description: `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`,
@@ -761,7 +761,7 @@ const POSDashboard = () => {
 
       toast({
         title: "Payment Recorded",
-        description: `Payment of ₹${amount.toFixed(2)} recorded successfully`,
+        description: `Payment of ₹${Math.round(amount).toLocaleString('en-IN')} recorded successfully`,
       });
 
       const newReceiptData = {
@@ -816,7 +816,7 @@ const POSDashboard = () => {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${Math.round(receiptData.invoiceAmount).toLocaleString('en-IN')}\nPaid Amount: ₹${Math.round(receiptData.paidAmount).toLocaleString('en-IN')}\nBalance: ₹${Math.round(receiptData.currentBalance).toLocaleString('en-IN')}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n${receiptData.narration ? `\nNotes: ${receiptData.narration}` : ''}\n\nThank you for your payment!`;
 
     sendWhatsApp(receiptData.customerPhone, message);
   };
@@ -1407,7 +1407,7 @@ const POSDashboard = () => {
                                 setShowCustomerHistory(true);
                               }}
                             >
-                              {sale.customer_name}
+                              {sale.customer_name?.toUpperCase()}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.customer_phone || '-'}
@@ -1418,23 +1418,23 @@ const POSDashboard = () => {
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>₹{sale.net_amount.toFixed(2)}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(sale.id)}>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {sale.cash_amount ? `₹${sale.cash_amount.toFixed(2)}` : '-'}
+                              {sale.cash_amount ? `₹${Math.round(sale.cash_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {sale.card_amount ? `₹${sale.card_amount.toFixed(2)}` : '-'}
+                              {sale.card_amount ? `₹${Math.round(sale.card_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {sale.upi_amount ? `₹${sale.upi_amount.toFixed(2)}` : '-'}
+                              {sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              ₹{(sale.paid_amount || 0).toFixed(2)}
+                              ₹{Math.round(sale.paid_amount || 0).toLocaleString('en-IN')}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.payment_status !== 'completed' ? (
                                 <span className="font-semibold text-orange-600">
-                                  ₹{(sale.net_amount - (sale.paid_amount || 0)).toFixed(2)}
+                                  ₹{Math.round(sale.net_amount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
@@ -1444,7 +1444,7 @@ const POSDashboard = () => {
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
                                 {(sale.refund_amount || 0) > 0 ? (
                                   <span className="font-semibold text-red-600">
-                                    ₹{(sale.refund_amount || 0).toFixed(2)}
+                                    ₹{Math.round(sale.refund_amount || 0).toLocaleString('en-IN')}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>
@@ -1467,7 +1467,7 @@ const POSDashboard = () => {
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.credit_note_id ? (
                                 <span className="font-semibold text-violet-600">
-                                  ₹{(sale.credit_note_amount || 0).toFixed(2)}
+                                  ₹{Math.round(sale.credit_note_amount || 0).toLocaleString('en-IN')}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">-</span>
@@ -1625,11 +1625,11 @@ const POSDashboard = () => {
                                               {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
                                               {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
-                                              {showItemMrp && <TableCell>₹{item.mrp.toFixed(2)}</TableCell>}
-                                              <TableCell>₹{item.unit_price.toFixed(2)}</TableCell>
+                                              {showItemMrp && <TableCell>₹{Math.round(item.mrp).toLocaleString('en-IN')}</TableCell>}
+                                              <TableCell>₹{Math.round(item.unit_price).toLocaleString('en-IN')}</TableCell>
                                               <TableCell>{item.discount_percent}%</TableCell>
                                               <TableCell>{item.gst_percent}%</TableCell>
-                                              <TableCell className="text-right">₹{item.line_total.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right">₹{Math.round(item.line_total).toLocaleString('en-IN')}</TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
@@ -1658,9 +1658,9 @@ const POSDashboard = () => {
                                                   <Badge variant="destructive">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
                                                 <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
-                                                <TableCell>{ret.customer_name}</TableCell>
+                                                <TableCell>{ret.customer_name?.toUpperCase()}</TableCell>
                                                 <TableCell className="text-right font-medium text-red-600">
-                                                  ₹{ret.net_amount.toFixed(2)}
+                                                  ₹{Math.round(ret.net_amount).toLocaleString('en-IN')}
                                                 </TableCell>
                                                 <TableCell className="text-sm text-muted-foreground">
                                                   {ret.notes || "-"}
@@ -1882,14 +1882,14 @@ const POSDashboard = () => {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-2 text-sm">
               <span className="text-muted-foreground">Customer:</span>
-              <span className="font-medium">{selectedSaleForPayment?.customer_name}</span>
+              <span className="font-medium">{selectedSaleForPayment?.customer_name?.toUpperCase()}</span>
               <span className="text-muted-foreground">Sale Amount:</span>
-              <span className="font-medium">₹{selectedSaleForPayment?.net_amount.toFixed(2)}</span>
+              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
               <span className="text-muted-foreground">Paid Amount:</span>
-              <span className="font-medium">₹{(selectedSaleForPayment?.paid_amount || 0).toFixed(2)}</span>
+              <span className="font-medium">₹{Math.round(selectedSaleForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
               <span className="text-muted-foreground">Pending Amount:</span>
               <span className="font-semibold text-orange-600">
-                ₹{((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0)).toFixed(2)}
+                ₹{Math.round((selectedSaleForPayment?.net_amount || 0) - (selectedSaleForPayment?.paid_amount || 0)).toLocaleString('en-IN')}
               </span>
             </div>
             <div>

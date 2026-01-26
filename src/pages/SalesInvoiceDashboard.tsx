@@ -1490,7 +1490,7 @@ export default function SalesInvoiceDashboard() {
                                 setShowCustomerHistory(true);
                               }}
                             >
-                              {invoice.customer_name}
+                              {invoice.customer_name?.toUpperCase()}
                             </TableCell>
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.customer_phone || '-'}
@@ -1502,12 +1502,12 @@ export default function SalesInvoiceDashboard() {
                               {invoice.sale_items?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0}
                             </TableCell>
                             <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              ₹{((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toFixed(2)}
+                              ₹{Math.round((invoice.discount_amount || 0) + (invoice.flat_discount_amount || 0)).toLocaleString('en-IN')}
                               {(invoice.sale_return_adjust || 0) > 0 && (
-                                <span className="block text-xs text-amber-600">+S/R: ₹{invoice.sale_return_adjust.toFixed(2)}</span>
+                                <span className="block text-xs text-amber-600">+S/R: ₹{Math.round(invoice.sale_return_adjust).toLocaleString('en-IN')}</span>
                               )}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{invoice.net_amount.toFixed(2)}</TableCell>
+                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>₹{Math.round(invoice.net_amount).toLocaleString('en-IN')}</TableCell>
                             {columnSettings.status && (
                               <TableCell className="text-center" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                                 <Badge 
@@ -1529,7 +1529,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                ₹{((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toFixed(2)}
+                                ₹{Math.round((invoice.net_amount || 0) - (invoice.paid_amount || 0)).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -1707,12 +1707,12 @@ export default function SalesInvoiceDashboard() {
                                               {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
                                               {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
                                               <TableCell>{item.quantity}</TableCell>
-                                              {showItemMrp && <TableCell>₹{item.mrp?.toFixed(2) || '-'}</TableCell>}
-                                              <TableCell>₹{itemGrossTotal.toFixed(2)}</TableCell>
+                                              {showItemMrp && <TableCell>₹{item.mrp ? Math.round(item.mrp).toLocaleString('en-IN') : '-'}</TableCell>}
+                                              <TableCell>₹{Math.round(itemGrossTotal).toLocaleString('en-IN')}</TableCell>
                                               <TableCell className="text-right text-destructive">
-                                                {itemDiscount > 0 ? `₹${itemDiscount.toFixed(2)}` : '-'}
+                                                {itemDiscount > 0 ? `₹${Math.round(itemDiscount).toLocaleString('en-IN')}` : '-'}
                                               </TableCell>
-                                              <TableCell className="text-right font-medium">₹{itemAfterDiscount.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right font-medium">₹{Math.round(itemAfterDiscount).toLocaleString('en-IN')}</TableCell>
                                             </TableRow>
                                           );
                                         })}
@@ -1768,9 +1768,9 @@ export default function SalesInvoiceDashboard() {
                                               <TableCell>
                                                 {saleReturn.return_date ? format(new Date(saleReturn.return_date), 'dd/MM/yyyy') : '-'}
                                               </TableCell>
-                                              <TableCell>{saleReturn.customer_name}</TableCell>
+                                              <TableCell>{saleReturn.customer_name?.toUpperCase()}</TableCell>
                                               <TableCell className="text-right text-orange-600">
-                                                -₹{saleReturn.net_amount.toFixed(2)}
+                                                -₹{Math.round(saleReturn.net_amount).toLocaleString('en-IN')}
                                               </TableCell>
                                               <TableCell className="text-muted-foreground">
                                                 {saleReturn.notes || '-'}
@@ -1793,10 +1793,10 @@ export default function SalesInvoiceDashboard() {
                       <TableRow className="bg-muted/70 font-semibold border-t-2">
                         <TableCell colSpan={6} className="text-right">Page Total:</TableCell>
                         <TableCell className="text-center">{pageTotals.qty}</TableCell>
-                        <TableCell className="text-right">₹{pageTotals.discount.toFixed(2)}</TableCell>
-                        <TableCell>₹{pageTotals.amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right">₹{Math.round(pageTotals.discount).toLocaleString('en-IN')}</TableCell>
+                        <TableCell>₹{Math.round(pageTotals.amount).toLocaleString('en-IN')}</TableCell>
                         {columnSettings.status && <TableCell></TableCell>}
-                        {columnSettings.status && <TableCell className="text-right">₹{pageTotals.balance.toFixed(2)}</TableCell>}
+                        {columnSettings.status && <TableCell className="text-right">₹{Math.round(pageTotals.balance).toLocaleString('en-IN')}</TableCell>}
                         {columnSettings.delivery && <TableCell></TableCell>}
                         <TableCell></TableCell>
                       </TableRow>
@@ -1977,14 +1977,14 @@ export default function SalesInvoiceDashboard() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <span className="text-muted-foreground">Customer:</span>
-                <span className="font-medium">{selectedInvoiceForPayment?.customer_name}</span>
+                <span className="font-medium">{selectedInvoiceForPayment?.customer_name?.toUpperCase()}</span>
                 <span className="text-muted-foreground">Invoice Amount:</span>
-                <span className="font-medium">₹{selectedInvoiceForPayment?.net_amount.toFixed(2)}</span>
+                <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.net_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Paid Amount:</span>
-                <span className="font-medium">₹{(selectedInvoiceForPayment?.paid_amount || 0).toFixed(2)}</span>
+                <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">Pending Amount:</span>
                 <span className="font-semibold text-orange-600">
-                  ₹{((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0)).toFixed(2)}
+                  ₹{Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0)).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>

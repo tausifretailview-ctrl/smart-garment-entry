@@ -1007,7 +1007,7 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
-      toast.success(`Receipt deleted. ₹${data.paymentAmount.toFixed(2)} reversed to customer account.`);
+      toast.success(`Receipt deleted. ₹${Math.round(data.paymentAmount).toLocaleString('en-IN')} reversed to customer account.`);
     },
     onError: (error: Error) => {
       toast.error(`Failed to delete receipt: ${error.message}`);
@@ -1087,7 +1087,7 @@ export default function Accounts() {
       queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
-      toast.success(`Payment updated successfully. Amount changed from ₹${data.oldAmount.toFixed(2)} to ₹${data.newAmount.toFixed(2)}`);
+      toast.success(`Payment updated successfully. Amount changed from ₹${Math.round(data.oldAmount).toLocaleString('en-IN')} to ₹${Math.round(data.newAmount).toLocaleString('en-IN')}`);
       setShowEditPaymentDialog(false);
       setEditingPayment(null);
     },
@@ -1160,7 +1160,7 @@ export default function Accounts() {
       return;
     }
 
-    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${receiptData.invoiceAmount.toFixed(2)}\nPaid Amount: ₹${receiptData.paidAmount.toFixed(2)}\nBalance: ₹${receiptData.currentBalance.toFixed(2)}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n\nThank you for your payment!`;
+    const message = `*PAYMENT RECEIPT*\n\nReceipt No: ${receiptData.voucherNumber}\nDate: ${receiptData.voucherDate ? format(new Date(receiptData.voucherDate), 'dd/MM/yyyy') : '-'}\n\nCustomer: ${receiptData.customerName?.toUpperCase()}\nInvoice: ${receiptData.invoiceNumber}\n\nInvoice Amount: ₹${Math.round(receiptData.invoiceAmount).toLocaleString('en-IN')}\nPaid Amount: ₹${Math.round(receiptData.paidAmount).toLocaleString('en-IN')}\nBalance: ₹${Math.round(receiptData.currentBalance).toLocaleString('en-IN')}\n\nPayment Mode: ${receiptData.paymentMethod.toUpperCase()}\n\nThank you for your payment!`;
 
     const phoneNumber = receiptData.customerPhone.replace(/\D/g, '');
     const waUrl = `https://wa.me/${phoneNumber.startsWith('91') ? phoneNumber : '91' + phoneNumber}?text=${encodeURIComponent(message)}`;
@@ -1237,7 +1237,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{paymentStats.totalAmount.toFixed(2)}
+                ₹{Math.round(paymentStats.totalAmount).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 {paymentStats.totalInvoices} invoices
@@ -1260,7 +1260,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{paymentStats.completedAmount.toFixed(2)}
+                ₹{Math.round(paymentStats.completedAmount).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 {paymentStats.completedCount} completed
@@ -1283,7 +1283,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{paymentStats.partialAmount.toFixed(2)}
+                ₹{Math.round(paymentStats.partialAmount).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 {paymentStats.partialCount} partial
@@ -1306,7 +1306,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{paymentStats.pendingAmount.toFixed(2)}
+                ₹{Math.round(paymentStats.pendingAmount).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 {paymentStats.pendingCount} pending
@@ -1326,7 +1326,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{dashboardMetrics.totalReceivables.toFixed(2)}
+                ₹{Math.round(dashboardMetrics.totalReceivables).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 Customer payments received
@@ -1343,7 +1343,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{dashboardMetrics.totalPayables.toFixed(2)}
+                ₹{Math.round(dashboardMetrics.totalPayables).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 Supplier & employee payments
@@ -1360,7 +1360,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{dashboardMetrics.monthlyExpenses.toFixed(2)}
+                ₹{Math.round(dashboardMetrics.monthlyExpenses).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 Current month expenses
@@ -1382,7 +1382,7 @@ export default function Accounts() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-white">
-                ₹{dashboardMetrics.currentMonthPL.toFixed(2)}
+                ₹{Math.round(dashboardMetrics.currentMonthPL).toLocaleString('en-IN')}
               </div>
               <p className="text-xs text-white/70 mt-1">
                 {dashboardMetrics.currentMonthPL >= 0 ? "Profit" : "Loss"} for {format(new Date(), "MMMM yyyy")}
@@ -1526,7 +1526,7 @@ export default function Accounts() {
                                         )}
                                       </div>
                                       <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300 bg-amber-50">
-                                        ₹{customer.outstandingBalance.toFixed(2)}
+                                        ₹{Math.round(customer.outstandingBalance).toLocaleString('en-IN')}
                                       </Badge>
                                       {referenceId === customer.id && (
                                         <Check className="ml-2 h-4 w-4 text-primary" />
@@ -1551,7 +1551,7 @@ export default function Accounts() {
                             </p>
                           ) : (
                             <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                              Outstanding Balance: <span className="text-lg font-bold">₹{customerBalance.toFixed(2)}</span>
+                              Outstanding Balance: <span className="text-lg font-bold">₹{Math.round(customerBalance).toLocaleString('en-IN')}</span>
                             </p>
                           )}
                         </div>
