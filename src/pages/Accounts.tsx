@@ -1810,10 +1810,29 @@ export default function Accounts() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full md:w-auto">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Record Payment
-                  </Button>
+                  {(() => {
+                    const paymentAmount = parseFloat(amount) || 0;
+                    const discountValue = parseFloat(discountAmount) || 0;
+                    const totalSettled = paymentAmount + discountValue;
+                    const outstandingBalance = customerBalance || 0;
+                    const isExcessPayment = referenceType === 'customer' && totalSettled > Math.round(outstandingBalance) && outstandingBalance > 0;
+                    const isZeroBalance = referenceType === 'customer' && outstandingBalance <= 0;
+                    const isDisabled = isZeroBalance || isExcessPayment;
+                    
+                    return (
+                      <div className="space-y-2">
+                        {isExcessPayment && (
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            ⚠️ Payment (₹{Math.round(totalSettled).toLocaleString('en-IN')}) exceeds outstanding balance (₹{Math.round(outstandingBalance).toLocaleString('en-IN')})
+                          </p>
+                        )}
+                        <Button type="submit" className="w-full md:w-auto" disabled={isDisabled}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          Record Payment
+                        </Button>
+                      </div>
+                    );
+                  })()}
                 </form>
               </CardContent>
             </Card>
