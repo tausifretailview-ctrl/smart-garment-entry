@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
@@ -607,136 +608,139 @@ export default function SaleOrderDashboard() {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"></TableHead>
-                <TableHead>Order No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Expected Delivery</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Accept</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedOrders.map((order: any) => {
-                const totalItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.order_qty, 0) || 0;
-                const fulfilledItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.fulfilled_qty, 0) || 0;
-                
-                return (
-                  <>
-                    <TableRow key={order.id}>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => toggleExpanded(order.id)}>
-                          {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="font-medium">{order.order_number}</TableCell>
-                      <TableCell>{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
-                      <TableCell>{order.expected_delivery_date ? format(new Date(order.expected_delivery_date), 'dd/MM/yyyy') : '-'}</TableCell>
-                      <TableCell>
-                        <div>{order.customer_name}</div>
-                        <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-medium">₹{order.net_amount?.toFixed(2)}</div>
-                        <div className="text-sm text-muted-foreground">{fulfilledItems}/{totalItems} items</div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(order.status)}</TableCell>
-                      <TableCell>
-                        {order.customer_accepted ? (
-                          <Button 
-                            variant="secondary" 
-                            size="sm" 
-                            disabled 
-                            className="!bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
-                          >
-                            <Check className="h-4 w-4 mr-1" />
-                            Accepted
+          <ScrollArea className="h-[calc(100vh-320px)] rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10"></TableHead>
+                  <TableHead>Order No</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Expected Delivery</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Accept</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedOrders.map((order: any) => {
+                  const totalItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.order_qty, 0) || 0;
+                  const fulfilledItems = order.sale_order_items?.reduce((sum: number, i: any) => sum + i.fulfilled_qty, 0) || 0;
+                  
+                  return (
+                    <>
+                      <TableRow key={order.id}>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => toggleExpanded(order.id)}>
+                            {expandedRows.has(order.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                           </Button>
-                        ) : (
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            className="bg-blue-800 hover:bg-blue-900 text-white"
-                            onClick={() => setOrderToAccept(order)}
-                          >
-                            Accept
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(order)} title="WhatsApp">
-                            <MessageCircle className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => setOrderToPrint(order)} title="Print">
-                            <Printer className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => navigate('/sale-order-entry', { state: { orderData: order } })}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          {order.status !== 'confirmed' && (
+                        </TableCell>
+                        <TableCell className="font-medium">{order.order_number}</TableCell>
+                        <TableCell>{format(new Date(order.order_date), 'dd/MM/yyyy')}</TableCell>
+                        <TableCell>{order.expected_delivery_date ? format(new Date(order.expected_delivery_date), 'dd/MM/yyyy') : '-'}</TableCell>
+                        <TableCell>
+                          <div>{order.customer_name}</div>
+                          <div className="text-sm text-muted-foreground">{order.customer_phone}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">₹{order.net_amount?.toFixed(2)}</div>
+                          <div className="text-sm text-muted-foreground">{fulfilledItems}/{totalItems} items</div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(order.status)}</TableCell>
+                        <TableCell>
+                          {order.customer_accepted ? (
                             <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => handleOpenConversion(order)}
-                              title="Convert to Sale Bill"
+                              variant="secondary" 
+                              size="sm" 
+                              disabled 
+                              className="!bg-gray-500 hover:!bg-gray-500 !text-white !opacity-100 cursor-not-allowed"
                             >
-                              <ArrowRight className="h-4 w-4" />
+                              <Check className="h-4 w-4 mr-1" />
+                              Accepted
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              className="bg-blue-800 hover:bg-blue-900 text-white"
+                              onClick={() => setOrderToAccept(order)}
+                            >
+                              Accept
                             </Button>
                           )}
-                          <Button variant="ghost" size="icon" onClick={() => setOrderToDelete(order)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                    {expandedRows.has(order.id) && (
-                      <TableRow>
-                        <TableCell colSpan={9} className="bg-muted/50">
-                          <div className="p-4">
-                            <h4 className="font-medium mb-2">Order Items</h4>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Product</TableHead>
-                                  <TableHead>Size</TableHead>
-                                  <TableHead>Color</TableHead>
-                                  <TableHead>Order Qty</TableHead>
-                                  <TableHead>Fulfilled</TableHead>
-                                  <TableHead>Pending</TableHead>
-                                  <TableHead>Price</TableHead>
-                                  <TableHead>Total</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {order.sale_order_items?.map((item: any) => (
-                                  <TableRow key={item.id}>
-                                    <TableCell>{item.product_name}</TableCell>
-                                    <TableCell>{item.size}</TableCell>
-                                    <TableCell>{item.color || "—"}</TableCell>
-                                    <TableCell>{item.order_qty}</TableCell>
-                                    <TableCell className="text-green-600">{item.fulfilled_qty}</TableCell>
-                                    <TableCell className={item.pending_qty > 0 ? "text-orange-600" : ""}>{item.pending_qty}</TableCell>
-                                    <TableCell>₹{item.unit_price?.toFixed(2)}</TableCell>
-                                    <TableCell>₹{item.line_total?.toFixed(2)}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(order)} title="WhatsApp">
+                              <MessageCircle className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setOrderToPrint(order)} title="Print">
+                              <Printer className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => navigate('/sale-order-entry', { state: { orderData: order } })}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            {order.status !== 'confirmed' && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => handleOpenConversion(order)}
+                                title="Convert to Sale Bill"
+                              >
+                                <ArrowRight className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => setOrderToDelete(order)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
-                    )}
-                  </>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      {expandedRows.has(order.id) && (
+                        <TableRow>
+                          <TableCell colSpan={9} className="bg-muted/50">
+                            <div className="p-4">
+                              <h4 className="font-medium mb-2">Order Items</h4>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Product</TableHead>
+                                    <TableHead>Size</TableHead>
+                                    <TableHead>Color</TableHead>
+                                    <TableHead>Order Qty</TableHead>
+                                    <TableHead>Fulfilled</TableHead>
+                                    <TableHead>Pending</TableHead>
+                                    <TableHead>Price</TableHead>
+                                    <TableHead>Total</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {order.sale_order_items?.map((item: any) => (
+                                    <TableRow key={item.id}>
+                                      <TableCell>{item.product_name}</TableCell>
+                                      <TableCell>{item.size}</TableCell>
+                                      <TableCell>{item.color || "—"}</TableCell>
+                                      <TableCell>{item.order_qty}</TableCell>
+                                      <TableCell className="text-green-600">{item.fulfilled_qty}</TableCell>
+                                      <TableCell className={item.pending_qty > 0 ? "text-orange-600" : ""}>{item.pending_qty}</TableCell>
+                                      <TableCell>₹{item.unit_price?.toFixed(2)}</TableCell>
+                                      <TableCell>₹{item.line_total?.toFixed(2)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <ScrollBar orientation="vertical" className="w-3 bg-slate-200" forceMount />
+          </ScrollArea>
         )}
 
         {/* Pagination */}
