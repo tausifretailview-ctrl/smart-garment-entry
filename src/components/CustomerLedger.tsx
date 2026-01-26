@@ -1019,7 +1019,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               {transaction.credit > 0 && (
-                                <span className="text-green-600 dark:text-green-400">
+                                <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
                                   ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                                 </span>
                               )}
@@ -1027,7 +1027,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
                             <TableCell className={cn(
                               "text-right font-bold",
                               transaction.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                              transaction.balance < 0 ? "text-green-600 dark:text-green-400" : 
+                              transaction.balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
                               "text-foreground"
                             )}>
                               ₹{Math.abs(transaction.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -1044,13 +1044,13 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
                           <TableCell className="text-right text-red-600 dark:text-red-400">
                             ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </TableCell>
-                          <TableCell className="text-right text-green-600 dark:text-green-400">
+                          <TableCell className="text-right text-emerald-700 dark:text-emerald-300 font-semibold">
                             ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell className={cn(
                             "text-right",
                             transactions[transactions.length - 1].balance > 0 ? "text-red-600 dark:text-red-400" : 
-                            transactions[transactions.length - 1].balance < 0 ? "text-green-600 dark:text-green-400" : 
+                            transactions[transactions.length - 1].balance < 0 ? "text-emerald-700 dark:text-emerald-300" : 
                             "text-foreground"
                           )}>
                             ₹{Math.abs(transactions[transactions.length - 1].balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
