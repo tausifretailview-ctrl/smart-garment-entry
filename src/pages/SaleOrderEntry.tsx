@@ -55,6 +55,8 @@ import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
+import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 
 interface LineItem {
   id: string;
@@ -140,6 +142,16 @@ export default function SaleOrderEntry() {
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
+
+  // Price selection dialog state
+  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
+  const [pendingPriceSelection, setPendingPriceSelection] = useState<{
+    product: any;
+    variant: any;
+    masterPrice: { sale_price: number; mrp: number };
+    lastPurchasePrice?: { sale_price: number; mrp: number; date?: Date };
+    customerPrice?: { sale_price: number; mrp: number; date?: Date; customerName?: string };
+  } | null>(null);
 
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -583,7 +595,7 @@ export default function SaleOrderEntry() {
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  const addProductToOrder = (product: any, variant: any) => {
+  const addProductToOrder = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     if (entryMode === "grid") {
       openSizeGridForProduct(product);
       setOpenProductSearch(false);
@@ -599,6 +611,57 @@ export default function SaleOrderEntry() {
       updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
       setLineItems(updatedItems);
     } else {
+      // Check for price differences before adding (for new items only)
+      const masterSalePrice = parseFloat(variant.sale_price || 0);
+      const masterMrp = variant.mrp ? parseFloat(variant.mrp) : masterSalePrice;
+      const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
+      const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
+      
+      // Check for customer-specific pricing
+      let customerPrice = null;
+      if (selectedCustomerId && currentOrganization?.id) {
+        const custPrice = await fetchCustomerProductPrice(
+          currentOrganization.id,
+          selectedCustomerId,
+          variant.id
+        );
+        if (custPrice && custPrice.lastSalePrice !== masterSalePrice) {
+          customerPrice = {
+            sale_price: custPrice.lastSalePrice,
+            mrp: custPrice.lastMrp,
+            date: custPrice.lastSaleDate,
+            customerName: selectedCustomer?.customer_name,
+          };
+        }
+      }
+      
+      // Determine if we need to show price selection dialog
+      const hasCustomerPriceDiff = customerPrice !== null;
+      const hasPurchasePriceDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
+      
+      // If no override provided and there are price differences, show dialog
+      if (!overridePrice && (hasCustomerPriceDiff || hasPurchasePriceDiff)) {
+        setPendingPriceSelection({
+          product,
+          variant,
+          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
+          lastPurchasePrice: hasPurchasePriceDiff ? { 
+            sale_price: lastPurchaseSalePrice!, 
+            mrp: lastPurchaseMrp || lastPurchaseSalePrice!,
+            date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
+          } : undefined,
+          customerPrice: customerPrice || undefined,
+        });
+        setShowPriceSelectionDialog(true);
+        setOpenProductSearch(false);
+        setSearchInput("");
+        return;
+      }
+      
+      // Use override price or master price
+      const salePrice = overridePrice?.sale_price ?? masterSalePrice;
+      const mrpToUse = overridePrice?.mrp ?? masterMrp;
+      
       const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
       if (emptyRowIndex === -1) {
         const newRow: LineItem = calculateLineTotal({
@@ -610,8 +673,8 @@ export default function SaleOrderEntry() {
           barcode: variant.barcode || '',
           orderQty: 1,
           stockQty: variant.stock_qty || 0,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
+          mrp: mrpToUse,
+          salePrice: salePrice,
           discountPercent: 0,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
@@ -632,8 +695,8 @@ export default function SaleOrderEntry() {
           barcode: variant.barcode || '',
           orderQty: 1,
           stockQty: variant.stock_qty || 0,
-          mrp: variant.mrp || variant.sale_price || 0,
-          salePrice: variant.sale_price || 0,
+          mrp: mrpToUse,
+          salePrice: salePrice,
           discountPercent: 0,
           discountAmount: 0,
           gstPercent: product.gst_per || 0,
@@ -650,6 +713,15 @@ export default function SaleOrderEntry() {
     setSearchInput("");
     toast({ title: "Product Added", description: `${product.product_name} (${variant.size}) added` });
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  };
+
+  // Handle price selection from dialog
+  const handlePriceSelection = (source: "master" | "last_purchase" | "customer", prices: { sale_price: number; mrp: number }) => {
+    if (pendingPriceSelection) {
+      addProductToOrder(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
+      setPendingPriceSelection(null);
+      setShowPriceSelectionDialog(false);
+    }
   };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
@@ -1715,6 +1787,23 @@ export default function SaleOrderEntry() {
           setShowDraftDialog(false);
         }}
       />
+
+      {/* Price Selection Dialog */}
+      {pendingPriceSelection && (
+        <PriceSelectionDialog
+          open={showPriceSelectionDialog}
+          onOpenChange={(open) => {
+            setShowPriceSelectionDialog(open);
+            if (!open) setPendingPriceSelection(null);
+          }}
+          productName={pendingPriceSelection.product.product_name}
+          size={pendingPriceSelection.variant.size}
+          masterPrice={pendingPriceSelection.masterPrice}
+          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+          customerPrice={pendingPriceSelection.customerPrice}
+          onSelect={handlePriceSelection}
+        />
+      )}
     </div>
   );
 }

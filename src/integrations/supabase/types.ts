@@ -612,6 +612,84 @@ export type Database = {
           },
         ]
       }
+      customer_product_prices: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          last_mrp: number
+          last_order_id: string | null
+          last_sale_date: string
+          last_sale_id: string | null
+          last_sale_price: number
+          organization_id: string
+          updated_at: string
+          variant_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          last_mrp: number
+          last_order_id?: string | null
+          last_sale_date?: string
+          last_sale_id?: string | null
+          last_sale_price: number
+          organization_id: string
+          updated_at?: string
+          variant_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          last_mrp?: number
+          last_order_id?: string | null
+          last_sale_date?: string
+          last_sale_id?: string | null
+          last_sale_price?: number
+          organization_id?: string
+          updated_at?: string
+          variant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_product_prices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_product_prices_last_order_id_fkey"
+            columns: ["last_order_id"]
+            isOneToOne: false
+            referencedRelation: "sale_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_product_prices_last_sale_id_fkey"
+            columns: ["last_sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_product_prices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_product_prices_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null

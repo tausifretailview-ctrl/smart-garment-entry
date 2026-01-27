@@ -67,6 +67,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
+import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 
 interface LineItem {
   id: string;
@@ -173,7 +174,8 @@ export default function SalesInvoice() {
     product: any;
     variant: any;
     masterPrice: { sale_price: number; mrp: number };
-    lastPurchasePrice: { sale_price: number; mrp: number; date?: Date };
+    lastPurchasePrice?: { sale_price: number; mrp: number; date?: Date };
+    customerPrice?: { sale_price: number; mrp: number; date?: Date; customerName?: string };
   } | null>(null);
 
   // Draft save hook
@@ -917,17 +919,40 @@ export default function SalesInvoice() {
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
       
-      // If no override provided and last purchase prices differ, show dialog
-      if (!overridePrice && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
+      // Check for customer-specific pricing
+      let customerPrice = null;
+      if (selectedCustomerId && currentOrganization?.id) {
+        const custPrice = await fetchCustomerProductPrice(
+          currentOrganization.id,
+          selectedCustomerId,
+          variant.id
+        );
+        if (custPrice && custPrice.lastSalePrice !== masterSalePrice) {
+          customerPrice = {
+            sale_price: custPrice.lastSalePrice,
+            mrp: custPrice.lastMrp,
+            date: custPrice.lastSaleDate,
+            customerName: selectedCustomer?.customer_name,
+          };
+        }
+      }
+      
+      // Determine if we need to show price selection dialog
+      const hasCustomerPriceDiff = customerPrice !== null;
+      const hasPurchasePriceDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
+      
+      // If no override provided and there are price differences, show dialog
+      if (!overridePrice && (hasCustomerPriceDiff || hasPurchasePriceDiff)) {
         setPendingPriceSelection({
           product,
           variant,
           masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
-          lastPurchasePrice: { 
-            sale_price: lastPurchaseSalePrice, 
-            mrp: lastPurchaseMrp || lastPurchaseSalePrice,
+          lastPurchasePrice: hasPurchasePriceDiff ? { 
+            sale_price: lastPurchaseSalePrice!, 
+            mrp: lastPurchaseMrp || lastPurchaseSalePrice!,
             date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
-          }
+          } : undefined,
+          customerPrice: customerPrice || undefined,
         });
         setShowPriceSelectionDialog(true);
         return;
@@ -1025,7 +1050,7 @@ export default function SalesInvoice() {
   };
 
   // Handle price selection from dialog
-  const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
+  const handlePriceSelection = (source: "master" | "last_purchase" | "customer", prices: { sale_price: number; mrp: number }) => {
     if (pendingPriceSelection) {
       addProductToInvoice(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
       setPendingPriceSelection(null);
@@ -2633,6 +2658,7 @@ Thank you for choosing us!`;
           size={pendingPriceSelection.variant.size}
           masterPrice={pendingPriceSelection.masterPrice}
           lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
+          customerPrice={pendingPriceSelection.customerPrice}
           onSelect={handlePriceSelection}
         />
       )}
