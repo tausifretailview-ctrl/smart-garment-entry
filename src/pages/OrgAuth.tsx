@@ -358,8 +358,8 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-start justify-center p-8 lg:p-14 pt-8 lg:pt-10 bg-white overflow-y-auto">
-        <div className="w-full max-w-lg space-y-6">
+      <div className="flex-1 flex items-center justify-center p-6 lg:p-10 bg-white overflow-y-auto">
+        <div className="w-full max-w-lg space-y-4">
           {/* Mobile: Show EzzyERP logo */}
           <div className="lg:hidden text-center mb-6">
             <img 
@@ -524,17 +524,17 @@ export default function OrgAuth() {
               </div>
 
               {/* Security Badge */}
-              <div className="text-center pt-3 flex flex-col items-center gap-2">
+              <div className="text-center pt-2 flex flex-col items-center gap-1.5">
                 <img 
                   src={isoCertifiedLogo} 
                   alt="ISO 27001 Certified" 
-                  className="h-12 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                 />
                 <div>
                   <p className="text-sm font-bold text-gray-900 tracking-wide">
                     Enterprise-Grade Security
                   </p>
-                  <p className="text-[11px] text-gray-700 mt-0.5 font-medium">
+                  <p className="text-xs text-gray-700 mt-0.5 font-medium leading-relaxed">
                     Built on ISO 27001 & SOC 2 Type II Certified Infrastructure For Maximum Data Protection.
                   </p>
                 </div>
