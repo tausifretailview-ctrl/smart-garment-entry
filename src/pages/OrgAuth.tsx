@@ -13,6 +13,7 @@ import { validateAuth } from "@/lib/validations";
 import ezzyerpLogo from "@/assets/ezzyerp-logo.jpg";
 import ezzyerpLogoFull from "@/assets/ezzyerp-logo-full.png";
 import posIllustration from "@/assets/pos-illustration.png";
+import isoCertifiedLogo from "@/assets/iso-certified-logo.png";
 
 const BRAND_COLOR = "#6C5CE7";
 
@@ -523,13 +524,20 @@ export default function OrgAuth() {
               </div>
 
               {/* Security Badge */}
-              <div className="text-center pt-2">
-                <p className="text-xs font-semibold text-slate-600 tracking-wide">
-                  Enterprise-Grade Security
-                </p>
-                <p className="text-[10px] text-slate-400 mt-0.5">
-                  Built on ISO 27001 & SOC 2 Type II Certified Infrastructure For Maximum Data Protection.
-                </p>
+              <div className="text-center pt-3 flex flex-col items-center gap-2">
+                <img 
+                  src={isoCertifiedLogo} 
+                  alt="ISO 27001 Certified" 
+                  className="h-12 w-auto object-contain"
+                />
+                <div>
+                  <p className="text-sm font-bold text-gray-900 tracking-wide">
+                    Enterprise-Grade Security
+                  </p>
+                  <p className="text-[11px] text-gray-700 mt-0.5 font-medium">
+                    Built on ISO 27001 & SOC 2 Type II Certified Infrastructure For Maximum Data Protection.
+                  </p>
+                </div>
               </div>
 
             </div>
