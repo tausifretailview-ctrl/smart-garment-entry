@@ -570,23 +570,23 @@ export const WhatsAppAPISettings = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Two PDF Sending Methods Explanation */}
-          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
-            <Info className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-800 dark:text-blue-200">Two Ways to Send Invoice PDF</AlertTitle>
-            <AlertDescription className="text-sm text-blue-700 dark:text-blue-300">
+          <Alert className="border-blue-300 bg-blue-100 dark:border-blue-700 dark:bg-blue-900/40">
+            <Info className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+            <AlertTitle className="text-blue-900 dark:text-blue-100 font-semibold">Two Ways to Send Invoice PDF</AlertTitle>
+            <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
               <div className="mt-2 space-y-2">
                 <div className="flex items-start gap-2">
-                  <Badge className="mt-0.5 shrink-0 bg-green-600">Method 1</Badge>
-                  <div>
+                  <Badge className="mt-0.5 shrink-0 bg-green-600 text-white">Method 1</Badge>
+                  <div className="text-blue-900 dark:text-blue-100">
                     <strong>Standard Attachment:</strong> Select a TEXT/UTILITY template below + enable "Send Invoice PDF" checkbox. 
-                    PDF sent as separate message. <span className="text-amber-600">(May fail outside 24h window)</span>
+                    PDF sent as separate message. <span className="text-amber-700 dark:text-amber-400 font-medium">(May fail outside 24h window)</span>
                   </div>
                 </div>
                 <div className="flex items-start gap-2">
-                  <Badge className="mt-0.5 shrink-0 bg-purple-600">Method 2</Badge>
-                  <div>
+                  <Badge className="mt-0.5 shrink-0 bg-purple-600 text-white">Method 2</Badge>
+                  <div className="text-blue-900 dark:text-blue-100">
                     <strong>Direct PDF Delivery:</strong> Use DOCUMENT header template with "Direct PDF Delivery" enabled. 
-                    PDF embedded in template. <span className="text-green-600">(Works anytime!)</span>
+                    PDF embedded in template. <span className="text-green-700 dark:text-green-400 font-medium">(Works anytime!)</span>
                   </div>
                 </div>
               </div>
@@ -595,10 +595,10 @@ export const WhatsAppAPISettings = () => {
 
           {/* Warning when Direct PDF is enabled */}
           {formData.use_document_header_template && formData.invoice_document_template_name && (
-            <Alert className="border-purple-200 bg-purple-50 dark:bg-purple-950/20">
-              <AlertCircle className="h-4 w-4 text-purple-600" />
-              <AlertTitle className="text-purple-800 dark:text-purple-200">Direct PDF Delivery Active</AlertTitle>
-              <AlertDescription className="text-sm text-purple-700 dark:text-purple-300">
+            <Alert className="border-purple-300 bg-purple-100 dark:border-purple-700 dark:bg-purple-900/40">
+              <AlertCircle className="h-4 w-4 text-purple-700 dark:text-purple-300" />
+              <AlertTitle className="text-purple-900 dark:text-purple-100 font-semibold">Direct PDF Delivery Active</AlertTitle>
+              <AlertDescription className="text-sm text-purple-800 dark:text-purple-200">
                 Invoice Template below is <strong>disabled</strong> because you're using Direct PDF Delivery with template "{formData.invoice_document_template_name}". 
                 The PDF will be embedded directly in the template header.
               </AlertDescription>
@@ -811,7 +811,7 @@ export const WhatsAppAPISettings = () => {
                 {/* Method 1: Standard Attachment */}
                 <div className={`p-4 rounded-lg border-2 transition-colors ${
                   !formData.use_document_header_template 
-                    ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                    ? 'border-green-500 bg-green-100 dark:bg-green-900/40' 
                     : 'border-muted bg-muted/30'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
@@ -827,21 +827,21 @@ export const WhatsAppAPISettings = () => {
                       <Label htmlFor="method_standard" className="font-medium cursor-pointer">
                         Standard Attachment
                       </Label>
-                      <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                      <Badge variant="outline" className="text-xs bg-green-200 text-green-800 border-green-400 dark:bg-green-800 dark:text-green-100 dark:border-green-600">
                         TEXT Template
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">
+                  <p className="text-xs text-foreground/70 ml-6">
                     Uses TEXT/UTILITY template from "Invoice Template" above. PDF sent as separate message after template.
-                    <span className="text-amber-600 font-medium"> Note: May fail if customer hasn't replied in 24 hours.</span>
+                    <span className="text-amber-700 dark:text-amber-400 font-medium"> Note: May fail if customer hasn't replied in 24 hours.</span>
                   </p>
                 </div>
 
                 {/* Method 2: Direct PDF Delivery */}
                 <div className={`p-4 rounded-lg border-2 transition-colors ${
                   formData.use_document_header_template 
-                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20' 
+                    ? 'border-purple-500 bg-purple-100 dark:bg-purple-900/40' 
                     : 'border-muted bg-muted/30'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
@@ -857,14 +857,14 @@ export const WhatsAppAPISettings = () => {
                       <Label htmlFor="method_direct" className="font-medium cursor-pointer">
                         📎 Direct PDF Delivery (Recommended)
                       </Label>
-                      <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 border-purple-300">
+                      <Badge variant="outline" className="text-xs bg-purple-200 text-purple-800 border-purple-400 dark:bg-purple-800 dark:text-purple-100 dark:border-purple-600">
                         DOCUMENT Template
                       </Badge>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground ml-6">
+                  <p className="text-xs text-foreground/70 ml-6">
                     Uses DOCUMENT header template. PDF embedded directly in template header.
-                    <span className="text-green-600 font-medium"> ✓ Bypasses 24-hour window restriction!</span>
+                    <span className="text-green-700 dark:text-green-400 font-medium"> ✓ Bypasses 24-hour window restriction!</span>
                   </p>
 
                   {formData.use_document_header_template && (
@@ -876,7 +876,7 @@ export const WhatsAppAPISettings = () => {
                         value={formData.invoice_document_template_name}
                         onChange={(e) => handleInputChange("invoice_document_template_name", e.target.value)}
                       />
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-foreground/60">
                         Create a template with DOCUMENT header type in Meta Business Suite first. The PDF badge templates work here.
                       </p>
                     </div>
@@ -885,12 +885,18 @@ export const WhatsAppAPISettings = () => {
               </div>
 
               {/* Configuration Summary */}
-              <Alert className={formData.use_document_header_template ? 'border-purple-200 bg-purple-50 dark:bg-purple-950/20' : 'border-green-200 bg-green-50 dark:bg-green-950/20'}>
-                <CheckCircle className={`h-4 w-4 ${formData.use_document_header_template ? 'text-purple-600' : 'text-green-600'}`} />
-                <AlertTitle className={formData.use_document_header_template ? 'text-purple-800 dark:text-purple-200' : 'text-green-800 dark:text-green-200'}>
+              <Alert className={formData.use_document_header_template 
+                ? 'border-purple-300 bg-purple-100 dark:border-purple-700 dark:bg-purple-900/40' 
+                : 'border-green-300 bg-green-100 dark:border-green-700 dark:bg-green-900/40'}>
+                <CheckCircle className={`h-4 w-4 ${formData.use_document_header_template ? 'text-purple-700 dark:text-purple-300' : 'text-green-700 dark:text-green-300'}`} />
+                <AlertTitle className={formData.use_document_header_template 
+                  ? 'text-purple-900 dark:text-purple-100 font-semibold' 
+                  : 'text-green-900 dark:text-green-100 font-semibold'}>
                   Current Configuration
                 </AlertTitle>
-                <AlertDescription className="text-sm">
+                <AlertDescription className={`text-sm ${formData.use_document_header_template 
+                  ? 'text-purple-800 dark:text-purple-200' 
+                  : 'text-green-800 dark:text-green-200'}`}>
                   {formData.use_document_header_template ? (
                     <span>
                       Using <strong>Direct PDF Delivery</strong> with template "{formData.invoice_document_template_name || 'Not set'}". 
