@@ -1022,7 +1022,18 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
         </AlertDialogHeader>
         
         <div className="border rounded-lg overflow-auto max-h-[60vh] bg-white">
-          {selectedFormat === 'thermal' ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : printItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center">
+              <p className="text-destructive font-medium">No items found for this order</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                This order may have been created without items. Please re-create the order.
+              </p>
+            </div>
+          ) : selectedFormat === 'thermal' ? (
             <ThermalPrint80mm
               ref={printRef}
               billNo={order.order_number}
