@@ -522,6 +522,15 @@ export default function OrgAuth() {
                 </a>
               </div>
 
+              {/* Security Badge */}
+              <div className="text-center pt-2">
+                <p className="text-xs font-semibold text-slate-600 tracking-wide">
+                  Enterprise-Grade Security
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Built on ISO 27001 & SOC 2 Type II Certified Infrastructure For Maximum Data Protection.
+                </p>
+              </div>
 
             </div>
           </div>
