@@ -951,6 +951,7 @@ export default function SaleOrderEntry() {
         gst_percent: item.gstPercent,
         line_total: item.lineTotal,
         hsn_code: item.hsnCode || null,
+        uom: item.uom || DEFAULT_UOM,
       }));
 
       const { error: itemsError } = await supabase
