@@ -628,11 +628,11 @@ export default function SaleOrderEntry() {
       }
       
       // Auto-apply customer price if available (no dialog)
-      // MRP = last_sale_price from customer, Sale Price = last_purchase_pur_price
+      // MRP = last_sale_price from customer, Sale Price = last_purchase_sale_price
       if (!overridePrice && customerPrice !== null) {
-        const lastPurchasePurPrice = variant.last_purchase_pur_price ? parseFloat(variant.last_purchase_pur_price) : masterSalePrice;
+        const lastSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : masterSalePrice;
         overridePrice = {
-          sale_price: lastPurchasePurPrice,  // Sale Price = last purchase price
+          sale_price: lastSalePrice,          // Sale Price = last sale price of this product
           mrp: customerPrice.sale_price,      // MRP = last sale price to this customer
         };
       }
