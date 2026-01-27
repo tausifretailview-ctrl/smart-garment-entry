@@ -952,13 +952,13 @@ export default function SaleOrderEntry() {
     return parts.join(' | ');
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = async (): Promise<{ success: boolean; orderId?: string }> => {
     // Capture items at save time to prevent race conditions
-    const itemsToSave = lineItems.filter(item => item.productId !== '');
+    const itemsToSave = lineItems.filter(item => item.productId !== '' && item.orderQty > 0);
     
     if (itemsToSave.length === 0) {
-      toast({ title: "Error", description: "Add at least one item", variant: "destructive" });
-      return;
+      toast({ title: "Error", description: "Add at least one item with quantity", variant: "destructive" });
+      return { success: false };
     }
     
     console.log('[SaleOrderEntry] Saving order with', itemsToSave.length, 'items');
