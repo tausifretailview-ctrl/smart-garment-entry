@@ -1,159 +1,127 @@
 
 
-## Plan: Add Draft Save Feature to Field Sales Order Entry
+## Plan: Add Zero Quantity Validation to Field Sales Order Entry
 
-### Problem
-When field salesmen are booking orders on their mobile devices and:
-- They receive an incoming phone call
-- The internet connection drops
-- The app goes to background for too long
-
-...the sale order data they were entering gets lost because the Field Sales app doesn't save drafts.
+### Problem Statement
+The Field Sales app (`SalesmanOrderEntry.tsx`) currently has a potential gap in validation that could allow orders with 0-quantity items to be booked. While the Size Grid dialog validates that at least one size has a quantity > 0, the final `saveOrder` function only checks if `orderItems.length === 0` but does not verify that:
+1. Individual item quantities are greater than zero
+2. The total order quantity is valid
 
 ### Solution Overview
-Integrate the existing `useDraftSave` hook (already used in the main app's Sale Order Entry) into the Field Sales `SalesmanOrderEntry.tsx` page. This will:
-1. Auto-save the order to the database every 15 seconds
-2. Save immediately when the app goes to background (visibility change)
-3. Save when navigating away from the page
-4. Show a resume dialog when returning to let the salesman continue from where they left off
+Add explicit validation checks in the `saveOrder` function to:
+1. Validate each item has a quantity > 0
+2. Ensure total order quantity is greater than zero
+3. Show clear error messages to the user
 
 ---
 
 ## Technical Implementation
 
-### Files to Modify
+### File to Modify
 
-**1. `src/pages/salesman/SalesmanOrderEntry.tsx`**
+**`src/pages/salesman/SalesmanOrderEntry.tsx`**
 
-Add draft save integration:
+### Changes Required
 
-- Import the `useDraftSave` hook and `DraftResumeDialog` component
-- Add a new draft type `salesman_sale_order` (to keep separate from desktop drafts)
-- Initialize the hook with the sale order data structure
-- Create a `loadDraftData` callback to restore state from saved draft
-- Show `DraftResumeDialog` when a draft exists on page load
-- Update `updateCurrentData` whenever order data changes (customer, items, notes)
-- Start auto-save timer when component mounts
-- Delete draft when order is successfully saved
-- Add visibility change handler to save immediately when app goes to background
+#### 1. Add Zero Quantity Validation in `saveOrder` Function (Lines 464-472)
 
-**2. `src/hooks/useDraftSave.tsx`**
-
-Extend the draft type:
-
-- Add `salesman_sale_order` to the `DraftType` union type
-
-**3. `src/components/DraftResumeDialog.tsx`**
-
-Add label for new draft type:
-
-- Add `salesman_sale_order: "Sale Order"` to the `typeLabels` mapping
-
----
-
-## Key Code Changes
-
-### SalesmanOrderEntry.tsx - Hook Integration
-
+**Current Code:**
 ```typescript
-// Add imports
-import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
-
-// In component, add hook
-const {
-  hasDraft,
-  draftData,
-  saveDraft,
-  deleteDraft,
-  updateCurrentData,
-  startAutoSave,
-  stopAutoSave,
-} = useDraftSave('salesman_sale_order');
-
-// Add state for dialog
-const [showDraftDialog, setShowDraftDialog] = useState(false);
-```
-
-### Draft Data Structure
-
-The draft will store:
-- `selectedCustomer` - Customer info (id, name, phone, address, balance)
-- `orderItems` - Array of items with product, variant, quantity, prices
-- `notes` - Order notes
-- `orderNumber` - Generated order number
-
-### Visibility Change Handler (Mobile-Specific)
-
-```typescript
-useEffect(() => {
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'hidden' && orderItems.length > 0) {
-      // Save immediately when app goes to background
-      saveDraft(getCurrentDraftData(), false);
-    }
-  };
-  
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-}, [orderItems, saveDraft]);
-```
-
-### Load Draft Data Callback
-
-```typescript
-const loadDraftData = useCallback((data: any) => {
-  if (!data) return;
-  setSelectedCustomer(data.selectedCustomer || null);
-  setOrderItems(data.orderItems || []);
-  setNotes(data.notes || "");
-  if (data.orderNumber) setOrderNumber(data.orderNumber);
-  toast.success("Previous order restored");
-}, []);
-```
-
-### Update Current Data Effect
-
-```typescript
-useEffect(() => {
-  if (orderItems.length > 0 || selectedCustomer) {
-    updateCurrentData({
-      selectedCustomer,
-      orderItems,
-      notes,
-      orderNumber,
-    });
+const saveOrder = async (shareAfter: boolean = false) => {
+  if (!selectedCustomer) {
+    toast.error("Please select a customer");
+    return;
   }
-}, [selectedCustomer, orderItems, notes, orderNumber, updateCurrentData]);
+  if (orderItems.length === 0) {
+    toast.error("Please add at least one item");
+    return;
+  }
+  // ... continues to save
 ```
 
-### Delete Draft on Successful Save
-
+**Updated Code:**
 ```typescript
-// In saveOrder function, after successful save:
-await deleteDraft(); // Clear draft after successful save
+const saveOrder = async (shareAfter: boolean = false) => {
+  if (!selectedCustomer) {
+    toast.error("Please select a customer");
+    return;
+  }
+  if (orderItems.length === 0) {
+    toast.error("Please add at least one item");
+    return;
+  }
+
+  // NEW: Validate no items have zero quantity
+  const zeroQtyItems = orderItems.filter(item => item.quantity <= 0);
+  if (zeroQtyItems.length > 0) {
+    const itemNames = zeroQtyItems.map(item => 
+      `${item.product.product_name} (${item.variant.size})`
+    ).join(", ");
+    toast.error(`Invalid quantity for: ${itemNames}`);
+    return;
+  }
+
+  // NEW: Validate total quantity is greater than zero
+  const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+  if (totalQuantity <= 0) {
+    toast.error("Order must have at least one item with quantity greater than 0");
+    return;
+  }
+
+  setSaving(true);
+  // ... rest of save logic
 ```
+
+#### 2. Add Minimum Quantity Enforcement in `updateQuantity` Function (Lines 447-458)
+
+**Current Code:**
+```typescript
+const updateQuantity = (itemId: string, delta: number) => {
+  const updated = orderItems.map(item => {
+    if (item.id === itemId) {
+      const maxQty = item.isCustomSize ? Infinity : item.variant.stock_qty;
+      const newQty = Math.max(1, Math.min(maxQty, item.quantity + delta));
+      return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
+    }
+    return item;
+  });
+  setOrderItems(updated);
+};
+```
+
+This already enforces `Math.max(1, ...)` which ensures quantity cannot go below 1 — this is correct and already in place.
+
+#### 3. (Optional Enhancement) Add Visual Warning for Zero Quantity Items
+
+If somehow a 0-quantity item gets into the list, show it with a warning style:
+- Add a red border/highlight to items with quantity ≤ 0
+- This provides visual feedback before save attempt
 
 ---
 
-## User Experience Flow
+## Implementation Summary
 
-1. **Salesman opens New Order page** → Check for existing draft
-2. **Draft found** → Show dialog: "Resume previous order?" with options:
-   - "Resume Draft" - Restore all data
-   - "Start Fresh" - Delete draft and start new
-3. **While entering order** → Auto-save every 15 seconds silently
-4. **Phone call interrupts** → Visibility change triggers immediate save
-5. **Salesman returns to app** → Data is preserved, can continue
-6. **Order saved successfully** → Draft is deleted
+| Change | Location | Purpose |
+|--------|----------|---------|
+| Zero quantity item check | `saveOrder()` | Block saving orders with any 0-qty items |
+| Total quantity check | `saveOrder()` | Block saving orders with 0 total quantity |
+| Min quantity enforcement | `updateQuantity()` | Already implemented - prevents qty < 1 |
+
+---
+
+## Testing Scenarios
+
+1. **Normal Order Flow** - Add items with valid quantities → Should save successfully
+2. **Empty Order** - Try to save without items → Should show "Please add at least one item"
+3. **Direct API Test** - Attempt to insert 0-qty via Supabase → Should be caught by validation
+4. **Edge Case** - Restore draft with corrupted data → Validation will catch on save
 
 ---
 
 ## Benefits
 
-- **No data loss** on interruptions (calls, network issues, accidental navigation)
-- **Seamless experience** - salesman can continue exactly where they left off
-- **Per-user isolation** - each salesman's draft is separate
-- **Automatic cleanup** - drafts are deleted after successful order save
-- **Low overhead** - uses existing database infrastructure and RLS policies
+- Prevents invalid orders from being created
+- Clear error messages help salesmen understand what went wrong
+- Works in conjunction with existing draft save functionality
+- Minimal code changes - surgical fix to address the specific gap
 
