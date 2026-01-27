@@ -61,6 +61,10 @@ interface MetaTemplateSelectorProps {
   onParamsChange: (params: TemplateParam[]) => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  // Optional: hide DOCUMENT header templates (they should only be used in Direct PDF Delivery)
+  hideDocumentHeaderTemplates?: boolean;
+  // Optional: for displaying in document header template context
+  forDocumentHeader?: boolean;
 }
 
 // Available data fields for parameter mapping
@@ -260,6 +264,8 @@ export const MetaTemplateSelector = ({
   onParamsChange,
   isOpen,
   onOpenChange,
+  hideDocumentHeaderTemplates = false,
+  forDocumentHeader = false,
 }: MetaTemplateSelectorProps) => {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -302,6 +308,16 @@ export const MetaTemplateSelector = ({
   const handleTemplateSelect = (templateId: string) => {
     const template = templates?.find(t => t.id === templateId);
     if (template) {
+      // Check if this is a DOCUMENT header template being selected in regular template context
+      const headerType = getTemplateHeaderType(template.components);
+      if (headerType === 'DOCUMENT' && !forDocumentHeader) {
+        toast.error('This template requires PDF. Use it in "Direct PDF Delivery" settings instead.', {
+          description: 'DOCUMENT header templates must be configured in the Direct PDF Delivery section to embed the PDF properly.',
+          duration: 6000,
+        });
+        return; // Don't allow selection
+      }
+      
       onTemplateChange(template.id, template.template_name);
       
       // Check if we already have saved params - don't reset if switching back to same template
@@ -352,6 +368,20 @@ export const MetaTemplateSelector = ({
       }
     }
   };
+  
+  // Filter templates based on context
+  const filteredTemplates = templates?.filter(template => {
+    const headerType = getTemplateHeaderType(template.components);
+    // If hiding document header templates (for regular template selectors), filter them out
+    if (hideDocumentHeaderTemplates && headerType === 'DOCUMENT') {
+      return false;
+    }
+    // If this is for document header context, only show DOCUMENT templates
+    if (forDocumentHeader && headerType !== 'DOCUMENT') {
+      return false;
+    }
+    return true;
+  });
 
   const handlePresetSelect = (preset: { name: string; params: TemplateParam[] }) => {
     onParamsChange([...preset.params]);
@@ -435,8 +465,8 @@ export const MetaTemplateSelector = ({
                   <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
                   Loading templates...
                 </div>
-              ) : templates && templates.length > 0 ? (
-                templates.map((template) => {
+              ) : filteredTemplates && filteredTemplates.length > 0 ? (
+                filteredTemplates.map((template) => {
                   const headerType = getTemplateHeaderType(template.components);
                   return (
                     <SelectItem key={template.id} value={template.id}>
@@ -447,17 +477,17 @@ export const MetaTemplateSelector = ({
                           ({template.template_language})
                         </span>
                         {headerType === 'DOCUMENT' && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700">
                             PDF
                           </Badge>
                         )}
                         {headerType === 'TEXT' && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-100 text-green-700 border-green-300">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-green-100 text-green-700 border-green-300 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700">
                             TEXT
                           </Badge>
                         )}
                         {headerType === 'NONE' && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-100 text-gray-600 border-gray-300">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 bg-gray-100 text-gray-600 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
                             UTILITY
                           </Badge>
                         )}
@@ -467,7 +497,9 @@ export const MetaTemplateSelector = ({
                 })
               ) : (
                 <div className="p-2 text-center text-muted-foreground text-sm">
-                  No approved templates found. Add templates manually below.
+                  {forDocumentHeader 
+                    ? "No DOCUMENT header templates found. Create one in Meta Business Manager first."
+                    : "No approved templates found. Add templates manually below."}
                 </div>
               )}
             </SelectContent>
