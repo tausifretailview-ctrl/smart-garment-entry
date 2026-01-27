@@ -55,7 +55,7 @@ import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
-import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 
 interface LineItem {
@@ -143,15 +143,6 @@ export default function SaleOrderEntry() {
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
 
-  // Price selection dialog state
-  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
-  const [pendingPriceSelection, setPendingPriceSelection] = useState<{
-    product: any;
-    variant: any;
-    masterPrice: { sale_price: number; mrp: number };
-    lastPurchasePrice?: { sale_price: number; mrp: number; date?: Date };
-    customerPrice?: { sale_price: number; mrp: number; date?: Date; customerName?: string };
-  } | null>(null);
 
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
@@ -636,27 +627,14 @@ export default function SaleOrderEntry() {
         }
       }
       
-      // Determine if we need to show price selection dialog
-      const hasCustomerPriceDiff = customerPrice !== null;
-      const hasPurchasePriceDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
-      
-      // If no override provided and there are price differences, show dialog
-      if (!overridePrice && (hasCustomerPriceDiff || hasPurchasePriceDiff)) {
-        setPendingPriceSelection({
-          product,
-          variant,
-          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
-          lastPurchasePrice: hasPurchasePriceDiff ? { 
-            sale_price: lastPurchaseSalePrice!, 
-            mrp: lastPurchaseMrp || lastPurchaseSalePrice!,
-            date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
-          } : undefined,
-          customerPrice: customerPrice || undefined,
-        });
-        setShowPriceSelectionDialog(true);
-        setOpenProductSearch(false);
-        setSearchInput("");
-        return;
+      // Auto-apply customer price if available (no dialog)
+      // MRP = last_sale_price from customer, Sale Price = last_purchase_pur_price
+      if (!overridePrice && customerPrice !== null) {
+        const lastPurchasePurPrice = variant.last_purchase_pur_price ? parseFloat(variant.last_purchase_pur_price) : masterSalePrice;
+        overridePrice = {
+          sale_price: lastPurchasePurPrice,  // Sale Price = last purchase price
+          mrp: customerPrice.sale_price,      // MRP = last sale price to this customer
+        };
       }
       
       // Use override price or master price
@@ -716,14 +694,6 @@ export default function SaleOrderEntry() {
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
-  // Handle price selection from dialog
-  const handlePriceSelection = (source: "master" | "last_purchase" | "customer", prices: { sale_price: number; mrp: number }) => {
-    if (pendingPriceSelection) {
-      addProductToOrder(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
-      setPendingPriceSelection(null);
-      setShowPriceSelectionDialog(false);
-    }
-  };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
     const baseAmount = item.salePrice * item.orderQty;
@@ -1796,22 +1766,6 @@ export default function SaleOrderEntry() {
         }}
       />
 
-      {/* Price Selection Dialog */}
-      {pendingPriceSelection && (
-        <PriceSelectionDialog
-          open={showPriceSelectionDialog}
-          onOpenChange={(open) => {
-            setShowPriceSelectionDialog(open);
-            if (!open) setPendingPriceSelection(null);
-          }}
-          productName={pendingPriceSelection.product.product_name}
-          size={pendingPriceSelection.variant.size}
-          masterPrice={pendingPriceSelection.masterPrice}
-          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
-          customerPrice={pendingPriceSelection.customerPrice}
-          onSelect={handlePriceSelection}
-        />
-      )}
     </div>
   );
 }

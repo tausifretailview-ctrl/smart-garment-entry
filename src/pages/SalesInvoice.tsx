@@ -30,7 +30,7 @@ import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
-import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+
 import { useReactToPrint } from "react-to-print";
 import {
   Command,
@@ -168,15 +168,6 @@ export default function SalesInvoice() {
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   
-  // Price selection dialog state
-  const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
-  const [pendingPriceSelection, setPendingPriceSelection] = useState<{
-    product: any;
-    variant: any;
-    masterPrice: { sale_price: number; mrp: number };
-    lastPurchasePrice?: { sale_price: number; mrp: number; date?: Date };
-    customerPrice?: { sale_price: number; mrp: number; date?: Date; customerName?: string };
-  } | null>(null);
 
   // Draft save hook
   const {
@@ -938,25 +929,14 @@ export default function SalesInvoice() {
         }
       }
       
-      // Determine if we need to show price selection dialog
-      const hasCustomerPriceDiff = customerPrice !== null;
-      const hasPurchasePriceDiff = lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
-      
-      // If no override provided and there are price differences, show dialog
-      if (!overridePrice && (hasCustomerPriceDiff || hasPurchasePriceDiff)) {
-        setPendingPriceSelection({
-          product,
-          variant,
-          masterPrice: { sale_price: masterSalePrice, mrp: masterMrp },
-          lastPurchasePrice: hasPurchasePriceDiff ? { 
-            sale_price: lastPurchaseSalePrice!, 
-            mrp: lastPurchaseMrp || lastPurchaseSalePrice!,
-            date: variant.last_purchase_date ? new Date(variant.last_purchase_date) : undefined
-          } : undefined,
-          customerPrice: customerPrice || undefined,
-        });
-        setShowPriceSelectionDialog(true);
-        return;
+      // Auto-apply customer price if available (no dialog)
+      // MRP = last_sale_price from customer, Sale Price = last_purchase_pur_price
+      if (!overridePrice && customerPrice !== null) {
+        const lastPurchasePurPrice = variant.last_purchase_pur_price ? parseFloat(variant.last_purchase_pur_price) : masterSalePrice;
+        overridePrice = {
+          sale_price: lastPurchasePurPrice,  // Sale Price = last purchase price
+          mrp: customerPrice.sale_price,      // MRP = last sale price to this customer
+        };
       }
       
       // Use override price or master price
@@ -1050,14 +1030,6 @@ export default function SalesInvoice() {
     });
   };
 
-  // Handle price selection from dialog
-  const handlePriceSelection = (source: "master" | "last_purchase" | "customer", prices: { sale_price: number; mrp: number }) => {
-    if (pendingPriceSelection) {
-      addProductToInvoice(pendingPriceSelection.product, pendingPriceSelection.variant, prices);
-      setPendingPriceSelection(null);
-      setShowPriceSelectionDialog(false);
-    }
-  };
 
   const calculateLineTotal = (item: LineItem): LineItem => {
     const baseAmount = item.salePrice * item.quantity;
@@ -2647,22 +2619,6 @@ Thank you for choosing us!`;
         }}
       />
 
-      {/* Price Selection Dialog */}
-      {pendingPriceSelection && (
-        <PriceSelectionDialog
-          open={showPriceSelectionDialog}
-          onOpenChange={(open) => {
-            setShowPriceSelectionDialog(open);
-            if (!open) setPendingPriceSelection(null);
-          }}
-          productName={pendingPriceSelection.product.product_name}
-          size={pendingPriceSelection.variant.size}
-          masterPrice={pendingPriceSelection.masterPrice}
-          lastPurchasePrice={pendingPriceSelection.lastPurchasePrice}
-          customerPrice={pendingPriceSelection.customerPrice}
-          onSelect={handlePriceSelection}
-        />
-      )}
 
       {/* Hidden Invoice for Printing */}
       <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
