@@ -86,11 +86,22 @@ function getStoredOrgSlug(): string | null {
   return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
 }
 
+// Check if this is a Field Sales PWA launch
+function isFieldSalesPWA(): boolean {
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get('app') === 'fieldsales';
+}
+
 // Component to redirect root to org-specific URL
 function RootRedirect() {
   const savedOrgSlug = getStoredOrgSlug();
+  const isFieldSales = isFieldSalesPWA();
 
   if (savedOrgSlug) {
+    // If launched from Field Sales PWA, redirect to salesman dashboard
+    if (isFieldSales) {
+      return <Navigate to={`/${savedOrgSlug}/salesman`} replace />;
+    }
     return <Navigate to={`/${savedOrgSlug}`} replace />;
   }
 
