@@ -28,6 +28,8 @@ import {
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 interface Customer {
   id: string;
@@ -90,11 +92,23 @@ const SalesmanOrderEntry = () => {
   const [orderNumber, setOrderNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   // Size Grid state
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedProductVariants, setSelectedProductVariants] = useState<Variant[]>([]);
+
+  // Draft save hook for mobile resilience
+  const {
+    hasDraft,
+    draftData,
+    saveDraft,
+    deleteDraft,
+    updateCurrentData,
+    startAutoSave,
+    stopAutoSave,
+  } = useDraftSave('salesman_sale_order');
 
   // Calculate totals
   const grossAmount = orderItems.reduce((sum, item) => sum + item.line_total, 0);
@@ -103,6 +117,48 @@ const SalesmanOrderEntry = () => {
     return sum + (item.line_total - baseAmount);
   }, 0);
   const netAmount = grossAmount;
+
+  // Check for existing draft on mount
+  useEffect(() => {
+    if (hasDraft && draftData) {
+      setShowDraftDialog(true);
+    }
+  }, [hasDraft, draftData]);
+
+  // Start auto-save on mount
+  useEffect(() => {
+    startAutoSave();
+    return () => stopAutoSave();
+  }, [startAutoSave, stopAutoSave]);
+
+  // Save draft when app goes to background (mobile-specific)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && (orderItems.length > 0 || selectedCustomer)) {
+        saveDraft({
+          selectedCustomer,
+          orderItems,
+          notes,
+          orderNumber,
+        }, false);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [orderItems, selectedCustomer, notes, orderNumber, saveDraft]);
+
+  // Update draft data whenever order changes
+  useEffect(() => {
+    if (orderItems.length > 0 || selectedCustomer) {
+      updateCurrentData({
+        selectedCustomer,
+        orderItems,
+        notes,
+        orderNumber,
+      });
+    }
+  }, [selectedCustomer, orderItems, notes, orderNumber, updateCurrentData]);
 
   useEffect(() => {
     if (currentOrganization?.id) {
@@ -113,6 +169,23 @@ const SalesmanOrderEntry = () => {
       }
     }
   }, [currentOrganization?.id, searchParams]);
+
+  // Load draft data
+  const loadDraftData = useCallback(() => {
+    if (!draftData) return;
+    setSelectedCustomer(draftData.selectedCustomer || null);
+    setOrderItems(draftData.orderItems || []);
+    setNotes(draftData.notes || "");
+    if (draftData.orderNumber) setOrderNumber(draftData.orderNumber);
+    toast.success("Previous order restored");
+    setShowDraftDialog(false);
+  }, [draftData]);
+
+  // Start fresh - delete draft
+  const handleStartFresh = useCallback(async () => {
+    await deleteDraft();
+    setShowDraftDialog(false);
+  }, [deleteDraft]);
 
   const generateOrderNumber = async () => {
     const now = new Date();
@@ -451,6 +524,9 @@ const SalesmanOrderEntry = () => {
 
       if (itemsError) throw itemsError;
 
+      // Clear draft after successful save
+      await deleteDraft();
+
       toast.success("Order saved successfully!");
 
       if (shareAfter && selectedCustomer.phone) {
@@ -759,6 +835,16 @@ const SalesmanOrderEntry = () => {
         showStock={true}
         validateStock={false}
         title="Enter Size-wise Quantity"
+      />
+
+      {/* Draft Resume Dialog */}
+      <DraftResumeDialog
+        open={showDraftDialog}
+        onOpenChange={setShowDraftDialog}
+        onResume={loadDraftData}
+        onStartFresh={handleStartFresh}
+        draftType="salesman_sale_order"
+        lastSaved={draftData?.updated_at}
       />
     </div>
   );
