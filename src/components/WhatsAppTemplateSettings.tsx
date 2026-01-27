@@ -109,11 +109,8 @@ Your order has been confirmed! 🎉
 Order Details:
 📋 Order No: {order_number}
 📅 Date: {order_date}
+📦 {order_items}
 💰 Total Amount: {amount}
-📦 Status: {status}
-📅 Expected Delivery: {expected_delivery}
-
-{order_items}
 
 We will update you once it's ready for delivery.
 
