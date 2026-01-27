@@ -953,10 +953,15 @@ export default function SaleOrderEntry() {
   };
 
   const handleSaveOrder = async () => {
-    if (filledItems.length === 0) {
+    // Capture items at save time to prevent race conditions
+    const itemsToSave = lineItems.filter(item => item.productId !== '');
+    
+    if (itemsToSave.length === 0) {
       toast({ title: "Error", description: "Add at least one item", variant: "destructive" });
       return;
     }
+    
+    console.log('[SaleOrderEntry] Saving order with', itemsToSave.length, 'items');
 
     setIsSaving(true);
     try {
@@ -1007,7 +1012,7 @@ export default function SaleOrderEntry() {
         orderId = data.id;
       }
 
-      const orderItems = filledItems.map(item => ({
+      const orderItems = itemsToSave.map(item => ({
         order_id: orderId,
         product_id: item.productId,
         variant_id: item.variantId,
@@ -1026,6 +1031,8 @@ export default function SaleOrderEntry() {
         hsn_code: item.hsnCode || null,
         uom: item.uom || DEFAULT_UOM,
       }));
+      
+      console.log('[SaleOrderEntry] Inserting', orderItems.length, 'order items for order', orderId);
 
       const { error: itemsError } = await supabase
         .from('sale_order_items')
