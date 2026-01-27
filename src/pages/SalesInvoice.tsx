@@ -930,12 +930,12 @@ export default function SalesInvoice() {
       }
       
       // Auto-apply customer price if available (no dialog)
-      // MRP = last_sale_price from customer, Sale Price = last_purchase_sale_price
+      // MRP = actual product MRP, Sale Price = last_purchase_sale_price
       if (!overridePrice && customerPrice !== null) {
         const lastSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : masterSalePrice;
         overridePrice = {
-          sale_price: lastSalePrice,          // Sale Price = last sale price of this product
-          mrp: customerPrice.sale_price,      // MRP = last sale price to this customer
+          sale_price: lastSalePrice,  // Sale Price = last sale price of this product
+          mrp: masterMrp,             // MRP = actual product MRP (unchanged)
         };
       }
       
