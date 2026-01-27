@@ -96,6 +96,7 @@ interface EInvoiceSettings {
 }
 
 interface SaleSettings {
+  enable_customer_price_memory?: boolean; // Customer-wise sale price memory
   default_discount?: number;
   payment_methods?: string[];
   default_payment_method?: string;
@@ -1426,6 +1427,30 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     Size Grid allows entering multiple sizes at once, Inline adds one variant at a time
                   </p>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="enable_customer_price_memory" className="text-sm font-medium">
+                      Customer Price Memory
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Automatically suggest last used price when selling to the same customer
+                    </p>
+                  </div>
+                  <Switch
+                    id="enable_customer_price_memory"
+                    checked={(settings.sale_settings as any)?.enable_customer_price_memory ?? false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          enable_customer_price_memory: checked,
+                        } as any,
+                      })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-3">

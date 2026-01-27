@@ -617,9 +617,10 @@ export default function SaleOrderEntry() {
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
       
-      // Check for customer-specific pricing
+      // Check for customer-specific pricing (only if enabled in settings)
       let customerPrice = null;
-      if (selectedCustomerId && currentOrganization?.id) {
+      const isCustomerPriceMemoryEnabled = (settings?.sale_settings as any)?.enable_customer_price_memory ?? false;
+      if (isCustomerPriceMemoryEnabled && selectedCustomerId && currentOrganization?.id) {
         const custPrice = await fetchCustomerProductPrice(
           currentOrganization.id,
           selectedCustomerId,
