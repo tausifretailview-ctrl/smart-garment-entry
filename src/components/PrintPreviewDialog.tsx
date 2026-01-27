@@ -36,17 +36,57 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     setSelectedFormat(defaultFormat);
   }, [defaultFormat]);
 
-  // Reset loading state when dialog opens or format changes
+  // Reset loading state when dialog opens or format changes.
+  // IMPORTANT: invoice templates may fetch async settings and initially render "Loading...".
+  // We keep the dialog "Loading" until real content is present to avoid printing a blank/Loading page.
   useEffect(() => {
-    if (open) {
-      setIsLoading(true);
-      // Give time for invoice to render
-      const timer = setTimeout(() => {
+    if (!open) return;
+
+    setIsLoading(true);
+
+    const startedAt = Date.now();
+    const MAX_WAIT_MS = 8000;
+    const POLL_MS = 100;
+
+    const isContentReady = () => {
+      const el = printRef.current;
+      if (!el) return false;
+
+      // Has at least one rendered element
+      const hasChildren = el.childElementCount > 0;
+      if (!hasChildren) return false;
+
+      const text = (el.textContent || '').trim();
+      if (!text) return false;
+
+      // Common placeholder states
+      if (/^loading\.?\.?\.?$/i.test(text)) return false;
+      if (/loading preview/i.test(text)) return false;
+
+      // Also guard against templates returning a single "Loading..." div.
+      if (text.toLowerCase().includes('loading') && text.length <= 32) return false;
+
+      return true;
+    };
+
+    const tick = () => {
+      if (isContentReady()) {
         setIsLoading(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [open, selectedFormat]);
+        return;
+      }
+      if (Date.now() - startedAt >= MAX_WAIT_MS) {
+        // Fallback: unblock UI even if content readiness cannot be detected.
+        setIsLoading(false);
+        return;
+      }
+      timerId = window.setTimeout(tick, POLL_MS);
+    };
+
+    let timerId = window.setTimeout(tick, POLL_MS);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [open, selectedFormat, renderInvoice]);
 
   const getPageSize = () => {
     switch (selectedFormat) {
