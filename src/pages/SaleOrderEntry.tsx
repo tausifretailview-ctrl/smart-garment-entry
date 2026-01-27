@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Plus, X, Search, Save, ClipboardList, AlertTriangle, CheckCircle, Printer, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
+import { UOM_OPTIONS, DEFAULT_UOM, UOMType } from "@/constants/uom";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
@@ -72,6 +73,7 @@ interface LineItem {
   lineTotal: number;
   hsnCode?: string;
   color?: string;
+  uom: string;
 }
 
 const customerSchema = z.object({
@@ -106,6 +108,7 @@ export default function SaleOrderEntry() {
       discountAmount: 0,
       gstPercent: 0,
       lineTotal: 0,
+      uom: DEFAULT_UOM,
     }))
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
@@ -163,7 +166,7 @@ export default function SaleOrderEntry() {
     setExpectedDelivery(data.expectedDelivery ? new Date(data.expectedDelivery) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '',
-      orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
+      orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, uom: DEFAULT_UOM,
     })));
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
@@ -425,13 +428,14 @@ export default function SaleOrderEntry() {
              lineTotal: item.line_total,
              hsnCode: item.hsn_code || '',
              color: item.color || variant?.color || product?.color || '',
+             uom: item.uom || product?.uom || DEFAULT_UOM,
            };
         });
         while (items.length < 5) {
           items.push({
             id: `row-${items.length}`,
             productId: '', variantId: '', productName: '', size: '', barcode: '',
-            orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+            orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '', uom: DEFAULT_UOM,
           });
         }
         setLineItems(items);
@@ -485,13 +489,14 @@ export default function SaleOrderEntry() {
              lineTotal: item.line_total,
              hsnCode: item.hsn_code || '',
              color: item.color || variant?.color || product?.color || '',
+             uom: item.uom || product?.uom || DEFAULT_UOM,
            };
         });
         while (items.length < 5) {
           items.push({
             id: `row-${items.length}`,
             productId: '', variantId: '', productName: '', size: '', barcode: '',
-            orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+            orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '', uom: DEFAULT_UOM,
           });
         }
         setLineItems(items);
@@ -557,6 +562,7 @@ export default function SaleOrderEntry() {
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           color: variant.color || product.color || '',
+          uom: product.uom || DEFAULT_UOM,
         });
         
         if (emptyRowIndex >= 0) {
@@ -612,6 +618,7 @@ export default function SaleOrderEntry() {
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           color: variant.color || product.color || '',
+          uom: product.uom || DEFAULT_UOM,
         });
         setLineItems(prev => [...prev, newRow]);
       } else {
@@ -633,6 +640,7 @@ export default function SaleOrderEntry() {
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           color: variant.color || product.color || '',
+          uom: product.uom || DEFAULT_UOM,
         });
         setLineItems(updatedItems);
       }
@@ -693,11 +701,17 @@ export default function SaleOrderEntry() {
     ));
   };
 
+  const updateUom = (id: string, uom: string) => {
+    setLineItems(prev => prev.map(item => 
+      item.id === id ? { ...item, uom } : item
+    ));
+  };
+
   const removeItem = (id: string) => {
     setLineItems(prev => prev.map(item => 
       item.id === id ? {
         ...item, productId: '', variantId: '', productName: '', size: '', barcode: '',
-        orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0,
+        orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, uom: DEFAULT_UOM,
       } : item
     ));
   };
@@ -1285,6 +1299,7 @@ export default function SaleOrderEntry() {
                 <TableHead>Color</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead className="w-20">Order Qty</TableHead>
+                <TableHead className="w-20">UOM</TableHead>
                 <TableHead className="w-20">Stock</TableHead>
                 <TableHead className="w-28">Difference</TableHead>
                 {(settings?.sale_settings as any)?.showMRP !== false && (
@@ -1318,6 +1333,20 @@ export default function SaleOrderEntry() {
                           className="w-16 h-8"
                         />
                       )}
+                    </TableCell>
+                    <TableCell>
+                      {item.productId ? (
+                        <Select value={item.uom || DEFAULT_UOM} onValueChange={(v) => updateUom(item.id, v)}>
+                          <SelectTrigger className="w-20 h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UOM_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.value}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : '-'}
                     </TableCell>
                     <TableCell>{item.productId ? item.stockQty : '-'}</TableCell>
                     <TableCell>
@@ -1483,7 +1512,7 @@ export default function SaleOrderEntry() {
                     )}
                   </div>
                 </TableCell>
-                <TableCell colSpan={12} className="text-muted-foreground text-sm">
+                <TableCell colSpan={13} className="text-muted-foreground text-sm">
                   Type to search or use the search button above
                 </TableCell>
               </TableRow>
