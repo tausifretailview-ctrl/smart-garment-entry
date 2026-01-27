@@ -471,6 +471,23 @@ const SalesmanOrderEntry = () => {
       return;
     }
 
+    // Validate no items have zero quantity
+    const zeroQtyItems = orderItems.filter(item => item.quantity <= 0);
+    if (zeroQtyItems.length > 0) {
+      const itemNames = zeroQtyItems.map(item => 
+        `${item.product.product_name} (${item.variant.size})`
+      ).join(", ");
+      toast.error(`Invalid quantity for: ${itemNames}`);
+      return;
+    }
+
+    // Validate total quantity is greater than zero
+    const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
+    if (totalQuantity <= 0) {
+      toast.error("Order must have at least one item with quantity greater than 0");
+      return;
+    }
+
     setSaving(true);
     try {
       // Create sale order
