@@ -2551,6 +2551,7 @@ export type Database = {
           product_name: string
           size: string
           unit_price: number
+          uom: string | null
           variant_id: string | null
         }
         Insert: {
@@ -2573,6 +2574,7 @@ export type Database = {
           product_name: string
           size: string
           unit_price: number
+          uom?: string | null
           variant_id?: string | null
         }
         Update: {
@@ -2595,6 +2597,7 @@ export type Database = {
           product_name?: string
           size?: string
           unit_price?: number
+          uom?: string | null
           variant_id?: string | null
         }
         Relationships: [
