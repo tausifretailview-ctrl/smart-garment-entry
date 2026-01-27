@@ -103,6 +103,7 @@ export const WhatsAppAPISettings = () => {
     // Document header template (PDF embedded in template - bypasses 24h window)
     use_document_header_template: false,
     invoice_document_template_name: "",
+    invoice_document_template_params: [] as any[],
   });
 
   const [showToken, setShowToken] = useState(false);
@@ -156,6 +157,7 @@ export const WhatsAppAPISettings = () => {
         // Document header template
         use_document_header_template: (settings as any).use_document_header_template || false,
         invoice_document_template_name: (settings as any).invoice_document_template_name || "",
+        invoice_document_template_params: (settings as any).invoice_document_template_params || [],
       });
     }
   }, [settings]);
@@ -616,6 +618,7 @@ export const WhatsAppAPISettings = () => {
               onParamsChange={(params) => handleInputChange("invoice_template_params", params)}
               isOpen={openTemplateSection === 'invoice'}
               onOpenChange={(open) => setOpenTemplateSection(open ? 'invoice' : null)}
+              hideDocumentHeaderTemplates={true}
             />
             {formData.use_document_header_template && formData.invoice_document_template_name && (
               <p className="text-xs text-muted-foreground mt-1 italic">
@@ -868,16 +871,21 @@ export const WhatsAppAPISettings = () => {
                   </p>
 
                   {formData.use_document_header_template && (
-                    <div className="space-y-2 mt-3 ml-6">
-                      <Label htmlFor="invoice_document_template_name" className="text-sm">Document Header Template Name</Label>
-                      <Input
-                        id="invoice_document_template_name"
-                        placeholder="e.g., invoice_with_pdf"
-                        value={formData.invoice_document_template_name}
-                        onChange={(e) => handleInputChange("invoice_document_template_name", e.target.value)}
+                    <div className="space-y-3 mt-3 ml-6">
+                      <Label className="text-sm">Document Header Template</Label>
+                      <MetaTemplateSelector
+                        templateType="invoice"
+                        selectedTemplateId={null}
+                        selectedTemplateName={formData.invoice_document_template_name}
+                        params={formData.invoice_document_template_params}
+                        onTemplateChange={(id, name) => handleInputChange("invoice_document_template_name", name)}
+                        onParamsChange={(params) => handleInputChange("invoice_document_template_params", params)}
+                        isOpen={openTemplateSection === 'document_header'}
+                        onOpenChange={(open) => setOpenTemplateSection(open ? 'document_header' : null)}
+                        forDocumentHeader={true}
                       />
                       <p className="text-xs text-foreground/60">
-                        Create a template with DOCUMENT header type in Meta Business Suite first. The PDF badge templates work here.
+                        Only DOCUMENT header templates (marked with PDF badge) are shown here.
                       </p>
                     </div>
                   )}
