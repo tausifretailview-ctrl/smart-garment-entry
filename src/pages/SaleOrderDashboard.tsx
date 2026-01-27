@@ -128,10 +128,8 @@ export default function SaleOrderDashboard() {
       return;
     }
 
-    // Format items for message
-    const itemsText = order.sale_order_items?.map((item: any, index: number) => 
-      `${index + 1}. ${item.product_name} (${item.size}) x ${item.order_qty} = ₹${item.line_total?.toFixed(2)}`
-    ).join('\n') || '';
+    // Calculate total quantity
+    const totalQty = order.sale_order_items?.reduce((sum: number, item: any) => sum + (item.order_qty || 0), 0) || 0;
 
     const message = formatSaleOrderMessage({
       order_number: order.order_number,
@@ -141,7 +139,7 @@ export default function SaleOrderDashboard() {
       net_amount: order.net_amount,
       status: order.status,
       expected_delivery_date: order.expected_delivery_date,
-    }, itemsText);
+    }, `Total Qty: ${totalQty}`);
 
     // Copy to clipboard with improved UX
     const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
