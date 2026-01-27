@@ -111,9 +111,10 @@ export default function SaleOrderDashboard() {
       
       const { data, error } = await supabase
         .from('sale_orders')
-        .select(`*, sale_order_items (*)`)
+        .select(`*, sale_order_items!left (*)`)
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
+        .is('sale_order_items.deleted_at', null)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -955,23 +956,25 @@ function PrintSaleOrderDialog({ order, settings, onClose }: { order: any; settin
         }
       }
 
-      const items = (order.sale_order_items || []).map((item: any, index: number) => ({
-        sr: index + 1,
-        particulars: item.product_name,
-        size: item.size,
-        barcode: item.barcode || '',
-        hsn: '',
-        orderQty: item.order_qty,
-        fulfilledQty: item.fulfilled_qty,
-        pendingQty: item.pending_qty,
-        rate: item.unit_price,
-        mrp: item.mrp,
-        discountPercent: item.discount_percent,
-        total: item.line_total,
-        color: item.color || '',
-        brand: item.product_id ? productDetails[item.product_id]?.brand : null,
-        style: item.product_id ? productDetails[item.product_id]?.style : null,
-      }));
+      const items = (order.sale_order_items || [])
+        .filter((item: any) => !item.deleted_at) // Filter out soft-deleted items
+        .map((item: any, index: number) => ({
+          sr: index + 1,
+          particulars: item.product_name,
+          size: item.size,
+          barcode: item.barcode || '',
+          hsn: '',
+          orderQty: item.order_qty,
+          fulfilledQty: item.fulfilled_qty,
+          pendingQty: item.pending_qty,
+          rate: item.unit_price,
+          mrp: item.mrp,
+          discountPercent: item.discount_percent,
+          total: item.line_total,
+          color: item.color || '',
+          brand: item.product_id ? productDetails[item.product_id]?.brand : null,
+          style: item.product_id ? productDetails[item.product_id]?.style : null,
+        }));
       
       setPrintItems(items);
       setLoading(false);
