@@ -270,15 +270,6 @@ export default function OrgAuth() {
   const logoUrl = orgSettings?.bill_barcode_settings?.logo_url;
   const brandColor = orgSettings?.bill_barcode_settings?.brand_color || BRAND_COLOR;
 
-  const softwareFeatures = [
-    "Billing & Invoice Management",
-    "Inventory & Stock Control",
-    "Customer & Vendor Management",
-    "GST Reports & Accounting",
-    "Barcode & Thermal Printer Support",
-    "Cloud Backup & Secure Login",
-  ];
-
   return (
     <div className="h-screen flex w-full bg-slate-50 overflow-hidden">
       {/* Left Panel - Product Showcase with Office Background */}
@@ -305,55 +296,26 @@ export default function OrgAuth() {
           }}
         />
 
-        {/* Content - Single cohesive layout */}
-        <div className="relative z-10 h-full flex flex-col px-6 py-4">
-
-          {/* POS Hero Image - Centered with desk shadow effect */}
-          <div className="flex-1 flex items-center justify-center relative">
-            {/* Desk surface shadow */}
-            <div 
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
-              style={{
-                background: 'radial-gradient(ellipse, rgba(0,0,0,0.12) 0%, transparent 70%)',
-                filter: 'blur(8px)'
-              }}
-            />
-            <img 
-              src={posIllustration} 
-              alt="Complete POS System" 
-              className="w-full max-w-[90%] h-auto object-contain relative z-10"
-              style={{ 
-                filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-                maxHeight: '55vh',
-                imageRendering: 'auto'
-              }}
-            />
-          </div>
-
-          {/* Software Features - Integrated at bottom */}
-          <div className="py-3">
-            <h3 className="text-slate-700 text-xs font-bold mb-2 tracking-wider uppercase text-center">
-              Software Features
-            </h3>
-            <div className="grid grid-cols-3 gap-1.5">
-              {softwareFeatures.map((feature, index) => (
-                <div 
-                  key={index} 
-                  className="bg-white/95 backdrop-blur-sm rounded-lg px-2 py-2 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
-                  style={{
-                    boxShadow: '0 4px 15px -3px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
-                  }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
-                    </div>
-                    <span className="text-slate-700 text-[10px] leading-tight font-semibold">{feature}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Content - POS Hero Image centered */}
+        <div className="relative z-10 h-full flex items-center justify-center px-6 py-4">
+          {/* Desk surface shadow */}
+          <div 
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
+            style={{
+              background: 'radial-gradient(ellipse, rgba(0,0,0,0.12) 0%, transparent 70%)',
+              filter: 'blur(8px)'
+            }}
+          />
+          <img 
+            src={posIllustration} 
+            alt="Complete POS System" 
+            className="w-full max-w-[90%] h-auto object-contain relative z-10"
+            style={{ 
+              filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
+              maxHeight: '70vh',
+              imageRendering: 'auto'
+            }}
+          />
         </div>
       </div>
 
