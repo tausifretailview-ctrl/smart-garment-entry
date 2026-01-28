@@ -78,6 +78,7 @@ interface LineItem {
   barcode: string;
   color: string;
   quantity: number;
+  box: string;
   mrp: number;
   salePrice: number;
   discountPercent: number;
@@ -128,6 +129,7 @@ export default function SalesInvoice() {
       barcode: '',
       color: '',
       quantity: 0,
+      box: '',
       mrp: 0,
       salePrice: 0,
       discountPercent: 0,
@@ -187,7 +189,7 @@ export default function SalesInvoice() {
     setDueDate(data.dueDate ? new Date(data.dueDate) : new Date());
     setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
-      quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+      quantity: 0, box: '', mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
     })));
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
@@ -776,6 +778,7 @@ export default function SalesInvoice() {
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
           quantity: qty,
+          box: '',
           mrp: variant.mrp || variant.sale_price || 0,
           salePrice: variant.sale_price || 0,
           discountPercent,
@@ -963,6 +966,7 @@ export default function SalesInvoice() {
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
           quantity: 1,
+          box: '',
           mrp: mrpToUse,
           salePrice: salePrice,
           discountPercent,
@@ -991,6 +995,7 @@ export default function SalesInvoice() {
           barcode: variant.barcode || '',
           color: variant.color || product.color || '',
           quantity: 1,
+          box: '',
           mrp: mrpToUse,
           salePrice: salePrice,
           discountPercent,
@@ -1078,6 +1083,12 @@ export default function SalesInvoice() {
       item.id === id ? calculateLineTotal({ ...item, quantity }) : item
     );
     setLineItems(updatedItems);
+  };
+
+  const updateBox = (id: string, box: string) => {
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, box } : item
+    ));
   };
 
   const updateDiscountPercent = (id: string, discountPercent: number) => {
@@ -1765,6 +1776,7 @@ Thank you for choosing us!`;
           barcode: '',
           color: '',
           quantity: 0,
+          box: '',
           mrp: 0,
           salePrice: 0,
           discountPercent: 0,
@@ -2258,6 +2270,7 @@ Thank you for choosing us!`;
                 <TableHead>Barcode</TableHead>
                 <TableHead>HSN</TableHead>
                 <TableHead className="w-20">Qty</TableHead>
+                <TableHead className="w-16">Box</TableHead>
                 <TableHead className="w-20">MRP</TableHead>
                 <TableHead className="w-24">Price</TableHead>
                 <TableHead className="w-16">Disc %</TableHead>
@@ -2298,6 +2311,17 @@ Thank you for choosing us!`;
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-16 h-8"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.productId && (
+                          <Input
+                            type="text"
+                            value={item.box || ''}
+                            onChange={(e) => updateBox(item.id, e.target.value)}
+                            placeholder=""
+                            className="w-14 h-8"
                           />
                         )}
                       </TableCell>
@@ -2386,6 +2410,7 @@ Thank you for choosing us!`;
                 <TableCell className="font-bold text-primary">
                   {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
                 </TableCell>
+                <TableCell></TableCell>
                 <TableCell></TableCell>
                 <TableCell></TableCell>
                 <TableCell></TableCell>
