@@ -134,8 +134,8 @@ export const StatsChartsSection = () => {
           data={combinedData}
           type="bar"
           dataKeys={[
-            { key: "sales", color: "hsl(var(--primary))", name: "Sales" },
-            { key: "purchases", color: "hsl(var(--secondary))", name: "Purchases" },
+            { key: "sales", color: "#3b82f6", name: "Sales" },
+            { key: "purchases", color: "#10b981", name: "Purchases" },
           ]}
           height={320}
         />
@@ -146,7 +146,7 @@ export const StatsChartsSection = () => {
           data={salesData || []}
           type="area"
           dataKeys={[
-            { key: "sales", color: "hsl(var(--success))", name: "Sales Amount" },
+            { key: "sales", color: "#22c55e", name: "Sales Amount" },
           ]}
           height={320}
         />
@@ -157,7 +157,7 @@ export const StatsChartsSection = () => {
           data={topProductsData || []}
           type="bar"
           dataKeys={[
-            { key: "stock", color: "hsl(var(--accent))", name: "Stock Qty" },
+            { key: "stock", color: "#8b5cf6", name: "Stock Qty" },
           ]}
           height={320}
         />
@@ -168,7 +168,7 @@ export const StatsChartsSection = () => {
           data={topProductsData || []}
           type="line"
           dataKeys={[
-            { key: "value", color: "hsl(var(--warning))", name: "Stock Value (₹)" },
+            { key: "value", color: "#f59e0b", name: "Stock Value (₹)" },
           ]}
           height={320}
         />
