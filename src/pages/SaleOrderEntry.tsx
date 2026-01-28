@@ -54,7 +54,6 @@ import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
@@ -144,7 +143,7 @@ export default function SaleOrderEntry() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
+  
   
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
@@ -193,12 +192,6 @@ export default function SaleOrderEntry() {
     });
   }, [toast]);
 
-  // Check for draft on mount (only if not in edit mode)
-  useEffect(() => {
-    if (!location.state?.editOrderId && !location.state?.convertFromQuotation && hasDraft && draftData) {
-      setShowDraftDialog(true);
-    }
-  }, [hasDraft, draftData, location.state?.editOrderId, location.state?.convertFromQuotation]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -1089,7 +1082,7 @@ export default function SaleOrderEntry() {
       updateCurrentData(null);
       stopAutoSave();
       await deleteDraft();
-      setShowDraftDialog(false);
+      
 
       toast({ title: "Success", description: `Sale Order ${orderNumber} saved` });
       return { success: true, orderId };
@@ -1787,20 +1780,6 @@ export default function SaleOrderEntry() {
         title="Enter Size-wise Qty"
       />
 
-      {/* Draft Resume Dialog */}
-      <DraftResumeDialog
-        open={showDraftDialog}
-        onOpenChange={setShowDraftDialog}
-        draftType="sale_order"
-        onResume={() => {
-          loadDraftData(draftData);
-          setShowDraftDialog(false);
-        }}
-        onStartFresh={async () => {
-          await deleteDraft();
-          setShowDraftDialog(false);
-        }}
-      />
 
       {/* Product History Dialog */}
       {historyProduct && currentOrganization && (
