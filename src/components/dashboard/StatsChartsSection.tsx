@@ -3,9 +3,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
+  // Update timestamp every 15 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdated(new Date());
+    }, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -45,6 +56,7 @@ export const StatsChartsSection = () => {
       return salesByDay;
     },
     enabled: !!currentOrganization,
+    refetchInterval: 15000,
   });
 
   // Fetch last 7 days purchase data
@@ -85,6 +97,7 @@ export const StatsChartsSection = () => {
       return purchaseByDay;
     },
     enabled: !!currentOrganization,
+    refetchInterval: 15000,
   });
 
   // Fetch top 5 products by stock value
@@ -111,6 +124,7 @@ export const StatsChartsSection = () => {
       })) || [];
     },
     enabled: !!currentOrganization,
+    refetchInterval: 30000,
   });
 
   // Combine sales and purchases for comparison
@@ -121,57 +135,80 @@ export const StatsChartsSection = () => {
   })) || [];
 
   return (
-    <div className="space-y-8 animate-fade-in" style={{ animationDelay: "0.5s" }}>
-      <h2 className="text-2xl font-display font-bold mb-6 text-foreground flex items-center gap-3">
-        <div className="h-1 w-12 bg-gradient-to-r from-warning to-transparent rounded-full" />
-        Analytics & Trends
-      </h2>
+    <div className="space-y-4 animate-fade-in" style={{ animationDelay: "0.5s" }}>
+      {/* Live Update Indicator */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-green-500 font-medium">Live</span>
+        </span>
+        <span className="text-muted-foreground">•</span>
+        <span className="text-muted-foreground">
+          Last updated: {format(lastUpdated, "HH:mm:ss")}
+        </span>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales vs Purchase Comparison */}
-        <AnimatedChart
-          title="Sales vs Purchases (Last 7 Days)"
-          data={combinedData}
-          type="bar"
-          dataKeys={[
-            { key: "sales", color: "#3b82f6", name: "Sales" },
-            { key: "purchases", color: "#10b981", name: "Purchases" },
-          ]}
-          height={320}
-        />
+        <Card className="border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <AnimatedChart
+              title="Sales vs Purchases (Last 7 Days)"
+              data={combinedData}
+              type="bar"
+              dataKeys={[
+                { key: "sales", color: "#3b82f6", name: "Sales" },
+                { key: "purchases", color: "#10b981", name: "Purchases" },
+              ]}
+              height={280}
+            />
+          </CardContent>
+        </Card>
 
         {/* Sales Trend */}
-        <AnimatedChart
-          title="Sales Trend (Last 7 Days)"
-          data={salesData || []}
-          type="area"
-          dataKeys={[
-            { key: "sales", color: "#22c55e", name: "Sales Amount" },
-          ]}
-          height={320}
-        />
+        <Card className="border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <AnimatedChart
+              title="Sales Trend (Last 7 Days)"
+              data={salesData || []}
+              type="area"
+              dataKeys={[
+                { key: "sales", color: "#22c55e", name: "Sales Amount" },
+              ]}
+              height={280}
+            />
+          </CardContent>
+        </Card>
 
         {/* Top Products by Stock */}
-        <AnimatedChart
-          title="Top 5 Products by Stock Quantity"
-          data={topProductsData || []}
-          type="bar"
-          dataKeys={[
-            { key: "stock", color: "#8b5cf6", name: "Stock Qty" },
-          ]}
-          height={320}
-        />
+        <Card className="border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <AnimatedChart
+              title="Top 5 Products by Stock Quantity"
+              data={topProductsData || []}
+              type="bar"
+              dataKeys={[
+                { key: "stock", color: "#8b5cf6", name: "Stock Qty" },
+              ]}
+              height={280}
+            />
+          </CardContent>
+        </Card>
 
         {/* Top Products by Value */}
-        <AnimatedChart
-          title="Top 5 Products by Stock Value"
-          data={topProductsData || []}
-          type="line"
-          dataKeys={[
-            { key: "value", color: "#f59e0b", name: "Stock Value (₹)" },
-          ]}
-          height={320}
-        />
+        <Card className="border border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <AnimatedChart
+              title="Top 5 Products by Stock Value"
+              data={topProductsData || []}
+              type="line"
+              dataKeys={[
+                { key: "value", color: "#f59e0b", name: "Stock Value (₹)" },
+              ]}
+              height={280}
+            />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
