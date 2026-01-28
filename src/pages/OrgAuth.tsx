@@ -306,13 +306,13 @@ export default function OrgAuth() {
         />
 
         {/* Content - Single cohesive layout */}
-        <div className="relative z-10 flex-1 flex flex-col px-8 pt-4 pb-6">
+        <div className="relative z-10 flex-1 flex flex-col px-8 pt-4 pb-4">
 
           {/* POS Hero Image - Centered with desk shadow effect */}
           <div className="flex-1 flex items-start justify-center relative pt-2">
             {/* Desk surface shadow */}
             <div 
-              className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
               style={{
                 background: 'radial-gradient(ellipse, rgba(0,0,0,0.12) 0%, transparent 70%)',
                 filter: 'blur(8px)'
@@ -324,27 +324,27 @@ export default function OrgAuth() {
               className="w-full h-auto object-contain relative z-10"
               style={{ 
                 filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-                maxHeight: 'calc(100vh - 280px)',
+                maxHeight: 'calc(100vh - 240px)',
                 imageRendering: 'auto'
               }}
             />
           </div>
 
           {/* Software Features - Integrated at bottom */}
-          <div className="mt-auto pt-4">
-            <h3 className="text-slate-700 text-sm font-bold mb-3 tracking-wider uppercase text-center">
+          <div className="pt-2">
+            <h3 className="text-slate-700 text-sm font-bold mb-2 tracking-wider uppercase text-center">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-3 gap-2">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/95 backdrop-blur-sm rounded-xl px-3.5 py-3 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
+                  className="bg-white/95 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
                   style={{
                     boxShadow: '0 4px 15px -3px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
                   }}
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
                       <Check className="w-3 h-3 text-white" strokeWidth={3} />
                     </div>
