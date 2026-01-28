@@ -1,127 +1,172 @@
 
+# Fix: Intermittent "Insufficient Stock" Error During Invoice Edit
 
-## Plan: Add Zero Quantity Validation to Field Sales Order Entry
+## Problem Analysis
 
-### Problem Statement
-The Field Sales app (`SalesmanOrderEntry.tsx`) currently has a potential gap in validation that could allow orders with 0-quantity items to be booked. While the Size Grid dialog validates that at least one size has a quantity > 0, the final `saveOrder` function only checks if `orderItems.length === 0` but does not verify that:
-1. Individual item quantities are greater than zero
-2. The total order quantity is valid
+When editing and saving sale bills (Sales Invoice, POS Sales), users intermittently encounter the error:
+**"Insufficient stock: needed 2, available 0"**
 
-### Solution Overview
-Add explicit validation checks in the `saveOrder` function to:
-1. Validate each item has a quantity > 0
-2. Ensure total order quantity is greater than zero
-3. Show clear error messages to the user
+### Root Cause
 
----
+The issue stems from a **timing/aggregation flaw** in the stock validation logic during edit mode:
 
-## Technical Implementation
+1. **Current Flow:**
+   - User loads an invoice for editing
+   - `originalItemsForEdit` is stored (variant IDs + quantities from the original invoice)
+   - User makes changes to quantities
+   - On save, `validateCartStock()` is called, which should add back the "freed" quantities from the original invoice
+   - Stock is fetched from database and compared
 
-### File to Modify
+2. **The Bug - Same Variant Multiple Entries:**
+   - When the **same variant appears multiple times** in the new line items (e.g., added twice separately), the validation checks each entry individually
+   - The `freedQtyMap` correctly aggregates old items by variant
+   - **But the new items are NOT aggregated** - each is checked separately
+   - This means for variant X with 2 units in old invoice:
+     - First check: needs 2, freed 2, stock 0 → available = 2, **passes**
+     - Second check (same variant): needs 2, freed 2 (already counted), stock 0 → available = 2, **passes**
+     - **Reality:** Total needed is 4, but only 2 are freed!
 
-**`src/pages/salesman/SalesmanOrderEntry.tsx`**
+3. **The Bug - Stock Already Deducted by Previous Sale:**
+   - In some cases, the current database stock is 0 because the original sale already deducted it
+   - The "freed" quantity should restore it, but if `originalItemsForEdit` is not properly populated (e.g., loading from draft, or stale state), the freed quantity is 0
+   - This causes validation to see: needed 2, freed 0, stock 0 → **fails**
 
-### Changes Required
+4. **Intermittent Nature:**
+   - Only happens when same variant appears multiple times in cart during edit
+   - Only happens if `originalItemsForEdit` state is stale or cleared unexpectedly
+   - Race conditions between state updates and validation call
 
-#### 1. Add Zero Quantity Validation in `saveOrder` Function (Lines 464-472)
+## Solution
 
-**Current Code:**
+### 1. Aggregate New Items by Variant Before Validation
+
+Modify `validateCartStock()` to aggregate requested quantities by variant ID before checking stock:
+
 ```typescript
-const saveOrder = async (shareAfter: boolean = false) => {
-  if (!selectedCustomer) {
-    toast.error("Please select a customer");
-    return;
-  }
-  if (orderItems.length === 0) {
-    toast.error("Please add at least one item");
-    return;
-  }
-  // ... continues to save
-```
-
-**Updated Code:**
-```typescript
-const saveOrder = async (shareAfter: boolean = false) => {
-  if (!selectedCustomer) {
-    toast.error("Please select a customer");
-    return;
-  }
-  if (orderItems.length === 0) {
-    toast.error("Please add at least one item");
-    return;
-  }
-
-  // NEW: Validate no items have zero quantity
-  const zeroQtyItems = orderItems.filter(item => item.quantity <= 0);
-  if (zeroQtyItems.length > 0) {
-    const itemNames = zeroQtyItems.map(item => 
-      `${item.product.product_name} (${item.variant.size})`
-    ).join(", ");
-    toast.error(`Invalid quantity for: ${itemNames}`);
-    return;
-  }
-
-  // NEW: Validate total quantity is greater than zero
-  const totalQuantity = orderItems.reduce((sum, item) => sum + item.quantity, 0);
-  if (totalQuantity <= 0) {
-    toast.error("Order must have at least one item with quantity greater than 0");
-    return;
-  }
-
-  setSaving(true);
-  // ... rest of save logic
-```
-
-#### 2. Add Minimum Quantity Enforcement in `updateQuantity` Function (Lines 447-458)
-
-**Current Code:**
-```typescript
-const updateQuantity = (itemId: string, delta: number) => {
-  const updated = orderItems.map(item => {
-    if (item.id === itemId) {
-      const maxQty = item.isCustomSize ? Infinity : item.variant.stock_qty;
-      const newQty = Math.max(1, Math.min(maxQty, item.quantity + delta));
-      return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
+const validateCartStock = useCallback(async (
+  items: Array<{ variantId: string; quantity: number; ... }>,
+  oldItems?: Array<{ variantId: string; quantity: number }>
+) => {
+  // STEP 1: Aggregate new items by variantId
+  const aggregatedNewItems = new Map<string, { variantId: string; quantity: number; productName?: string; size?: string }>();
+  for (const item of items) {
+    const existing = aggregatedNewItems.get(item.variantId);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      aggregatedNewItems.set(item.variantId, { ...item });
     }
-    return item;
-  });
-  setOrderItems(updated);
-};
+  }
+
+  // STEP 2: Create freed qty map from old items
+  const freedQtyMap = new Map<string, number>();
+  if (oldItems && oldItems.length > 0) {
+    for (const oldItem of oldItems) {
+      const currentFreed = freedQtyMap.get(oldItem.variantId) || 0;
+      freedQtyMap.set(oldItem.variantId, currentFreed + oldItem.quantity);
+    }
+  }
+
+  // STEP 3: Validate aggregated items
+  for (const [variantId, item] of aggregatedNewItems) {
+    const freedQty = freedQtyMap.get(variantId) || 0;
+    const result = await checkStock(variantId, item.quantity, freedQty);
+    // ... rest of validation
+  }
+});
 ```
 
-This already enforces `Math.max(1, ...)` which ensures quantity cannot go below 1 — this is correct and already in place.
+### 2. Add Debug Logging for Troubleshooting
 
-#### 3. (Optional Enhancement) Add Visual Warning for Zero Quantity Items
+Add console logging to help diagnose future issues:
 
-If somehow a 0-quantity item gets into the list, show it with a warning style:
-- Add a red border/highlight to items with quantity ≤ 0
-- This provides visual feedback before save attempt
+```typescript
+console.log('Stock validation:', {
+  variantId,
+  requestedQty: item.quantity,
+  freedQty,
+  currentStock: variant.stock_qty,
+  availableStock,
+  isAvailable: availableStock >= item.quantity
+});
+```
 
----
+### 3. Ensure originalItemsForEdit is Preserved During Edits
 
-## Implementation Summary
-
-| Change | Location | Purpose |
-|--------|----------|---------|
-| Zero quantity item check | `saveOrder()` | Block saving orders with any 0-qty items |
-| Total quantity check | `saveOrder()` | Block saving orders with 0 total quantity |
-| Min quantity enforcement | `updateQuantity()` | Already implemented - prevents qty < 1 |
-
----
-
-## Testing Scenarios
-
-1. **Normal Order Flow** - Add items with valid quantities → Should save successfully
-2. **Empty Order** - Try to save without items → Should show "Please add at least one item"
-3. **Direct API Test** - Attempt to insert 0-qty via Supabase → Should be caught by validation
-4. **Edge Case** - Restore draft with corrupted data → Validation will catch on save
+Add defensive checks in SalesInvoice.tsx to ensure `originalItemsForEdit` isn't cleared prematurely.
 
 ---
 
-## Benefits
+## Files to Modify
 
-- Prevents invalid orders from being created
-- Clear error messages help salesmen understand what went wrong
-- Works in conjunction with existing draft save functionality
-- Minimal code changes - surgical fix to address the specific gap
+| File | Change |
+|------|--------|
+| `src/hooks/useStockValidation.tsx` | Aggregate new items by variant before validation; add debug logging |
 
+---
+
+## Technical Details
+
+### Updated `validateCartStock` Function
+
+```typescript
+const validateCartStock = useCallback(async (
+  items: Array<{ variantId: string; quantity: number; productName?: string; size?: string }>,
+  oldItems?: Array<{ variantId: string; quantity: number }>
+): Promise<Array<{ productName: string; size: string; requested: number; available: number }>> => {
+  setChecking(true);
+  const insufficientItems: Array<{ productName: string; size: string; requested: number; available: number }> = [];
+
+  // STEP 1: Aggregate new items by variantId to handle same variant appearing multiple times
+  const aggregatedNewItems = new Map<string, { variantId: string; quantity: number; productName?: string; size?: string }>();
+  for (const item of items) {
+    const existing = aggregatedNewItems.get(item.variantId);
+    if (existing) {
+      existing.quantity += item.quantity;
+      // Keep the first product name and size
+    } else {
+      aggregatedNewItems.set(item.variantId, { ...item });
+    }
+  }
+
+  // STEP 2: Create a map of freed quantities from old items
+  const freedQtyMap = new Map<string, number>();
+  if (oldItems && oldItems.length > 0) {
+    for (const oldItem of oldItems) {
+      const currentFreed = freedQtyMap.get(oldItem.variantId) || 0;
+      freedQtyMap.set(oldItem.variantId, currentFreed + oldItem.quantity);
+    }
+  }
+
+  try {
+    // STEP 3: Validate each aggregated variant
+    for (const [variantId, item] of aggregatedNewItems) {
+      const freedQty = freedQtyMap.get(variantId) || 0;
+      
+      const result = await checkStock(variantId, item.quantity, freedQty);
+      if (!result.isAvailable) {
+        insufficientItems.push({
+          productName: item.productName || result.productName,
+          size: item.size || result.size,
+          requested: item.quantity,
+          available: result.availableStock,
+        });
+      }
+    }
+  } finally {
+    setChecking(false);
+  }
+
+  return insufficientItems;
+}, [checkStock]);
+```
+
+---
+
+## Expected Outcome
+
+After this fix:
+1. ✅ Editing invoices will correctly account for all quantities of the same variant
+2. ✅ The "freed" stock from the original invoice will be properly added before validation
+3. ✅ No more intermittent "Insufficient stock" errors during edit operations
+4. ✅ Debug logging will help diagnose any future stock validation issues
