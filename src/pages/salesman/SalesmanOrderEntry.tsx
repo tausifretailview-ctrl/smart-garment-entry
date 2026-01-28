@@ -187,18 +187,17 @@ const SalesmanOrderEntry = () => {
     setShowDraftDialog(false);
   }, [deleteDraft]);
 
-  const generateOrderNumber = async () => {
+  const generateOrderNumber = async (): Promise<string> => {
     const now = new Date();
     const year = now.getMonth() >= 3 ? now.getFullYear() % 100 : (now.getFullYear() - 1) % 100;
     const nextYear = year + 1;
     const prefix = `SO/${year}-${nextYear}/`;
 
-    // Find max sequence number by querying existing order numbers
+    // Find max sequence number by querying existing order numbers (include deleted for reuse)
     const { data: orders } = await supabase
       .from("sale_orders")
       .select("order_number")
       .eq("organization_id", currentOrganization!.id)
-      .is("deleted_at", null)
       .ilike("order_number", `${prefix}%`);
 
     let maxSeq = 0;
@@ -212,7 +211,9 @@ const SalesmanOrderEntry = () => {
       });
     }
 
-    setOrderNumber(`${prefix}${maxSeq + 1}`);
+    const newOrderNumber = `${prefix}${maxSeq + 1}`;
+    setOrderNumber(newOrderNumber);
+    return newOrderNumber;
   };
 
   const fetchCustomerById = async (customerId: string) => {
