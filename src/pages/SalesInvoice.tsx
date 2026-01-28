@@ -68,6 +68,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
+import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 
 interface LineItem {
   id: string;
@@ -170,6 +171,9 @@ export default function SalesInvoice() {
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   
+  // Product history dialog state
+  const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
+
 
   // Draft save hook
   const {
@@ -2297,7 +2301,17 @@ Thank you for choosing us!`;
                   return (
                     <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
                       <TableCell>{srNo}</TableCell>
-                      <TableCell>{item.productName || '-'}</TableCell>
+                      <TableCell>
+                        {item.productId ? (
+                          <button
+                            type="button"
+                            onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
+                            className="text-primary hover:underline text-left font-medium"
+                          >
+                            {item.productName}
+                          </button>
+                        ) : '-'}
+                      </TableCell>
                       <TableCell>{item.size || '-'}</TableCell>
                       <TableCell>{item.color || '-'}</TableCell>
                       <TableCell className="text-xs">{item.barcode || '-'}</TableCell>
@@ -2675,6 +2689,16 @@ Thank you for choosing us!`;
           />
         </div>
 
+      {/* Product History Dialog */}
+      {historyProduct && currentOrganization && (
+        <ProductHistoryDialog
+          isOpen={!!historyProduct}
+          onClose={() => setHistoryProduct(null)}
+          productId={historyProduct.id}
+          productName={historyProduct.name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 }
