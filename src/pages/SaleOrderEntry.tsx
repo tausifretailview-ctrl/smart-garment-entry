@@ -66,6 +66,7 @@ interface LineItem {
   size: string;
   barcode: string;
   orderQty: number;
+  box: string;
   stockQty: number;
   mrp: number;
   salePrice: number;
@@ -103,6 +104,7 @@ export default function SaleOrderEntry() {
       size: '',
       barcode: '',
       orderQty: 0,
+      box: '',
       stockQty: 0,
       mrp: 0,
       salePrice: 0,
@@ -169,7 +171,7 @@ export default function SaleOrderEntry() {
     setExpectedDelivery(data.expectedDelivery ? new Date(data.expectedDelivery) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
     setLineItems(data.lineItems || Array(5).fill(null).map((_, i) => ({
       id: `row-${i}`, productId: '', variantId: '', productName: '', size: '', barcode: '',
-      orderQty: 0, stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, uom: DEFAULT_UOM,
+      orderQty: 0, box: '', stockQty: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, uom: DEFAULT_UOM,
     })));
     setSelectedCustomerId(data.selectedCustomerId || "");
     setSelectedCustomer(data.selectedCustomer || null);
@@ -556,6 +558,7 @@ export default function SaleOrderEntry() {
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: qty,
+          box: '',
           stockQty: variant.stock_qty || 0,
           mrp: variant.mrp || variant.sale_price || 0,
           salePrice: variant.sale_price || 0,
@@ -650,6 +653,7 @@ export default function SaleOrderEntry() {
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: 1,
+          box: '',
           stockQty: variant.stock_qty || 0,
           mrp: mrpToUse,
           salePrice: salePrice,
@@ -672,6 +676,7 @@ export default function SaleOrderEntry() {
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: 1,
+          box: '',
           stockQty: variant.stock_qty || 0,
           mrp: mrpToUse,
           salePrice: salePrice,
@@ -716,6 +721,12 @@ export default function SaleOrderEntry() {
     if (orderQty < 1) return;
     setLineItems(prev => prev.map(item => 
       item.id === id ? calculateLineTotal({ ...item, orderQty }) : item
+    ));
+  };
+
+  const updateBox = (id: string, box: string) => {
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, box } : item
     ));
   };
 
@@ -1349,6 +1360,7 @@ export default function SaleOrderEntry() {
                 <TableHead>Color</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead className="w-20">Order Qty</TableHead>
+                <TableHead className="w-16">Box</TableHead>
                 <TableHead className="w-20">UOM</TableHead>
                 <TableHead className="w-20">Stock</TableHead>
                 <TableHead className="w-28">Difference</TableHead>
@@ -1381,6 +1393,17 @@ export default function SaleOrderEntry() {
                           value={item.orderQty}
                           onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                           className="w-16 h-8"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {item.productId && (
+                        <Input
+                          type="text"
+                          value={item.box || ''}
+                          onChange={(e) => updateBox(item.id, e.target.value)}
+                          placeholder=""
+                          className="w-14 h-8"
                         />
                       )}
                     </TableCell>
