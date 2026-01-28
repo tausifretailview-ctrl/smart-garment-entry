@@ -89,16 +89,16 @@ const AnimatedMetricCard = ({
               "group-hover:shadow-md group-hover:scale-[1.02]"
             )}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
-              <CardTitle className="text-xs font-bold text-foreground">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
+              <CardTitle className="text-sm font-bold text-foreground">
                 {title}
               </CardTitle>
-              <div className="p-1.5 rounded-lg bg-white/20">
-                <Icon className="h-3.5 w-3.5 text-white" />
+              <div className="p-2 rounded-lg bg-white/20">
+                <Icon className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
-            <CardContent className="p-2 pt-0">
-              <div className="text-lg font-extrabold text-foreground">
+            <CardContent className="p-3 pt-0">
+              <div className="text-2xl font-bold text-foreground">
                 {displayValue}
               </div>
             </CardContent>
@@ -540,7 +540,7 @@ const DashboardContent = () => {
 
   return (
     <TooltipProvider>
-    <div className="space-y-3">
+    <div className="space-y-4">
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
@@ -607,11 +607,11 @@ const DashboardContent = () => {
 
       {/* Sales Overview */}
       <div>
-        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-          <div className="h-0.5 w-6 bg-gradient-to-r from-primary to-transparent rounded-full" />
+        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+          <div className="h-1 w-8 bg-gradient-to-r from-primary to-transparent rounded-full" />
           Sales Overview
         </h2>
-        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
           <AnimatedMetricCard
             title="Total Sales"
             value={salesData?.total || 0}
@@ -667,11 +667,11 @@ const DashboardContent = () => {
 
       {/* Purchase Overview */}
       <div>
-        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-          <div className="h-0.5 w-6 bg-gradient-to-r from-secondary to-transparent rounded-full" />
+        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+          <div className="h-1 w-8 bg-gradient-to-r from-secondary to-transparent rounded-full" />
           Purchase Overview
         </h2>
-        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
           <AnimatedMetricCard
             title="Total Purchase"
             value={purchaseData?.total || 0}
@@ -727,11 +727,11 @@ const DashboardContent = () => {
 
       {/* Inventory & Financial Metrics */}
       <div>
-        <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-          <div className="h-0.5 w-6 bg-gradient-to-r from-accent to-transparent rounded-full" />
+        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+          <div className="h-1 w-8 bg-gradient-to-r from-accent to-transparent rounded-full" />
           Inventory & Financial
         </h2>
-        <div className="grid gap-2 grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
           <AnimatedMetricCard
             title="Products"
             value={productsCount || 0}
@@ -792,8 +792,8 @@ const DashboardContent = () => {
       {/* Field Sales App Section - Only visible for users with field sales access */}
       {hasFieldSalesAccess && (
         <div>
-          <h2 className="text-sm font-bold mb-2 text-foreground flex items-center gap-2">
-            <div className="h-0.5 w-6 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
+          <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+            <div className="h-1 w-8 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
             Field Sales App
           </h2>
           <Card className="bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 border-0 shadow-md">
