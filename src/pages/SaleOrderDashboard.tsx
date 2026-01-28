@@ -42,7 +42,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
-import { Check } from "lucide-react";
+import { Check, FileText, X } from "lucide-react";
+import { useDraftSave } from "@/hooks/useDraftSave";
+import { formatDistanceToNow } from "date-fns";
 
 interface ConversionItem {
   id: string;
@@ -87,6 +89,9 @@ export default function SaleOrderDashboard() {
   const [toDate, setToDate] = useState<Date | undefined>(undefined);
   const [orderToAccept, setOrderToAccept] = useState<any>(null);
   const [isAccepting, setIsAccepting] = useState(false);
+  
+  // Draft save hook
+  const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_order');
 
   // Fetch settings for print
   const { data: settings } = useQuery({
@@ -441,6 +446,58 @@ export default function SaleOrderDashboard() {
 
   return (
     <div className="p-4 space-y-4">
+
+      {/* Unsaved Draft Card */}
+      {hasDraft && draftData && (
+        <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                  <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-amber-800 dark:text-amber-200">
+                    Unsaved Sale Order Found
+                  </h3>
+                  <CardDescription className="text-amber-600 dark:text-amber-400">
+                    {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
+                    {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
+                    {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await deleteDraft();
+                    toast({
+                      title: "Draft Discarded",
+                      description: "The unsaved sale order has been removed",
+                    });
+                  }}
+                  className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/30"
+                >
+                  <X className="h-4 w-4" />
+                  Discard
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigate("/sale-order-entry/new", { state: { loadDraft: true } });
+                  }}
+                  className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Edit className="h-4 w-4" />
+                  Resume Draft
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Summary Statistics Cards - Vasy ERP Style Vibrant */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
