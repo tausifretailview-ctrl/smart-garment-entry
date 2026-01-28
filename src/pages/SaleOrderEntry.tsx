@@ -57,6 +57,7 @@ import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
+import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 
 interface LineItem {
   id: string;
@@ -144,6 +145,9 @@ export default function SaleOrderEntry() {
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
+  
+  // Product history dialog state
+  const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
 
 
   // Inline search state for table row
@@ -1380,7 +1384,17 @@ export default function SaleOrderEntry() {
                 return (
                   <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
                     <TableCell>{index + 1}</TableCell>
-                    <TableCell>{item.productName || '-'}</TableCell>
+                    <TableCell>
+                      {item.productId ? (
+                        <button
+                          type="button"
+                          onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
+                          className="text-primary hover:underline text-left font-medium"
+                        >
+                          {item.productName}
+                        </button>
+                      ) : '-'}
+                    </TableCell>
                     <TableCell className="text-xs text-muted-foreground">{item.barcode || '-'}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{item.hsnCode || '-'}</TableCell>
                     <TableCell className="text-xs">{item.color || '-'}</TableCell>
@@ -1788,6 +1802,16 @@ export default function SaleOrderEntry() {
         }}
       />
 
+      {/* Product History Dialog */}
+      {historyProduct && currentOrganization && (
+        <ProductHistoryDialog
+          isOpen={!!historyProduct}
+          onClose={() => setHistoryProduct(null)}
+          productId={historyProduct.id}
+          productName={historyProduct.name}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 }
