@@ -77,7 +77,7 @@ export const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground dark:bg-[hsl(213,32%,17%)] dark:text-white dark:border-[hsl(213,32%,25%)]">
-      <div className="container flex h-10 items-center justify-between px-3">
+      <div className="container flex h-14 items-center justify-between px-4">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
