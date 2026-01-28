@@ -730,10 +730,18 @@ const DashboardContent = () => {
               title="S/R Amount"
               value={saleReturnData?.total || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
+              bgColor="bg-gradient-to-br from-yellow-300 to-yellow-400"
               onClick={() => navigate("/sale-return-dashboard")}
               tooltip="Total sale return amount. Click to view Sale Returns."
               isCurrency
+            />
+            <AnimatedMetricCard
+              title="S/R Qty"
+              value={saleReturnData?.returnQty || 0}
+              icon={RotateCcw}
+              bgColor="bg-gradient-to-br from-gray-300 to-gray-400"
+              onClick={() => navigate("/sale-return-dashboard")}
+              tooltip="Total sale return quantity. Click to view Sale Returns."
             />
             <AnimatedMetricCard
               title="Customers"
@@ -743,6 +751,10 @@ const DashboardContent = () => {
               onClick={() => navigate("/customers")}
               tooltip="Total registered customers. Click to manage customers."
             />
+          </div>
+
+          {/* Row 2 - Purchase Metrics */}
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <AnimatedMetricCard
               title="Total Purchase"
               value={purchaseData?.total || 0}
@@ -752,10 +764,6 @@ const DashboardContent = () => {
               tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
               isCurrency
             />
-          </div>
-
-          {/* Row 2 - Purchase & Stock Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <AnimatedMetricCard
               title="Bills"
               value={purchaseData?.count || 0}
@@ -776,10 +784,18 @@ const DashboardContent = () => {
               title="P/R Amount"
               value={purchaseReturnData?.total || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-amber-300 to-amber-400"
+              bgColor="bg-gradient-to-br from-yellow-300 to-yellow-400"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return amount. Click to view Purchase Returns."
               isCurrency
+            />
+            <AnimatedMetricCard
+              title="P/R Qty"
+              value={purchaseReturnData?.returnQty || 0}
+              icon={RotateCcw}
+              bgColor="bg-gradient-to-br from-gray-300 to-gray-400"
+              onClick={() => navigate("/purchase-return-dashboard")}
+              tooltip="Total purchase return quantity. Click to view Purchase Returns."
             />
             <AnimatedMetricCard
               title="Suppliers"
@@ -789,6 +805,10 @@ const DashboardContent = () => {
               onClick={() => navigate("/suppliers")}
               tooltip="Total registered suppliers. Click to manage suppliers."
             />
+          </div>
+
+          {/* Row 3 - Inventory & Financial Metrics */}
+          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <AnimatedMetricCard
               title="Products"
               value={productsCount || 0}
@@ -805,17 +825,13 @@ const DashboardContent = () => {
               onClick={() => navigate("/stock-report")}
               tooltip="Total items in stock across all variants. Click to view Stock Report."
             />
-          </div>
-
-          {/* Row 3 - Financial Metrics */}
-          <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
             <AnimatedMetricCard
               title="Stock Value"
               value={stockValue || 0}
               icon={DollarSign}
               bgColor="bg-gradient-to-br from-fuchsia-300 to-fuchsia-400"
               onClick={() => navigate("/stock-report")}
-              tooltip="Total value of current inventory at sale price. Click to view details."
+              tooltip="Total value of current inventory at purchase price. Click to view details."
               isCurrency
             />
             {canViewGrossProfit && (
@@ -836,6 +852,15 @@ const DashboardContent = () => {
               bgColor="bg-gradient-to-br from-red-300 to-red-400"
               onClick={() => navigate("/payments-dashboard")}
               tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
+              isCurrency
+            />
+            <AnimatedMetricCard
+              title="Cash Collection"
+              value={cashCollection || 0}
+              icon={DollarSign}
+              bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
+              onClick={() => navigate("/daily-cashier-report")}
+              tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency
             />
           </div>
