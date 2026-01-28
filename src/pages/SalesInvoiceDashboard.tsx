@@ -1183,7 +1183,7 @@ export default function SalesInvoiceDashboard() {
                     <h3 className="text-base font-semibold text-amber-800 dark:text-amber-200">
                       Unsaved Sales Invoice Found
                     </h3>
-                    <CardDescription className="text-amber-600 dark:text-amber-400">
+                    <CardDescription className="text-black dark:text-black font-bold">
                       {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
                       {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
                       {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
