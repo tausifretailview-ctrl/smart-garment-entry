@@ -104,7 +104,19 @@ export const useStockValidation = () => {
     setChecking(true);
     const insufficientItems: Array<{ productName: string; size: string; requested: number; available: number }> = [];
 
-    // Create a map of freed quantities from old items
+    // STEP 1: Aggregate new items by variantId to handle same variant appearing multiple times
+    const aggregatedNewItems = new Map<string, { variantId: string; quantity: number; productName?: string; size?: string }>();
+    for (const item of items) {
+      const existing = aggregatedNewItems.get(item.variantId);
+      if (existing) {
+        existing.quantity += item.quantity;
+        // Keep the first product name and size
+      } else {
+        aggregatedNewItems.set(item.variantId, { ...item });
+      }
+    }
+
+    // STEP 2: Create a map of freed quantities from old items
     const freedQtyMap = new Map<string, number>();
     if (oldItems && oldItems.length > 0) {
       for (const oldItem of oldItems) {
@@ -113,12 +125,32 @@ export const useStockValidation = () => {
       }
     }
 
+    // Debug logging for troubleshooting
+    console.log('[Stock Validation] Starting validation:', {
+      totalNewItems: items.length,
+      aggregatedVariants: aggregatedNewItems.size,
+      oldItemsCount: oldItems?.length || 0,
+      freedVariants: freedQtyMap.size,
+    });
+
     try {
-      for (const item of items) {
-        // Get the freed quantity for this variant (if any)
-        const freedQty = freedQtyMap.get(item.variantId) || 0;
+      // STEP 3: Validate each aggregated variant
+      for (const [variantId, item] of aggregatedNewItems) {
+        const freedQty = freedQtyMap.get(variantId) || 0;
         
-        const result = await checkStock(item.variantId, item.quantity, freedQty);
+        const result = await checkStock(variantId, item.quantity, freedQty);
+        
+        // Debug logging for each variant check
+        console.log('[Stock Validation] Variant check:', {
+          variantId,
+          requestedQty: item.quantity,
+          freedQty,
+          availableStock: result.availableStock,
+          isAvailable: result.isAvailable,
+          productName: result.productName,
+          size: result.size,
+        });
+        
         if (!result.isAvailable) {
           insufficientItems.push({
             productName: item.productName || result.productName,
