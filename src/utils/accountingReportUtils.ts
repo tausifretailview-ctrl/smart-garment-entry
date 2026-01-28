@@ -256,9 +256,8 @@ export async function calculateStockValueAtDate(
   const currentStock = await calculateStockValue(organizationId);
   
   // Get all stock movements after the date to calculate what stock was at that point
-  // This is a simplified approach - in production, you'd track stock movements explicitly
   
-  // Get purchases after the date
+  // Get purchases after the date (value at purchase price)
   const { data: purchasesAfter } = await supabase
     .from("purchase_items")
     .select(`
@@ -274,27 +273,71 @@ export async function calculateStockValueAtDate(
     (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
   ) || 0;
   
-  // Get sales after the date - fetch sale IDs first, then use paginated fetch
-  const { data: salesAfterList } = await supabase
-    .from("sales")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .gt("invoice_date", asOfDate)
+  // Get sales after the date with variant purchase prices
+  const { data: saleItemsAfter } = await supabase
+    .from("sale_items")
+    .select(`
+      quantity, variant_id,
+      sales!inner(id, organization_id, invoice_date, deleted_at),
+      product_variants(pur_price)
+    `)
+    .eq("sales.organization_id", organizationId)
+    .gt("sales.invoice_date", asOfDate)
+    .is("sales.deleted_at", null)
     .is("deleted_at", null);
   
-  const saleIdsAfter = salesAfterList?.map(s => s.id) || [];
-  let salesValueAfter = 0;
+  // Calculate sales value at PURCHASE PRICE (cost), not selling price
+  const salesCostAfter = (saleItemsAfter ?? []).reduce((sum, s: any) => {
+    const purPrice = s.product_variants?.pur_price || 0;
+    return sum + ((s.quantity || 0) * purPrice);
+  }, 0);
   
-  if (saleIdsAfter.length > 0) {
-    const saleItemsAfter = await fetchAllSaleItems(saleIdsAfter);
-    salesValueAfter = saleItemsAfter.reduce(
-      (sum, s) => sum + ((s.quantity || 0) * (s.unit_price || 0)), 0
-    );
-  }
+  // Get sale returns after the date (items returned to stock at cost)
+  const { data: returnItemsAfter } = await supabase
+    .from("sale_return_items")
+    .select(`
+      quantity, variant_id,
+      sale_returns!inner(id, organization_id, return_date, deleted_at),
+      product_variants(pur_price)
+    `)
+    .eq("sale_returns.organization_id", organizationId)
+    .gt("sale_returns.return_date", asOfDate)
+    .is("sale_returns.deleted_at", null)
+    .is("deleted_at", null);
   
-  // Stock at date = Current stock - Purchases after date + Sales after date
-  // (Simplified - actual implementation would use FIFO/LIFO/Weighted Average)
-  return Math.max(0, currentStock - purchasesValueAfter + salesValueAfter);
+  const returnsValueAfter = (returnItemsAfter ?? []).reduce((sum, r: any) => {
+    const purPrice = r.product_variants?.pur_price || 0;
+    return sum + ((r.quantity || 0) * purPrice);
+  }, 0);
+  
+  // Get purchase returns after the date (items returned to supplier at cost)
+  const { data: purchaseReturnsAfter } = await supabase
+    .from("purchase_return_items")
+    .select(`
+      qty, pur_price,
+      purchase_returns!inner(id, organization_id, return_date, deleted_at)
+    `)
+    .eq("purchase_returns.organization_id", organizationId)
+    .gt("purchase_returns.return_date", asOfDate)
+    .is("purchase_returns.deleted_at", null)
+    .is("deleted_at", null);
+  
+  const purchaseReturnsValueAfter = purchaseReturnsAfter?.reduce(
+    (sum, p) => sum + ((p.qty || 0) * (p.pur_price || 0)), 0
+  ) || 0;
+  
+  // Stock at date = Current stock 
+  //                 - Purchases after date (added to stock)
+  //                 + Sales after date (sold from stock, at cost)
+  //                 - Sale Returns after date (returned to stock, at cost)
+  //                 + Purchase Returns after date (returned to supplier)
+  const stockAtDate = currentStock 
+    - purchasesValueAfter 
+    + salesCostAfter 
+    - returnsValueAfter 
+    + purchaseReturnsValueAfter;
+  
+  return Math.max(0, stockAtDate);
 }
 
 // Calculate Profit & Loss (Enhanced GST-Compliant)
