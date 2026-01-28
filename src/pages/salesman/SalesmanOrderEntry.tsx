@@ -491,12 +491,15 @@ const SalesmanOrderEntry = () => {
 
     setSaving(true);
     try {
+      // CRITICAL: Regenerate order number atomically before saving to prevent duplicates
+      const freshOrderNumber = await generateOrderNumber();
+      
       // Create sale order
       const { data: order, error: orderError } = await supabase
         .from("sale_orders")
         .insert({
           organization_id: currentOrganization!.id,
-          order_number: orderNumber,
+          order_number: freshOrderNumber,
           order_date: new Date().toISOString(),
           customer_id: selectedCustomer.id,
           customer_name: selectedCustomer.customer_name,
@@ -553,7 +556,7 @@ const SalesmanOrderEntry = () => {
         ).join("\n");
 
         const message = `🛒 *Sales Order Confirmation*\n\n` +
-          `Order No: ${orderNumber}\n` +
+          `Order No: ${freshOrderNumber}\n` +
           `Customer: ${selectedCustomer.customer_name}\n\n` +
           `*Items:*\n${itemsList}\n\n` +
           `*Total: ₹${netAmount.toLocaleString("en-IN")}*\n\n` +
