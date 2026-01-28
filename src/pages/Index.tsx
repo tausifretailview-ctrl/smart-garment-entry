@@ -25,7 +25,9 @@ import {
   RefreshCw,
   TrendingDown,
   Minus,
+  Megaphone,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -538,6 +540,93 @@ const DashboardContent = () => {
     refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
+  // New Updates Panel Component
+  const NewUpdatesPanel = () => {
+    const updates = [
+      {
+        version: "v1.2.5",
+        date: "28/01/2026",
+        changes: [
+          "Stock validation improvements during invoice edit",
+          "Fixed aggregation for same variant multiple entries"
+        ]
+      },
+      {
+        version: "v1.2.4",
+        date: "27/01/2026",
+        changes: [
+          "Draft management moved to dashboard banners",
+          "Improved draft resume functionality"
+        ]
+      },
+      {
+        version: "v1.2.3",
+        date: "25/01/2026",
+        changes: [
+          "Dashboard resolution enhanced to match ERP style",
+          "Larger metric cards with better readability"
+        ]
+      },
+      {
+        version: "v1.2.2",
+        date: "22/01/2026",
+        changes: [
+          "Bold black font for draft notifications",
+          "Enhanced visual hierarchy"
+        ]
+      },
+      {
+        version: "v1.2.1",
+        date: "20/01/2026",
+        changes: [
+          "Fixed bugs for better user experience",
+          "Performance optimizations"
+        ]
+      },
+      {
+        version: "v1.2.0",
+        date: "18/01/2026",
+        changes: [
+          "New dark theme with VASY ERP styling",
+          "Vibrant gradient card backgrounds"
+        ]
+      }
+    ];
+
+    return (
+      <Card className="border-0 shadow-md sticky top-2">
+        <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white p-3 rounded-t-lg">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <Megaphone className="h-4 w-4" />
+            New Updates
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[400px]" showScrollbar>
+            <div className="p-3 space-y-4">
+              {updates.map((update, index) => (
+                <div key={index} className="border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-bold text-foreground">{update.version}</span>
+                    <span className="text-xs text-muted-foreground">{update.date}</span>
+                  </div>
+                  <ul className="space-y-1">
+                    {update.changes.map((change, changeIndex) => (
+                      <li key={changeIndex} className="text-xs text-muted-foreground flex items-start gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 mt-1.5 flex-shrink-0" />
+                        {change}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <TooltipProvider>
     <div className="space-y-4">
@@ -605,256 +694,243 @@ const DashboardContent = () => {
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
       </div>
 
-      {/* Sales Overview */}
-      <div>
-        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
-          <div className="h-1 w-8 bg-gradient-to-r from-primary to-transparent rounded-full" />
-          Sales Overview
-        </h2>
-        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
-          <AnimatedMetricCard
-            title="Total Sales"
-            value={salesData?.total || 0}
-            icon={DollarSign}
-            bgColor="bg-gradient-to-br from-blue-300 to-blue-400"
-            onClick={() => navigate("/sales-invoice-dashboard")}
-            tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
-            isCurrency
-          />
-          <AnimatedMetricCard
-            title="Invoices"
-            value={salesData?.count || 0}
-            icon={FileText}
-            bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
-            onClick={() => navigate("/sales-invoice-dashboard")}
-            tooltip="Number of sales invoices generated. Click to view all invoices."
-          />
-          <AnimatedMetricCard
-            title="Sold Qty"
-            value={salesData?.soldQty || 0}
-            icon={ShoppingCart}
-            bgColor="bg-gradient-to-br from-green-300 to-green-400"
-            onClick={() => navigate("/stock-report")}
-            tooltip="Total quantity of items sold. Click to view Stock Report."
-          />
-          <AnimatedMetricCard
-            title="S/R Amount"
-            value={saleReturnData?.total || 0}
-            icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
-            onClick={() => navigate("/sale-return-dashboard")}
-            tooltip="Total sale return amount. Click to view Sale Returns."
-            isCurrency
-          />
-          <AnimatedMetricCard
-            title="S/R Qty"
-            value={saleReturnData?.returnQty || 0}
-            icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-slate-300 to-slate-400"
-            onClick={() => navigate("/sale-return-dashboard")}
-            tooltip="Total sale return quantity. Click to view Sale Returns."
-          />
-          <AnimatedMetricCard
-            title="Customers"
-            value={customersCount || 0}
-            icon={Users}
-            bgColor="bg-gradient-to-br from-pink-300 to-pink-400"
-            onClick={() => navigate("/customers")}
-            tooltip="Total registered customers. Click to manage customers."
-          />
-        </div>
-      </div>
+      {/* Main Content Grid with New Updates Sidebar */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
 
-      {/* Purchase Overview */}
-      <div>
-        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
-          <div className="h-1 w-8 bg-gradient-to-r from-secondary to-transparent rounded-full" />
-          Purchase Overview
-        </h2>
-        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
-          <AnimatedMetricCard
-            title="Total Purchase"
-            value={purchaseData?.total || 0}
-            icon={ShoppingCart}
-            bgColor="bg-gradient-to-br from-emerald-300 to-emerald-400"
-            onClick={() => navigate("/purchase-bills")}
-            tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
-            isCurrency
-          />
-          <AnimatedMetricCard
-            title="Bills"
-            value={purchaseData?.count || 0}
-            icon={FileText}
-            bgColor="bg-gradient-to-br from-teal-300 to-teal-400"
-            onClick={() => navigate("/purchase-bills")}
-            tooltip="Number of purchase bills recorded. Click to view all bills."
-          />
-          <AnimatedMetricCard
-            title="Purchase Qty"
-            value={purchaseData?.purchaseQty || 0}
-            icon={Package}
-            bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
-            onClick={() => navigate("/stock-report")}
-            tooltip="Total quantity of items purchased. Click to view Stock Report."
-          />
-          <AnimatedMetricCard
-            title="P/R Amount"
-            value={purchaseReturnData?.total || 0}
-            icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-amber-300 to-amber-400"
-            onClick={() => navigate("/purchase-return-dashboard")}
-            tooltip="Total purchase return amount. Click to view Purchase Returns."
-            isCurrency
-          />
-          <AnimatedMetricCard
-            title="P/R Qty"
-            value={purchaseReturnData?.returnQty || 0}
-            icon={RotateCcw}
-            bgColor="bg-gradient-to-br from-yellow-300 to-yellow-400"
-            onClick={() => navigate("/purchase-return-dashboard")}
-            tooltip="Total purchase return quantity. Click to view Purchase Returns."
-          />
-          <AnimatedMetricCard
-            title="Suppliers"
-            value={suppliersCount || 0}
-            icon={Store}
-            bgColor="bg-gradient-to-br from-purple-300 to-purple-400"
-            onClick={() => navigate("/suppliers")}
-            tooltip="Total registered suppliers. Click to manage suppliers."
-          />
-        </div>
-      </div>
+        {/* Left side - Metric cards (3 columns on xl) */}
+        <div className="xl:col-span-3 space-y-4">
+          {/* Sales Overview */}
+          <div>
+            <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+              <div className="h-1 w-8 bg-gradient-to-r from-primary to-transparent rounded-full" />
+              Sales Overview
+            </h2>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <AnimatedMetricCard
+                title="Total Sales"
+                value={salesData?.total || 0}
+                icon={DollarSign}
+                bgColor="bg-gradient-to-br from-blue-300 to-blue-400"
+                onClick={() => navigate("/sales-invoice-dashboard")}
+                tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
+                isCurrency
+              />
+              <AnimatedMetricCard
+                title="Invoices"
+                value={salesData?.count || 0}
+                icon={FileText}
+                bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
+                onClick={() => navigate("/sales-invoice-dashboard")}
+                tooltip="Number of sales invoices generated. Click to view all invoices."
+              />
+              <AnimatedMetricCard
+                title="Sold Qty"
+                value={salesData?.soldQty || 0}
+                icon={ShoppingCart}
+                bgColor="bg-gradient-to-br from-green-300 to-green-400"
+                onClick={() => navigate("/stock-report")}
+                tooltip="Total quantity of items sold. Click to view Stock Report."
+              />
+              <AnimatedMetricCard
+                title="S/R Amount"
+                value={saleReturnData?.total || 0}
+                icon={RotateCcw}
+                bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
+                onClick={() => navigate("/sale-return-dashboard")}
+                tooltip="Total sale return amount. Click to view Sale Returns."
+                isCurrency
+              />
+              <AnimatedMetricCard
+                title="Customers"
+                value={customersCount || 0}
+                icon={Users}
+                bgColor="bg-gradient-to-br from-pink-300 to-pink-400"
+                onClick={() => navigate("/customers")}
+                tooltip="Total registered customers. Click to manage customers."
+              />
+            </div>
+          </div>
 
-      {/* Inventory & Financial Metrics */}
-      <div>
-        <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
-          <div className="h-1 w-8 bg-gradient-to-r from-accent to-transparent rounded-full" />
-          Inventory & Financial
-        </h2>
-        <div className="grid gap-3 grid-cols-3 lg:grid-cols-6">
-          <AnimatedMetricCard
-            title="Products"
-            value={productsCount || 0}
-            icon={Package}
-            bgColor="bg-gradient-to-br from-violet-300 to-violet-400"
-            onClick={() => navigate("/products")}
-            tooltip="Total unique products in inventory. Click to view Product Dashboard."
-          />
-          <AnimatedMetricCard
-            title="Stock Qty"
-            value={stockData || 0}
-            icon={Package}
-            bgColor="bg-gradient-to-br from-indigo-300 to-indigo-400"
-            onClick={() => navigate("/stock-report")}
-            tooltip="Total items in stock across all variants. Click to view Stock Report."
-          />
-          <AnimatedMetricCard
-            title="Stock Value"
-            value={stockValue || 0}
-            icon={DollarSign}
-            bgColor="bg-gradient-to-br from-fuchsia-300 to-fuchsia-400"
-            onClick={() => navigate("/stock-report")}
-            tooltip="Total value of current inventory at sale price. Click to view details."
-            isCurrency
-          />
-          {canViewGrossProfit && (
-            <AnimatedMetricCard
-              title="Gross Profit"
-              value={profitData || 0}
-              icon={TrendingUp}
-              bgColor="bg-gradient-to-br from-green-400 to-green-500"
-              onClick={() => navigate("/daily-cashier-report")}
-              tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
-              isCurrency
-            />
+          {/* Purchase Overview */}
+          <div>
+            <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+              <div className="h-1 w-8 bg-gradient-to-r from-secondary to-transparent rounded-full" />
+              Purchase Overview
+            </h2>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <AnimatedMetricCard
+                title="Total Purchase"
+                value={purchaseData?.total || 0}
+                icon={ShoppingCart}
+                bgColor="bg-gradient-to-br from-emerald-300 to-emerald-400"
+                onClick={() => navigate("/purchase-bills")}
+                tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
+                isCurrency
+              />
+              <AnimatedMetricCard
+                title="Bills"
+                value={purchaseData?.count || 0}
+                icon={FileText}
+                bgColor="bg-gradient-to-br from-teal-300 to-teal-400"
+                onClick={() => navigate("/purchase-bills")}
+                tooltip="Number of purchase bills recorded. Click to view all bills."
+              />
+              <AnimatedMetricCard
+                title="Purchase Qty"
+                value={purchaseData?.purchaseQty || 0}
+                icon={Package}
+                bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
+                onClick={() => navigate("/stock-report")}
+                tooltip="Total quantity of items purchased. Click to view Stock Report."
+              />
+              <AnimatedMetricCard
+                title="P/R Amount"
+                value={purchaseReturnData?.total || 0}
+                icon={RotateCcw}
+                bgColor="bg-gradient-to-br from-amber-300 to-amber-400"
+                onClick={() => navigate("/purchase-return-dashboard")}
+                tooltip="Total purchase return amount. Click to view Purchase Returns."
+                isCurrency
+              />
+              <AnimatedMetricCard
+                title="Suppliers"
+                value={suppliersCount || 0}
+                icon={Store}
+                bgColor="bg-gradient-to-br from-purple-300 to-purple-400"
+                onClick={() => navigate("/suppliers")}
+                tooltip="Total registered suppliers. Click to manage suppliers."
+              />
+            </div>
+          </div>
+
+          {/* Inventory & Financial Metrics */}
+          <div>
+            <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+              <div className="h-1 w-8 bg-gradient-to-r from-accent to-transparent rounded-full" />
+              Inventory & Financial
+            </h2>
+            <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              <AnimatedMetricCard
+                title="Products"
+                value={productsCount || 0}
+                icon={Package}
+                bgColor="bg-gradient-to-br from-violet-300 to-violet-400"
+                onClick={() => navigate("/products")}
+                tooltip="Total unique products in inventory. Click to view Product Dashboard."
+              />
+              <AnimatedMetricCard
+                title="Stock Qty"
+                value={stockData || 0}
+                icon={Package}
+                bgColor="bg-gradient-to-br from-indigo-300 to-indigo-400"
+                onClick={() => navigate("/stock-report")}
+                tooltip="Total items in stock across all variants. Click to view Stock Report."
+              />
+              <AnimatedMetricCard
+                title="Stock Value"
+                value={stockValue || 0}
+                icon={DollarSign}
+                bgColor="bg-gradient-to-br from-fuchsia-300 to-fuchsia-400"
+                onClick={() => navigate("/stock-report")}
+                tooltip="Total value of current inventory at sale price. Click to view details."
+                isCurrency
+              />
+              {canViewGrossProfit && (
+                <AnimatedMetricCard
+                  title="Gross Profit"
+                  value={profitData || 0}
+                  icon={TrendingUp}
+                  bgColor="bg-gradient-to-br from-green-400 to-green-500"
+                  onClick={() => navigate("/daily-cashier-report")}
+                  tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
+                  isCurrency
+                />
+              )}
+              <AnimatedMetricCard
+                title="Receivables"
+                value={receivablesData?.total || 0}
+                icon={AlertCircle}
+                bgColor="bg-gradient-to-br from-red-300 to-red-400"
+                onClick={() => navigate("/payments-dashboard")}
+                tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
+                isCurrency
+              />
+            </div>
+          </div>
+
+          {/* Field Sales App Section - Only visible for users with field sales access */}
+          {hasFieldSalesAccess && (
+            <div>
+              <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
+                <div className="h-1 w-8 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
+                Field Sales App
+              </h2>
+              <Card className="bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 border-0 shadow-md">
+                <CardHeader className="p-2 pb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-white/20">
+                      <Smartphone className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-sm text-white">Field Sales Mobile App</CardTitle>
+                      <CardDescription className="text-xs text-white/80">
+                        Welcome, {employeeName || "Salesman"}
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-2 pt-1">
+                  <div className="flex flex-wrap gap-2">
+                    <Button 
+                      size="sm"
+                      onClick={() => navigate("/salesman")}
+                      className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                    >
+                      <Smartphone className="mr-1 h-3 w-3" />
+                      Open App
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="outline" 
+                      onClick={() => navigate("/salesman/order/new")}
+                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                    >
+                      <ClipboardList className="mr-1 h-3 w-3" />
+                      New Order
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="outline" 
+                      onClick={() => navigate("/salesman/customers")}
+                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                    >
+                      <MapPin className="mr-1 h-3 w-3" />
+                      Customers
+                    </Button>
+                    <Button 
+                      size="sm"
+                      variant="outline" 
+                      onClick={() => navigate("/salesman/outstanding")}
+                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                    >
+                      <IndianRupee className="mr-1 h-3 w-3" />
+                      Outstanding
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
-          <AnimatedMetricCard
-            title="Receivables"
-            value={receivablesData?.total || 0}
-            icon={AlertCircle}
-            bgColor="bg-gradient-to-br from-red-300 to-red-400"
-            onClick={() => navigate("/payments-dashboard")}
-            tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
-            isCurrency
-          />
-          <AnimatedMetricCard
-            title="Cash Collection"
-            value={cashCollection || 0}
-            icon={DollarSign}
-            bgColor="bg-gradient-to-br from-sky-300 to-sky-400"
-            onClick={() => navigate("/payments-dashboard")}
-            tooltip="Total cash collected from sales. Click to view Payments Dashboard."
-            isCurrency
-          />
+
+          {/* Charts Section */}
+          <StatsChartsSection />
+        </div>
+
+        {/* Right side - New Updates panel (1 column on xl) */}
+        <div className="xl:col-span-1">
+          <NewUpdatesPanel />
         </div>
       </div>
-
-      {/* Field Sales App Section - Only visible for users with field sales access */}
-      {hasFieldSalesAccess && (
-        <div>
-          <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
-            <div className="h-1 w-8 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
-            Field Sales App
-          </h2>
-          <Card className="bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 border-0 shadow-md">
-            <CardHeader className="p-2 pb-1">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-white/20">
-                  <Smartphone className="h-4 w-4 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm text-white">Field Sales Mobile App</CardTitle>
-                  <CardDescription className="text-xs text-white/80">
-                    Welcome, {employeeName || "Salesman"}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-2 pt-1">
-              <div className="flex flex-wrap gap-2">
-                <Button 
-                  size="sm"
-                  onClick={() => navigate("/salesman")}
-                  className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
-                >
-                  <Smartphone className="mr-1 h-3 w-3" />
-                  Open App
-                </Button>
-                <Button 
-                  size="sm"
-                  variant="outline" 
-                  onClick={() => navigate("/salesman/order/new")}
-                  className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  <ClipboardList className="mr-1 h-3 w-3" />
-                  New Order
-                </Button>
-                <Button 
-                  size="sm"
-                  variant="outline" 
-                  onClick={() => navigate("/salesman/customers")}
-                  className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  <MapPin className="mr-1 h-3 w-3" />
-                  Customers
-                </Button>
-                <Button 
-                  size="sm"
-                  variant="outline" 
-                  onClick={() => navigate("/salesman/outstanding")}
-                  className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
-                >
-                  <IndianRupee className="mr-1 h-3 w-3" />
-                  Outstanding
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Charts Section */}
-      <StatsChartsSection />
     </div>
     </TooltipProvider>
   );
