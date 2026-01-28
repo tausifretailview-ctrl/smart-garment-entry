@@ -3,20 +3,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
-import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
-  const [lastUpdated, setLastUpdated] = useState(new Date());
-
-  // Update timestamp every 15 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLastUpdated(new Date());
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -136,18 +126,6 @@ export const StatsChartsSection = () => {
 
   return (
     <div className="space-y-4 animate-fade-in" style={{ animationDelay: "0.5s" }}>
-      {/* Live Update Indicator */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-green-500 font-medium">Live</span>
-        </span>
-        <span className="text-muted-foreground">•</span>
-        <span className="text-muted-foreground">
-          Last updated: {format(lastUpdated, "HH:mm:ss")}
-        </span>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales vs Purchase Comparison */}
         <Card className="border border-border bg-card shadow-sm">

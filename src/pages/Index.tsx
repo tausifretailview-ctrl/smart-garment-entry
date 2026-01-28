@@ -933,9 +933,37 @@ const DashboardContent = () => {
           <StatsChartsSection />
         </div>
 
-        {/* Right side - New Updates panel */}
-        <div className="self-start">
+        {/* Right side - New Updates panel + Customer Cards */}
+        <div className="self-start space-y-3">
           <NewUpdatesPanel />
+          
+          {/* Customer Category Cards */}
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="border-l-4 border-l-amber-400 bg-card shadow-sm">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-amber-500">5</div>
+                <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-green-400 bg-card shadow-sm">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-green-500">22</div>
+                <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-orange-400 bg-card shadow-sm">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-orange-500">410</div>
+                <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
+              </CardContent>
+            </Card>
+            <Card className="border-l-4 border-l-red-400 bg-card shadow-sm">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-red-500">6221</div>
+                <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
