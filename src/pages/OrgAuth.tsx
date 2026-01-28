@@ -280,9 +280,9 @@ export default function OrgAuth() {
   ];
 
   return (
-    <div className="min-h-screen flex w-full bg-slate-50">
+    <div className="h-screen flex w-full bg-slate-50 overflow-hidden">
       {/* Left Panel - Product Showcase with Office Background */}
-      <div className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-1/2 flex-col relative">
         {/* Office/Window Background Scene */}
         <div 
           className="absolute inset-0"
@@ -306,10 +306,10 @@ export default function OrgAuth() {
         />
 
         {/* Content - Single cohesive layout */}
-        <div className="relative z-10 flex-1 flex flex-col px-8 pt-4 pb-4">
+        <div className="relative z-10 h-full flex flex-col px-6 py-4">
 
           {/* POS Hero Image - Centered with desk shadow effect */}
-          <div className="flex-1 flex items-start justify-center relative pt-2">
+          <div className="flex-1 flex items-center justify-center relative">
             {/* Desk surface shadow */}
             <div 
               className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[85%] h-8 rounded-[100%]"
@@ -321,34 +321,34 @@ export default function OrgAuth() {
             <img 
               src={posIllustration} 
               alt="Complete POS System" 
-              className="w-full h-auto object-contain relative z-10"
+              className="w-full max-w-[90%] h-auto object-contain relative z-10"
               style={{ 
                 filter: 'drop-shadow(0 25px 50px rgba(0,0,0,0.18)) contrast(1.03) saturate(1.05) brightness(1.01)',
-                maxHeight: 'calc(100vh - 240px)',
+                maxHeight: '55vh',
                 imageRendering: 'auto'
               }}
             />
           </div>
 
           {/* Software Features - Integrated at bottom */}
-          <div className="pt-2">
-            <h3 className="text-slate-700 text-sm font-bold mb-2 tracking-wider uppercase text-center">
+          <div className="py-3">
+            <h3 className="text-slate-700 text-xs font-bold mb-2 tracking-wider uppercase text-center">
               Software Features
             </h3>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {softwareFeatures.map((feature, index) => (
                 <div 
                   key={index} 
-                  className="bg-white/95 backdrop-blur-sm rounded-xl px-3 py-2.5 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
+                  className="bg-white/95 backdrop-blur-sm rounded-lg px-2 py-2 border border-white/80 hover:bg-white hover:shadow-lg transition-all duration-200"
                   style={{
                     boxShadow: '0 4px 15px -3px rgba(0,0,0,0.08), 0 0 0 1px rgba(255,255,255,0.5) inset'
                   }}
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />
                     </div>
-                    <span className="text-slate-700 text-xs leading-tight font-semibold">{feature}</span>
+                    <span className="text-slate-700 text-[10px] leading-tight font-semibold">{feature}</span>
                   </div>
                 </div>
               ))}
@@ -358,71 +358,71 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 flex items-center justify-center p-6 lg:p-10 bg-white overflow-y-auto">
-        <div className="w-full max-w-lg space-y-4">
+      <div className="flex-1 lg:w-1/2 flex items-center justify-center p-4 lg:p-6 bg-white overflow-y-auto">
+        <div className="w-full max-w-md space-y-3">
           {/* Mobile: Show EzzyERP logo */}
-          <div className="lg:hidden text-center mb-6">
+          <div className="lg:hidden text-center mb-4">
             <img 
               src={ezzyerpLogo} 
               alt="EzzyERP" 
-              className="h-14 w-auto mx-auto object-contain"
+              className="h-10 w-auto mx-auto object-contain"
             />
-            <p className="text-slate-500 mt-1 text-sm">Easy Billing, Smart Business</p>
+            <p className="text-slate-500 mt-0.5 text-xs">Easy Billing, Smart Business</p>
           </div>
 
           {/* EzzyERP Branding - Above Organization Logo */}
-          <div className="hidden lg:block text-center mb-4">
+          <div className="hidden lg:block text-center mb-2">
             <img 
               src={ezzyerpLogoFull} 
               alt="EzzyERP - Easy Billing, Smart Business" 
-              className="h-10 w-auto mx-auto object-contain"
+              className="h-8 w-auto mx-auto object-contain"
             />
           </div>
 
           {/* Login Section */}
-          <div className="space-y-6">
+          <div className="space-y-4">
             {/* Organization Branding */}
             <div className="text-center">
               {logoUrl ? (
                 <img 
                   src={logoUrl} 
                   alt={displayName} 
-                  className="h-24 w-auto mx-auto object-contain mb-5"
+                  className="h-16 w-auto mx-auto object-contain mb-3"
                 />
               ) : (
                 <div 
-                  className="mx-auto w-24 h-24 rounded-2xl flex items-center justify-center mb-5 shadow-xl"
+                  className="mx-auto w-16 h-16 rounded-xl flex items-center justify-center mb-3 shadow-lg"
                   style={{ 
                     background: `linear-gradient(145deg, ${brandColor} 0%, #5849c4 100%)` 
                   }}
                 >
-                  <Building2 className="h-12 w-12 text-white" />
+                  <Building2 className="h-8 w-8 text-white" />
                 </div>
               )}
               
               <h1 
-                className="text-3xl font-bold tracking-tight"
+                className="text-2xl font-bold tracking-tight"
                 style={{ color: brandColor }}
               >
                 {displayName}
               </h1>
-              <p className="mt-2 text-slate-500 text-base">
+              <p className="mt-1 text-slate-500 text-sm">
                 Sign in to access your account
               </p>
             </div>
 
             {/* Login Form Card */}
-            <Card className="shadow-xl border-0 bg-white rounded-2xl">
-              <CardContent className="p-8 space-y-6">
+            <Card className="shadow-lg border-0 bg-white rounded-xl">
+              <CardContent className="p-5 space-y-4">
                 {error && (
-                  <Alert variant="destructive" className="rounded-xl">
+                  <Alert variant="destructive" className="rounded-lg py-2">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription className="text-sm">{error}</AlertDescription>
                   </Alert>
                 )}
                 
-                <form onSubmit={handleSignIn} className="space-y-5">
-                  <div className="space-y-2">
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-1.5">
                     <Label htmlFor="email" className="text-slate-700 font-medium text-sm">Email Address</Label>
                     <Input
                       id="email"
@@ -432,11 +432,11 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-12 rounded-xl !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base !text-gray-900 placeholder:text-gray-400"
+                      className="h-11 rounded-lg !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-sm !text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
                   
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="password" className="text-slate-700 font-medium text-sm">Password</Label>
                     <Input
                       id="password"
@@ -446,13 +446,13 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-12 rounded-xl !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-base !text-gray-900 placeholder:text-gray-400"
+                      className="h-11 rounded-lg !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-sm !text-gray-900 placeholder:text-gray-400"
                     />
                   </div>
 
                   <Button 
                     type="submit" 
-                    className="w-full h-12 text-base font-semibold rounded-xl text-white shadow-lg hover:shadow-xl transition-all mt-2" 
+                    className="w-full h-11 text-sm font-semibold rounded-lg text-white shadow-lg hover:shadow-xl transition-all" 
                     disabled={loading}
                     style={{ 
                       background: `linear-gradient(135deg, ${brandColor} 0%, #4F46E5 100%)`,
@@ -461,13 +461,13 @@ export default function OrgAuth() {
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Signing in...
                       </>
                     ) : (
                       <>
                         Sign In
-                        <ArrowRight className="ml-2 h-5 w-5" />
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </>
                     )}
                   </Button>
@@ -476,8 +476,8 @@ export default function OrgAuth() {
             </Card>
 
             {/* Footer Section */}
-            <div className="text-center space-y-6">
-              <p className="text-slate-500 text-sm">
+            <div className="text-center space-y-3">
+              <p className="text-slate-500 text-xs">
                 Don't have access?{" "}
                 <button
                   className="font-semibold hover:underline transition-colors text-slate-700"
@@ -490,31 +490,31 @@ export default function OrgAuth() {
               </p>
 
               {/* Social Media Icons */}
-              <div className="flex justify-center gap-4">
+              <div className="flex justify-center gap-3">
                 <a 
                   href="https://facebook.com" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="w-11 h-11 rounded-full bg-[#1877F2] flex items-center justify-center hover:scale-105 hover:shadow-lg transition-all shadow-md"
+                  className="w-9 h-9 rounded-full bg-[#1877F2] flex items-center justify-center hover:scale-105 hover:shadow-lg transition-all shadow-md"
                 >
-                  <Facebook className="w-5 h-5 text-white" />
+                  <Facebook className="w-4 h-4 text-white" />
                 </a>
                 <a 
                   href="https://instagram.com" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="w-11 h-11 rounded-full flex items-center justify-center hover:scale-105 hover:shadow-lg transition-all shadow-md"
+                  className="w-9 h-9 rounded-full flex items-center justify-center hover:scale-105 hover:shadow-lg transition-all shadow-md"
                   style={{ background: 'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
                 >
-                  <Instagram className="w-5 h-5 text-white" />
+                  <Instagram className="w-4 h-4 text-white" />
                 </a>
                 <a 
                   href="https://google.com" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="w-11 h-11 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center hover:scale-105 hover:shadow-lg hover:border-slate-300 transition-all shadow-md"
+                  className="w-9 h-9 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center hover:scale-105 hover:shadow-lg hover:border-slate-300 transition-all shadow-md"
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
@@ -524,18 +524,18 @@ export default function OrgAuth() {
               </div>
 
               {/* Security Badge */}
-              <div className="text-center pt-2 flex flex-col items-center gap-1.5">
+              <div className="text-center flex flex-col items-center gap-1">
                 <img 
                   src={isoCertifiedLogo} 
                   alt="ISO 27001 Certified" 
-                  className="h-10 w-auto object-contain"
+                  className="h-8 w-auto object-contain"
                 />
                 <div>
-                  <p className="text-sm font-bold text-gray-900 tracking-wide">
+                  <p className="text-xs font-bold text-gray-900 tracking-wide">
                     Enterprise-Grade Security
                   </p>
-                  <p className="text-xs text-gray-700 mt-0.5 font-medium leading-relaxed">
-                    Built on ISO 27001 & SOC 2 Type II Certified Infrastructure For Maximum Data Protection.
+                  <p className="text-[10px] text-gray-600 mt-0.5 font-medium leading-relaxed">
+                    Built on ISO 27001 & SOC 2 Type II Certified Infrastructure
                   </p>
                 </div>
               </div>
