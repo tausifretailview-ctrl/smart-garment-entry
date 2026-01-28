@@ -65,7 +65,6 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useDraftSave } from "@/hooks/useDraftSave";
-import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
@@ -169,7 +168,6 @@ export default function SalesInvoice() {
   const [showSizeGrid, setShowSizeGrid] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
-  const [showDraftDialog, setShowDraftDialog] = useState(false);
   
   // Product history dialog state
   const [historyProduct, setHistoryProduct] = useState<{ id: string; name: string } | null>(null);
@@ -214,11 +212,6 @@ export default function SalesInvoice() {
   }, [toast]);
 
   // Check for draft on mount (only if not in edit mode)
-  useEffect(() => {
-    if (!location.state?.editInvoiceId && hasDraft && draftData) {
-      setShowDraftDialog(true);
-    }
-  }, [hasDraft, draftData, location.state?.editInvoiceId]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
@@ -2642,20 +2635,6 @@ Thank you for choosing us!`;
         title="Enter Size-wise Qty (Stock Validated)"
       />
 
-      {/* Draft Resume Dialog */}
-      <DraftResumeDialog
-        open={showDraftDialog}
-        onOpenChange={setShowDraftDialog}
-        draftType="sale_invoice"
-        onResume={() => {
-          loadDraftData(draftData);
-          setShowDraftDialog(false);
-        }}
-        onStartFresh={async () => {
-          await deleteDraft();
-          setShowDraftDialog(false);
-        }}
-      />
 
 
       {/* Hidden Invoice for Printing */}
