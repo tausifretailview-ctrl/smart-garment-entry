@@ -540,9 +540,17 @@ const DashboardContent = () => {
     refetchInterval: REFRESH_INTERVALS.MEDIUM,
   });
 
-  // New Updates Panel Component - Height matches 3 card rows
+  // New Updates Panel Component - Maximized height to show all updates
   const NewUpdatesPanel = () => {
     const updates = [
+      {
+        version: "v1.2.6",
+        date: "29/01/2026",
+        changes: [
+          "Draft resume fix for Sale Order Dashboard",
+          "Removed total qty box from sales invoice"
+        ]
+      },
       {
         version: "v1.2.5",
         date: "28/01/2026",
@@ -590,6 +598,30 @@ const DashboardContent = () => {
           "New dark theme with VASY ERP styling",
           "Vibrant gradient card backgrounds"
         ]
+      },
+      {
+        version: "v1.1.9",
+        date: "15/01/2026",
+        changes: [
+          "WhatsApp integration improvements",
+          "Enhanced customer search"
+        ]
+      },
+      {
+        version: "v1.1.8",
+        date: "12/01/2026",
+        changes: [
+          "Barcode printing enhancements",
+          "Label designer improvements"
+        ]
+      },
+      {
+        version: "v1.1.7",
+        date: "10/01/2026",
+        changes: [
+          "GST report generation fixes",
+          "Improved export functionality"
+        ]
       }
     ];
 
@@ -602,7 +634,7 @@ const DashboardContent = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ScrollArea className="h-[290px]" showScrollbar>
+          <ScrollArea className="h-[520px]" showScrollbar>
             <div className="p-3 space-y-3">
               {updates.map((update, index) => (
                 <div key={index} className="border-b border-border pb-2 last:border-0 last:pb-0">
