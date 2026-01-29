@@ -154,19 +154,20 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         ref={ref} 
         className="thermal-print-80mm thermal-receipt-container"
         style={{
-          width: '72mm',
-          maxWidth: '72mm',
-          padding: '3mm',
+          width: '70mm',
+          maxWidth: '70mm',
+          padding: '1mm 2mm',
           backgroundColor: 'white',
           fontFamily: '"Courier New", Courier, monospace',
-          fontSize: '12px',
+          fontSize: '11px',
           color: '#000000',
           fontWeight: 900,
           WebkitFontSmoothing: 'none',
           boxSizing: 'border-box',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
-          letterSpacing: '0.3px',
+          letterSpacing: '0.2px',
+          overflow: 'hidden',
         }}
       >
         {/* Header - Business Details */}
@@ -238,17 +239,17 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         {/* Items Header */}
         <div style={{ 
           display: 'flex', 
-          fontSize: '12px', 
+          fontSize: '11px', 
           fontWeight: 900,
           borderBottom: '2px solid #000000',
           paddingBottom: '4px',
           marginBottom: '4px',
           textTransform: 'uppercase'
         }}>
-          <div style={{ width: '45%', textAlign: 'left' }}>Item</div>
-          <div style={{ width: '15%', textAlign: 'center' }}>Qty</div>
-          <div style={{ width: '20%', textAlign: 'right' }}>Price</div>
-          <div style={{ width: '20%', textAlign: 'right' }}>Amt</div>
+          <div style={{ width: '48%', textAlign: 'left' }}>Item</div>
+          <div style={{ width: '12%', textAlign: 'center' }}>Qty</div>
+          <div style={{ width: '18%', textAlign: 'right' }}>Rate</div>
+          <div style={{ width: '22%', textAlign: 'right' }}>Amt</div>
         </div>
 
         {/* Items List */}
@@ -263,14 +264,14 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 borderBottom: index < items.length - 1 ? '1px dotted #000000' : 'none'
               }}
             >
-              <div style={{ width: '100%', textAlign: 'left', wordWrap: 'break-word', marginBottom: '3px', fontWeight: 900 }}>
+              <div style={{ width: '100%', textAlign: 'left', wordWrap: 'break-word', marginBottom: '2px', fontWeight: 900, fontSize: '10px' }}>
                 {item.particulars}
               </div>
               <div style={{ display: 'flex' }}>
-                <div style={{ width: '45%', textAlign: 'left' }}></div>
-                <div style={{ width: '15%', textAlign: 'center', fontWeight: 900 }}>{item.qty}</div>
-                <div style={{ width: '20%', textAlign: 'right', fontWeight: 700 }}>{Math.round(item.rate)}</div>
-                <div style={{ width: '20%', textAlign: 'right', fontWeight: 900 }}>{Math.round(item.total)}</div>
+                <div style={{ width: '48%', textAlign: 'left' }}></div>
+                <div style={{ width: '12%', textAlign: 'center', fontWeight: 900 }}>{item.qty}</div>
+                <div style={{ width: '18%', textAlign: 'right', fontWeight: 700 }}>{Math.round(item.rate)}</div>
+                <div style={{ width: '22%', textAlign: 'right', fontWeight: 900 }}>{Math.round(item.total)}</div>
               </div>
             </div>
           ))}
