@@ -1852,411 +1852,392 @@ Thank you for choosing us!`;
     <div className="p-4 space-y-4">
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Home className="h-6 w-6" />
-            {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
-          </h1>
-          <div className="flex items-center gap-3">
-            {/* Inline Total Qty */}
-            <InlineTotalQty 
-              totalQty={lineItems.filter(i => i.productId).reduce((sum, item) => sum + item.quantity, 0)} 
-              itemCount={lineItems.filter(i => i.productId).length}
-            />
-            {/* Last Invoice Info at Top */}
-            {lastInvoice && !editingInvoiceId && (
-              <div className="bg-muted/50 border rounded-lg px-3 py-1.5 text-sm">
-                <span className="text-muted-foreground">Last: </span>
-                <span className="font-semibold">{lastInvoice.sale_number}</span>
-                <span className="text-muted-foreground"> | Qty: </span>
-                <span className="font-semibold">{lastInvoice.total_qty}</span>
-                <span className="text-muted-foreground"> | Amt: </span>
-                <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
-                <span className="text-muted-foreground"> | </span>
-                <span className="font-semibold">{lastInvoice.customer_name}</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Simplified Form - matching Quotation/Sale Order layout */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          {/* Customer Selection */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <Label>Customer<span className="text-destructive">*</span></Label>
-              <div className="flex items-center gap-2">
-                {selectedCustomer?.discount_percent > 0 && (
-                  <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600">
-                    {selectedCustomer.discount_percent}% Disc
-                  </span>
-                )}
-                {selectedCustomerId && (
-                  <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                    customerBalance > 0 
-                      ? 'bg-destructive/10 text-destructive' 
-                      : customerBalance < 0 
-                        ? 'bg-green-500/10 text-green-600' 
-                        : 'bg-muted text-muted-foreground'
-                  }`}>
-                    {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
-                  </span>
-                )}
-              </div>
+      <Card className="p-6 relative overflow-hidden">
+        {/* Sticky Header Section */}
+        <div className="sticky top-0 z-20 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border/50">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Home className="h-6 w-6" />
+              {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
+            </h1>
+            <div className="flex items-center gap-3">
+              {/* Inline Total Qty */}
+              <InlineTotalQty 
+                totalQty={lineItems.filter(i => i.productId).reduce((sum, item) => sum + item.quantity, 0)} 
+                itemCount={lineItems.filter(i => i.productId).length}
+              />
+              {/* Last Invoice Info at Top */}
+              {lastInvoice && !editingInvoiceId && (
+                <div className="bg-muted/50 border rounded-lg px-3 py-1.5 text-sm">
+                  <span className="text-muted-foreground">Last: </span>
+                  <span className="font-semibold">{lastInvoice.sale_number}</span>
+                  <span className="text-muted-foreground"> | Qty: </span>
+                  <span className="font-semibold">{lastInvoice.total_qty}</span>
+                  <span className="text-muted-foreground"> | Amt: </span>
+                  <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
+                  <span className="text-muted-foreground"> | </span>
+                  <span className="font-semibold">{lastInvoice.customer_name}</span>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+          </div>
+
+          {/* Simplified Form - matching Quotation/Sale Order layout */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+            {/* Customer Selection */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label>Customer<span className="text-destructive">*</span></Label>
+                <div className="flex items-center gap-2">
+                  {selectedCustomer?.discount_percent > 0 && (
+                    <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600">
+                      {selectedCustomer.discount_percent}% Disc
+                    </span>
+                  )}
+                  {selectedCustomerId && (
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                      customerBalance > 0 
+                        ? 'bg-destructive/10 text-destructive' 
+                        : customerBalance < 0 
+                          ? 'bg-green-500/10 text-green-600' 
+                          : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {isBalanceLoading ? '...' : `₹${Math.abs(customerBalance).toLocaleString('en-IN')} ${customerBalance > 0 ? 'Due' : customerBalance < 0 ? 'Cr' : ''}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openCustomerSearch}
+                      className="flex-1 justify-between"
+                    >
+                      {selectedCustomer ? (
+                        <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
+                      ) : (
+                        <span className="text-muted-foreground">Search customer by name, phone...</span>
+                      )}
+                      <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[400px] p-0 z-50" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput 
+                        placeholder="Search by name, phone, email..." 
+                        value={customerSearchInput}
+                        onValueChange={(val) => {
+                          setCustomerSearchInput(val);
+                        }}
+                      />
+                      <CommandList className="max-h-[300px]">
+                        {isCustomersLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : isCustomersError ? (
+                          <CommandEmpty className="py-4 text-center">
+                            <div className="text-destructive flex items-center justify-center gap-2">
+                              <AlertCircle className="h-4 w-4" />
+                              <span>Error loading customers</span>
+                            </div>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              onClick={() => refetchCustomers()}
+                              className="mt-2"
+                            >
+                              Try again
+                            </Button>
+                          </CommandEmpty>
+                        ) : filteredCustomers.length === 0 && customerSearchInput.length >= 1 ? (
+                          <CommandEmpty>No customers found</CommandEmpty>
+                        ) : filteredCustomers.length === 0 ? (
+                          <div className="py-6 text-center text-sm text-muted-foreground">
+                            Start typing to search customers...
+                          </div>
+                        ) : (
+                          <>
+                            <CommandGroup heading={`Found ${filteredCustomers.length} customers`}>
+                              {filteredCustomers.map((customer: any) => {
+                                const balance = getCustomerBalance(customer);
+                                return (
+                                  <CommandItem
+                                    key={customer.id}
+                                    value={customer.id}
+                                    onSelect={() => {
+                                      setSelectedCustomerId(customer.id);
+                                      setSelectedCustomer(customer);
+                                      setOpenCustomerSearch(false);
+                                      setCustomerSearchInput("");
+                                    }}
+                                    className="cursor-pointer"
+                                  >
+                                    <div className="flex flex-col gap-1 w-full">
+                                      <div className="flex items-center justify-between">
+                                        <span className="font-medium">{customer.customer_name}</span>
+                                        {balance !== 0 && (
+                                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                            balance > 0 
+                                              ? 'bg-destructive/10 text-destructive' 
+                                              : 'bg-green-500/10 text-green-600'
+                                          }`}>
+                                            ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className="text-sm text-muted-foreground">
+                                        {customer.phone && `Phone: ${customer.phone}`}
+                                        {customer.email && ` | Email: ${customer.email}`}
+                                      </span>
+                                    </div>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          </>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {/* Customer Discount Indicator */}
+              {selectedCustomer && (
+                <div className="mt-1.5">
+                  {isBrandDiscountsLoading ? (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Loading brand discounts...
+                    </span>
+                  ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 items-center">
+                      <span className="text-xs text-muted-foreground">Brand Discounts:</span>
+                      {brandDiscounts.map((bd, idx) => (
+                        <span 
+                          key={idx} 
+                          className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
+                        >
+                          {bd.brand}: {bd.discount_percent}%
+                        </span>
+                      ))}
+                    </div>
+                  ) : selectedCustomer.discount_percent > 0 ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-muted-foreground">Customer Discount:</span>
+                      <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
+                        {selectedCustomer.discount_percent}%
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* Invoice No */}
+            <div>
+              <Label>Invoice No</Label>
+              <Input 
+                value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
+                readOnly 
+                className="bg-muted font-mono"
+                placeholder="Auto-generated"
+              />
+            </div>
+
+            {/* Invoice Date */}
+            <div>
+              <Label>Invoice Date</Label>
+              <Popover>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openCustomerSearch}
-                    className="flex-1 justify-between"
-                  >
-                    {selectedCustomer ? (
-                      <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
-                    ) : (
-                      <span className="text-muted-foreground">Search customer by name, phone...</span>
-                    )}
-                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(invoiceDate, "PPP")}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0 z-50" align="start">
-                  <Command shouldFilter={false}>
-                    <CommandInput 
-                      placeholder="Search by name, phone, or email..." 
-                      value={customerSearchInput}
-                      onValueChange={setCustomerSearchInput}
-                    />
-                    <CommandList>
-                      {isCustomersLoading ? (
-                        <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          Loading customers...
-                        </div>
-                      ) : isCustomersError ? (
-                        <div className="flex flex-col items-center justify-center p-4 text-sm">
-                          <div className="flex items-center text-destructive mb-2">
-                            <AlertCircle className="h-4 w-4 mr-2" />
-                            Error loading customers
-                          </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => refetchCustomers()}
-                            className="text-xs"
-                          >
-                            Retry
-                          </Button>
-                        </div>
-                      ) : (
-                        <>
-                          <CommandEmpty>No customers found.</CommandEmpty>
-                          {/* Create New Customer Option */}
-                          <CommandGroup>
-                            <CommandItem
-                              onSelect={() => {
-                                setOpenCustomerSearch(false);
-                                setOpenCustomerDialog(true);
-                                // Pre-fill phone if search looks like a phone number
-                                const searchVal = customerSearchInput.trim();
-                                if (/^\d{6,}$/.test(searchVal.replace(/\D/g, ''))) {
-                                  customerForm.setValue('phone', searchVal);
-                                } else if (searchVal && !searchVal.includes('@')) {
-                                  customerForm.setValue('customer_name', searchVal);
-                                }
-                              }}
-                              className="cursor-pointer text-primary"
-                            >
-                              <Plus className="mr-2 h-4 w-4" />
-                              <span className="font-medium">Create New Customer</span>
-                              {customerSearchInput && (
-                                <span className="ml-1 text-muted-foreground">"{customerSearchInput}"</span>
-                              )}
-                            </CommandItem>
-                          </CommandGroup>
-                          <CommandGroup heading={`Customers (${customersData?.length || 0})`}>
-                            {filteredCustomers.map((customer: any) => {
-                              const balance = getCustomerBalance(customer);
-                              return (
-                                <CommandItem
-                                  key={customer.id}
-                                  value={`${customer.customer_name} ${customer.phone || ''} ${customer.email || ''}`}
-                                onSelect={() => {
-                                    setSelectedCustomerId(customer.id);
-                                    setSelectedCustomer(customer);
-                                    setCustomerSearchInput("");
-                                    // Mutually exclusive discount logic:
-                                    // If customer has master discount AND no brand discounts, apply master discount
-                                    // If customer has brand discounts, those will be applied per-item instead
-                                    // Note: hasBrandDiscounts will update when selectedCustomerId changes
-                                    setOpenCustomerSearch(false);
-                                  }}
-                                  className="cursor-pointer"
-                                >
-                                  <Check className={cn("mr-2 h-4 w-4", selectedCustomerId === customer.id ? "opacity-100" : "opacity-0")} />
-                                  <div className="flex flex-col flex-1">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">{customer.customer_name}</span>
-                                      {balance !== 0 && (
-                                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                          balance > 0 
-                                            ? 'bg-destructive/10 text-destructive' 
-                                            : 'bg-green-500/10 text-green-600'
-                                        }`}>
-                                          ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <span className="text-sm text-muted-foreground">
-                                      {customer.phone && `Phone: ${customer.phone}`}
-                                      {customer.email && ` | Email: ${customer.email}`}
-                                    </span>
-                                  </div>
-                                </CommandItem>
-                              );
-                            })}
-                          </CommandGroup>
-                        </>
-                      )}
-                    </CommandList>
-                  </Command>
+                <PopoverContent className="w-auto p-0 z-50">
+                  <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} />
                 </PopoverContent>
               </Popover>
-              <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
-                <Plus className="h-4 w-4" />
-              </Button>
             </div>
-            {/* Customer Discount Indicator */}
-            {selectedCustomer && (
-              <div className="mt-1.5">
-                {isBrandDiscountsLoading ? (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Loading brand discounts...
-                  </span>
-                ) : hasBrandDiscounts && brandDiscounts.length > 0 ? (
-                  <div className="flex flex-wrap gap-1 items-center">
-                    <span className="text-xs text-muted-foreground">Brand Discounts:</span>
-                    {brandDiscounts.map((bd, idx) => (
-                      <span 
-                        key={idx} 
-                        className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium"
-                      >
-                        {bd.brand}: {bd.discount_percent}%
-                      </span>
-                    ))}
-                  </div>
-                ) : selectedCustomer.discount_percent > 0 ? (
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">Customer Discount:</span>
-                    <span className="text-xs bg-green-500/10 text-green-600 px-1.5 py-0.5 rounded font-medium">
-                      {selectedCustomer.discount_percent}%
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-            )}
+
+            {/* Due Date */}
+            <div>
+              <Label>Due Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(dueDate, "PPP")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 z-50">
+                  <Calendar mode="single" selected={dueDate} onSelect={(d) => d && setDueDate(d)} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Tax Type */}
+            <div>
+              <Label>Tax Type</Label>
+              <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="z-50">
+                  <SelectItem value="exclusive">Exclusive GST</SelectItem>
+                  <SelectItem value="inclusive">Inclusive GST</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Salesman */}
+            <div>
+              <Label>Salesman</Label>
+              <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select salesman" />
+                </SelectTrigger>
+                <SelectContent className="z-50">
+                  <SelectItem value="none">None</SelectItem>
+                  {employeesData?.map(emp => (
+                    <SelectItem key={emp.id} value={emp.employee_name}>
+                      {emp.employee_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Invoice No */}
-          <div>
-            <Label>Invoice No</Label>
-            <Input 
-              value={editingInvoiceId ? (savedInvoiceData?.sale_number || '') : nextInvoicePreview} 
-              readOnly 
-              className="bg-muted font-mono"
-              placeholder="Auto-generated"
-            />
-          </div>
-
-          {/* Invoice Date */}
-          <div>
-            <Label>Invoice Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(invoiceDate, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={invoiceDate} onSelect={(d) => d && setInvoiceDate(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Due Date */}
-          <div>
-            <Label>Due Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(dueDate, "PPP")}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={dueDate} onSelect={(d) => d && setDueDate(d)} />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Tax Type */}
-          <div>
-            <Label>Tax Type</Label>
-            <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="exclusive">Exclusive GST</SelectItem>
-                <SelectItem value="inclusive">Inclusive GST</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Salesman */}
-          <div>
-            <Label>Salesman</Label>
-            <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select salesman" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {employeesData?.map(emp => (
-                  <SelectItem key={emp.id} value={emp.employee_name}>
-                    {emp.employee_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Product Search with Barcode Scan */}
-        <div className="mb-4 flex items-center gap-4 flex-wrap">
-          {/* Entry Mode Toggle */}
-          <div className="flex items-center gap-2">
-            <Label className="text-sm">Entry Mode:</Label>
+          {/* Product Search with Barcode Scan */}
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Entry Mode Toggle */}
             <div className="flex items-center gap-2">
-              <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
-                Size Grid
-              </span>
-              <Switch
-                checked={entryMode === "inline"}
-                onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+              <Label className="text-sm">Entry Mode:</Label>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm ${entryMode === "grid" ? "font-semibold" : "text-muted-foreground"}`}>
+                  Size Grid
+                </span>
+                <Switch
+                  checked={entryMode === "inline"}
+                  onCheckedChange={(checked) => setEntryMode(checked ? "inline" : "grid")}
+                />
+                <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
+                  Inline
+                </span>
+              </div>
+            </div>
+
+            {/* Barcode Scan Input - Direct scan like POS */}
+            <div className="relative w-[200px]">
+              <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={barcodeInputRef}
+                placeholder="Scan barcode..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleBarcodeSearch}
+                className="pl-10 pr-4"
+                autoFocus
               />
-              <span className={`text-sm ${entryMode === "inline" ? "font-semibold" : "text-muted-foreground"}`}>
-                Inline
+            </div>
+
+            {/* Browse Products Search Bar */}
+            <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
+              <PopoverTrigger asChild>
+                <div className="relative flex-1 min-w-[250px] cursor-pointer">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Browse Products..."
+                    className="pl-10 pr-4 cursor-pointer"
+                    readOnly
+                    onClick={() => setOpenProductSearch(true)}
+                  />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-[600px] p-0 z-50" align="start">
+                <Command shouldFilter={false}>
+                  <CommandInput placeholder="Search by name, barcode, brand, style..." value={searchInput} onValueChange={setSearchInput} />
+                  <CommandList className="max-h-[400px]">
+                    {isSearching ? (
+                      <div className="flex items-center justify-center py-6">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : productSearchResults.length === 0 && searchInput.length >= 1 ? (
+                      <CommandEmpty>No products found</CommandEmpty>
+                    ) : productSearchResults.length === 0 ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Start typing to search products...
+                      </div>
+                    ) : (
+                      <CommandGroup>
+                        {productSearchResults.map(({ product, variant }) => (
+                          <CommandItem
+                            key={variant.id}
+                            value={variant.id}
+                            onSelect={() => addProductToInvoice(product, variant)}
+                            className="cursor-pointer py-2"
+                          >
+                            <div className="flex flex-col w-full gap-1">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{product.product_name}</span>
+                                  {product.size_range && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
+                                      {product.size_range}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="font-semibold text-primary">₹{variant.sale_price}</span>
+                              </div>
+                              <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                <div className="flex gap-2 flex-wrap">
+                                  {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
+                                  {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
+                                  {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
+                                  {(variant.color || product.color) && (
+                                    <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
+                                  )}
+                                  <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                                </div>
+                                <div className="flex gap-2 items-center">
+                                  {variant.mrp && variant.mrp !== variant.sale_price && (
+                                    <span className="line-through">MRP: ₹{variant.mrp}</span>
+                                  )}
+                                  <span className={variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'}>
+                                    Stock: {variant.stock_qty}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+
+            {/* Live Total Qty Badge */}
+            <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
+              <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
+              <span className="text-xl font-bold text-primary">
+                {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
               </span>
             </div>
           </div>
-
-          {/* Barcode Scan Input - Direct scan like POS */}
-          <div className="relative w-[200px]">
-            <Scan className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={barcodeInputRef}
-              placeholder="Scan barcode..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleBarcodeSearch}
-              className="pl-10 pr-4"
-              autoFocus
-            />
-          </div>
-
-          {/* Browse Products Search Bar */}
-          <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
-            <PopoverTrigger asChild>
-              <div className="relative flex-1 min-w-[250px] cursor-pointer">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Browse Products..."
-                  className="pl-10 pr-4 cursor-pointer"
-                  readOnly
-                  onClick={() => setOpenProductSearch(true)}
-                />
-              </div>
-            </PopoverTrigger>
-            <PopoverContent className="w-[600px] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput placeholder="Search by name, barcode, brand, style..." value={searchInput} onValueChange={setSearchInput} />
-                <CommandList className="max-h-[400px]">
-                  {isSearching ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : productSearchResults.length === 0 && searchInput.length >= 1 ? (
-                    <CommandEmpty>No products found</CommandEmpty>
-                  ) : productSearchResults.length === 0 ? (
-                    <div className="py-6 text-center text-sm text-muted-foreground">
-                      Start typing to search products...
-                    </div>
-                  ) : (
-                    <CommandGroup>
-                      {productSearchResults.map(({ product, variant }) => (
-                        <CommandItem
-                          key={variant.id}
-                          value={variant.id}
-                          onSelect={() => addProductToInvoice(product, variant)}
-                          className="cursor-pointer py-2"
-                        >
-                          <div className="flex flex-col w-full gap-1">
-                            <div className="flex justify-between items-center">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{product.product_name}</span>
-                                {product.size_range && (
-                                  <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold">
-                                    {product.size_range}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="font-semibold text-primary">₹{variant.sale_price}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs text-muted-foreground">
-                              <div className="flex gap-2 flex-wrap">
-                                {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
-                                {(variant.color || product.color) && (
-                                  <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
-                                )}
-                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
-                              </div>
-                              <div className="flex gap-2 items-center">
-                                {variant.mrp && variant.mrp !== variant.sale_price && (
-                                  <span className="line-through">MRP: ₹{variant.mrp}</span>
-                                )}
-                                <span className={variant.stock_qty > 5 ? 'text-green-600' : 'text-orange-500'}>
-                                  Stock: {variant.stock_qty}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
-          {/* Live Total Qty Badge */}
-          <div className="flex items-center gap-2 bg-primary/10 px-3 py-2 rounded-lg border border-primary/20">
-            <span className="text-sm font-medium text-muted-foreground">Total Qty:</span>
-            <span className="text-xl font-bold text-primary">
-              {lineItems.reduce((sum, item) => sum + (item.productId ? item.quantity : 0), 0)}
-            </span>
-          </div>
         </div>
 
-        {/* Line Items Table */}
-        <div ref={tableContainerRef}>
+        {/* Scrollable Line Items Table */}
+        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto mt-4">
           <Table>
             <TableHeader>
               <TableRow>
