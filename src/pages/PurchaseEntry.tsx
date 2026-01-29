@@ -33,6 +33,7 @@ import { ProductEntryDialog } from "@/components/ProductEntryDialog";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 
 interface PriceChange {
   sku_id: string;
@@ -113,6 +114,7 @@ const PurchaseEntry = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const location = useLocation();
   const { currentOrganization } = useOrganization();
+  const { invalidatePurchases } = useDashboardInvalidation();
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ProductVariant[]>([]);
@@ -1735,7 +1737,8 @@ const PurchaseEntry = () => {
           description: `Purchase bill saved successfully`,
         });
 
-        // Fetch full product details for barcode printing
+        // Invalidate dashboard queries for immediate UI refresh
+        invalidatePurchases();
         const itemsWithDetails = await Promise.all(
           lineItems.map(async (item) => {
             const { data: product } = await supabase

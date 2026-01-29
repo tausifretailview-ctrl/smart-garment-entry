@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 
 interface CartItem {
@@ -49,6 +50,7 @@ export const useSaveSale = () => {
   const [isSaving, setIsSaving] = useState(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
   const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
+  const { invalidateSales } = useDashboardInvalidation();
 
   const generateInvoiceNumber = async (format: string) => {
     const now = new Date();
@@ -503,6 +505,9 @@ export const useSaveSale = () => {
         }
       }
 
+      // Invalidate dashboard queries for immediate UI refresh
+      invalidateSales();
+
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       console.error('Error saving sale:', error);
@@ -681,6 +686,9 @@ export const useSaveSale = () => {
         title: "Sale updated successfully",
         description: `Sale ${sale.sale_number} has been updated`,
       });
+
+      // Invalidate dashboard queries for immediate UI refresh
+      invalidateSales();
 
       return sale;
     } catch (error: any) {
@@ -951,6 +959,9 @@ export const useSaveSale = () => {
         title: "Sale completed",
         description: `Sale ${sale.sale_number} has been completed`,
       });
+
+      // Invalidate dashboard queries for immediate UI refresh
+      invalidateSales();
 
       return sale;
     } catch (error: any) {
