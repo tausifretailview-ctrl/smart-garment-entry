@@ -486,7 +486,7 @@ export default function SaleOrderDashboard() {
                 <Button
                   size="sm"
                   onClick={() => {
-                    navigate("/sale-order-entry/new", { state: { loadDraft: true } });
+                    navigate("/sale-order-entry", { state: { loadDraft: true } });
                   }}
                   className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
                 >
