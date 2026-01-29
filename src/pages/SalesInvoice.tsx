@@ -212,6 +212,16 @@ export default function SalesInvoice() {
   }, [toast]);
 
   // Check for draft on mount (only if not in edit mode)
+  const initialDraftCheckDone = useRef(false);
+
+  // Load draft automatically if navigated from dashboard with loadDraft flag
+  useEffect(() => {
+    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
+      initialDraftCheckDone.current = true;
+      loadDraftData(draftData);
+      deleteDraft(); // Clear the draft from database after loading
+    }
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
   // Update current data for auto-save whenever form data changes
   useEffect(() => {
