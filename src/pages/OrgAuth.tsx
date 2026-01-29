@@ -486,17 +486,17 @@ export default function OrgAuth() {
               </div>
 
               {/* Security Badge */}
-              <div className="text-center flex flex-col items-center gap-1">
+              <div className="text-center flex flex-col items-center gap-2">
                 <img 
                   src={isoCertifiedLogo} 
                   alt="ISO 27001 Certified" 
-                  className="h-8 w-auto object-contain"
+                  className="h-14 w-auto object-contain"
                 />
                 <div>
-                  <p className="text-xs font-bold text-gray-900 tracking-wide">
+                  <p className="text-base font-bold text-gray-900 tracking-wide">
                     Enterprise-Grade Security
                   </p>
-                  <p className="text-[10px] text-gray-600 mt-0.5 font-medium leading-relaxed">
+                  <p className="text-sm text-gray-600 mt-1 font-medium leading-relaxed">
                     Built on ISO 27001 & SOC 2 Type II Certified Infrastructure
                   </p>
                 </div>
