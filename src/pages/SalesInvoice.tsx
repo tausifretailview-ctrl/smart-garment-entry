@@ -1959,7 +1959,31 @@ Thank you for choosing us!`;
                             </Button>
                           </CommandEmpty>
                         ) : filteredCustomers.length === 0 && customerSearchInput.length >= 1 ? (
-                          <CommandEmpty>No customers found</CommandEmpty>
+                          <CommandEmpty className="py-3">
+                            <div className="text-center text-sm text-muted-foreground mb-2">No customers found</div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                // Pre-fill phone if search input looks like a phone number
+                                const searchVal = customerSearchInput.trim();
+                                const isPhone = /^\d{10,}$/.test(searchVal.replace(/\D/g, ''));
+                                customerForm.reset({
+                                  customer_name: isPhone ? "" : searchVal,
+                                  phone: isPhone ? searchVal : "",
+                                  email: "",
+                                  address: "",
+                                  gst_number: "",
+                                });
+                                setOpenCustomerSearch(false);
+                                setOpenCustomerDialog(true);
+                              }}
+                              className="gap-1"
+                            >
+                              <Plus className="h-4 w-4" />
+                              Create "{customerSearchInput}"
+                            </Button>
+                          </CommandEmpty>
                         ) : filteredCustomers.length === 0 ? (
                           <div className="py-6 text-center text-sm text-muted-foreground">
                             Start typing to search customers...
