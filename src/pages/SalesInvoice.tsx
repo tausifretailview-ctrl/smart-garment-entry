@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
-import { InlineTotalQty } from "@/components/InlineTotalQty";
+
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
 import { cn, sortSearchResults } from "@/lib/utils";
@@ -1871,11 +1871,6 @@ Thank you for choosing us!`;
               {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
             </h1>
             <div className="flex items-center gap-3">
-              {/* Inline Total Qty */}
-              <InlineTotalQty 
-                totalQty={lineItems.filter(i => i.productId).reduce((sum, item) => sum + item.quantity, 0)} 
-                itemCount={lineItems.filter(i => i.productId).length}
-              />
               {/* Last Invoice Info at Top */}
               {lastInvoice && !editingInvoiceId && (
                 <div className="bg-muted/50 border rounded-lg px-3 py-1.5 text-sm">
