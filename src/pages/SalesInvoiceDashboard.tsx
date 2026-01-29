@@ -1222,19 +1222,19 @@ export default function SalesInvoiceDashboard() {
           </Card>
         )}
 
-        {/* Summary Statistics - Vasy ERP Style Vibrant Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* Summary Statistics - Vasy ERP Style Vibrant Cards - 7 cards in 1 row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
           <Card 
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Invoices</CardDescription>
-              <FileText className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Total Invoices</CardDescription>
+              <FileText className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalInvoices}</div>
-              <p className="text-xs text-white/70">All invoices</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.totalInvoices}</div>
+              <p className="text-[10px] text-white/70">All invoices</p>
             </CardContent>
           </Card>
 
@@ -1242,13 +1242,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Qty</CardDescription>
-              <Package className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Total Qty</CardDescription>
+              <Package className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalQty}</div>
-              <p className="text-xs text-white/70">Items sold</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.totalQty}</div>
+              <p className="text-[10px] text-white/70">Items sold</p>
             </CardContent>
           </Card>
 
@@ -1256,13 +1256,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Revenue</CardDescription>
-              <TrendingUp className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Total Revenue</CardDescription>
+              <TrendingUp className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Net amount</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-[10px] text-white/70">Net amount</p>
             </CardContent>
           </Card>
 
@@ -1270,13 +1270,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-pink-500 to-pink-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Discount</CardDescription>
-              <Percent className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Total Discount</CardDescription>
+              <Percent className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalDiscount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Given</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalDiscount.toFixed(0)}</div>
+              <p className="text-[10px] text-white/70">Given</p>
             </CardContent>
           </Card>
 
@@ -1284,13 +1284,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Pending Amount</CardDescription>
-              <Clock className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Pending Amount</CardDescription>
+              <Clock className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.pendingAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/70">Outstanding</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.pendingAmount.toFixed(0)}</div>
+              <p className="text-[10px] text-white/70">Outstanding</p>
             </CardContent>
           </Card>
 
@@ -1298,13 +1298,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("delivered")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Delivered</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Delivered</CardDescription>
+              <CheckCircle2 className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.deliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.deliveredAmount.toFixed(0)}</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.deliveredCount}</div>
+              <p className="text-[10px] text-white/70">₹{summaryStats.deliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1312,13 +1312,13 @@ export default function SalesInvoiceDashboard() {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
             onClick={() => setDeliveryFilter("undelivered")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Undelivered</CardDescription>
-              <Package className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-2 pb-1">
+              <CardDescription className="text-[10px] font-medium text-white/80">Undelivered</CardDescription>
+              <Package className="h-3 w-3 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.undeliveredCount}</div>
-              <p className="text-xs text-white/70">₹{summaryStats.undeliveredAmount.toFixed(0)}</p>
+            <CardContent className="p-2 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.undeliveredCount}</div>
+              <p className="text-[10px] text-white/70">₹{summaryStats.undeliveredAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
