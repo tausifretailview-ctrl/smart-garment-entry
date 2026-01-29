@@ -1,139 +1,78 @@
 
-
-# Dashboard Enhancement - Add "New Updates" Announcement Box
+# Plan: Sticky Header Section for Sales Invoice
 
 ## Overview
-Add a VASY ERP-style "Important Announcement" box on the right side of the main dashboard, showing recent version updates and new features. The box will align with the metric cards section.
+Implement a sticky header section in the Sales Invoice page that keeps the invoice header (title, customer fields, salesman, entry mode toggle, search/scan bars, and total qty) visible while scrolling through a large list of product items.
 
-## Visual Reference
-Based on VASY ERP:
-- Right-side panel titled "Important Announcement" or "New Updates"
-- Shows version numbers with release dates
-- Lists new features and bug fixes as bullet points
-- Scrollable content with max-height matching card sections
+## Current Behavior
+- The entire page scrolls as one unit
+- When adding many products, the search/scan bar disappears from view
+- Users need to scroll back up to add more products
 
-## Layout Changes
+## Desired Behavior (Based on Reference Screenshots)
+- **Sticky Section**: Everything from "New Invoice" title down to the "Total Qty" badge should remain fixed at the top
+- **Scrollable Section**: Only the line items table should scroll independently
+- The header remains accessible for quick product scanning/searching regardless of how many items are in the table
 
-### Current Layout
-```
-[Sales Overview - 6 cards in a row]
-[Purchase Overview - 6 cards in a row]  
-[Inventory & Financial - 6 cards in a row]
-```
+## Technical Approach
 
-### New Layout
-```
-[Header with Date Range and Controls] -------------------- [New Updates Box]
-[Sales Overview - 5 cards] ------------------------------ [   continues   ]
-[Purchase Overview - 5 cards] --------------------------- [   continues   ]
-[Inventory & Financial - 5 cards] ----------------------- [   continues   ]
-```
+### File to Modify
+- `src/pages/SalesInvoice.tsx`
 
-## Implementation
+### Implementation Details
 
-### 1. Create New Updates Data (Static for now)
-Define update entries with version, date, and feature descriptions:
+1. **Restructure the Card Layout**
+   - Split the Card content into two sections:
+     - **Sticky header container**: Contains title, customer/invoice fields, salesman, entry mode, search bars, and total qty badge
+     - **Scrollable body**: Contains the line items table and summary section
 
-| Version | Date | Updates |
-|---------|------|---------|
-| v1.2.5 | 28/01/2026 | Stock validation improvements during invoice edit |
-| v1.2.4 | 27/01/2026 | Draft management moved to dashboard banners |
-| v1.2.3 | 25/01/2026 | Dashboard resolution enhanced to match ERP style |
-| v1.2.2 | 22/01/2026 | Bold black font for draft notifications |
-| v1.2.1 | 20/01/2026 | Fixed bugs for better user experience |
+2. **Apply CSS for Sticky Behavior**
+   - Add `sticky top-0 z-20 bg-card` to the header section wrapper
+   - The table container will naturally scroll within the card
+   - Set a `max-height` on the table container (e.g., `max-h-[calc(100vh-400px)]`) to create the scrollable area
+   - Add `overflow-y-auto` to the table section
 
-### 2. Create NewUpdatesPanel Component
-A scrollable card component with:
-- Title: "New Updates" with a sparkle/megaphone icon
-- Pink/magenta header matching VASY ERP style  
-- Scrollable content area with max-height
-- Version entries with dates and bullet points
+3. **Layout Structure**
+   ```
+   <Card className="p-6 relative">
+     {/* Sticky Header Section */}
+     <div className="sticky top-0 z-20 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6">
+       - Title row with Total Qty and Last Invoice
+       - Customer, Invoice No, Dates, Tax Type fields
+       - Salesman dropdown
+       - Entry Mode toggle, Scan barcode, Browse Products, Total Qty badge
+     </div>
+     
+     {/* Scrollable Items Section */}
+     <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
+       - Line Items Table
+       - Total Qty Row
+     </div>
+     
+     {/* Summary Section (outside scroll) */}
+     - Gross Amount, Discounts, Net Amount
+     - Notes
+     - Action Buttons
+   </Card>
+   ```
 
-### 3. Update Dashboard Layout
-Wrap the main content in a grid layout:
+4. **Ensure Proper Z-Index Stacking**
+   - Header section: `z-20`
+   - Table header inside scroll area: `z-10` (already set in TableHeader component)
+   - This ensures the sticky header overlays the scrolling table content
 
-```typescript
-<div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-  {/* Left side - Metric cards (3 columns on xl) */}
-  <div className="xl:col-span-3 space-y-4">
-    {/* Sales Overview */}
-    {/* Purchase Overview */}  
-    {/* Inventory & Financial */}
-  </div>
-  
-  {/* Right side - New Updates panel (1 column on xl) */}
-  <div className="xl:col-span-1">
-    <NewUpdatesPanel />
-  </div>
-</div>
-```
+5. **Background Color Handling**
+   - Add `bg-card` to ensure the sticky header doesn't show through content when scrolling
+   - Match the card's background color for seamless appearance
 
-### 4. Card Grid Adjustment
-Update metric cards from 6 columns to 5 columns on large screens to fit the new layout:
-- Current: `grid-cols-3 lg:grid-cols-6`
-- New: `grid-cols-3 lg:grid-cols-5`
+## Visual Result
+After implementation:
+- The header (title through total qty row) stays fixed at top of the card
+- The items table scrolls independently within a bounded area
+- Scanning barcodes and searching products is always accessible
+- Summary totals and action buttons remain visible below the scrollable table
 
-This ensures cards remain visible without horizontal scroll when the updates panel is present.
-
----
-
-## File Changes
-
-| File | Change |
-|------|--------|
-| `src/pages/Index.tsx` | Add NewUpdatesPanel component, update layout to grid with sidebar, adjust card grid columns |
-
----
-
-## Technical Details
-
-### NewUpdatesPanel Component Structure
-```typescript
-const NewUpdatesPanel = () => {
-  const updates = [
-    {
-      version: "v1.2.5",
-      date: "28/01/2026",
-      changes: [
-        "Stock validation improvements during invoice edit",
-        "Fixed aggregation for same variant multiple entries"
-      ]
-    },
-    // ... more updates
-  ];
-
-  return (
-    <Card className="border-0 shadow-md sticky top-2">
-      <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white p-3 rounded-t-lg">
-        <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <Megaphone className="h-4 w-4" />
-          New Updates
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <ScrollArea className="h-[400px]">
-          {/* Version entries */}
-        </ScrollArea>
-      </CardContent>
-    </Card>
-  );
-};
-```
-
-### Styling Specifications
-- Header: Pink gradient (`from-pink-500 to-rose-500`) matching VASY
-- Border: None, shadow for depth
-- Scroll area: Fixed 400px height to match card sections
-- Version title: Bold with date in muted color
-- Changes: Bullet list with cyan accent dots
-- Sticky positioning for larger screens
-
----
-
-## Expected Outcome
-- Dashboard will have a professional right-side "New Updates" panel
-- Cards will be slightly smaller (5 columns instead of 6) to accommodate the panel
-- The updates panel height will align with the metric card sections
-- Responsive: Panel moves below cards on smaller screens (xl breakpoint)
-- Matches VASY ERP visual style with pink header and scrollable content
-
+## Edge Cases Handled
+- Works with both small and large item lists
+- Maintains functionality of all popovers (customer search, product search)
+- Preserves keyboard navigation and focus management for barcode scanning
