@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ const SupplierMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { invalidateSuppliers } = useDashboardInvalidation();
   const navigate = useNavigate();
   const location = useLocation();
   const returnTo = (location.state as any)?.returnTo;
@@ -126,6 +128,7 @@ const SupplierMaster = () => {
     },
     onSuccess: (newSupplier) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      invalidateSuppliers(); // Update dashboard counts
       toast({ title: "Supplier created successfully" });
       resetForm();
       setIsDialogOpen(false);

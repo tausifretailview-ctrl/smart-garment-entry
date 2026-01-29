@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +65,7 @@ const CustomerMaster = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+  const { invalidateCustomers } = useDashboardInvalidation();
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
@@ -153,6 +155,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      invalidateCustomers(); // Update dashboard counts
       toast({ title: "Customer created successfully" });
       resetForm();
       setIsDialogOpen(false);
