@@ -136,6 +136,7 @@ export default function SaleOrderEntry() {
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountAmount, setFlatDiscountAmount] = useState<number>(0);
   const [roundOff, setRoundOff] = useState<number>(0);
+  const initialDraftCheckDone = useRef(false);
 
   // Size grid entry mode - will be set from settings
   const [entryMode, setEntryMode] = useState<"grid" | "inline">("inline");
@@ -191,6 +192,15 @@ export default function SaleOrderEntry() {
       description: "Your previous work has been restored",
     });
   }, [toast]);
+
+  // Load draft automatically if navigated from dashboard with loadDraft flag
+  useEffect(() => {
+    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
+      initialDraftCheckDone.current = true;
+      loadDraftData(draftData);
+      deleteDraft(); // Clear the draft from database after loading
+    }
+  }, [location.state?.loadDraft, hasDraft, draftData, loadDraftData, deleteDraft]);
 
 
   // Update current data for auto-save whenever form data changes
