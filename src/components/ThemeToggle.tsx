@@ -1,5 +1,5 @@
 import { useTheme } from "next-themes";
-import { Moon, Sun, Sparkles } from "lucide-react";
+import { Moon, Sun, Sparkles, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,18 +13,23 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [customTheme, setCustomTheme] = useState<string | null>(null);
 
-  // Check for indigo theme class on mount and restore from localStorage
+  // Check for custom theme class on mount and restore from localStorage
   useEffect(() => {
     const savedCustomTheme = localStorage.getItem('custom-theme');
     if (savedCustomTheme === 'indigo') {
+      document.documentElement.classList.remove('theme-purple');
       document.documentElement.classList.add('theme-indigo');
       setCustomTheme('indigo');
+    } else if (savedCustomTheme === 'purple') {
+      document.documentElement.classList.remove('theme-indigo');
+      document.documentElement.classList.add('theme-purple');
+      setCustomTheme('purple');
     }
   }, []);
 
   const handleThemeChange = (newTheme: string) => {
-    // Remove indigo class first
-    document.documentElement.classList.remove('theme-indigo');
+    // Remove all custom theme classes first
+    document.documentElement.classList.remove('theme-indigo', 'theme-purple');
     localStorage.removeItem('custom-theme');
     setCustomTheme(null);
 
@@ -33,14 +38,27 @@ export function ThemeToggle() {
       document.documentElement.classList.add('theme-indigo');
       localStorage.setItem('custom-theme', 'indigo');
       setCustomTheme('indigo');
+    } else if (newTheme === 'purple') {
+      setTheme('light');
+      document.documentElement.classList.add('theme-purple');
+      localStorage.setItem('custom-theme', 'purple');
+      setCustomTheme('purple');
     } else {
       setTheme(newTheme);
     }
   };
 
-  const currentTheme = customTheme === 'indigo' ? 'indigo' : theme;
+  const currentTheme = customTheme || theme;
 
   const getThemeDisplay = () => {
+    if (currentTheme === 'purple') {
+      return (
+        <>
+          <Palette className="h-4 w-4 text-[#5B5FEF]" />
+          <span className="hidden sm:inline">Purple Theme</span>
+        </>
+      );
+    }
     if (currentTheme === 'indigo') {
       return (
         <>
@@ -100,6 +118,14 @@ export function ThemeToggle() {
           <Sparkles className="h-4 w-4 text-indigo-500" />
           <span>Classic Theme (Indigo)</span>
           {currentTheme === "indigo" && <span className="ml-auto text-primary">✓</span>}
+        </DropdownMenuItem>
+        <DropdownMenuItem 
+          onClick={() => handleThemeChange("purple")}
+          className="gap-2 cursor-pointer"
+        >
+          <Palette className="h-4 w-4 text-[#5B5FEF]" />
+          <span>Purple Theme (Ezzy)</span>
+          {currentTheme === "purple" && <span className="ml-auto text-primary">✓</span>}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
