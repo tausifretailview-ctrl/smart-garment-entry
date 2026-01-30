@@ -142,16 +142,31 @@ export const useStockValidation = () => {
     });
 
     try {
-      // STEP 3: Validate each aggregated variant
+      // STEP 3: Validate each aggregated variant - only check ADDITIONAL stock needed
       for (const [variantId, item] of aggregatedNewItems) {
         const freedQty = freedQtyMap.get(variantId) || 0;
         
-        const result = await checkStock(variantId, item.quantity, freedQty);
+        // Calculate net additional quantity needed beyond what was already reserved
+        const additionalQtyNeeded = item.quantity - freedQty;
+        
+        // If no additional stock needed (same qty or reduced), skip validation
+        if (additionalQtyNeeded <= 0) {
+          console.log('[Stock Validation] Skipping - no additional stock needed:', {
+            variantId,
+            newQty: item.quantity,
+            originalQty: freedQty,
+          });
+          continue;
+        }
+        
+        // Only check stock for the ADDITIONAL quantity needed
+        const result = await checkStock(variantId, additionalQtyNeeded, 0);
         
         // Debug logging for each variant check
         console.log('[Stock Validation] Variant check:', {
           variantId,
           requestedQty: item.quantity,
+          additionalQtyNeeded,
           freedQty,
           availableStock: result.availableStock,
           isAvailable: result.isAvailable,
@@ -164,7 +179,7 @@ export const useStockValidation = () => {
             productName: item.productName || result.productName,
             size: item.size || result.size,
             requested: item.quantity,
-            available: result.availableStock,
+            available: result.availableStock + freedQty, // Show total available including freed
           });
         }
       }
