@@ -1888,7 +1888,7 @@ Thank you for choosing us!`;
       
       <Card className="p-6 relative overflow-hidden">
         {/* Sticky Header Section */}
-        <div className="sticky top-0 z-20 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border/50">
+        <div className="sticky top-0 z-30 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Home className="h-6 w-6" />
@@ -2290,9 +2290,9 @@ Thank you for choosing us!`;
         </div>
 
         {/* Scrollable Line Items Table */}
-        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto mt-4">
+        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto mt-4 isolate">
           <Table>
-            <TableHeader>
+            <TableHeader className="z-0">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead>Product</TableHead>
