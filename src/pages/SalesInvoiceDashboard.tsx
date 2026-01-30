@@ -44,6 +44,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
 
 interface ColumnSettings {
@@ -74,6 +75,7 @@ export default function SalesInvoiceDashboard() {
   const { orgNavigate: navigate } = useOrgNavigation();
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
+  const { hasSpecialPermission } = useUserPermissions();
   const { formatMessage } = useWhatsAppTemplates();
   const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
@@ -1721,7 +1723,7 @@ export default function SalesInvoiceDashboard() {
                                   </Button>
                                 )}
                                 {columnSettings.modify && (
-                                  invoice.payment_status === 'completed' ? (
+                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
                                     <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
                                       <Lock className="h-4 w-4 text-muted-foreground" />
                                     </Button>
@@ -1732,7 +1734,7 @@ export default function SalesInvoiceDashboard() {
                                   )
                                 )}
                                 {columnSettings.delete && (
-                                  invoice.payment_status === 'completed' ? (
+                                  invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
                                     <Button variant="ghost" size="icon" disabled title="Invoice is locked (Fully Paid)">
                                       <Lock className="h-4 w-4 text-muted-foreground" />
                                     </Button>
