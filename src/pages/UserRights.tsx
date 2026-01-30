@@ -109,6 +109,7 @@ const menuStructure = [
 const specialRights = [
   { id: "modify_records", name: "Modify Records", description: "Allow editing existing records" },
   { id: "delete_records", name: "Delete Records", description: "Allow deleting records" },
+  { id: "edit_paid_invoices", name: "Edit Paid Invoices", description: "Allow editing and deleting fully paid invoices" },
   { id: "whatsapp_send", name: "WhatsApp Messaging", description: "Send messages via WhatsApp" },
   { id: "detail_accounting", name: "Detail Accounting", description: "Access detailed accounting features" },
   { id: "export_data", name: "Export Data", description: "Export data to Excel/PDF" },
