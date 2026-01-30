@@ -168,17 +168,17 @@ All colors MUST be HSL.
     --shadow-glow: 0 4px 16px hsl(238 83% 65% / 0.1);
     --shadow-elevated: 0 4px 16px hsl(220 20% 50% / 0.06);
 
-    /* Lighter purple sidebar - #5B5FEF base with soft gradient feel */
-    --sidebar-background: 238 70% 55%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 238 83% 55%;
-    /* Active/hover state - slightly lighter purple */
-    --sidebar-accent: 238 75% 62%;
+    /* Dark purple sidebar - #1E1B4B to #312E81 */
+    --sidebar-background: 243 47% 20%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 238 83% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    /* Active/hover state - subtle purple highlight */
+    --sidebar-accent: 242 47% 28%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 238 65% 58%;
-    --sidebar-ring: 0 0% 100%;
-    --sidebar-muted: 238 70% 50%;
+    --sidebar-border: 242 40% 25%;
+    --sidebar-ring: 238 83% 65%;
+    --sidebar-muted: 243 47% 24%;
   }
 
   .dark {
