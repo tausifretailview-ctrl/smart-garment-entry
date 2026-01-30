@@ -1445,7 +1445,7 @@ Thank you for choosing us!`;
     }
 
     // Real-time stock validation before saving
-    // When editing, pass original items so their stock is considered "freed"
+    // When editing, fetch fresh original items from database to avoid stale state issues
     const invoiceItems = filledItems.map(item => ({
       variantId: item.variantId,
       quantity: item.quantity,
@@ -1453,9 +1453,31 @@ Thank you for choosing us!`;
       size: item.size,
     }));
 
+    // Fetch fresh original items from database for accurate stock validation in edit mode
+    let freshOriginalItems: Array<{ variantId: string; quantity: number }> = [];
+    if (editingInvoiceId) {
+      const { data: existingItems } = await supabase
+        .from('sale_items')
+        .select('variant_id, quantity')
+        .eq('sale_id', editingInvoiceId);
+      
+      if (existingItems) {
+        freshOriginalItems = existingItems.map(item => ({
+          variantId: item.variant_id,
+          quantity: item.quantity,
+        }));
+      }
+      
+      console.log('[Stock Validation] Fresh original items from DB:', {
+        editingInvoiceId,
+        freshOriginalItems,
+        stateOriginalItems: originalItemsForEdit,
+      });
+    }
+
     const insufficientItems = await validateCartStock(
       invoiceItems,
-      editingInvoiceId ? originalItemsForEdit : undefined
+      editingInvoiceId ? freshOriginalItems : undefined
     );
     
     if (insufficientItems.length > 0) {

@@ -104,9 +104,13 @@ export const useStockValidation = () => {
     setChecking(true);
     const insufficientItems: Array<{ productName: string; size: string; requested: number; available: number }> = [];
 
-    // STEP 1: Aggregate new items by variantId to handle same variant appearing multiple times
+  // STEP 1: Aggregate new items by variantId to handle same variant appearing multiple times
+    // IMPORTANT: Skip items without variantId (custom sizes don't track stock)
     const aggregatedNewItems = new Map<string, { variantId: string; quantity: number; productName?: string; size?: string }>();
     for (const item of items) {
+      // Skip items without variantId (custom sizes don't track stock)
+      if (!item.variantId) continue;
+      
       const existing = aggregatedNewItems.get(item.variantId);
       if (existing) {
         existing.quantity += item.quantity;
@@ -117,9 +121,13 @@ export const useStockValidation = () => {
     }
 
     // STEP 2: Create a map of freed quantities from old items
+    // IMPORTANT: Skip items without variantId (custom sizes don't track stock)
     const freedQtyMap = new Map<string, number>();
     if (oldItems && oldItems.length > 0) {
       for (const oldItem of oldItems) {
+        // Skip items without variantId
+        if (!oldItem.variantId) continue;
+        
         const currentFreed = freedQtyMap.get(oldItem.variantId) || 0;
         freedQtyMap.set(oldItem.variantId, currentFreed + oldItem.quantity);
       }
