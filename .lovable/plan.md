@@ -1,152 +1,175 @@
 
 
-# Fix Sticky Header Overlap in Sale Billing and Other Windows
+# Fix Invoice Quantity Duplication on Edit
 
 ## Problem Summary
 
-When scrolling in the Sale Billing (Sales Invoice) page, the sticky header section (containing customer info, invoice date, salesman selection, and product search bar) is being overlapped by the table header row as the table content scrolls. This creates a visual glitch where the table headers appear on top of or blend with the form controls.
+When editing a Sales Invoice in the BCCS organization, quantities are increasing incorrectly after modification. The issue is that stock movements show duplicate deductions without corresponding restorations.
 
 ---
 
 ## Root Cause Analysis
 
-The Sales Invoice page has this structure:
-```text
-Card (overflow-hidden)
-├── Sticky Header (z-20, bg-card) - Contains form controls
-│   ├── Title, Customer selector, Dates, Tax Type
-│   └── Product search, Entry mode toggle, Total Qty badge
-└── Scrollable Table Container (max-h-[calc(100vh-420px)], overflow-y-auto)
-    └── Table
-        ├── TableHeader (sticky top-0 z-10) ← This is the issue
-        └── TableBody (scrollable content)
+The bug is in `src/pages/SalesInvoice.tsx` at **line 514**:
+
+```javascript
+// WRONG: useState callback only runs ONCE during initial mount
+useState(() => {
+  const invoiceData = location.state?.invoiceData;
+  if (invoiceData) {
+    setEditingInvoiceId(invoiceData.id);
+    // ... set other states
+    setOriginalItemsForEdit(invoiceData.sale_items.map(...));
+  }
+});
 ```
 
-**Issues Identified:**
-1. The `TableHeader` component has `sticky top-0 z-10` built into the base component, which means table headers stick to their scroll container's top
-2. When the table scrolls, its sticky header competes visually with the form's sticky header
-3. The form's sticky header needs to properly clip/cover content scrolling beneath it
+### Why This Breaks
+
+| Step | What Happens | Problem |
+|------|--------------|---------|
+| 1 | User clicks Edit on Invoice A | Component mounts, `useState` callback runs, `originalItemsForEdit` set correctly |
+| 2 | User saves Invoice A | Stock deleted + inserted correctly (balanced) |
+| 3 | User returns to dashboard | Component may not fully unmount (React Router / tab caching) |
+| 4 | User clicks Edit on Invoice A again | If component is already mounted, `useState` callback does NOT run again |
+| 5 | User saves Invoice A again | `originalItemsForEdit` is stale - stock validation uses old data, but database operations happen with new data |
+
+The `useState` callback is designed to compute initial state once - it's **not** meant for side effects triggered by navigation changes.
 
 ---
 
-## Affected Pages
+## Evidence from Database
 
-| Page | Has Sticky Header | Has Scrollable Table | Needs Fix |
-|------|------------------|---------------------|-----------|
-| SalesInvoice.tsx | Yes (z-20) | Yes | Yes |
-| POSSales.tsx | Yes (z-20) | No (cart-based) | Check |
-| PurchaseEntry.tsx | No | Yes (60vh) | No |
-| QuotationEntry.tsx | No | No (uses ScrollArea) | No |
-| SaleOrderEntry.tsx | No | No (uses ScrollArea) | No |
-| Stock Report | No | Yes | No |
-| Dashboards | No (filters not sticky) | Yes | No |
+Stock movements for INV/25-26/15 show:
+- Multiple `sale` deductions (-1534 total)
+- Fewer `sale_delete` restorations (+796 total)
+- Net loss of 738 units over multiple edit cycles
+
+Updates without corresponding deletions:
+- `2026-01-30 10:57:19`: -332 units (no `sale_delete`)
+- `2026-01-29 12:56:58`: -47 units (no `sale_delete`)
+- `2026-01-28 11:49:59`: -318 units (no `sale_delete`)
 
 ---
 
 ## Solution
 
-### Fix 1: Remove Table Header Sticky Behavior in Scrollable Containers
+Convert the `useState` callback to a proper `useEffect` that:
+1. Watches for changes to `location.state?.invoiceData`
+2. Always re-initializes form state when invoice data changes
+3. Properly sets `originalItemsForEdit` for accurate stock validation
 
-For SalesInvoice.tsx specifically, override the TableHeader's sticky behavior since the form header is already sticky and provides the visual anchor:
+---
 
-**File:** `src/pages/SalesInvoice.tsx`
+## Implementation
 
-Change the TableHeader to disable its sticky behavior within the already-scrollable container:
-```tsx
-<TableHeader className="sticky-none">
+### File: `src/pages/SalesInvoice.tsx`
+
+**Current Code (lines 513-572):**
+```javascript
+// Pre-populate form if editing existing invoice
+useState(() => {
+  const invoiceData = location.state?.invoiceData;
+  if (invoiceData) {
+    setEditingInvoiceId(invoiceData.id);
+    // ... all the state setting
+  }
+});
 ```
 
-Or add inline style to override:
-```tsx
-<TableHeader className="!static">
+**Fixed Code:**
+```javascript
+// Pre-populate form if editing existing invoice
+useEffect(() => {
+  const invoiceData = location.state?.invoiceData;
+  if (invoiceData) {
+    setEditingInvoiceId(invoiceData.id);
+    setInvoiceDate(new Date(invoiceData.sale_date));
+    setDueDate(invoiceData.due_date ? new Date(invoiceData.due_date) : new Date());
+    setSelectedCustomerId(invoiceData.customer_id || "");
+    
+    // Set customer if available
+    if (invoiceData.customer_id) {
+      const customer = {
+        id: invoiceData.customer_id,
+        customer_name: invoiceData.customer_name,
+        phone: invoiceData.customer_phone,
+        email: invoiceData.customer_email,
+        address: invoiceData.customer_address,
+      };
+      setSelectedCustomer(customer);
+    }
+    
+    setPaymentTerm(invoiceData.payment_term || "");
+    setTermsConditions(invoiceData.terms_conditions || "");
+    setNotes(invoiceData.notes || "");
+    setShippingAddress(invoiceData.shipping_address || "");
+    setShippingInstructions(invoiceData.shipping_instructions || "");
+    setSalesman(invoiceData.salesman || "");
+    setFlatDiscountPercent(invoiceData.flat_discount_percent || 0);
+    setFlatDiscountRupees(invoiceData.flat_discount_amount || 0);
+    setRoundOff(invoiceData.round_off || 0);
+    
+    // Transform sale items back to line items
+    if (invoiceData.sale_items && invoiceData.sale_items.length > 0) {
+      const transformedItems = invoiceData.sale_items.map((item: any) => ({
+        id: item.id,
+        productId: item.product_id,
+        variantId: item.variant_id,
+        productName: item.product_name,
+        size: item.size,
+        barcode: item.barcode || '',
+        color: item.color || '',
+        quantity: item.quantity,
+        mrp: item.mrp,
+        salePrice: item.unit_price,
+        discountPercent: item.discount_percent,
+        discountAmount: 0,
+        gstPercent: item.gst_percent,
+        lineTotal: item.line_total,
+        hsnCode: item.hsn_code || '',
+      }));
+      setLineItems(transformedItems);
+      
+      // Store original items for stock validation in edit mode
+      setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
+        variantId: item.variant_id,
+        quantity: item.quantity,
+      })));
+    }
+  }
+}, [location.state?.invoiceData]);
 ```
 
-### Fix 2: Increase Form Sticky Header Z-Index and Add Solid Background
+---
 
-Ensure the form sticky header has a higher z-index and completely opaque background to fully cover anything scrolling beneath:
+## Why This Fix Works
 
-**File:** `src/pages/SalesInvoice.tsx` (around line 1891)
-
-Current:
-```tsx
-<div className="sticky top-0 z-20 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border/50">
-```
-
-Change to:
-```tsx
-<div className="sticky top-0 z-30 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border shadow-sm">
-```
-
-### Fix 3: Add Isolation to Scrollable Container
-
-Add `isolate` class to the scrollable table container to create a new stacking context:
-
-```tsx
-<div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto mt-4 isolate">
-```
-
-### Fix 4: Override Table Header Z-Index Within Container
-
-Pass a lower z-index to the TableHeader when it's inside the scrollable container:
-
-```tsx
-<TableHeader className="z-0">
-```
+| Aspect | Before (useState) | After (useEffect) |
+|--------|-------------------|-------------------|
+| **Runs on mount** | Yes (once) | Yes (once) |
+| **Runs on navigation with new data** | No | Yes |
+| **Dependency tracking** | None | Tracks `location.state?.invoiceData` |
+| **originalItemsForEdit accuracy** | Stale on re-edit | Always fresh |
 
 ---
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
-| `src/pages/SalesInvoice.tsx` | Increase sticky header z-index to z-30, add shadow, make table header non-sticky or z-0 |
-| `src/pages/POSSales.tsx` | Verify sticky header has proper z-index (already z-20) |
-| `src/components/ui/table.tsx` | Consider making TableHeader sticky behavior optional via prop |
+| File | Change |
+|------|--------|
+| `src/pages/SalesInvoice.tsx` | Convert `useState` callback (lines 513-572) to `useEffect` with `[location.state?.invoiceData]` dependency |
 
 ---
 
-## Implementation Details
+## Verification Steps
 
-### SalesInvoice.tsx Changes
-
-1. **Line ~1891** - Update sticky header classes:
-   - Change `z-20` to `z-30`
-   - Add `shadow-sm` for visual separation
-   - Ensure `border-b` is solid (not transparent)
-
-2. **Line ~2293** - Update scrollable container:
-   - Add `isolate` class to create stacking context
-
-3. **Line ~2295** - Update TableHeader:
-   - Add `className="z-0"` to ensure it stays below the form header
-
-### Verification Checklist
-
-After implementation, verify:
-- Scroll the table - form header stays on top
-- Table header remains visible while scrolling within the table area
-- Dropdowns (customer search, date picker, tax type) still work and appear above everything
-- The Total Qty badge in header remains visible
-
----
-
-## Technical Notes
-
-### Z-Index Hierarchy (Current vs Proposed)
-
-| Element | Current Z-Index | Proposed Z-Index |
-|---------|----------------|------------------|
-| Main Header | z-50 | z-50 (unchanged) |
-| Window Tabs Bar | none (normal flow) | none (unchanged) |
-| Form Sticky Header | z-20 | z-30 |
-| Popovers/Dropdowns | z-50 | z-50 (unchanged) |
-| Table Header | z-10 | z-0 or static |
-| Floating Elements | z-40 | z-40 (unchanged) |
-
-### CSS Stacking Context
-
-Adding `isolate` to the scrollable container creates a new stacking context, which means:
-- Elements inside cannot escape to overlap elements outside
-- The form sticky header above will always render on top
-- Table's internal sticky elements work within their container only
+After implementation:
+1. Create a new invoice for BCCS organization
+2. Edit the invoice and change quantities
+3. Save the invoice
+4. Edit the same invoice again
+5. Save without changes
+6. Check stock movements - should show balanced delete/insert pairs
+7. Verify product stock quantities remain correct
 
