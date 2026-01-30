@@ -1356,9 +1356,8 @@ export default function SaleOrderEntry() {
 
         {/* Line Items Table with Stock Difference */}
         <div className="border rounded-md overflow-hidden relative">
-          <ScrollArea className="h-[400px]" showScrollbar>
-            <Table>
-            <TableHeader>
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead>Product</TableHead>
@@ -1381,6 +1380,9 @@ export default function SaleOrderEntry() {
                 <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
+          </Table>
+          <ScrollArea className="h-[400px] isolate" showScrollbar>
+            <Table>
             <TableBody>
               {lineItems.map((item, index) => {
                 const stockInfo = getStockDifference(item);
@@ -1607,8 +1609,8 @@ export default function SaleOrderEntry() {
                 </TableCell>
               </TableRow>
             </TableBody>
-          </Table>
-          <div ref={tableEndRef} />
+            </Table>
+            <div ref={tableEndRef} />
           </ScrollArea>
         </div>
         <div className="mt-2 text-sm text-muted-foreground">
