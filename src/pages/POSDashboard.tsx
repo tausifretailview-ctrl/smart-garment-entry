@@ -1394,14 +1394,7 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              <div className="flex items-center gap-1.5">
-                                {sale.sale_number}
-                                {sale.payment_status === 'completed' && (
-                                  <span title="Invoice is locked (Fully Paid)">
-                                    <Lock className="h-3.5 w-3.5 text-green-600" />
-                                  </span>
-                                )}
-                              </div>
+                              {sale.sale_number}
                             </TableCell>
                             <TableCell 
                               className="cursor-pointer text-blue-600 hover:underline"
@@ -1585,24 +1578,13 @@ const POSDashboard = () => {
                                   </Button>
                                 )}
                                 {columnSettings.modify && (
-                                  sale.payment_status === 'completed' ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      disabled
-                                      title="Invoice is locked (Fully Paid)"
-                                    >
-                                      <Lock className="h-4 w-4 text-muted-foreground" />
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleEditSale(sale.id, e)}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                  )
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => handleEditSale(sale.id, e)}
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </Button>
                                 )}
                               </div>
                             </TableCell>
