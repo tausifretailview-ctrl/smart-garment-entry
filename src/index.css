@@ -118,32 +118,32 @@ All colors MUST be HSL.
 
   /* Purple SaaS Theme - Premium ERP Style (Ezzy ERP) */
   .theme-purple {
-    /* Main backgrounds - Lighter and softer */
-    --background: 240 20% 99%;
-    --foreground: 230 15% 25%;
+    /* Main backgrounds - Clean light neutral */
+    --background: 220 27% 98%;
+    --foreground: 222 20% 25%;
 
     /* Cards - Pure white */
     --card: 0 0% 100%;
-    --card-foreground: 230 15% 25%;
+    --card-foreground: 222 20% 25%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 230 15% 25%;
+    --popover-foreground: 222 20% 25%;
 
-    /* Primary Purple - Slightly lighter #6366F1 */
-    --primary: 239 84% 67%;
+    /* Primary Purple - #5B5FEF */
+    --primary: 238 83% 65%;
     --primary-foreground: 0 0% 100%;
-    /* Secondary Purple - Lighter #8B5CF6 */
-    --primary-glow: 258 90% 66%;
+    /* Secondary Purple - #7C3AED */
+    --primary-glow: 263 83% 58%;
 
-    /* Secondary button style - Very soft purple bg */
-    --secondary: 240 100% 98%;
-    --secondary-foreground: 239 84% 60%;
+    /* Secondary button style - Soft purple bg */
+    --secondary: 238 100% 97%;
+    --secondary-foreground: 238 83% 55%;
 
-    /* Muted text colors - Softer */
-    --muted: 240 20% 97%;
-    --muted-foreground: 230 10% 50%;
+    /* Muted text colors */
+    --muted: 220 20% 96%;
+    --muted-foreground: 220 10% 45%;
 
-    --accent: 239 84% 67%;
+    --accent: 238 83% 65%;
     --accent-foreground: 0 0% 100%;
 
     /* Status colors */
@@ -156,29 +156,29 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders - Lighter */
-    --border: 240 15% 92%;
-    --input: 240 15% 88%;
-    --ring: 239 84% 67%;
+    /* Borders */
+    --border: 220 15% 90%;
+    --input: 220 15% 86%;
+    --ring: 238 83% 65%;
 
-    /* Softer shadows */
-    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(258 90% 66%));
-    --gradient-accent: linear-gradient(135deg, hsl(239 84% 67%), hsl(258 90% 66%));
+    /* Soft shadows */
+    --gradient-primary: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 83% 58%));
+    --gradient-accent: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 83% 58%));
     --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(158 64% 42%));
-    --shadow-glow: 0 4px 20px hsl(239 84% 67% / 0.1);
-    --shadow-elevated: 0 4px 20px hsl(230 20% 50% / 0.06);
+    --shadow-glow: 0 4px 16px hsl(238 83% 65% / 0.1);
+    --shadow-elevated: 0 4px 16px hsl(220 20% 50% / 0.06);
 
-    /* Lighter purple sidebar - #2E2B5F instead of very dark */
-    --sidebar-background: 243 38% 28%;
-    --sidebar-foreground: 240 20% 95%;
-    --sidebar-primary: 239 84% 67%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    /* Active/hover state - lighter purple highlight */
-    --sidebar-accent: 243 40% 38%;
+    /* Lighter purple sidebar - #5B5FEF base with soft gradient feel */
+    --sidebar-background: 238 70% 55%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 238 83% 55%;
+    /* Active/hover state - slightly lighter purple */
+    --sidebar-accent: 238 75% 62%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 243 35% 35%;
-    --sidebar-ring: 239 84% 67%;
-    --sidebar-muted: 243 38% 32%;
+    --sidebar-border: 238 65% 58%;
+    --sidebar-ring: 0 0% 100%;
+    --sidebar-muted: 238 70% 50%;
   }
 
   .dark {
