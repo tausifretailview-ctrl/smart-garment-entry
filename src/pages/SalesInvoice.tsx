@@ -511,7 +511,10 @@ export default function SalesInvoice() {
   }, [currentOrganization?.id, editingInvoiceId, settingsData]);
 
   // Pre-populate form if editing existing invoice
-  useState(() => {
+  // IMPORTANT: Using useEffect instead of useState callback to ensure this runs
+  // every time location.state changes (e.g., when navigating back to edit the same invoice)
+  // This fixes the bug where originalItemsForEdit became stale on re-edits
+  useEffect(() => {
     const invoiceData = location.state?.invoiceData;
     if (invoiceData) {
       setEditingInvoiceId(invoiceData.id);
@@ -563,13 +566,14 @@ export default function SalesInvoice() {
         setLineItems(transformedItems);
         
         // Store original items for stock validation in edit mode
+        // This MUST be set fresh every time we load invoice data for editing
         setOriginalItemsForEdit(invoiceData.sale_items.map((item: any) => ({
           variantId: item.variant_id,
           quantity: item.quantity,
         })));
       }
     }
-  });
+  }, [location.state?.invoiceData]);
 
   // Recalculate all line items when tax type changes
   useEffect(() => {
