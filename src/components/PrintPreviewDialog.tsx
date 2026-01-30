@@ -275,24 +275,26 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
 
           {/* Preview Container */}
           <div className="flex justify-center">
-            {isLoading ? (
-              <div className="flex items-center justify-center p-8">
+            {/* Loading overlay */}
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10 rounded-md">
                 <div className="text-muted-foreground">Loading preview...</div>
               </div>
-            ) : (
-              <div
-                ref={printRef}
-                className="bg-white shadow-lg print-invoice-container"
-                data-print-format={selectedFormat}
-                style={{
-                  ...getPreviewStyles(),
-                  transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
-                  transformOrigin: 'top center',
-                }}
-              >
-                {renderInvoice(getFormatForInvoice() as any)}
-              </div>
             )}
+            {/* Always render invoice content so async data can load */}
+            <div
+              ref={printRef}
+              className="bg-white shadow-lg print-invoice-container"
+              data-print-format={selectedFormat}
+              style={{
+                ...getPreviewStyles(),
+                transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
+                transformOrigin: 'top center',
+                visibility: isLoading ? 'hidden' : 'visible',
+              }}
+            >
+              {renderInvoice(getFormatForInvoice() as any)}
+            </div>
           </div>
         </div>
 
