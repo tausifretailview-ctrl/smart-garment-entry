@@ -2410,9 +2410,9 @@ const PurchaseEntry = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="border rounded-lg overflow-x-auto max-h-[60vh] overflow-y-auto">
+            <div className="border rounded-lg overflow-hidden">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-muted">
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
@@ -2433,9 +2433,12 @@ const PurchaseEntry = () => {
                     <TableHead className="w-24">SUB TOTAL</TableHead>
                     <TableHead className="w-20">DISC %</TableHead>
                     <TableHead className="w-24">TOTAL</TableHead>
-                    <TableHead className="w-12 sticky right-0 bg-background"></TableHead>
+                    <TableHead className="w-12 sticky right-0 bg-muted"></TableHead>
                   </TableRow>
                 </TableHeader>
+              </Table>
+              <div className="max-h-[50vh] overflow-y-auto overflow-x-auto isolate">
+              <Table>
                 <TableBody>
                   {lineItems.map((item, index) => {
                     const subTotal = item.qty * item.pur_price;
@@ -2740,6 +2743,7 @@ const PurchaseEntry = () => {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </div>
             {lineItems.length === 0 && (
               <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
