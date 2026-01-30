@@ -100,7 +100,7 @@ const AnimatedMetricCard = ({
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <div className="text-2xl font-bold text-foreground">
+              <div className="text-xl font-bold text-foreground">
                 {displayValue}
               </div>
             </CardContent>
