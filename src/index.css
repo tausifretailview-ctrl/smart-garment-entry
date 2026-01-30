@@ -118,30 +118,35 @@ All colors MUST be HSL.
 
   /* Purple SaaS Theme - Premium ERP Style (Ezzy ERP) */
   .theme-purple {
-    /* Main backgrounds - Clean and professional */
-    --background: 220 27% 98%;
-    --foreground: 220 14% 18%;
+    /* Main backgrounds - Soft and professional #F7F9FC */
+    --background: 220 33% 98%;
+    --foreground: 221 28% 17%;
 
+    /* Cards - Pure white #FFFFFF */
     --card: 0 0% 100%;
-    --card-foreground: 220 14% 18%;
+    --card-foreground: 221 28% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 14% 18%;
+    --popover-foreground: 221 28% 17%;
 
-    /* Primary Purple - #5B5FEF converted to HSL */
+    /* Primary Purple - #5B5FEF */
     --primary: 238 83% 65%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 263 70% 50%;
+    /* Secondary Purple - #7C3AED */
+    --primary-glow: 263 83% 58%;
 
-    --secondary: 238 100% 97%;
+    /* Secondary button style - #EEF2FF bg, #5B5FEF text */
+    --secondary: 226 100% 97%;
     --secondary-foreground: 238 83% 65%;
 
-    --muted: 220 15% 96%;
-    --muted-foreground: 220 10% 43%;
+    /* Muted text colors */
+    --muted: 210 40% 96%;
+    --muted-foreground: 218 11% 65%;
 
     --accent: 238 83% 65%;
     --accent-foreground: 0 0% 100%;
 
+    /* Status colors */
     --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
@@ -151,28 +156,29 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Borders - #E5E7EB converted to HSL */
+    /* Borders - #E5E7EB */
     --border: 220 13% 91%;
-    --input: 220 13% 87%;
+    --input: 216 12% 84%;
     --ring: 238 83% 65%;
 
-    /* Gradient for CTAs */
-    --gradient-primary: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 70% 50%));
-    --gradient-accent: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 84% 60%));
+    /* Subtle shadows for premium feel */
+    --gradient-primary: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 83% 58%));
+    --gradient-accent: linear-gradient(135deg, hsl(238 83% 65%), hsl(263 83% 58%));
     --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(158 64% 42%));
-    --shadow-glow: 0 4px 20px hsl(238 83% 65% / 0.15);
-    --shadow-elevated: 0 8px 30px hsl(220 20% 50% / 0.1);
+    --shadow-glow: 0 4px 16px hsl(238 83% 65% / 0.12);
+    --shadow-elevated: 0 4px 24px hsl(220 20% 50% / 0.08);
 
-    /* Dark navy sidebar - #0F172A converted to HSL */
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 215 20% 80%;
+    /* Dark purple gradient sidebar - #1E1B4B to #312E81 */
+    --sidebar-background: 243 47% 20%;
+    --sidebar-foreground: 220 14% 91%;
     --sidebar-primary: 238 83% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 17%;
+    /* Active/hover state - subtle purple highlight */
+    --sidebar-accent: 242 47% 28%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 33% 20%;
+    --sidebar-border: 242 40% 25%;
     --sidebar-ring: 238 83% 65%;
-    --sidebar-muted: 217 33% 15%;
+    --sidebar-muted: 243 47% 24%;
   }
 
   .dark {
