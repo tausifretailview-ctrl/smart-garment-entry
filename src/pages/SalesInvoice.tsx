@@ -748,8 +748,16 @@ export default function SalesInvoice() {
     let addedCount = 0;
 
     for (const { variant, qty } of items) {
-      // Stock validation
-      const stockCheck = await checkStock(variant.id, qty);
+      // In edit mode, calculate freed stock from original invoice for this variant
+      let freedQty = 0;
+      if (editingInvoiceId && originalItemsForEdit.length > 0) {
+        freedQty = originalItemsForEdit
+          .filter(orig => orig.variantId === variant.id)
+          .reduce((sum, orig) => sum + orig.quantity, 0);
+      }
+
+      // Stock validation with freed quantity
+      const stockCheck = await checkStock(variant.id, qty, freedQty);
       if (!stockCheck.isAvailable) {
         showStockError(product.product_name, variant.size, qty, stockCheck.availableStock);
         continue;
@@ -760,7 +768,7 @@ export default function SalesInvoice() {
       
       if (existingIndex >= 0) {
         const newQty = updatedItems[existingIndex].quantity + qty;
-        const stockCheckIncrease = await checkStock(variant.id, newQty);
+        const stockCheckIncrease = await checkStock(variant.id, newQty, freedQty);
         if (!stockCheckIncrease.isAvailable) {
           showStockError(product.product_name, variant.size, newQty, stockCheckIncrease.availableStock);
           continue;
@@ -878,8 +886,16 @@ export default function SalesInvoice() {
       return;
     }
 
-    // Real-time stock validation
-    const stockCheck = await checkStock(variant.id, 1);
+    // In edit mode, calculate freed stock from original invoice for this variant
+    let freedQty = 0;
+    if (editingInvoiceId && originalItemsForEdit.length > 0) {
+      freedQty = originalItemsForEdit
+        .filter(orig => orig.variantId === variant.id)
+        .reduce((sum, orig) => sum + orig.quantity, 0);
+    }
+
+    // Real-time stock validation with freed quantity
+    const stockCheck = await checkStock(variant.id, 1, freedQty);
     if (!stockCheck.isAvailable) {
       showStockError(
         stockCheck.productName,
@@ -894,9 +910,9 @@ export default function SalesInvoice() {
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
-      // Real-time stock validation for increased quantity
+      // Real-time stock validation for increased quantity with freed quantity
       const newQty = lineItems[existingIndex].quantity + 1;
-      const stockCheckIncrease = await checkStock(variant.id, newQty);
+      const stockCheckIncrease = await checkStock(variant.id, newQty, freedQty);
       
       if (!stockCheckIncrease.isAvailable) {
         showStockError(
@@ -1073,8 +1089,16 @@ export default function SalesInvoice() {
     const item = lineItems.find(i => i.id === id);
     if (!item || !item.variantId) return;
     
-    // Real-time stock validation
-    const stockCheck = await checkStock(item.variantId, quantity);
+    // In edit mode, calculate freed stock from original invoice for this variant
+    let freedQty = 0;
+    if (editingInvoiceId && originalItemsForEdit.length > 0) {
+      freedQty = originalItemsForEdit
+        .filter(orig => orig.variantId === item.variantId)
+        .reduce((sum, orig) => sum + orig.quantity, 0);
+    }
+    
+    // Real-time stock validation with freed quantity
+    const stockCheck = await checkStock(item.variantId, quantity, freedQty);
     
     if (!stockCheck.isAvailable) {
       showStockError(
