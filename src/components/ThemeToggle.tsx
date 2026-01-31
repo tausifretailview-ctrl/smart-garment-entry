@@ -14,18 +14,24 @@ export function ThemeToggle() {
   const [customTheme, setCustomTheme] = useState<string | null>(null);
 
   // Check for custom theme class on mount and restore from localStorage
+  // Default to purple theme if no theme is saved
   useEffect(() => {
     const savedCustomTheme = localStorage.getItem('custom-theme');
     if (savedCustomTheme === 'indigo') {
       document.documentElement.classList.remove('theme-purple');
       document.documentElement.classList.add('theme-indigo');
       setCustomTheme('indigo');
-    } else if (savedCustomTheme === 'purple') {
+    } else if (savedCustomTheme === 'purple' || !savedCustomTheme) {
+      // Default to purple theme
       document.documentElement.classList.remove('theme-indigo');
       document.documentElement.classList.add('theme-purple');
       setCustomTheme('purple');
+      if (!savedCustomTheme) {
+        localStorage.setItem('custom-theme', 'purple');
+        setTheme('light');
+      }
     }
-  }, []);
+  }, [setTheme]);
 
   const handleThemeChange = (newTheme: string) => {
     // Remove all custom theme classes first
