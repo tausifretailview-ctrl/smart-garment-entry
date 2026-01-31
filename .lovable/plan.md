@@ -1,83 +1,82 @@
 
 
-# Optimize Stock Validation for Invoice Edits
+# Stock Update Plan for SM Hair Replacement
 
-## Problem Summary
+## Overview
+Update stock quantities for **PBARIA LOS ANGELES** and **AUSTRIALIAN** products in the SM Hair Replacement organization database.
 
-Currently, when editing an invoice, the stock validation checks **all** products in the cart, including products that were already saved in the original invoice with the same quantity. This causes unnecessary "Insufficient Stock" errors because:
+---
 
-- A product with qty 2 in the original invoice, still qty 2 after edit → should NOT be checked
-- A product with qty 2 in original, changed to qty 3 → should only check if 1 MORE unit is available
-- A newly added product → should check full stock availability
+## Products to Update
 
-## Solution
+### 1. PBARIA LOS ANGELES (7 variants)
 
-Modify the `validateCartStock` function to only validate:
+| Size | Barcode | Current Stock | → New Stock |
+|------|---------|:-------------:|:-----------:|
+| 7x5 | 30001051 | 6 | 3 |
+| 8x5 | 30001128 | 2 | 1 |
+| 8x6 | 30001052 | 26 | 27 |
+| 9x6 | 30001053 | 49 | 25 |
+| 9x7 | 30001054 | 41 | 19 |
+| 10x7 | 30001055 | 7 | 3 |
+| 10x8 | 30001056 | 6 | 3 |
 
-1. **Newly added products** (not in original invoice) - check full quantity
-2. **Products with INCREASED quantity** - check only the additional quantity needed
-3. **Products with same or decreased quantity** - skip validation entirely
+### 2. AUSTRIALIAN (5 variants)
 
-### Technical Implementation
+| Size | Barcode | Current Stock | → New Stock | Status |
+|------|---------|:-------------:|:-----------:|--------|
+| 7x5 | 1110205 | 19 | 4 | Active |
+| 8x6 | 10025 | 19 | 9 | Active |
+| 9x6 | 10026 | 20 | 7 | Active |
+| 9x7 | 10027 | - | 6 | ⚠️ DELETED |
+| 10x7 | 10028 | 24 | 7 | Active |
 
-**File: `src/hooks/useStockValidation.tsx`**
+---
 
-Update the validation logic to calculate the "net additional" quantity needed:
+## Issue: Austrialian-9x7 is Soft-Deleted
 
-```typescript
-// For each variant in the new cart:
-// - If it existed in old invoice with same/more qty → skip (no stock needed)
-// - If it's new OR has increased qty → only validate the ADDITIONAL qty needed
+The **Austrialian-9x7** product (barcode 10027) is currently in the Recycle Bin and cannot have its stock updated until it's restored.
 
-for (const [variantId, item] of aggregatedNewItems) {
-  const freedQty = freedQtyMap.get(variantId) || 0;
-  
-  // Calculate net additional quantity needed beyond what was already reserved
-  const additionalQtyNeeded = item.quantity - freedQty;
-  
-  // If no additional stock needed (same qty or reduced), skip validation
-  if (additionalQtyNeeded <= 0) {
-    console.log('[Stock Validation] Skipping - no additional stock needed:', {
-      variantId,
-      newQty: item.quantity,
-      originalQty: freedQty,
-    });
-    continue;
-  }
-  
-  // Only check stock for the ADDITIONAL quantity needed
-  const result = await checkStock(variantId, additionalQtyNeeded, 0);
-  
-  if (!result.isAvailable) {
-    insufficientItems.push({
-      productName: item.productName || result.productName,
-      size: item.size || result.size,
-      requested: item.quantity,
-      available: result.availableStock + freedQty, // Show total available including freed
-    });
-  }
-}
+---
+
+## Implementation Steps
+
+### Step 1: Restore Austrialian-9x7 from Recycle Bin
+- Clear the `deleted_at` field on the product and its variant
+- This will make it visible in Stock Report and dashboards again
+
+### Step 2: Update Stock Quantities
+Execute direct `UPDATE` statements on the `product_variants` table for each variant:
+
+```text
+PBARIA LOS ANGELES:
+- 7x5 (30001051): 6 → 3
+- 8x5 (30001128): 2 → 1
+- 8x6 (30001052): 26 → 27
+- 9x6 (30001053): 49 → 25
+- 9x7 (30001054): 41 → 19
+- 10x7 (30001055): 7 → 3
+- 10x8 (30001056): 6 → 3
+
+AUSTRIALIAN:
+- 7x5 (1110205): 19 → 4
+- 8x6 (10025): 19 → 9
+- 9x6 (10026): 20 → 7
+- 9x7 (10027): → 6 (after restore)
+- 10x7 (10028): 24 → 7
 ```
 
-### Validation Logic Summary
+### Step 3: Create Stock Movement Audit Records
+Insert records into `stock_movements` table with `movement_type = 'manual_adjustment'` for each change to maintain audit trail.
 
-| Scenario | Original Qty | New Qty | Action |
-|----------|-------------|---------|--------|
-| Same quantity | 2 | 2 | **Skip** - no stock check needed |
-| Reduced quantity | 3 | 2 | **Skip** - releasing stock, not consuming |
-| Increased quantity | 2 | 3 | **Check** - only validate 1 additional unit |
-| New product | 0 | 3 | **Check** - validate all 3 units |
+---
 
-### Files to Modify
+## Technical Details
 
-| File | Changes |
-|------|---------|
-| `src/hooks/useStockValidation.tsx` | Update `validateCartStock` to only check additional quantities needed |
+**Database Operations:**
+1. Use the insert/update tool to execute `UPDATE product_variants SET stock_qty = X WHERE id = 'variant-id'`
+2. Create corresponding `stock_movements` records for audit purposes
+3. Restore the deleted Austrialian-9x7 product first
 
-## Benefits
-
-1. No more false "Insufficient Stock" errors for unchanged products
-2. Accurate validation for quantity increases
-3. Better user experience during invoice edits
-4. Faster validation (fewer DB queries when quantities unchanged)
+**Total Updates:** 12 product variants
 
