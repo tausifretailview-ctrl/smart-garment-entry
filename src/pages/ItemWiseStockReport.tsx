@@ -3,12 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp } from "lucide-react";
+import { Search, Printer, FileSpreadsheet, Package, IndianRupee, TrendingUp, X } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface StockByProduct {
@@ -16,11 +17,19 @@ interface StockByProduct {
   total_qty: number;
   purchase_value: number;
   sale_value: number;
+  brand?: string;
+  category?: string;
+  department?: string;
+  supplier_name?: string;
 }
 
 export default function ItemWiseStockReport() {
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
+  const [brandFilter, setBrandFilter] = useState<string>("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("");
+  const [supplierFilter, setSupplierFilter] = useState<string>("");
 
   // Fetch all product variants with stock
   const { data: stockData = [], isLoading } = useQuery({
@@ -39,7 +48,13 @@ export default function ItemWiseStockReport() {
             id,
             product_name,
             product_type,
-            deleted_at
+            brand,
+            category,
+            style,
+            deleted_at,
+            suppliers (
+              supplier_name
+            )
           )
         `)
         .eq("products.organization_id", currentOrganization.id)
@@ -54,12 +69,45 @@ export default function ItemWiseStockReport() {
     enabled: !!currentOrganization?.id,
   });
 
-  // Aggregate data by product name
+  // Extract unique filter values
+  const filterOptions = useMemo(() => {
+    const brands = new Set<string>();
+    const categories = new Set<string>();
+    const departments = new Set<string>();
+    const suppliers = new Set<string>();
+
+    stockData.forEach((item: any) => {
+      if (item.products?.brand) brands.add(item.products.brand);
+      if (item.products?.category) categories.add(item.products.category);
+      if (item.products?.style) departments.add(item.products.style);
+      if (item.products?.suppliers?.supplier_name) suppliers.add(item.products.suppliers.supplier_name);
+    });
+
+    return {
+      brands: Array.from(brands).sort(),
+      categories: Array.from(categories).sort(),
+      departments: Array.from(departments).sort(),
+      suppliers: Array.from(suppliers).sort(),
+    };
+  }, [stockData]);
+
+  // Aggregate data by product name with filter support
   const aggregatedData: StockByProduct[] = useMemo(() => {
     const productMap = new Map<string, StockByProduct>();
 
     stockData.forEach((item: any) => {
       const productName = item.products?.product_name || "Unknown";
+      const brand = item.products?.brand || "";
+      const category = item.products?.category || "";
+      const department = item.products?.style || "";
+      const supplier = item.products?.suppliers?.supplier_name || "";
+
+      // Apply filters (skip __all__ placeholder)
+      if (brandFilter && brandFilter !== "__all__" && brand !== brandFilter) return;
+      if (categoryFilter && categoryFilter !== "__all__" && category !== categoryFilter) return;
+      if (departmentFilter && departmentFilter !== "__all__" && department !== departmentFilter) return;
+      if (supplierFilter && supplierFilter !== "__all__" && supplier !== supplierFilter) return;
+
       const existing = productMap.get(productName);
       const qty = item.stock_qty || 0;
       const purPrice = item.pur_price || 0;
@@ -75,6 +123,10 @@ export default function ItemWiseStockReport() {
           total_qty: qty,
           purchase_value: purPrice * qty,
           sale_value: salePrice * qty,
+          brand,
+          category,
+          department,
+          supplier_name: supplier,
         });
       }
     });
@@ -82,7 +134,7 @@ export default function ItemWiseStockReport() {
     return Array.from(productMap.values()).sort((a, b) => 
       a.product_name.localeCompare(b.product_name)
     );
-  }, [stockData]);
+  }, [stockData, brandFilter, categoryFilter, departmentFilter, supplierFilter]);
 
   // Filter data based on search
   const filteredData = useMemo(() => {
@@ -93,6 +145,17 @@ export default function ItemWiseStockReport() {
       item.product_name?.toLowerCase().includes(query)
     );
   }, [aggregatedData, searchQuery]);
+
+  // Clear all filters
+  const clearFilters = () => {
+    setBrandFilter("");
+    setCategoryFilter("");
+    setDepartmentFilter("");
+    setSupplierFilter("");
+    setSearchQuery("");
+  };
+
+  const hasActiveFilters = (brandFilter && brandFilter !== "__all__") || (categoryFilter && categoryFilter !== "__all__") || (departmentFilter && departmentFilter !== "__all__") || (supplierFilter && supplierFilter !== "__all__") || searchQuery;
 
   // Grand totals
   const grandTotals = useMemo(() => {
@@ -209,9 +272,9 @@ export default function ItemWiseStockReport() {
         </Card>
       </div>
 
-      {/* Search */}
-      <div className="flex gap-4 print:hidden">
-        <div className="flex-1 max-w-md">
+      {/* Search & Filters */}
+      <div className="flex flex-wrap gap-3 print:hidden">
+        <div className="flex-1 min-w-[200px] max-w-md">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -222,6 +285,61 @@ export default function ItemWiseStockReport() {
             />
           </div>
         </div>
+
+        <Select value={brandFilter} onValueChange={setBrandFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Brands" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Brands</SelectItem>
+            {filterOptions.brands.map((brand) => (
+              <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Categories" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Categories</SelectItem>
+            {filterOptions.categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Departments" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Departments</SelectItem>
+            {filterOptions.departments.map((dept) => (
+              <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+          <SelectTrigger className="w-[160px]">
+            <SelectValue placeholder="All Suppliers" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All Suppliers</SelectItem>
+            {filterOptions.suppliers.map((sup) => (
+              <SelectItem key={sup} value={sup}>{sup}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
+            <X className="h-4 w-4" />
+            Clear
+          </Button>
+        )}
       </div>
 
       {/* Data Table */}
