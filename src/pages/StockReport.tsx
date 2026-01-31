@@ -55,6 +55,15 @@ export default function StockReport() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  
+  // Global totals for default cards (loaded on mount)
+  const [globalTotals, setGlobalTotals] = useState({
+    totalStock: 0,
+    stockValue: 0,
+    saleValue: 0,
+    variantCount: 0,
+    isLoading: true
+  });
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
@@ -102,8 +111,77 @@ export default function StockReport() {
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
+      fetchGlobalTotals();
     }
   }, [currentOrganization?.id]);
+
+  // Fetch global stock totals for default cards
+  const fetchGlobalTotals = async () => {
+    if (!currentOrganization?.id) return;
+    
+    try {
+      setGlobalTotals(prev => ({ ...prev, isLoading: true }));
+      
+      // Fetch all variant data to compute totals
+      const allVariants: any[] = [];
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            id,
+            stock_qty,
+            sale_price,
+            pur_price,
+            products!inner (
+              product_type,
+              deleted_at
+            )
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      // Calculate totals
+      const totals = allVariants.reduce((acc, item) => {
+        const qty = item.stock_qty || 0;
+        const purPrice = item.pur_price || 0;
+        const salePrice = item.sale_price || 0;
+        
+        return {
+          totalStock: acc.totalStock + qty,
+          stockValue: acc.stockValue + (purPrice * qty),
+          saleValue: acc.saleValue + (salePrice * qty),
+          variantCount: acc.variantCount + 1
+        };
+      }, { totalStock: 0, stockValue: 0, saleValue: 0, variantCount: 0 });
+      
+      setGlobalTotals({
+        ...totals,
+        isLoading: false
+      });
+    } catch (error) {
+      console.error("Error fetching global totals:", error);
+      setGlobalTotals(prev => ({ ...prev, isLoading: false }));
+    }
+  };
 
   // Search for variant IDs by barcode in purchase_items and sale_items (for old/changed barcodes)
   const searchOldBarcodes = async (barcode: string) => {
@@ -798,13 +876,80 @@ export default function StockReport() {
         </Collapsible>
       </div>
 
+      {/* Summary Cards - Always visible */}
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <Card 
+          className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
+          onClick={() => hasSearched && setActiveTab("all")}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white/90">
+              {hasSearched ? "Filtered Stock" : "Total Stock"}
+            </CardTitle>
+            <Package className="h-4 w-4 text-white" />
+          </CardHeader>
+          <CardContent>
+            {globalTotals.isLoading && !hasSearched ? (
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-white">
+                  {(hasSearched ? totalStock : globalTotals.totalStock).toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs text-white/70">
+                  {hasSearched ? `${filteredStockItems.length} variants` : `${globalTotals.variantCount} variants`}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white/90">Stock Value (Cost)</CardTitle>
+            <IndianRupee className="h-4 w-4 text-white" />
+          </CardHeader>
+          <CardContent>
+            {globalTotals.isLoading && !hasSearched ? (
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-white">
+                  ₹{Math.round(hasSearched ? totalStockValue : globalTotals.stockValue).toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs text-white/70">Purchase price valuation</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-white/90">Sale Value</CardTitle>
+            <IndianRupee className="h-4 w-4 text-white" />
+          </CardHeader>
+          <CardContent>
+            {globalTotals.isLoading && !hasSearched ? (
+              <Loader2 className="h-6 w-6 animate-spin text-white" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-white">
+                  ₹{Math.round(hasSearched ? totalSaleValue : globalTotals.saleValue).toLocaleString('en-IN')}
+                </div>
+                <p className="text-xs text-white/70">Sale price valuation</p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {!hasSearched ? (
         <Card className="py-16">
           <CardContent className="flex flex-col items-center justify-center text-center">
             <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h3 className="text-lg font-medium mb-2">Search to View Stock Report</h3>
+            <h3 className="text-lg font-medium mb-2">Search to View Detailed Stock Report</h3>
             <p className="text-muted-foreground text-sm max-w-md">
-              Apply filters or enter a search term, then click Search to view stock data.
+              Apply filters or enter a search term, then click Search to view detailed stock data.
             </p>
           </CardContent>
         </Card>
@@ -817,44 +962,6 @@ export default function StockReport() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-3 mb-6">
-            <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
-              onClick={() => setActiveTab("all")}
-            >
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Total Stock</CardTitle>
-                <Package className="h-4 w-4 text-white" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">{totalStock.toLocaleString('en-IN')}</div>
-                <p className="text-xs text-white/70">{filteredStockItems.length} variants</p>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Stock Value (Cost)</CardTitle>
-                <IndianRupee className="h-4 w-4 text-white" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">₹{Math.round(totalStockValue).toLocaleString('en-IN')}</div>
-                <p className="text-xs text-white/70">Purchase price valuation</p>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Sale Value</CardTitle>
-                <IndianRupee className="h-4 w-4 text-white" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-white">₹{Math.round(totalSaleValue).toLocaleString('en-IN')}</div>
-                <p className="text-xs text-white/70">Sale price valuation</p>
-              </CardContent>
-            </Card>
-          </div>
-
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex-wrap h-auto gap-1">
               <TabsTrigger value="all">All Stock</TabsTrigger>
