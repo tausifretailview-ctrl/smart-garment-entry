@@ -236,25 +236,25 @@ export default function OrgAuth() {
 
   if (orgLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (!organization) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-        <Card className="w-full max-w-md shadow-lg">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md shadow-elevated">
           <div className="p-6 text-center">
-            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2 text-slate-800">Organization Not Found</h2>
-            <p className="text-slate-500 mb-4">
+            <AlertCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2 text-card-foreground">Organization Not Found</h2>
+            <p className="text-muted-foreground mb-4">
               The organization URL you're trying to access doesn't exist.
             </p>
             <Button 
               onClick={() => navigate("/auth")} 
-              className="w-full bg-slate-800 hover:bg-slate-700"
+              className="w-full"
             >
               Go to General Login
             </Button>
@@ -271,7 +271,7 @@ export default function OrgAuth() {
   const brandColor = orgSettings?.bill_barcode_settings?.brand_color || BRAND_COLOR;
 
   return (
-    <div className="h-screen flex w-full bg-slate-50 overflow-hidden">
+    <div className="h-screen flex w-full bg-background overflow-hidden">
       {/* Left Panel - Product Showcase with Office Background */}
       <div className="hidden lg:flex lg:w-1/2 flex-col relative">
         {/* Office/Window Background Scene */}
@@ -320,7 +320,7 @@ export default function OrgAuth() {
       </div>
 
       {/* Right Panel - Login Form */}
-      <div className="flex-1 lg:w-1/2 flex items-center justify-center p-4 lg:p-6 bg-white overflow-y-auto">
+      <div className="flex-1 lg:w-1/2 flex items-center justify-center p-4 lg:p-6 bg-card overflow-y-auto">
         <div className="w-full max-w-md space-y-3">
           {/* Mobile: Show EzzyERP logo */}
           <div className="lg:hidden text-center mb-4">
@@ -329,7 +329,7 @@ export default function OrgAuth() {
               alt="EzzyERP" 
               className="h-10 w-auto mx-auto object-contain"
             />
-            <p className="text-slate-500 mt-0.5 text-xs">Easy Billing, Smart Business</p>
+            <p className="text-muted-foreground mt-0.5 text-xs">Easy Billing, Smart Business</p>
           </div>
 
           {/* EzzyERP Branding - Above Organization Logo */}
@@ -368,16 +368,16 @@ export default function OrgAuth() {
               >
                 {displayName}
               </h1>
-              <p className="mt-1 text-slate-500 text-sm">
+              <p className="mt-1 text-muted-foreground text-sm">
                 Sign in to access your account
               </p>
             </div>
 
             {/* Login Form Card */}
-            <Card className="shadow-lg border-0 bg-white rounded-xl">
+            <Card className="shadow-elevated border-border bg-card rounded-md">
               <CardContent className="p-5 space-y-4">
                 {error && (
-                  <Alert variant="destructive" className="rounded-lg py-2">
+                  <Alert variant="destructive" className="rounded-md py-2">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription className="text-sm">{error}</AlertDescription>
                   </Alert>
@@ -385,7 +385,7 @@ export default function OrgAuth() {
                 
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="email" className="text-slate-700 font-medium text-sm">Email Address</Label>
+                    <Label htmlFor="email" className="text-card-foreground font-medium text-sm">Email Address</Label>
                     <Input
                       id="email"
                       type="email"
@@ -394,12 +394,12 @@ export default function OrgAuth() {
                       onChange={(e) => setEmail(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-11 rounded-lg !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-sm !text-gray-900 placeholder:text-gray-400"
+                      className="h-10 rounded-md"
                     />
                   </div>
                   
                   <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-slate-700 font-medium text-sm">Password</Label>
+                    <Label htmlFor="password" className="text-card-foreground font-medium text-sm">Password</Label>
                     <Input
                       id="password"
                       type="password"
@@ -408,17 +408,16 @@ export default function OrgAuth() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      className="h-11 rounded-lg !bg-white border-slate-200 focus:border-indigo-400 focus:ring-indigo-100 transition-all text-sm !text-gray-900 placeholder:text-gray-400"
+                      className="h-10 rounded-md"
                     />
                   </div>
 
                   <Button 
                     type="submit" 
-                    className="w-full h-11 text-sm font-semibold rounded-lg text-white shadow-lg hover:shadow-xl transition-all" 
+                    className="w-full h-10 text-sm font-semibold rounded-md shadow-sm" 
                     disabled={loading}
                     style={{ 
-                      background: `linear-gradient(135deg, ${brandColor} 0%, #4F46E5 100%)`,
-                      boxShadow: '0 10px 30px -10px rgba(108, 92, 231, 0.4)'
+                      background: `linear-gradient(135deg, ${brandColor} 0%, #4F46E5 100%)`
                     }}
                   >
                     {loading ? (
@@ -439,10 +438,10 @@ export default function OrgAuth() {
 
             {/* Footer Section */}
             <div className="text-center space-y-3">
-              <p className="text-slate-500 text-xs">
+              <p className="text-muted-foreground text-xs">
                 Don't have access?{" "}
                 <button
-                  className="font-semibold hover:underline transition-colors text-slate-700"
+                  className="font-semibold hover:underline transition-colors text-card-foreground"
                   onClick={() => {
                     toast.info("Please contact your organization administrator for access.");
                   }}

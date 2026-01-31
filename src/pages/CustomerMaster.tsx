@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -438,11 +439,11 @@ const CustomerMaster = () => {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-4">
       <BackToDashboard />
       
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Customer Master</h1>
+        <h1 className="text-2xl font-bold text-foreground">Customer Master</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowLegacyImport(true)}>
             <History className="h-4 w-4 mr-2" />
@@ -580,7 +581,7 @@ const CustomerMaster = () => {
         )}
       </div>
 
-      <div className="border rounded-lg">
+      <Card className="border-border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -622,7 +623,7 @@ const CustomerMaster = () => {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
                   <TableCell 
-                    className="font-medium cursor-pointer text-blue-600 hover:underline"
+                    className="font-medium cursor-pointer text-primary hover:underline"
                     onClick={() => {
                       setSelectedCustomerForHistory({
                         id: customer.id,
@@ -677,7 +678,7 @@ const CustomerMaster = () => {
             )}
           </TableBody>
         </Table>
-      </div>
+      </Card>
 
       {/* Pagination */}
       {totalPages > 1 && (
