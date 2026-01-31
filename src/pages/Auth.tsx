@@ -142,13 +142,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-background dark:bg-background p-4 relative overflow-hidden">
-      {/* Decorative brand color shapes (light mode only) */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 dark:hidden" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2 dark:hidden" />
-      <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-secondary/5 rounded-full blur-2xl dark:hidden" />
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Decorative brand color shapes */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl translate-x-1/2 translate-y-1/2" />
+      <div className="absolute top-1/2 left-1/4 w-64 h-64 bg-secondary/20 rounded-full blur-2xl" />
       
-      <Card className="w-full max-w-md relative border-t-4 border-t-primary shadow-xl brand-glow">
+      <Card className="w-full max-w-md relative border-t-4 border-t-primary shadow-elevated">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4">
             <img 
@@ -157,9 +157,9 @@ const Auth = () => {
               className="h-20 w-auto mx-auto object-contain"
             />
           </div>
-          <p className="text-slate-500 text-sm mb-3">Easy Billing, Smart Business</p>
+          <p className="text-muted-foreground text-sm mb-3">Easy Billing, Smart Business</p>
           <CardDescription className="text-base">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-medium text-sm">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-primary/10 text-primary font-medium text-sm">
               <Shield className="h-3.5 w-3.5" />
               Platform Admin Login
             </span>
@@ -168,7 +168,7 @@ const Auth = () => {
         <CardContent className="pt-4">
           <form onSubmit={handleSignIn} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="login-email" className="text-foreground font-medium">Email</Label>
+              <Label htmlFor="login-email" className="text-card-foreground font-medium">Email</Label>
               <Input
                 id="login-email"
                 type="email"
@@ -177,11 +177,11 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
                 required
-                className="h-11 border-2 focus:border-primary transition-colors"
+                className="h-10"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="login-password" className="text-foreground font-medium">Password</Label>
+              <Label htmlFor="login-password" className="text-card-foreground font-medium">Password</Label>
               <Input
                 id="login-password"
                 type="password"
@@ -190,10 +190,10 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={loading}
                 required
-                className="h-11 border-2 focus:border-primary transition-colors"
+                className="h-10"
               />
             </div>
-            <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={loading}>
+            <Button type="submit" className="w-full h-10 text-sm font-semibold" disabled={loading}>
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
