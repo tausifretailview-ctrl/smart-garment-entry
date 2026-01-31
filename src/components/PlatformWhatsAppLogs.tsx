@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, startOfDay, endOfDay, subDays } from "date-fns";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   MessageSquare, 
@@ -40,7 +50,9 @@ import {
   FileText,
   Download,
   Calendar,
-  Building2
+  Building2,
+  Trash2,
+  BarChart3
 } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -68,6 +80,17 @@ interface Organization {
   name: string;
 }
 
+interface OrgStats {
+  organization_id: string;
+  organization_name: string;
+  total_count: number;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  failed_count: number;
+  pending_count: number;
+}
+
 export const PlatformWhatsAppLogs = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -75,6 +98,8 @@ export const PlatformWhatsAppLogs = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLog, setSelectedLog] = useState<WhatsAppLog | null>(null);
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [showCleanupConfirm, setShowCleanupConfirm] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch all organizations
   const { data: organizations = [] } = useQuery({
@@ -89,7 +114,22 @@ export const PlatformWhatsAppLogs = () => {
     },
   });
 
-  // Fetch all WhatsApp logs across organizations
+  // Fetch aggregated stats from DB function (all-time stats per organization)
+  const { data: orgStats = [], isLoading: statsLoading, refetch: refetchStats } = useQuery({
+    queryKey: ['platform-whatsapp-org-stats'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_org_whatsapp_stats');
+      if (error) throw error;
+      return (data || []) as OrgStats[];
+    },
+    staleTime: 60000,
+  });
+
+  // Calculate max date (only allow last 2 days)
+  const minDate = format(subDays(new Date(), 2), 'yyyy-MM-dd');
+  const maxDate = format(new Date(), 'yyyy-MM-dd');
+
+  // Fetch WhatsApp logs (only last 2 days available)
   const { data: logs = [], isLoading, refetch } = useQuery({
     queryKey: ['platform-whatsapp-logs', statusFilter, typeFilter, orgFilter, selectedDate],
     queryFn: async () => {
@@ -131,36 +171,25 @@ export const PlatformWhatsAppLogs = () => {
     enabled: organizations.length > 0,
   });
 
-  // Calculate stats per organization
-  const orgStats = useMemo(() => {
-    const statsMap = new Map<string, { total: number; sent: number; delivered: number; read: number; failed: number; pending: number }>();
-    
-    logs.forEach(log => {
-      const orgId = log.organization_id;
-      if (!statsMap.has(orgId)) {
-        statsMap.set(orgId, { total: 0, sent: 0, delivered: 0, read: 0, failed: 0, pending: 0 });
-      }
-      const stats = statsMap.get(orgId)!;
-      stats.total++;
-      if (log.status === 'sent') stats.sent++;
-      else if (log.status === 'delivered') stats.delivered++;
-      else if (log.status === 'read') stats.read++;
-      else if (log.status === 'failed') stats.failed++;
-      else if (log.status === 'pending') stats.pending++;
-    });
-    
-    return Array.from(statsMap.entries()).map(([orgId, stats]) => {
-      const org = organizations.find(o => o.id === orgId);
-      return { 
-        organization_id: orgId, 
-        organization_name: org?.name || 'Unknown', 
-        ...stats 
-      };
-    });
-  }, [logs, organizations]);
+  // Cleanup old logs mutation
+  const cleanupMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc('aggregate_and_cleanup_whatsapp_logs');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Old logs cleaned up and aggregated successfully!');
+      queryClient.invalidateQueries({ queryKey: ['platform-whatsapp-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['platform-whatsapp-org-stats'] });
+      setShowCleanupConfirm(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to cleanup logs: ${error.message}`);
+    },
+  });
 
-  // Overall stats
-  const totalStats = useMemo(() => {
+  // Overall stats from today's logs
+  const dailyStats = useMemo(() => {
     return {
       total: logs.length,
       sent: logs.filter(l => l.status === 'sent').length,
@@ -170,6 +199,18 @@ export const PlatformWhatsAppLogs = () => {
       pending: logs.filter(l => l.status === 'pending').length,
     };
   }, [logs]);
+
+  // All-time totals from aggregated stats
+  const totalStats = useMemo(() => {
+    return orgStats.reduce((acc, org) => ({
+      total: acc.total + Number(org.total_count),
+      sent: acc.sent + Number(org.sent_count),
+      delivered: acc.delivered + Number(org.delivered_count),
+      read: acc.read + Number(org.read_count),
+      failed: acc.failed + Number(org.failed_count),
+      pending: acc.pending + Number(org.pending_count),
+    }), { total: 0, sent: 0, delivered: 0, read: 0, failed: 0, pending: 0 });
+  }, [orgStats]);
 
   const filteredLogs = logs.filter(log => {
     if (!searchQuery) return true;
@@ -247,14 +288,22 @@ export const PlatformWhatsAppLogs = () => {
         <div>
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-green-600" />
-            All Organizations WhatsApp Logs
+            WhatsApp Message Analytics
           </h3>
           <p className="text-sm text-muted-foreground">
-            View and monitor WhatsApp messages across all organizations
+            View aggregated stats per organization. Detailed logs retained for 2 days only.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button 
+            variant="outline" 
+            onClick={() => setShowCleanupConfirm(true)}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Cleanup Old Logs
+          </Button>
+          <Button variant="outline" onClick={() => { refetch(); refetchStats(); }}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
@@ -265,78 +314,28 @@ export const PlatformWhatsAppLogs = () => {
         </div>
       </div>
 
-      {/* Overall Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold">{totalStats.total}</div>
-              <div className="text-sm text-muted-foreground">Total</div>
+      {/* All-Time Organization Stats (from aggregated table) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            All-Time Message Stats by Organization
+          </CardTitle>
+          <CardDescription>
+            Aggregated message counts across all time (Total: {totalStats.total.toLocaleString()} messages)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {statsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600">{totalStats.sent}</div>
-              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                <Send className="h-3 w-3" /> Sent
-              </div>
+          ) : orgStats.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No message stats found</p>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-green-600">{totalStats.delivered}</div>
-              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                <CheckCircle className="h-3 w-3" /> Delivered
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-emerald-600">{totalStats.read}</div>
-              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                <Eye className="h-3 w-3" /> Read
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-yellow-600">{totalStats.pending}</div>
-              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                <Clock className="h-3 w-3" /> Pending
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-red-600">{totalStats.failed}</div>
-              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
-                <XCircle className="h-3 w-3" /> Failed
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Per Organization Stats */}
-      {orgStats.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Messages by Organization ({format(new Date(selectedDate), 'dd MMM yyyy')})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          ) : (
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader>
@@ -347,27 +346,87 @@ export const PlatformWhatsAppLogs = () => {
                     <TableHead className="text-center">Delivered</TableHead>
                     <TableHead className="text-center">Read</TableHead>
                     <TableHead className="text-center">Failed</TableHead>
-                    <TableHead className="text-center">Pending</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {orgStats.map((stat) => (
                     <TableRow key={stat.organization_id}>
                       <TableCell className="font-medium">{stat.organization_name}</TableCell>
-                      <TableCell className="text-center font-bold">{stat.total}</TableCell>
-                      <TableCell className="text-center text-blue-600">{stat.sent}</TableCell>
-                      <TableCell className="text-center text-green-600">{stat.delivered}</TableCell>
-                      <TableCell className="text-center text-emerald-600">{stat.read}</TableCell>
-                      <TableCell className="text-center text-red-600">{stat.failed}</TableCell>
-                      <TableCell className="text-center text-yellow-600">{stat.pending}</TableCell>
+                      <TableCell className="text-center font-bold">{Number(stat.total_count).toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-blue-600">{Number(stat.sent_count).toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-green-600">{Number(stat.delivered_count).toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-emerald-600">{Number(stat.read_count).toLocaleString()}</TableCell>
+                      <TableCell className="text-center text-red-600">{Number(stat.failed_count).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Daily Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold">{dailyStats.total}</div>
+              <div className="text-sm text-muted-foreground">Today's Total</div>
+            </div>
           </CardContent>
         </Card>
-      )}
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-blue-600">{dailyStats.sent}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <Send className="h-3 w-3" /> Sent
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-green-600">{dailyStats.delivered}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <CheckCircle className="h-3 w-3" /> Delivered
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-emerald-600">{dailyStats.read}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <Eye className="h-3 w-3" /> Read
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-yellow-600">{dailyStats.pending}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <Clock className="h-3 w-3" /> Pending
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-red-600">{dailyStats.failed}</div>
+              <div className="text-sm text-muted-foreground flex items-center justify-center gap-1">
+                <XCircle className="h-3 w-3" /> Failed
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filters */}
       <Card>
@@ -379,8 +438,11 @@ export const PlatformWhatsAppLogs = () => {
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
+                min={minDate}
+                max={maxDate}
                 className="w-[160px]"
               />
+              <span className="text-xs text-muted-foreground">(Last 2 days only)</span>
             </div>
             <Select value={orgFilter} onValueChange={setOrgFilter}>
               <SelectTrigger className="w-[200px]">
@@ -437,7 +499,10 @@ export const PlatformWhatsAppLogs = () => {
       {/* Logs Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Message History</CardTitle>
+          <CardTitle className="text-base">Message History (Last 2 Days)</CardTitle>
+          <CardDescription>
+            Detailed logs are only available for the last 2 days. Older logs are aggregated into statistics.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -447,7 +512,7 @@ export const PlatformWhatsAppLogs = () => {
           ) : filteredLogs.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No messages found</p>
+              <p>No messages found for this date</p>
             </div>
           ) : (
             <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -573,6 +638,40 @@ export const PlatformWhatsAppLogs = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cleanup Confirmation Dialog */}
+      <AlertDialog open={showCleanupConfirm} onOpenChange={setShowCleanupConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cleanup Old WhatsApp Logs?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will aggregate all logs older than 2 days into summary statistics and delete the detailed logs.
+              The aggregated counts will be preserved in the stats table for reporting.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => cleanupMutation.mutate()}
+              disabled={cleanupMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {cleanupMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cleaning up...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Cleanup Logs
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

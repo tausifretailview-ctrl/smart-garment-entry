@@ -3976,6 +3976,56 @@ export type Database = {
           },
         ]
       }
+      whatsapp_message_stats: {
+        Row: {
+          created_at: string
+          delivered_count: number
+          failed_count: number
+          id: string
+          organization_id: string
+          pending_count: number
+          read_count: number
+          sent_count: number
+          stat_date: string
+          total_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          organization_id: string
+          pending_count?: number
+          read_count?: number
+          sent_count?: number
+          stat_date: string
+          total_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delivered_count?: number
+          failed_count?: number
+          id?: string
+          organization_id?: string
+          pending_count?: number
+          read_count?: number
+          sent_count?: number
+          stat_date?: string
+          total_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_message_stats_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       whatsapp_messages: {
         Row: {
           conversation_id: string
@@ -4129,6 +4179,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      aggregate_and_cleanup_whatsapp_logs: { Args: never; Returns: undefined }
       check_purchase_stock_dependencies: {
         Args: { p_bill_id: string }
         Returns: {
@@ -4217,6 +4268,19 @@ export type Database = {
       generate_voucher_number: {
         Args: { p_date?: string; p_type: string }
         Returns: string
+      }
+      get_org_whatsapp_stats: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          delivered_count: number
+          failed_count: number
+          organization_id: string
+          organization_name: string
+          pending_count: number
+          read_count: number
+          sent_count: number
+          total_count: number
+        }[]
       }
       get_product_relations: {
         Args: { p_product_id: string }
