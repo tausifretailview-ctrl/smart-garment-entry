@@ -27,6 +27,7 @@ interface StockItem {
   supplier_name: string;
   supplier_invoice_no: string;
   category: string;
+  department: string;
 }
 
 interface StockMovement {
@@ -84,9 +85,12 @@ export default function StockAnalysis() {
       }
 
       const searchValue = searchTerm.trim();
+      
+      // Split search into multiple terms for multi-field matching
+      const searchTerms = searchValue.split(/[\s,\-]+/).filter(t => t.length > 0);
 
-      // Fetch product variants with search filter - search by barcode, product_name, brand, size or color
-      const { data: variantsData, error: variantsError } = await supabase
+      // Build query - fetch all active variants first, then filter
+      let query = supabase
         .from("product_variants")
         .select(`
           id,
@@ -102,6 +106,7 @@ export default function StockAnalysis() {
             brand,
             color,
             category,
+            style,
             product_type,
             deleted_at
           )
@@ -110,14 +115,45 @@ export default function StockAnalysis() {
         .eq("active", true)
         .is("deleted_at", null)
         .is("products.deleted_at", null)
-        .neq("products.product_type", "service")
-        .or(`barcode.ilike.%${searchValue}%,products.product_name.ilike.%${searchValue}%,products.brand.ilike.%${searchValue}%,size.ilike.%${searchValue}%,color.ilike.%${searchValue}%`)
+        .neq("products.product_type", "service");
+
+      // If search has only one term, use simple OR query
+      // If multiple terms, we'll fetch more and filter client-side
+      if (searchTerms.length === 1) {
+        const term = searchTerms[0];
+        query = query.or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%,products.brand.ilike.%${term}%,products.category.ilike.%${term}%,products.style.ilike.%${term}%,size.ilike.%${term}%,color.ilike.%${term}%`);
+      } else {
+        // For multi-term search, match first term to narrow results, filter rest client-side
+        const firstTerm = searchTerms[0];
+        query = query.or(`barcode.ilike.%${firstTerm}%,products.product_name.ilike.%${firstTerm}%,products.brand.ilike.%${firstTerm}%,products.category.ilike.%${firstTerm}%,products.style.ilike.%${firstTerm}%,size.ilike.%${firstTerm}%,color.ilike.%${firstTerm}%`);
+      }
+
+      const { data: variantsData, error: variantsError } = await query
         .order("stock_qty", { ascending: true })
-        .limit(500);
+        .limit(1000);
 
       if (variantsError) throw variantsError;
 
-      const variantIds = variantsData?.map(v => v.id) || [];
+      // Filter for multi-term matching: each term must match at least one field
+      let filteredVariants = variantsData || [];
+      if (searchTerms.length > 1) {
+        filteredVariants = filteredVariants.filter((item: any) => {
+          const searchableText = [
+            item.barcode || '',
+            item.products?.product_name || '',
+            item.products?.brand || '',
+            item.products?.category || '',
+            item.products?.style || '',
+            item.size || '',
+            item.color || item.products?.color || ''
+          ].join(' ').toLowerCase();
+          
+          // Each search term must be found somewhere in the searchable text
+          return searchTerms.every(term => searchableText.includes(term.toLowerCase()));
+        });
+      }
+
+      const variantIds = filteredVariants.map((v: any) => v.id);
 
       // Only fetch movements and batch if we have variants
       if (variantIds.length > 0) {
@@ -174,7 +210,7 @@ export default function StockAnalysis() {
           return acc;
         }, {});
 
-        const formattedData = variantsData?.map((item: any) => {
+        const formattedData = filteredVariants.map((item: any) => {
           const movements = variantMovements[item.id] || { purchase: 0, purchaseReturn: 0, sales: 0 };
           const supplierInfo = variantSuppliers[item.id] || { supplier_name: '', supplier_invoice_no: '' };
           const netSalesQty = Math.max(0, movements.sales);
@@ -196,8 +232,9 @@ export default function StockAnalysis() {
             supplier_name: supplierInfo.supplier_name || "",
             supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
             category: item.products?.category || "",
+            department: item.products?.style || "",
           };
-        }) || [];
+        });
 
         setStockItems(formattedData);
       } else {
