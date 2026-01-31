@@ -34,6 +34,7 @@ interface StockItem {
   supplier_name: string;
   supplier_invoice_no: string;
   category: string;
+  department: string;
 }
 
 
@@ -65,7 +66,7 @@ export default function StockReport() {
   });
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [brandFilter, setBrandFilter] = useState<string>("all");
-  const [colorFilter, setColorFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
@@ -74,7 +75,7 @@ export default function StockReport() {
   // Cached filter options from last search
   const [filterOptions, setFilterOptions] = useState({
     brands: [] as string[],
-    colors: [] as string[],
+    departments: [] as string[],
     sizes: [] as string[],
     categories: [] as string[],
     suppliers: [] as string[],
@@ -169,7 +170,7 @@ export default function StockReport() {
     
     // Check if any filter is applied
     const hasFilters = searchTerm.trim() || productNameFilter.trim() || 
-      brandFilter !== "all" || colorFilter !== "all" || sizeFilter !== "all" || 
+      brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || 
       categoryFilter !== "all" || supplierFilter !== "all" || 
       supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
     
@@ -207,6 +208,7 @@ export default function StockReport() {
               brand,
               color,
               category,
+              style,
               product_type,
               deleted_at
             )
@@ -364,13 +366,14 @@ export default function StockReport() {
           supplier_name: supplierInfo.supplier_name || "",
           supplier_invoice_no: supplierInfo.supplier_invoice_no || "",
           category: item.products?.category || "",
+          department: item.products?.style || "",
         };
       }) || [];
 
       // Update filter options from fetched data
       setFilterOptions({
         brands: [...new Set(formattedData.map(i => i.brand).filter(Boolean))].sort() as string[],
-        colors: [...new Set(formattedData.map(i => i.color).filter(Boolean))].sort() as string[],
+        departments: [...new Set(formattedData.map(i => i.department).filter(Boolean))].sort() as string[],
         sizes: [...new Set(formattedData.map(i => i.size).filter(Boolean))].sort() as string[],
         categories: [...new Set(formattedData.map(i => i.category).filter(Boolean))].sort() as string[],
         suppliers: [...new Set(formattedData.map(i => i.supplier_name).filter(Boolean))].sort() as string[],
@@ -383,7 +386,7 @@ export default function StockReport() {
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
+  }, [currentOrganization?.id, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, categoryFilter, supplierFilter, supplierInvoiceFilter, stockStatusFilter]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -430,8 +433,8 @@ export default function StockReport() {
       // Brand filter
       if (brandFilter !== "all" && item.brand !== brandFilter) return false;
       
-      // Color filter
-      if (colorFilter !== "all" && item.color !== colorFilter) return false;
+      // Department filter
+      if (departmentFilter !== "all" && item.department !== departmentFilter) return false;
       
       // Size filter
       if (sizeFilter !== "all" && item.size !== sizeFilter) return false;
@@ -452,7 +455,7 @@ export default function StockReport() {
       
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
+  }, [stockItems, searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter, lowStockThreshold, oldBarcodeVariantMap]);
 
 
   // Size-wise stock report data
@@ -515,13 +518,13 @@ export default function StockReport() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, productNameFilter, brandFilter, colorFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
+  }, [searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
     setProductNameFilter("");
     setBrandFilter("all");
-    setColorFilter("all");
+    setDepartmentFilter("all");
     setSizeFilter("all");
     setCategoryFilter("all");
     setSupplierFilter("all");
@@ -531,7 +534,7 @@ export default function StockReport() {
     setHasSearched(false);
   };
 
-  const hasActiveFilters = searchTerm || productNameFilter || brandFilter !== "all" || colorFilter !== "all" || sizeFilter !== "all" || categoryFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
+  const hasActiveFilters = searchTerm || productNameFilter || brandFilter !== "all" || departmentFilter !== "all" || sizeFilter !== "all" || categoryFilter !== "all" || supplierFilter !== "all" || supplierInvoiceFilter !== "all" || stockStatusFilter !== "all";
 
   // Export Size-wise to Excel
   const exportSizeWiseToExcel = () => {
@@ -707,15 +710,15 @@ export default function StockReport() {
             </Select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Color</label>
-            <Select value={colorFilter} onValueChange={setColorFilter}>
+            <label className="text-xs font-medium text-muted-foreground">Department</label>
+            <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
               <SelectTrigger className="h-9 !bg-white !text-gray-900">
-                <SelectValue placeholder="All Colors" />
+                <SelectValue placeholder="All Departments" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Colors</SelectItem>
-                {filterOptions.colors.map(color => (
-                  <SelectItem key={color} value={color}>{color}</SelectItem>
+                <SelectItem value="all">All Departments</SelectItem>
+                {filterOptions.departments.map(dept => (
+                  <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
