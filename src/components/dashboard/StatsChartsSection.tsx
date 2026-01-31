@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
-import { Card, CardContent } from "@/components/ui/card";
 
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
@@ -124,69 +123,58 @@ export const StatsChartsSection = () => {
     purchases: purchaseData?.[index]?.purchases || 0,
   })) || [];
 
+  // Use semantic primary color for consistent theming
+  const primaryColor = "hsl(var(--primary))";
+  const successColor = "hsl(var(--success))";
+  const accentColor = "hsl(var(--accent))";
+
   return (
-    <div className="space-y-4 animate-fade-in" style={{ animationDelay: "0.5s" }}>
+    <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales vs Purchase Comparison */}
-        <Card className="border bg-card shadow-sm">
-          <CardContent className="p-4">
-            <AnimatedChart
-              title="Sales vs Purchases (Last 7 Days)"
-              data={combinedData}
-              type="bar"
-              dataKeys={[
-                { key: "sales", color: "#2563eb", name: "Sales" },
-                { key: "purchases", color: "#16a34a", name: "Purchases" },
-              ]}
-              height={280}
-            />
-          </CardContent>
-        </Card>
+        <AnimatedChart
+          title="Sales vs Purchases (Last 7 Days)"
+          data={combinedData}
+          type="bar"
+          dataKeys={[
+            { key: "sales", color: primaryColor, name: "Sales" },
+            { key: "purchases", color: successColor, name: "Purchases" },
+          ]}
+          height={260}
+        />
 
         {/* Sales Trend */}
-        <Card className="border bg-card shadow-sm">
-          <CardContent className="p-4">
-            <AnimatedChart
-              title="Sales Trend (Last 7 Days)"
-              data={salesData || []}
-              type="area"
-              dataKeys={[
-                { key: "sales", color: "#2563eb", name: "Sales Amount" },
-              ]}
-              height={280}
-            />
-          </CardContent>
-        </Card>
+        <AnimatedChart
+          title="Sales Trend (Last 7 Days)"
+          data={salesData || []}
+          type="area"
+          dataKeys={[
+            { key: "sales", color: primaryColor, name: "Sales Amount" },
+          ]}
+          height={260}
+        />
 
         {/* Top Products by Stock */}
-        <Card className="border bg-card shadow-sm">
-          <CardContent className="p-4">
-            <AnimatedChart
-              title="Top 5 Products by Stock Quantity"
-              data={topProductsData || []}
-              type="bar"
-              dataKeys={[
-                { key: "stock", color: "#6366f1", name: "Stock Qty" },
-              ]}
-              height={280}
-            />
-          </CardContent>
-        </Card>
+        <AnimatedChart
+          title="Top 5 Products by Stock Quantity"
+          data={topProductsData || []}
+          type="bar"
+          dataKeys={[
+            { key: "stock", color: accentColor, name: "Stock Qty" },
+          ]}
+          height={260}
+        />
 
         {/* Top Products by Value */}
-        <Card className="border bg-card shadow-sm">
-          <CardContent className="p-4">
-            <AnimatedChart
-              title="Top 5 Products by Stock Value"
-              data={topProductsData || []}
-              type="line"
-              dataKeys={[
-                { key: "value", color: "#2563eb", name: "Stock Value (₹)" },
-              ]}
-              height={280}
-            />
-          </CardContent>
-        </Card>
+        <AnimatedChart
+          title="Top 5 Products by Stock Value"
+          data={topProductsData || []}
+          type="line"
+          dataKeys={[
+            { key: "value", color: primaryColor, name: "Stock Value (₹)" },
+          ]}
+          height={260}
+        />
       </div>
     </div>
   );
