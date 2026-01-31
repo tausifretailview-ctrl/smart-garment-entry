@@ -58,7 +58,7 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Windows-style Metric Card Component
+// Dashboard Metric Card using design system tokens
 const AnimatedMetricCard = ({
   title,
   value,
@@ -81,29 +81,52 @@ const AnimatedMetricCard = ({
     formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
   });
 
+  // Map accent colors to semantic status classes for dark mode compatibility
+  const getAccentClasses = (color: string) => {
+    const colorMap: Record<string, { border: string; bg: string; text: string }> = {
+      'bg-blue-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-blue-600': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-green-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-green-600': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-emerald-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-orange-500': { border: 'border-l-warning', bg: 'bg-warning/10', text: 'text-warning' },
+      'bg-amber-500': { border: 'border-l-warning', bg: 'bg-warning/10', text: 'text-warning' },
+      'bg-red-500': { border: 'border-l-destructive', bg: 'bg-destructive/10', text: 'text-destructive' },
+      'bg-pink-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-purple-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-violet-500': { border: 'border-l-accent', bg: 'bg-accent/10', text: 'text-accent' },
+      'bg-indigo-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-cyan-500': { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' },
+      'bg-teal-500': { border: 'border-l-success', bg: 'bg-success/10', text: 'text-success' },
+      'bg-slate-500': { border: 'border-l-muted-foreground', bg: 'bg-muted', text: 'text-muted-foreground' },
+    };
+    return colorMap[color] || { border: 'border-l-primary', bg: 'bg-primary/10', text: 'text-primary' };
+  };
+
+  const accentClasses = getAccentClasses(accentColor);
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="group relative" onClick={onClick}>
           <Card 
             className={cn(
-              "bg-card relative overflow-hidden border shadow-sm transition-all duration-200 cursor-pointer",
-              "hover:shadow-md hover:border-primary/30"
+              "bg-card relative overflow-hidden border border-border shadow-elevated transition-all duration-200 cursor-pointer",
+              "hover:shadow-md hover:border-primary/30",
+              "border-l-[3px]",
+              accentClasses.border
             )}
           >
-            {/* Colored left border accent */}
-            <div className={cn("absolute left-0 top-0 bottom-0 w-1", accentColor)} />
-            
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 pl-4">
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {title}
               </CardTitle>
-              <div className={cn("p-1.5 rounded-md", accentColor.replace('bg-', 'bg-').replace('-500', '-50').replace('-600', '-50'))}>
-                <Icon className={cn("h-4 w-4", accentColor.replace('bg-', 'text-'))} />
+              <div className={cn("p-1.5 rounded-md", accentClasses.bg)}>
+                <Icon className={cn("h-4 w-4", accentClasses.text)} />
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0 pl-4">
-              <div className="text-2xl font-semibold text-foreground tracking-tight">
+              <div className="text-2xl font-semibold text-card-foreground tracking-tight">
                 {displayValue}
               </div>
             </CardContent>
@@ -111,7 +134,7 @@ const AnimatedMetricCard = ({
         </div>
       </TooltipTrigger>
       {tooltip && (
-        <TooltipContent side="bottom" className="max-w-[200px]">
+        <TooltipContent side="bottom" className="bg-popover text-popover-foreground border-border max-w-[200px]">
           <p className="text-xs">{tooltip}</p>
         </TooltipContent>
       )}
@@ -638,11 +661,11 @@ const DashboardContent = () => {
     ];
 
     return (
-      <Card className="border shadow-sm h-fit">
-        <CardHeader className="bg-card border-b p-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
-            <div className="p-1.5 rounded-md bg-blue-50">
-              <Megaphone className="h-4 w-4 text-blue-500" />
+      <Card className="border border-border bg-card shadow-elevated h-fit">
+        <CardHeader className="bg-muted/30 border-b border-border p-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-card-foreground">
+            <div className="p-1.5 rounded-md bg-primary/10">
+              <Megaphone className="h-4 w-4 text-primary" />
             </div>
             New Updates
           </CardTitle>
@@ -653,13 +676,13 @@ const DashboardContent = () => {
               {updates.map((update, index) => (
                 <div key={index} className="border-b border-border pb-2 last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-semibold text-foreground">{update.version}</span>
+                    <span className="text-sm font-semibold text-card-foreground">{update.version}</span>
                     <span className="text-xs text-muted-foreground">{update.date}</span>
                   </div>
                   <ul className="space-y-0.5">
                     {update.changes.map((change, changeIndex) => (
                       <li key={changeIndex} className="text-xs text-muted-foreground flex items-start gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                         {change}
                       </li>
                     ))}
@@ -675,7 +698,7 @@ const DashboardContent = () => {
 
   return (
     <TooltipProvider>
-    <div className="space-y-4">
+    <div className="space-y-4 bg-background min-h-full">
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
@@ -697,36 +720,36 @@ const DashboardContent = () => {
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing}
-            className="h-7 text-xs"
+            className="h-8 text-xs border-border bg-card hover:bg-muted"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isRefreshing && "animate-spin")} />
             Refresh
           </Button>
           
-          <div className="flex items-center gap-2 bg-card border rounded-md px-2 py-1 shadow-sm">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[100px] h-7 border-0 shadow-none text-xs">
+              <SelectTrigger className="w-[100px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-popover border-border">
                 <SelectItem value="monthly">Monthly</SelectItem>
                 <SelectItem value="quarterly">Quarterly</SelectItem>
                 <SelectItem value="yearly">Yearly</SelectItem>
                 <SelectItem value="all">All Time</SelectItem>
               </SelectContent>
             </Select>
-      {isLoading ? (
+            {isLoading ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
             ) : (
               <span className="text-xs font-medium text-primary">{dateLabel}</span>
             )}
           </div>
           <Button 
-            variant="outline" 
+            variant="default" 
             size="sm" 
             onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-            className="h-7 text-xs"
+            className="h-8 text-xs"
           >
             <TrendingUp className="h-3.5 w-3.5 mr-1" />
             Net Profit
@@ -736,7 +759,7 @@ const DashboardContent = () => {
       
       {/* Last Updated Indicator */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+        <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
       </div>
 
@@ -915,18 +938,18 @@ const DashboardContent = () => {
           {hasFieldSalesAccess && (
             <div>
               <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
-                <div className="h-1 w-8 bg-blue-500 rounded-full" />
+                <div className="h-1 w-8 bg-primary rounded-full" />
                 Field Sales App
               </h2>
-              <Card className="border shadow-sm border-l-4 border-l-orange-500">
+              <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
                 <CardHeader className="p-3 pb-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-md bg-orange-50">
-                      <Smartphone className="h-4 w-4 text-orange-500" />
+                    <div className="p-1.5 rounded-md bg-warning/10">
+                      <Smartphone className="h-4 w-4 text-warning" />
                     </div>
                     <div>
-                      <CardTitle className="text-sm text-foreground">Field Sales Mobile App</CardTitle>
-                      <CardDescription className="text-xs">
+                      <CardTitle className="text-sm text-card-foreground">Field Sales Mobile App</CardTitle>
+                      <CardDescription className="text-xs text-muted-foreground">
                         Welcome, {employeeName || "Salesman"}
                       </CardDescription>
                     </div>
@@ -946,7 +969,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/order/new")}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs border-border"
                     >
                       <ClipboardList className="mr-1 h-3 w-3" />
                       New Order
@@ -955,7 +978,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/customers")}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs border-border"
                     >
                       <MapPin className="mr-1 h-3 w-3" />
                       Customers
@@ -964,7 +987,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/outstanding")}
-                      className="h-8 text-xs"
+                      className="h-8 text-xs border-border"
                     >
                       <IndianRupee className="mr-1 h-3 w-3" />
                       Outstanding
@@ -985,27 +1008,27 @@ const DashboardContent = () => {
           
           {/* Customer Category Cards */}
           <div className="grid grid-cols-2 gap-2">
-            <Card className="border-l-4 border-l-amber-400 bg-card shadow-sm">
+            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-amber-500">5</div>
+                <div className="text-2xl font-bold text-warning">5</div>
                 <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-green-400 bg-card shadow-sm">
+            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-success">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-green-500">22</div>
+                <div className="text-2xl font-bold text-success">22</div>
                 <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-orange-400 bg-card shadow-sm">
+            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-orange-500">410</div>
+                <div className="text-2xl font-bold text-warning">410</div>
                 <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
               </CardContent>
             </Card>
-            <Card className="border-l-4 border-l-red-400 bg-card shadow-sm">
+            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-destructive">
               <CardContent className="p-3 text-center">
-                <div className="text-2xl font-bold text-red-500">6221</div>
+                <div className="text-2xl font-bold text-destructive">6221</div>
                 <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
               </CardContent>
             </Card>

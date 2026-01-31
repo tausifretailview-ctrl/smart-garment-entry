@@ -25,8 +25,8 @@ export const AnimatedChart = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-elevated">
-          <p className="font-semibold text-foreground mb-2">{label}</p>
+        <div className="bg-popover/95 backdrop-blur-sm border border-border rounded-lg p-3 shadow-elevated">
+          <p className="font-semibold text-popover-foreground mb-2">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
               {entry.name}: <span className="font-bold">{entry.value.toLocaleString()}</span>
@@ -49,30 +49,31 @@ export const AnimatedChart = ({
         <defs>
           {dataKeys.map((item, index) => (
             <linearGradient key={item.key} id={`gradient-${index}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={item.color} stopOpacity={0.8} />
-              <stop offset="95%" stopColor={item.color} stopOpacity={0.1} />
+              <stop offset="5%" stopColor={item.color} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={item.color} stopOpacity={0.05} />
             </linearGradient>
           ))}
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
         <XAxis 
           dataKey="name" 
           stroke="hsl(var(--muted-foreground))"
-          fontSize={12}
+          fontSize={11}
           tickLine={false}
           axisLine={false}
         />
         <YAxis 
           stroke="hsl(var(--muted-foreground))"
-          fontSize={12}
+          fontSize={11}
           tickLine={false}
           axisLine={false}
           tickFormatter={(value) => `${value.toLocaleString()}`}
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend 
-          wrapperStyle={{ paddingTop: "20px" }}
+          wrapperStyle={{ paddingTop: "16px", fontSize: "12px" }}
           iconType="circle"
+          iconSize={8}
         />
       </>
     );
@@ -82,14 +83,13 @@ export const AnimatedChart = ({
         return (
           <BarChart {...commonProps}>
             {chartConfig}
-            {dataKeys.map((item, index) => (
+            {dataKeys.map((item) => (
               <Bar
                 key={item.key}
                 dataKey={item.key}
-                fill={`url(#gradient-${index})`}
-                radius={[8, 8, 0, 0]}
-                animationDuration={1000}
-                animationBegin={index * 100}
+                fill={item.color}
+                radius={[4, 4, 0, 0]}
+                animationDuration={800}
                 name={item.name}
               />
             ))}
@@ -107,8 +107,7 @@ export const AnimatedChart = ({
                 stroke={item.color}
                 fill={`url(#gradient-${index})`}
                 strokeWidth={2}
-                animationDuration={1500}
-                animationBegin={index * 100}
+                animationDuration={1000}
                 name={item.name}
               />
             ))}
@@ -118,17 +117,16 @@ export const AnimatedChart = ({
         return (
           <LineChart {...commonProps}>
             {chartConfig}
-            {dataKeys.map((item, index) => (
+            {dataKeys.map((item) => (
               <Line
                 key={item.key}
                 type="monotone"
                 dataKey={item.key}
                 stroke={item.color}
-                strokeWidth={3}
-                dot={{ fill: item.color, r: 4 }}
-                activeDot={{ r: 6, stroke: item.color, strokeWidth: 2 }}
-                animationDuration={1500}
-                animationBegin={index * 100}
+                strokeWidth={2}
+                dot={{ fill: item.color, r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 5, stroke: item.color, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                animationDuration={1000}
                 name={item.name}
               />
             ))}
@@ -138,35 +136,21 @@ export const AnimatedChart = ({
   };
 
   return (
-    <div className="group relative animate-fade-in">
-      {/* Gradient Border Effect */}
-      <div className="absolute -inset-0.5 bg-gradient-to-r from-primary via-secondary to-accent rounded-2xl opacity-0 group-hover:opacity-100 blur-sm transition-all duration-500" />
+    <Card className="border border-border bg-card shadow-elevated overflow-hidden">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2 text-card-foreground">
+          <div className="p-1.5 rounded-md bg-primary/10">
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </div>
+          {title}
+        </CardTitle>
+      </CardHeader>
       
-      <Card className="relative border-2 border-transparent group-hover:border-primary/20 transition-all duration-500 group-hover:shadow-elevated overflow-hidden">
-        {/* Shimmer Effect */}
-        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-        
-        <CardHeader className="relative">
-          <CardTitle className="text-lg font-display font-bold flex items-center gap-3 group-hover:text-primary transition-colors duration-300">
-            <div className="p-2 rounded-lg bg-gradient-to-br from-primary/10 to-secondary/10 group-hover:scale-110 transition-transform duration-300">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            {title}
-          </CardTitle>
-        </CardHeader>
-        
-        <CardContent className="relative">
-          <ResponsiveContainer width="100%" height={height}>
-            {renderChart()}
-          </ResponsiveContainer>
-          
-          {/* Animated Bottom Bar */}
-          <div className="mt-4 h-1 w-0 group-hover:w-full bg-gradient-to-r from-primary via-secondary to-accent rounded-full transition-all duration-500" />
-        </CardContent>
-        
-        {/* Corner Accent */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-primary/5 to-transparent rounded-bl-[100px] opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      </Card>
-    </div>
+      <CardContent className="pt-0">
+        <ResponsiveContainer width="100%" height={height}>
+          {renderChart()}
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
   );
 };
