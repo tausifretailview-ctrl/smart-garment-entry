@@ -217,6 +217,11 @@ export default function StockReport() {
           .is("products.deleted_at", null)
           .neq("products.product_type", "service");
         
+        // Apply search filter at query level - search by barcode, product_name or brand
+        if (searchTerm.trim()) {
+          query = query.or(`barcode.ilike.%${searchTerm}%,products.product_name.ilike.%${searchTerm}%,products.brand.ilike.%${searchTerm}%`);
+        }
+        
         // Apply stock status filter at query level for efficiency
         if (stockStatusFilter === "out") {
           query = query.eq("stock_qty", 0);
