@@ -58,12 +58,12 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Animated Metric Card Component
+// Windows-style Metric Card Component
 const AnimatedMetricCard = ({
   title,
   value,
   icon: Icon,
-  bgColor,
+  accentColor,
   onClick,
   tooltip,
   isCurrency = false,
@@ -71,7 +71,7 @@ const AnimatedMetricCard = ({
   title: string;
   value: number;
   icon: any;
-  bgColor: string;
+  accentColor: string;
   onClick?: () => void;
   tooltip?: string;
   isCurrency?: boolean;
@@ -87,20 +87,23 @@ const AnimatedMetricCard = ({
         <div className="group relative" onClick={onClick}>
           <Card 
             className={cn(
-              `${bgColor} relative overflow-hidden border-0 shadow-sm transition-all duration-300 cursor-pointer`,
-              "group-hover:shadow-md group-hover:scale-[1.02]"
+              "bg-card relative overflow-hidden border shadow-sm transition-all duration-200 cursor-pointer",
+              "hover:shadow-md hover:border-primary/30"
             )}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-2">
-              <CardTitle className="text-sm font-bold text-foreground">
+            {/* Colored left border accent */}
+            <div className={cn("absolute left-0 top-0 bottom-0 w-1", accentColor)} />
+            
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 pl-4">
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {title}
               </CardTitle>
-              <div className="p-2 rounded-lg bg-white/20">
-                <Icon className="h-4 w-4 text-white" />
+              <div className={cn("p-1.5 rounded-md", accentColor.replace('bg-', 'bg-').replace('-500', '-50').replace('-600', '-50'))}>
+                <Icon className={cn("h-4 w-4", accentColor.replace('bg-', 'text-'))} />
               </div>
             </CardHeader>
-            <CardContent className="p-3 pt-0">
-              <div className="text-xl font-bold text-foreground">
+            <CardContent className="p-3 pt-0 pl-4">
+              <div className="text-2xl font-semibold text-foreground tracking-tight">
                 {displayValue}
               </div>
             </CardContent>
@@ -544,6 +547,15 @@ const DashboardContent = () => {
   const NewUpdatesPanel = () => {
     const updates = [
       {
+        version: "v1.2.7",
+        date: "31/01/2026",
+        changes: [
+          "Windows Native UI redesign - WinUI/Fluent style",
+          "Clean white dashboard cards with accent borders",
+          "Professional enterprise color system"
+        ]
+      },
+      {
         version: "v1.2.6",
         date: "29/01/2026",
         changes: [
@@ -626,10 +638,12 @@ const DashboardContent = () => {
     ];
 
     return (
-      <Card className="border-0 shadow-md h-fit">
-        <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white p-3 rounded-t-lg">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Megaphone className="h-4 w-4" />
+      <Card className="border shadow-sm h-fit">
+        <CardHeader className="bg-card border-b p-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground">
+            <div className="p-1.5 rounded-md bg-blue-50">
+              <Megaphone className="h-4 w-4 text-blue-500" />
+            </div>
             New Updates
           </CardTitle>
         </CardHeader>
@@ -639,13 +653,13 @@ const DashboardContent = () => {
               {updates.map((update, index) => (
                 <div key={index} className="border-b border-border pb-2 last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-sm font-bold text-foreground">{update.version}</span>
+                    <span className="text-sm font-semibold text-foreground">{update.version}</span>
                     <span className="text-xs text-muted-foreground">{update.date}</span>
                   </div>
                   <ul className="space-y-0.5">
                     {update.changes.map((change, changeIndex) => (
                       <li key={changeIndex} className="text-xs text-muted-foreground flex items-start gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 mt-1.5 flex-shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
                         {change}
                       </li>
                     ))}
@@ -737,7 +751,7 @@ const DashboardContent = () => {
               title="Total Sales"
               value={salesData?.total || 0}
               icon={DollarSign}
-              bgColor="bg-gradient-to-br from-blue-300 to-blue-400"
+              accentColor="bg-blue-500"
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
               isCurrency
@@ -746,7 +760,7 @@ const DashboardContent = () => {
               title="Invoices"
               value={salesData?.count || 0}
               icon={FileText}
-              bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
+              accentColor="bg-orange-500"
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Number of sales invoices generated. Click to view all invoices."
             />
@@ -754,7 +768,7 @@ const DashboardContent = () => {
               title="Sold Qty"
               value={salesData?.soldQty || 0}
               icon={ShoppingCart}
-              bgColor="bg-gradient-to-br from-green-300 to-green-400"
+              accentColor="bg-green-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items sold. Click to view Stock Report."
             />
@@ -762,7 +776,7 @@ const DashboardContent = () => {
               title="S/R Amount"
               value={saleReturnData?.total || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-yellow-300 to-yellow-400"
+              accentColor="bg-amber-500"
               onClick={() => navigate("/sale-return-dashboard")}
               tooltip="Total sale return amount. Click to view Sale Returns."
               isCurrency
@@ -771,7 +785,7 @@ const DashboardContent = () => {
               title="S/R Qty"
               value={saleReturnData?.returnQty || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-gray-300 to-gray-400"
+              accentColor="bg-slate-500"
               onClick={() => navigate("/sale-return-dashboard")}
               tooltip="Total sale return quantity. Click to view Sale Returns."
             />
@@ -779,7 +793,7 @@ const DashboardContent = () => {
               title="Customers"
               value={customersCount || 0}
               icon={Users}
-              bgColor="bg-gradient-to-br from-pink-300 to-pink-400"
+              accentColor="bg-pink-500"
               onClick={() => navigate("/customers")}
               tooltip="Total registered customers. Click to manage customers."
             />
@@ -791,7 +805,7 @@ const DashboardContent = () => {
               title="Total Purchase"
               value={purchaseData?.total || 0}
               icon={ShoppingCart}
-              bgColor="bg-gradient-to-br from-emerald-300 to-emerald-400"
+              accentColor="bg-emerald-500"
               onClick={() => navigate("/purchase-bills")}
               tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
               isCurrency
@@ -800,7 +814,7 @@ const DashboardContent = () => {
               title="Bills"
               value={purchaseData?.count || 0}
               icon={FileText}
-              bgColor="bg-gradient-to-br from-teal-300 to-teal-400"
+              accentColor="bg-teal-500"
               onClick={() => navigate("/purchase-bills")}
               tooltip="Number of purchase bills recorded. Click to view all bills."
             />
@@ -808,7 +822,7 @@ const DashboardContent = () => {
               title="Purchase Qty"
               value={purchaseData?.purchaseQty || 0}
               icon={Package}
-              bgColor="bg-gradient-to-br from-orange-300 to-orange-400"
+              accentColor="bg-orange-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items purchased. Click to view Stock Report."
             />
@@ -816,7 +830,7 @@ const DashboardContent = () => {
               title="P/R Amount"
               value={purchaseReturnData?.total || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-yellow-300 to-yellow-400"
+              accentColor="bg-amber-500"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return amount. Click to view Purchase Returns."
               isCurrency
@@ -825,7 +839,7 @@ const DashboardContent = () => {
               title="P/R Qty"
               value={purchaseReturnData?.returnQty || 0}
               icon={RotateCcw}
-              bgColor="bg-gradient-to-br from-gray-300 to-gray-400"
+              accentColor="bg-slate-500"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return quantity. Click to view Purchase Returns."
             />
@@ -833,7 +847,7 @@ const DashboardContent = () => {
               title="Suppliers"
               value={suppliersCount || 0}
               icon={Store}
-              bgColor="bg-gradient-to-br from-purple-300 to-purple-400"
+              accentColor="bg-violet-500"
               onClick={() => navigate("/suppliers")}
               tooltip="Total registered suppliers. Click to manage suppliers."
             />
@@ -845,7 +859,7 @@ const DashboardContent = () => {
               title="Products"
               value={productsCount || 0}
               icon={Package}
-              bgColor="bg-gradient-to-br from-violet-300 to-violet-400"
+              accentColor="bg-indigo-500"
               onClick={() => navigate("/products")}
               tooltip="Total unique products in inventory. Click to view Product Dashboard."
             />
@@ -853,7 +867,7 @@ const DashboardContent = () => {
               title="Stock Qty"
               value={stockData || 0}
               icon={Package}
-              bgColor="bg-gradient-to-br from-indigo-300 to-indigo-400"
+              accentColor="bg-cyan-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total items in stock across all variants. Click to view Stock Report."
             />
@@ -861,7 +875,7 @@ const DashboardContent = () => {
               title="Stock Value"
               value={stockValue || 0}
               icon={DollarSign}
-              bgColor="bg-gradient-to-br from-fuchsia-300 to-fuchsia-400"
+              accentColor="bg-purple-500"
               onClick={() => navigate("/stock-report")}
               tooltip="Total value of current inventory at purchase price. Click to view details."
               isCurrency
@@ -871,7 +885,7 @@ const DashboardContent = () => {
                 title="Gross Profit"
                 value={profitData || 0}
                 icon={TrendingUp}
-                bgColor="bg-gradient-to-br from-green-400 to-green-500"
+                accentColor="bg-green-600"
                 onClick={() => navigate("/daily-cashier-report")}
                 tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
                 isCurrency
@@ -881,7 +895,7 @@ const DashboardContent = () => {
               title="Receivables"
               value={receivablesData?.total || 0}
               icon={AlertCircle}
-              bgColor="bg-gradient-to-br from-red-300 to-red-400"
+              accentColor="bg-red-500"
               onClick={() => navigate("/payments-dashboard")}
               tooltip={`Outstanding from ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
               isCurrency
@@ -890,7 +904,7 @@ const DashboardContent = () => {
               title="Cash Collection"
               value={cashCollection || 0}
               icon={DollarSign}
-              bgColor="bg-gradient-to-br from-cyan-300 to-cyan-400"
+              accentColor="bg-blue-600"
               onClick={() => navigate("/daily-cashier-report")}
               tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency
@@ -900,30 +914,30 @@ const DashboardContent = () => {
           {/* Field Sales App Section - Only visible for users with field sales access */}
           {hasFieldSalesAccess && (
             <div>
-              <h2 className="text-base font-bold mb-3 text-foreground flex items-center gap-2">
-                <div className="h-1 w-8 bg-gradient-to-r from-orange-500 to-transparent rounded-full" />
+              <h2 className="text-base font-semibold mb-3 text-foreground flex items-center gap-2">
+                <div className="h-1 w-8 bg-blue-500 rounded-full" />
                 Field Sales App
               </h2>
-              <Card className="bg-gradient-to-br from-orange-500 via-amber-500 to-yellow-500 border-0 shadow-md">
-                <CardHeader className="p-2 pb-1">
+              <Card className="border shadow-sm border-l-4 border-l-orange-500">
+                <CardHeader className="p-3 pb-2">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white/20">
-                      <Smartphone className="h-4 w-4 text-white" />
+                    <div className="p-1.5 rounded-md bg-orange-50">
+                      <Smartphone className="h-4 w-4 text-orange-500" />
                     </div>
                     <div>
-                      <CardTitle className="text-sm text-white">Field Sales Mobile App</CardTitle>
-                      <CardDescription className="text-xs text-white/80">
+                      <CardTitle className="text-sm text-foreground">Field Sales Mobile App</CardTitle>
+                      <CardDescription className="text-xs">
                         Welcome, {employeeName || "Salesman"}
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-2 pt-1">
+                <CardContent className="p-3 pt-1">
                   <div className="flex flex-wrap gap-2">
                     <Button 
                       size="sm"
                       onClick={() => navigate("/salesman")}
-                      className="h-7 text-xs bg-white/20 hover:bg-white/30 text-white border-0"
+                      className="h-8 text-xs"
                     >
                       <Smartphone className="mr-1 h-3 w-3" />
                       Open App
@@ -932,7 +946,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/order/new")}
-                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                      className="h-8 text-xs"
                     >
                       <ClipboardList className="mr-1 h-3 w-3" />
                       New Order
@@ -941,7 +955,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/customers")}
-                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                      className="h-8 text-xs"
                     >
                       <MapPin className="mr-1 h-3 w-3" />
                       Customers
@@ -950,7 +964,7 @@ const DashboardContent = () => {
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/outstanding")}
-                      className="h-7 text-xs bg-white/10 hover:bg-white/20 text-white border-white/30"
+                      className="h-8 text-xs"
                     >
                       <IndianRupee className="mr-1 h-3 w-3" />
                       Outstanding

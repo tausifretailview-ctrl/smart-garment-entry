@@ -128,15 +128,15 @@ export const StatsChartsSection = () => {
     <div className="space-y-4 animate-fade-in" style={{ animationDelay: "0.5s" }}>
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Sales vs Purchase Comparison */}
-        <Card className="border border-border bg-card shadow-sm">
+        <Card className="border bg-card shadow-sm">
           <CardContent className="p-4">
             <AnimatedChart
               title="Sales vs Purchases (Last 7 Days)"
               data={combinedData}
               type="bar"
               dataKeys={[
-                { key: "sales", color: "#3b82f6", name: "Sales" },
-                { key: "purchases", color: "#10b981", name: "Purchases" },
+                { key: "sales", color: "#2563eb", name: "Sales" },
+                { key: "purchases", color: "#16a34a", name: "Purchases" },
               ]}
               height={280}
             />
@@ -144,14 +144,14 @@ export const StatsChartsSection = () => {
         </Card>
 
         {/* Sales Trend */}
-        <Card className="border border-border bg-card shadow-sm">
+        <Card className="border bg-card shadow-sm">
           <CardContent className="p-4">
             <AnimatedChart
               title="Sales Trend (Last 7 Days)"
               data={salesData || []}
               type="area"
               dataKeys={[
-                { key: "sales", color: "#22c55e", name: "Sales Amount" },
+                { key: "sales", color: "#2563eb", name: "Sales Amount" },
               ]}
               height={280}
             />
@@ -159,14 +159,14 @@ export const StatsChartsSection = () => {
         </Card>
 
         {/* Top Products by Stock */}
-        <Card className="border border-border bg-card shadow-sm">
+        <Card className="border bg-card shadow-sm">
           <CardContent className="p-4">
             <AnimatedChart
               title="Top 5 Products by Stock Quantity"
               data={topProductsData || []}
               type="bar"
               dataKeys={[
-                { key: "stock", color: "#8b5cf6", name: "Stock Qty" },
+                { key: "stock", color: "#6366f1", name: "Stock Qty" },
               ]}
               height={280}
             />
@@ -174,14 +174,14 @@ export const StatsChartsSection = () => {
         </Card>
 
         {/* Top Products by Value */}
-        <Card className="border border-border bg-card shadow-sm">
+        <Card className="border bg-card shadow-sm">
           <CardContent className="p-4">
             <AnimatedChart
               title="Top 5 Products by Stock Value"
               data={topProductsData || []}
               type="line"
               dataKeys={[
-                { key: "value", color: "#f59e0b", name: "Stock Value (₹)" },
+                { key: "value", color: "#2563eb", name: "Stock Value (₹)" },
               ]}
               height={280}
             />
