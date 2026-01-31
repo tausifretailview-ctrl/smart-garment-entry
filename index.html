@@ -43,13 +43,48 @@
 
   <body>
     <div id="root">
-      <!-- Loading fallback shown before React loads -->
-      <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;">
-        <div style="text-align:center;">
-          <div style="font-size:24px;margin-bottom:10px;">Loading...</div>
-          <div style="color:#94a3b8;">EzzyERP</div>
+      <!-- Professional Windows ERP Splash Screen -->
+      <div id="splash-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#F5F7FA;">
+        <!-- Logo Container -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:24px;">
+          <!-- Icon -->
+          <div style="width:80px;height:80px;background:#2563EB;border-radius:16px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+            <span style="color:white;font-size:40px;font-weight:600;letter-spacing:-2px;">E</span>
+          </div>
+          <!-- Brand Name -->
+          <div style="text-align:center;">
+            <div style="font-size:28px;font-weight:600;color:#0f172a;letter-spacing:-0.5px;">Ezzy ERP</div>
+            <div style="font-size:14px;color:#64748b;margin-top:6px;font-weight:400;">Smart Inventory & Billing</div>
+          </div>
+          <!-- Loading Indicator -->
+          <div style="margin-top:32px;display:flex;align-items:center;gap:8px;">
+            <div style="width:6px;height:6px;background:#2563EB;border-radius:50%;animation:pulse 1.2s ease-in-out infinite;"></div>
+            <div style="width:6px;height:6px;background:#2563EB;border-radius:50%;animation:pulse 1.2s ease-in-out 0.2s infinite;"></div>
+            <div style="width:6px;height:6px;background:#2563EB;border-radius:50%;animation:pulse 1.2s ease-in-out 0.4s infinite;"></div>
+          </div>
+        </div>
+        <!-- Footer -->
+        <div style="position:absolute;bottom:32px;text-align:center;">
+          <div style="font-size:11px;color:#94a3b8;">© 2025 Adtech ERP Solutions</div>
         </div>
       </div>
+      <style>
+        @keyframes pulse {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+        @media (prefers-color-scheme: dark) {
+          #splash-screen {
+            background: #0f172a !important;
+          }
+          #splash-screen > div > div:nth-child(2) > div:first-child {
+            color: #f1f5f9 !important;
+          }
+          #splash-screen > div > div:nth-child(2) > div:last-child {
+            color: #94a3b8 !important;
+          }
+        }
+      </style>
     </div>
     <noscript>
       <div style="padding:40px;text-align:center;font-family:Arial,sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;display:flex;align-items:center;justify-content:center;">
