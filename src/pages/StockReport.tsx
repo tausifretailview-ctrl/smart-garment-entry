@@ -507,6 +507,7 @@ export default function StockReport() {
   
   const totalStock = filteredStockItems.reduce((sum, item) => sum + item.stock_qty, 0);
   const totalStockValue = filteredStockItems.reduce((sum, item) => sum + (item.pur_price || 0) * item.stock_qty, 0);
+  const totalSaleValue = filteredStockItems.reduce((sum, item) => sum + (item.sale_price || 0) * item.stock_qty, 0);
 
   // Pagination calculations for All Stock tab
   const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
@@ -816,7 +817,7 @@ export default function StockReport() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 mb-6">
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
             <Card 
               className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
               onClick={() => setActiveTab("all")}
@@ -833,12 +834,23 @@ export default function StockReport() {
 
             <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-white/90">Stock Value</CardTitle>
+                <CardTitle className="text-sm font-medium text-white/90">Stock Value (Cost)</CardTitle>
                 <IndianRupee className="h-4 w-4 text-white" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white">₹{totalStockValue.toLocaleString('en-IN')}</div>
-                <p className="text-xs text-white/70">Inventory valuation</p>
+                <div className="text-2xl font-bold text-white">₹{Math.round(totalStockValue).toLocaleString('en-IN')}</div>
+                <p className="text-xs text-white/70">Purchase price valuation</p>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-white/90">Sale Value</CardTitle>
+                <IndianRupee className="h-4 w-4 text-white" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">₹{Math.round(totalSaleValue).toLocaleString('en-IN')}</div>
+                <p className="text-xs text-white/70">Sale price valuation</p>
               </CardContent>
             </Card>
           </div>
