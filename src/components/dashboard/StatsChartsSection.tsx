@@ -45,7 +45,8 @@ export const StatsChartsSection = () => {
       return salesByDay;
     },
     enabled: !!currentOrganization,
-    refetchInterval: 15000,
+    staleTime: 60000, // 1 minute stale time
+    refetchInterval: 120000, // 2 minutes (was 15s)
   });
 
   // Fetch last 7 days purchase data
@@ -86,7 +87,8 @@ export const StatsChartsSection = () => {
       return purchaseByDay;
     },
     enabled: !!currentOrganization,
-    refetchInterval: 15000,
+    staleTime: 60000, // 1 minute stale time
+    refetchInterval: 120000, // 2 minutes (was 15s)
   });
 
   // Fetch top 5 products by stock value
@@ -113,7 +115,8 @@ export const StatsChartsSection = () => {
       })) || [];
     },
     enabled: !!currentOrganization,
-    refetchInterval: 30000,
+    staleTime: 120000, // 2 minutes stale time
+    refetchInterval: 180000, // 3 minutes (was 30s)
   });
 
   // Combine sales and purchases for comparison

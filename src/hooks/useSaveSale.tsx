@@ -150,7 +150,6 @@ export const useSaveSale = () => {
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
-      console.log('Save already in progress (lock), skipping duplicate call');
       return null;
     }
     savingLockRef.current = true;
@@ -403,7 +402,6 @@ export const useSaveSale = () => {
 
             if (needsPdf) {
               try {
-                console.log('Starting PDF generation for invoice:', saleNumber);
                 
                 // Calculate tax amount
                 const taxAmount = saleData.items.reduce((sum, item) => {
@@ -445,22 +443,20 @@ export const useSaveSale = () => {
 
                 // Check if document header template is configured (bypasses 24h window)
                 if (whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name) {
-                  console.log('Using document header template for direct PDF delivery');
                   useDocumentHeaderTemplate = true;
                   documentHeaderTemplateName = whatsappSettings.invoice_document_template_name;
                   
                   // Generate base64 PDF for Meta upload
                   pdfBase64 = generateInvoicePdfBase64(pdfData);
-                  console.log('PDF base64 generated, length:', pdfBase64?.length);
                 } else {
                   // Use regular flow - upload to Supabase storage
-                  console.log('PDF data prepared, uploading to storage...');
                   documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
-                  console.log('Invoice PDF generated and uploaded:', documentUrl);
                 }
               } catch (pdfError: any) {
-                console.error('Failed to generate/upload invoice PDF:', pdfError?.message || pdfError);
-                // Don't fail the sale if PDF generation fails
+                // Don't fail the sale if PDF generation fails - only log in dev
+                if (import.meta.env.DEV) {
+                  console.error('Failed to generate/upload invoice PDF:', pdfError?.message || pdfError);
+                }
               }
             }
 
@@ -469,13 +465,6 @@ export const useSaveSale = () => {
             const effectiveTemplateName = useDocumentHeaderTemplate 
               ? null 
               : (whatsappSettings.invoice_template_name || null);
-
-            console.log('WhatsApp invoke params:', {
-              useDocumentHeaderTemplate,
-              documentHeaderTemplateName,
-              pdfBase64Length: pdfBase64?.length,
-              effectiveTemplateName,
-            });
 
             await supabase.functions.invoke('send-whatsapp', {
               body: {
@@ -497,7 +486,6 @@ export const useSaveSale = () => {
                 pdfBlob: pdfBase64 || null,
               }
             });
-            console.log('WhatsApp invoice notification sent');
           }
         } catch (whatsappError) {
           // Don't fail the sale if WhatsApp notification fails
@@ -539,7 +527,6 @@ export const useSaveSale = () => {
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
-      console.log('Update already in progress (lock), skipping duplicate call');
       return null;
     }
     savingLockRef.current = true;
@@ -709,7 +696,6 @@ export const useSaveSale = () => {
   const holdSale = async (saleData: SaleData) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
-      console.log('Hold already in progress (lock), skipping duplicate call');
       return null;
     }
     savingLockRef.current = true;
@@ -841,7 +827,6 @@ export const useSaveSale = () => {
   ) => {
     // Synchronous lock check - prevents duplicate saves from rapid clicks/keyboard
     if (savingLockRef.current) {
-      console.log('Resume already in progress (lock), skipping duplicate call');
       return null;
     }
     savingLockRef.current = true;

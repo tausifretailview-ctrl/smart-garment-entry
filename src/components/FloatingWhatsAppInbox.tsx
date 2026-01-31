@@ -33,7 +33,8 @@ export const FloatingWhatsAppInbox = () => {
       return data?.reduce((sum, conv) => sum + (conv.unread_count || 0), 0) || 0;
     },
     enabled: !!currentOrganization?.id,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    staleTime: 30000, // 30 seconds stale time
+    refetchInterval: 60000, // 1 minute (was 30s)
   });
 
   // Don't show if no permission or no org

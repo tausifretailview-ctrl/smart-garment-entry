@@ -174,11 +174,11 @@ const getDateRange = (type: DateRangeType) => {
   }
 };
 
-// Refresh intervals in milliseconds
+// Refresh intervals in milliseconds - optimized to reduce cloud usage
 const REFRESH_INTERVALS = {
-  FAST: 15000,    // 15 seconds - sales, purchase
-  MEDIUM: 30000,  // 30 seconds - stock, profit, receivables
-  SLOW: 60000,    // 60 seconds - counts
+  FAST: 60000,    // 1 minute - sales, purchase (was 15s)
+  MEDIUM: 120000, // 2 minutes - stock, profit, receivables (was 30s)
+  SLOW: 300000,   // 5 minutes - counts (was 60s)
 };
 
 const DashboardContent = () => {

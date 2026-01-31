@@ -58,7 +58,10 @@ export const useUserRoles = (organizationId?: string) => {
         setLoading(false);
         retryCountRef.current = 0; // Reset on success
       } catch (err: any) {
-        console.error("Error fetching roles:", err);
+        // Only log in development
+        if (import.meta.env.DEV) {
+          console.error("Error fetching roles:", err);
+        }
         
         // Retry on network/fetch errors with exponential backoff
         const isNetworkError = err?.message?.includes('fetch') || 
@@ -69,7 +72,6 @@ export const useUserRoles = (organizationId?: string) => {
         if (isNetworkError && retryCountRef.current < maxRetries) {
           retryCountRef.current++;
           const delay = 1000 * Math.pow(2, retryCountRef.current - 1); // 1s, 2s, 4s
-          console.log(`Retrying role fetch (attempt ${retryCountRef.current}/${maxRetries}) in ${delay}ms...`);
           setTimeout(fetchRoles, delay);
           return;
         }
