@@ -67,6 +67,7 @@ import AccountingReports from "./pages/AccountingReports";
 import NetProfitAnalysis from "./pages/NetProfitAnalysis";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
+import StockAnalysis from "./pages/StockAnalysis";
 import BulkProductUpdate from "./pages/BulkProductUpdate";
 import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
 import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
@@ -668,6 +669,16 @@ const App = () => {
                           <AccountingReports />
                         </Layout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <StockAnalysis />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
