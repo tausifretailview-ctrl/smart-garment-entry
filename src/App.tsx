@@ -58,6 +58,7 @@ import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
 import PublicPaymentPage from "./pages/PublicPaymentPage";
 import ItemWiseSalesReport from "./pages/ItemWiseSalesReport";
+import ItemWiseStockReport from "./pages/ItemWiseStockReport";
 import PriceHistoryReport from "./pages/PriceHistoryReport";
 import GSTSalePurchaseRegister from "./pages/GSTSalePurchaseRegister";
 import GSTReports from "./pages/GSTReports";
@@ -598,6 +599,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <ItemWiseSalesReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="item-wise-stock"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ItemWiseStockReport />
                       </Layout>
                     </ProtectedRoute>
                   }
