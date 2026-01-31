@@ -652,7 +652,7 @@ const PurchaseBillDashboard = () => {
 
       // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems } 
+        state: { purchaseItems: barcodeItems, billId: billId } 
       });
       
     } catch (error: any) {
