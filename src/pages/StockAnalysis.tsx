@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, TrendingDown, History, Search, Loader2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Input } from "@/components/ui/input";
+import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Button } from "@/components/ui/button";
 
 interface StockItem {
@@ -318,16 +318,17 @@ export default function StockAnalysis() {
 
       {/* Search */}
       <div className="flex gap-2 max-w-lg">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by product name, brand, or barcode..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="pl-10"
-          />
-        </div>
+        <ProductSearchDropdown
+          value={searchTerm}
+          onChange={setSearchTerm}
+          onSelect={(product) => {
+            setSearchTerm(product.product_name);
+            handleSearch();
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Search by product name, brand, or barcode..."
+          className="flex-1"
+        />
         <Button onClick={handleSearch} disabled={loading || !searchTerm.trim()}>
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
         </Button>

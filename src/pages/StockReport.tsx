@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -638,16 +639,17 @@ export default function StockReport() {
       {/* Search Bar */}
       <div className="space-y-3">
         <div className="flex gap-2 items-center">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by barcode, bill number..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="pl-10 h-11 !bg-white !text-gray-900"
-            />
-          </div>
+          <ProductSearchDropdown
+            value={searchTerm}
+            onChange={setSearchTerm}
+            onSelect={(product) => {
+              setSearchTerm(product.product_name);
+              handleSearch();
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Search by product, barcode, brand..."
+            className="flex-1"
+          />
           <Button onClick={handleSearch} disabled={loading || !hasActiveFilters}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Search className="h-4 w-4 mr-2" />}
             Search
