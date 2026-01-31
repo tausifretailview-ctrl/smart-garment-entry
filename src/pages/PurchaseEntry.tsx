@@ -1866,7 +1866,7 @@ const PurchaseEntry = () => {
 
       // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems } 
+        state: { purchaseItems: barcodeItems, billId: savedBillId } 
       });
     } catch (error) {
       console.error("Error preparing barcode data:", error);
@@ -2924,7 +2924,7 @@ const PurchaseEntry = () => {
 
                       setShowPrintDialog(false);
                       navigate("/barcode-printing", { 
-                        state: { purchaseItems: barcodeItems } 
+                        state: { purchaseItems: barcodeItems, billId: savedBillId } 
                       });
                     } catch (error) {
                       console.error("Error preparing barcode data:", error);
@@ -2978,7 +2978,7 @@ const PurchaseEntry = () => {
 
                         setShowPrintDialog(false);
                         navigate("/barcode-printing", { 
-                          state: { purchaseItems: barcodeItems } 
+                          state: { purchaseItems: barcodeItems, billId: savedBillId } 
                         });
                       } catch (error) {
                         console.error("Error preparing barcode data:", error);
