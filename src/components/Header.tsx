@@ -77,7 +77,7 @@ export const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-sidebar-border bg-sidebar text-sidebar-foreground dark:bg-[hsl(213,32%,17%)] dark:text-white dark:border-[hsl(213,32%,25%)]">
-      <div className="container flex h-14 items-center justify-between px-4">
+      <div className="flex h-12 items-center justify-between px-3 max-w-full">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
@@ -107,46 +107,41 @@ export const Header = () => {
             </SheetContent>
           </Sheet>
 
-          {/* Logo */}
+          {/* Logo - Compact */}
           <button
             onClick={() => orgNavigate("/")}
-            className="flex items-center gap-2 group"
+            className="flex items-center gap-1.5"
           >
-            <div className="relative">
-              <div className="absolute inset-0 bg-primary rounded blur-sm opacity-60 group-hover:opacity-80 transition-opacity" />
-              <div className="relative bg-primary p-1.5 rounded shadow-lg">
-                <Package className="h-4 w-4 text-primary-foreground" />
-              </div>
+            <div className="bg-primary p-1 rounded">
+              <Package className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
-            <div className="hidden sm:flex flex-col items-start">
-              <span className="font-display text-sm font-bold text-primary dark:text-[hsl(187,100%,42%)] leading-tight">
-                Smart Inventory
-              </span>
-            </div>
+            <span className="hidden sm:block text-xs font-semibold text-primary dark:text-[hsl(187,100%,42%)]">
+              Ezzy ERP
+            </span>
           </button>
         </div>
 
-        {/* Quick Actions - Desktop */}
-        <div className="hidden lg:flex items-center gap-1">
+        {/* Quick Actions - Desktop - Icons only for compact toolbar */}
+        <div className="hidden lg:flex items-center gap-0.5">
           {quickActions.map((action) => (
             <Button
               key={action.label}
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={() => handleQuickAction(action)}
-              className="text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary transition-all"
+              className="h-8 w-8 text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary"
+              title={action.label}
             >
-              <action.icon className="h-4 w-4 mr-2 text-primary dark:text-[hsl(187,100%,42%)]" />
-              {action.label}
+              <action.icon className="h-4 w-4 text-primary dark:text-[hsl(187,100%,42%)]" />
             </Button>
           ))}
         </div>
 
-        {/* Right Side */}
-        <div className="flex items-center gap-3">
+        {/* Right Side - Compact icons */}
+        <div className="flex items-center gap-1">
           {/* Search */}
-          <Button variant="ghost" size="icon" className="hidden md:flex text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
-            <Search className="h-5 w-5" />
+          <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8 text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
+            <Search className="h-4 w-4" />
           </Button>
 
           {/* Install App Button - Always visible on mobile, shows install prompt or instructions */}
@@ -181,17 +176,17 @@ export const Header = () => {
           <OrganizationSelector />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
-            <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full animate-pulse" />
+          <Button variant="ghost" size="icon" className="relative h-8 w-8 text-sidebar-foreground dark:text-white hover:bg-primary/10 hover:text-primary">
+            <Bell className="h-4 w-4" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-primary rounded-full" />
           </Button>
 
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 ring-2 ring-transparent hover:ring-primary/30 transition-all h-7 w-7">
+              <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 h-8 w-8">
                 <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-medium">
                     {initials}
                   </AvatarFallback>
                 </Avatar>

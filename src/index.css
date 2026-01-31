@@ -241,7 +241,7 @@ All colors MUST be HSL.
 
 /* ERP Compact Styles */
 @layer base {
-  /* Compact form layout for ERP-style pages */
+  /* Windows Desktop App Density */
   .erp-compact {
     @apply text-sm;
   }
@@ -257,7 +257,7 @@ All colors MUST be HSL.
   }
   
   .erp-compact .card {
-    @apply p-2;
+    @apply p-4;
   }
   
   .erp-compact table th {
@@ -266,6 +266,29 @@ All colors MUST be HSL.
   
   .erp-compact table td {
     @apply px-2 py-1 text-sm;
+  }
+
+  /* Sidebar menu item height - Windows desktop density */
+  [data-sidebar="menu-button"] {
+    @apply h-10 text-[13px];
+  }
+
+  [data-sidebar="menu-sub-button"] {
+    @apply h-9 text-[13px];
+  }
+
+  /* Card padding standard */
+  .card {
+    @apply p-4;
+  }
+
+  /* Table density for ERP */
+  table th {
+    @apply text-xs font-medium px-3 py-2;
+  }
+
+  table td {
+    @apply text-sm px-3 py-2;
   }
 }
 
