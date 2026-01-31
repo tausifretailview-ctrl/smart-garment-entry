@@ -20,7 +20,6 @@ interface StockByProduct {
   brand?: string;
   category?: string;
   department?: string;
-  supplier_name?: string;
 }
 
 export default function ItemWiseStockReport() {
@@ -29,7 +28,6 @@ export default function ItemWiseStockReport() {
   const [brandFilter, setBrandFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
-  const [supplierFilter, setSupplierFilter] = useState<string>("");
 
   // Fetch all product variants with stock
   const { data: stockData = [], isLoading } = useQuery({
@@ -51,10 +49,7 @@ export default function ItemWiseStockReport() {
             brand,
             category,
             style,
-            deleted_at,
-            suppliers (
-              supplier_name
-            )
+            deleted_at
           )
         `)
         .eq("products.organization_id", currentOrganization.id)
@@ -63,7 +58,10 @@ export default function ItemWiseStockReport() {
         .is("products.deleted_at", null)
         .neq("products.product_type", "service");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching stock data:", error);
+        throw error;
+      }
       return data || [];
     },
     enabled: !!currentOrganization?.id,
@@ -74,20 +72,17 @@ export default function ItemWiseStockReport() {
     const brands = new Set<string>();
     const categories = new Set<string>();
     const departments = new Set<string>();
-    const suppliers = new Set<string>();
 
     stockData.forEach((item: any) => {
       if (item.products?.brand) brands.add(item.products.brand);
       if (item.products?.category) categories.add(item.products.category);
       if (item.products?.style) departments.add(item.products.style);
-      if (item.products?.suppliers?.supplier_name) suppliers.add(item.products.suppliers.supplier_name);
     });
 
     return {
       brands: Array.from(brands).sort(),
       categories: Array.from(categories).sort(),
       departments: Array.from(departments).sort(),
-      suppliers: Array.from(suppliers).sort(),
     };
   }, [stockData]);
 
@@ -100,13 +95,11 @@ export default function ItemWiseStockReport() {
       const brand = item.products?.brand || "";
       const category = item.products?.category || "";
       const department = item.products?.style || "";
-      const supplier = item.products?.suppliers?.supplier_name || "";
 
       // Apply filters (skip __all__ placeholder)
       if (brandFilter && brandFilter !== "__all__" && brand !== brandFilter) return;
       if (categoryFilter && categoryFilter !== "__all__" && category !== categoryFilter) return;
       if (departmentFilter && departmentFilter !== "__all__" && department !== departmentFilter) return;
-      if (supplierFilter && supplierFilter !== "__all__" && supplier !== supplierFilter) return;
 
       const existing = productMap.get(productName);
       const qty = item.stock_qty || 0;
@@ -126,7 +119,6 @@ export default function ItemWiseStockReport() {
           brand,
           category,
           department,
-          supplier_name: supplier,
         });
       }
     });
@@ -134,7 +126,7 @@ export default function ItemWiseStockReport() {
     return Array.from(productMap.values()).sort((a, b) => 
       a.product_name.localeCompare(b.product_name)
     );
-  }, [stockData, brandFilter, categoryFilter, departmentFilter, supplierFilter]);
+  }, [stockData, brandFilter, categoryFilter, departmentFilter]);
 
   // Filter data based on search
   const filteredData = useMemo(() => {
@@ -151,11 +143,10 @@ export default function ItemWiseStockReport() {
     setBrandFilter("");
     setCategoryFilter("");
     setDepartmentFilter("");
-    setSupplierFilter("");
     setSearchQuery("");
   };
 
-  const hasActiveFilters = (brandFilter && brandFilter !== "__all__") || (categoryFilter && categoryFilter !== "__all__") || (departmentFilter && departmentFilter !== "__all__") || (supplierFilter && supplierFilter !== "__all__") || searchQuery;
+  const hasActiveFilters = (brandFilter && brandFilter !== "__all__") || (categoryFilter && categoryFilter !== "__all__") || (departmentFilter && departmentFilter !== "__all__") || searchQuery;
 
   // Grand totals
   const grandTotals = useMemo(() => {
@@ -318,18 +309,6 @@ export default function ItemWiseStockReport() {
             <SelectItem value="__all__">All Departments</SelectItem>
             {filterOptions.departments.map((dept) => (
               <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All Suppliers" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__all__">All Suppliers</SelectItem>
-            {filterOptions.suppliers.map((sup) => (
-              <SelectItem key={sup} value={sup}>{sup}</SelectItem>
             ))}
           </SelectContent>
         </Select>
