@@ -120,7 +120,16 @@ function NonOrgRedirect({ path }: { path: string }) {
 }
 
 const App = () => {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30000, // 30 seconds default stale time
+        gcTime: 300000, // 5 minutes garbage collection (was cacheTime)
+        refetchOnWindowFocus: false, // Don't refetch on window focus
+        retry: 1, // Reduce retry attempts
+      },
+    },
+  }));
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>

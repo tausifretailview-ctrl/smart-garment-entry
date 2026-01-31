@@ -109,7 +109,8 @@ const WhatsAppInbox = () => {
       return data as Conversation[];
     },
     enabled: !!currentOrganization?.id,
-    refetchInterval: 5000, // Faster refresh for shared numbers
+    staleTime: 15000, // 15 seconds stale time
+    refetchInterval: 30000, // 30 seconds (was 5s) - realtime handles instant updates
   });
 
   // Fetch messages for selected conversation
@@ -128,7 +129,8 @@ const WhatsAppInbox = () => {
       return data as Message[];
     },
     enabled: !!selectedConversation?.id,
-    refetchInterval: 5000,
+    staleTime: 10000, // 10 seconds stale time
+    refetchInterval: 15000, // 15 seconds (was 5s) - realtime handles instant updates
   });
 
   // Send message mutation
