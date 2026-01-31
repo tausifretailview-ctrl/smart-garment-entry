@@ -83,9 +83,9 @@ export default function StockAnalysis() {
         setLowStockThreshold((settingsData as any).product_settings.low_stock_threshold);
       }
 
-      const searchLower = searchTerm.toLowerCase();
+      const searchValue = searchTerm.trim();
 
-      // Fetch product variants with search filter
+      // Fetch product variants with search filter - search by barcode, product_name, brand, size or color
       const { data: variantsData, error: variantsError } = await supabase
         .from("product_variants")
         .select(`
@@ -111,9 +111,9 @@ export default function StockAnalysis() {
         .is("deleted_at", null)
         .is("products.deleted_at", null)
         .neq("products.product_type", "service")
-        .or(`barcode.ilike.%${searchTerm}%,products.product_name.ilike.%${searchTerm}%,products.brand.ilike.%${searchTerm}%`)
+        .or(`barcode.ilike.%${searchValue}%,products.product_name.ilike.%${searchValue}%,products.brand.ilike.%${searchValue}%,size.ilike.%${searchValue}%,color.ilike.%${searchValue}%`)
         .order("stock_qty", { ascending: true })
-        .limit(200);
+        .limit(500);
 
       if (variantsError) throw variantsError;
 
@@ -204,86 +204,92 @@ export default function StockAnalysis() {
         setStockItems([]);
       }
 
-      // Fetch movements with search
-      const { data: movementHistory } = await supabase
-        .from("stock_movements")
-        .select(`
-          id,
-          movement_type,
-          quantity,
-          notes,
-          created_at,
-          variant_id,
-          product_variants!inner (
-            size,
-            products!inner (
-              product_name,
-              product_type
+      // Fetch movements with search - use variant IDs for more accurate results
+      let formattedMovements: StockMovement[] = [];
+      if (variantIds.length > 0) {
+        const { data: movementHistory } = await supabase
+          .from("stock_movements")
+          .select(`
+            id,
+            movement_type,
+            quantity,
+            notes,
+            created_at,
+            variant_id,
+            product_variants!inner (
+              size,
+              products!inner (
+                product_name,
+                product_type
+              )
             )
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .neq("product_variants.products.product_type", "service")
-        .ilike("product_variants.products.product_name", `%${searchTerm}%`)
-        .order("created_at", { ascending: false })
-        .limit(50);
+          `)
+          .eq("organization_id", currentOrganization.id)
+          .in("variant_id", variantIds)
+          .neq("product_variants.products.product_type", "service")
+          .order("created_at", { ascending: false })
+          .limit(100);
 
-      const formattedMovements = movementHistory?.map((item: any) => ({
-        id: item.id,
-        movement_type: item.movement_type,
-        quantity: item.quantity,
-        notes: item.notes || "",
-        created_at: item.created_at,
-        variant_id: item.variant_id,
-        product_name: item.product_variants?.products?.product_name || "",
-        size: item.product_variants?.size || "",
-      })) || [];
+        formattedMovements = movementHistory?.map((item: any) => ({
+          id: item.id,
+          movement_type: item.movement_type,
+          quantity: item.quantity,
+          notes: item.notes || "",
+          created_at: item.created_at,
+          variant_id: item.variant_id,
+          product_name: item.product_variants?.products?.product_name || "",
+          size: item.product_variants?.size || "",
+        })) || [];
+      }
 
       setMovements(formattedMovements);
 
-      // Fetch batch stock with search
-      const { data: batchStockData } = await supabase
-        .from('batch_stock')
-        .select(`
-          *,
-          product_variants!inner (
-            size,
-            barcode,
-            deleted_at,
-            products!inner (
-              product_name,
-              brand,
-              product_type,
-              deleted_at
+      // Fetch batch stock with search - use variant IDs for accurate results
+      let formattedBatch: BatchStock[] = [];
+      if (variantIds.length > 0) {
+        const { data: batchStockData } = await supabase
+          .from('batch_stock')
+          .select(`
+            *,
+            product_variants!inner (
+              size,
+              barcode,
+              deleted_at,
+              products!inner (
+                product_name,
+                brand,
+                product_type,
+                deleted_at
+              )
+            ),
+            purchase_bills (
+              supplier_name,
+              supplier_invoice_no
             )
-          ),
-          purchase_bills (
-            supplier_name,
-            supplier_invoice_no
-          )
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .gt('quantity', 0)
-        .is('product_variants.deleted_at', null)
-        .is('product_variants.products.deleted_at', null)
-        .neq('product_variants.products.product_type', 'service')
-        .ilike('product_variants.products.product_name', `%${searchTerm}%`)
-        .order('purchase_date', { ascending: true })
-        .limit(200);
+          `)
+          .eq('organization_id', currentOrganization.id)
+          .in('variant_id', variantIds)
+          .gt('quantity', 0)
+          .is('product_variants.deleted_at', null)
+          .is('product_variants.products.deleted_at', null)
+          .neq('product_variants.products.product_type', 'service')
+          .order('purchase_date', { ascending: true })
+          .limit(500);
 
-      const formattedBatch: BatchStock[] = (batchStockData || []).map((item: any) => ({
-        id: item.id,
-        bill_number: item.bill_number,
-        quantity: item.quantity,
-        purchase_date: item.purchase_date,
-        variant_id: item.variant_id,
-        product_name: item.product_variants?.products?.product_name || '',
-        brand: item.product_variants?.products?.brand || '',
-        size: item.product_variants?.size || '',
-        barcode: item.product_variants?.barcode || '',
-        supplier_name: item.purchase_bills?.supplier_name || '',
-        supplier_invoice_no: item.purchase_bills?.supplier_invoice_no || '',
-      }));
+        formattedBatch = (batchStockData || []).map((item: any) => ({
+          id: item.id,
+          bill_number: item.bill_number,
+          quantity: item.quantity,
+          purchase_date: item.purchase_date,
+          variant_id: item.variant_id,
+          product_name: item.product_variants?.products?.product_name || '',
+          brand: item.product_variants?.products?.brand || '',
+          size: item.product_variants?.size || '',
+          barcode: item.product_variants?.barcode || '',
+          supplier_name: item.purchase_bills?.supplier_name || '',
+          supplier_invoice_no: item.purchase_bills?.supplier_invoice_no || '',
+        }));
+      }
 
       setBatchStock(formattedBatch);
 
