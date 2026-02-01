@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { MetricCardSkeleton, ListSkeleton } from "@/components/ui/skeletons";
 import { 
   ShoppingCart, 
   Users, 
@@ -106,13 +106,15 @@ const SalesmanDashboard = () => {
 
   if (loading) {
     return (
-      <div className="p-4 space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24" />)}
+      <div className="p-4 space-y-4 animate-in fade-in-0 duration-300">
+        <div className="space-y-1">
+          <div className="h-6 w-32 bg-muted animate-pulse rounded" />
+          <div className="h-4 w-48 bg-muted animate-pulse rounded" />
         </div>
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map(i => <MetricCardSkeleton key={i} />)}
+        </div>
+        <ListSkeleton items={4} showIcon={true} />
       </div>
     );
   }

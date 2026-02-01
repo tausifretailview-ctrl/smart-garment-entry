@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { format } from "date-fns";

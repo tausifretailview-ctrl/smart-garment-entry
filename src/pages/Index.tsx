@@ -8,6 +8,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
   Package,
   ShoppingCart,
@@ -114,11 +115,13 @@ const AnimatedMetricCard = ({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group relative" onClick={onClick}>
+        <div className="group relative animate-in fade-in-0 slide-in-from-bottom-2 duration-300" onClick={onClick}>
           <Card 
             className={cn(
-              "bg-card relative overflow-hidden border border-border shadow-elevated transition-all duration-200 cursor-pointer",
-              "hover:shadow-md hover:border-primary/30",
+              "bg-card relative overflow-hidden border border-border shadow-elevated cursor-pointer",
+              "transition-all duration-150 ease-out",
+              "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
+              "active:translate-y-0 active:shadow-sm",
               "border-l-[3px]",
               accentClasses.border
             )}
@@ -127,7 +130,7 @@ const AnimatedMetricCard = ({
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {title}
               </CardTitle>
-              <div className={cn("p-1.5 rounded-md", accentClasses.bg)}>
+              <div className={cn("p-1.5 rounded-md transition-transform duration-150 group-hover:scale-110", accentClasses.bg)}>
                 <Icon className={cn("h-4 w-4", accentClasses.text)} />
               </div>
             </CardHeader>
@@ -1155,13 +1158,9 @@ const Index = () => {
     return null;
   }
 
-  // Show loader while waiting for currentOrganization to be set
+  // Show skeleton loader while waiting for currentOrganization to be set
   if (!currentOrganization) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return <DashboardContent />;
