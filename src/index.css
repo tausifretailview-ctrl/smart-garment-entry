@@ -682,3 +682,216 @@ All colors MUST be HSL.
     width: 210mm !important;
   }
 }
+
+/* ============================================
+   PERFORMANCE MICRO-POLISH ANIMATIONS
+   Subtle, fast transitions for perceived speed
+   ============================================ */
+
+@layer utilities {
+  /* Fast fade transitions (100-150ms) */
+  .fade-in-fast {
+    animation: fadeInFast 100ms ease-out;
+  }
+  
+  .fade-in-smooth {
+    animation: fadeInSmooth 150ms ease-out;
+  }
+  
+  .slide-up-fast {
+    animation: slideUpFast 150ms ease-out;
+  }
+  
+  .slide-in-right {
+    animation: slideInRight 150ms ease-out;
+  }
+  
+  /* Scale in for cards and modals */
+  .scale-in {
+    animation: scaleIn 150ms ease-out;
+  }
+  
+  /* Skeleton shimmer effect */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--muted) / 0.5) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+  
+  /* Button press feedback */
+  .btn-press {
+    transition: transform 50ms ease-out;
+  }
+  
+  .btn-press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  
+  /* Table row hover transition */
+  .row-hover {
+    transition: background-color 100ms ease-out;
+  }
+  
+  /* Card hover lift */
+  .card-hover {
+    transition: box-shadow 150ms ease-out, border-color 150ms ease-out;
+  }
+  
+  .card-hover:hover {
+    box-shadow: 0 2px 8px hsl(var(--foreground) / 0.08);
+  }
+  
+  /* Optimistic update flash */
+  .flash-success {
+    animation: flashSuccess 400ms ease-out;
+  }
+  
+  .flash-error {
+    animation: flashError 400ms ease-out;
+  }
+  
+  /* Loading pulse for buttons */
+  .loading-pulse {
+    animation: loadingPulse 1s ease-in-out infinite;
+  }
+  
+  /* Smooth content transitions */
+  .content-transition {
+    transition: opacity 100ms ease-out, transform 100ms ease-out;
+  }
+  
+  .content-enter {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  
+  .content-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Keyframe animations */
+@keyframes fadeInFast {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUpFast {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes flashSuccess {
+  0% {
+    background-color: hsl(var(--success) / 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flashError {
+  0% {
+    background-color: hsl(var(--destructive) / 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes loadingPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Toast animation improvements - faster and less intrusive */
+[data-sonner-toaster] [data-sonner-toast] {
+  transition: transform 150ms ease-out, opacity 150ms ease-out !important;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .fade-in-fast,
+  .fade-in-smooth,
+  .slide-up-fast,
+  .slide-in-right,
+  .scale-in,
+  .shimmer,
+  .flash-success,
+  .flash-error,
+  .loading-pulse {
+    animation: none !important;
+  }
+  
+  .btn-press:active:not(:disabled) {
+    transform: none;
+  }
+  
+  .card-hover:hover {
+    box-shadow: none;
+  }
+  
+  .content-transition {
+    transition: none !important;
+  }
+}
