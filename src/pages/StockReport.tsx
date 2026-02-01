@@ -297,10 +297,11 @@ export default function StockReport() {
           .is("products.deleted_at", null)
         .neq("products.product_type", "service");
         
-        // Apply search filter at query level - search by barcode, product_name or brand
+        // Apply search filter at query level - search by barcode, product_name, brand, size or color
         if (searchTerm.trim()) {
           const search = searchTerm.trim();
-          query = query.or(`barcode.ilike.%${search}%,products.product_name.ilike.%${search}%,products.brand.ilike.%${search}%`);
+          // Enhanced search: barcode exact match OR partial match on all fields
+          query = query.or(`barcode.eq.${search},barcode.ilike.%${search}%,products.product_name.ilike.%${search}%,products.brand.ilike.%${search}%,size.ilike.%${search}%,color.ilike.%${search}%`);
         }
         
         // Apply stock status filter at query level for efficiency
@@ -737,7 +738,7 @@ export default function StockReport() {
               handleSearch();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search by product, barcode, brand..."
+            placeholder="Search by barcode, product name, brand, size..."
             className="flex-1"
           />
           <Button onClick={handleSearch} disabled={loading || !hasActiveFilters}>
