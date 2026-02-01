@@ -21,12 +21,13 @@ export const OrgLayout = () => {
       const targetOrg = organizations.find(org => org.slug === orgSlug);
       
       if (targetOrg) {
-        if (currentOrganization?.slug === orgSlug) {
+        // Always switch if URL org doesn't match current org - force sync
+        if (currentOrganization?.id !== targetOrg.id) {
+          console.log(`OrgLayout: Syncing to URL org "${orgSlug}" (current: "${currentOrganization?.slug}")`);
+          switchOrganization(targetOrg.id);
+        } else {
           // Already synced
           setIsOrgSynced(true);
-        } else {
-          // Switch to the organization from the URL
-          switchOrganization(targetOrg.id);
         }
         
         // Store the slug in both localStorage and sessionStorage for PWA resilience
@@ -34,7 +35,7 @@ export const OrgLayout = () => {
         sessionStorage.setItem("selectedOrgSlug", orgSlug);
       }
     }
-  }, [orgSlug, user, organizations, orgLoading, currentOrganization, switchOrganization]);
+  }, [orgSlug, user, organizations, orgLoading, currentOrganization?.id, switchOrganization]);
 
   // Update sync state when currentOrganization matches URL
   useEffect(() => {
