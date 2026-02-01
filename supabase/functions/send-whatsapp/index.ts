@@ -655,27 +655,31 @@ serve(async (req) => {
         console.log('Template not found in DB, using default language: en_US');
       }
 
-      // Check if this template requires a DOCUMENT header - if so, we cannot send without PDF
+      // Check if this template requires a DOCUMENT header - if so, we need PDF
       const headerComponent = templateComponents?.find((c: any) => c?.type?.toUpperCase() === 'HEADER');
       const requiresDocumentHeader = headerComponent?.format?.toUpperCase() === 'DOCUMENT';
       
       if (requiresDocumentHeader) {
+        // This template has DOCUMENT header but no pdfBlob was provided
+        // This is a configuration error - user should use "Direct PDF Delivery" instead
         console.error('Template requires DOCUMENT header but pdfBlob was not provided');
-        console.log('This template should be configured as Document Header Template, not regular Invoice Template');
+        console.log('This template should be configured in "Direct PDF Delivery" settings, not "Invoice Template"');
         
-        // Update log entry with clear error
+        // Return a helpful error message without blocking
         if (logEntry) {
           await supabase
             .from('whatsapp_logs')
             .update({
               status: 'failed',
               sent_at: new Date().toISOString(),
-              error_message: 'Template requires PDF document header. Please configure this template in "Direct PDF Delivery" settings, not as regular Invoice Template.',
+              error_message: 'Template has DOCUMENT header - requires PDF. Move this template to "Direct PDF Delivery" settings.',
               provider_response: {
                 error: {
                   code: 'DOCUMENT_HEADER_REQUIRED',
-                  message: 'This template has a DOCUMENT header type and requires PDF to be embedded. Use Direct PDF Delivery setting instead.',
+                  message: 'This template has DOCUMENT header type. Configure it in "Direct PDF Delivery" settings with PDF enabled.',
                   templateName: cleanedTemplateName,
+                  headerType: 'DOCUMENT',
+                  suggestion: 'In WhatsApp Settings: 1) Enable "Direct PDF Delivery", 2) Select this template there, 3) Use a TEXT/NONE header template for "Invoice Template"',
                 },
               },
             })
@@ -685,11 +689,12 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: false,
-            error: 'Template requires PDF document header. Configure it in "Direct PDF Delivery" settings instead of "Invoice Template".',
+            error: 'Template has DOCUMENT header - configure it in "Direct PDF Delivery" settings instead.',
+            code: 'DOCUMENT_HEADER_REQUIRED',
             details: {
               templateName: cleanedTemplateName,
               headerType: 'DOCUMENT',
-              suggestion: 'Move this template name from "Invoice Template" to "Document Header Template Name" field and enable "Direct PDF Delivery"',
+              solution: 'Use "Direct PDF Delivery" setting for DOCUMENT header templates. Select a TEXT/NONE header template for "Invoice Template".',
             },
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
