@@ -549,3 +549,78 @@
   padding: 3px 4px;
   font-size: 7pt;
 }
+
+/* ============================================
+   THERMAL / POS 80mm FORMAT
+   Optimized for retail thermal printers
+   ============================================ */
+
+.thermal-print-80mm,
+.thermal-receipt-container {
+  width: 70mm !important;
+  max-width: 70mm !important;
+  padding: 2mm !important;
+  margin: 0 !important;
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  -webkit-font-smoothing: none !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1px !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Thermal print optimizations */
+.thermal-print-80mm * {
+  box-sizing: border-box !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
+}
+
+/* Ensure no page breaks in thermal receipts */
+@media print {
+  .thermal-print-80mm,
+  .thermal-receipt-container {
+    width: 70mm !important;
+    max-width: 70mm !important;
+    padding: 2mm !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  /* Thermal-specific page setup */
+  @page {
+    size: 80mm auto;
+    margin: 2mm 4mm;
+  }
+
+  /* Force all thermal content to be visible */
+  .thermal-print-80mm * {
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+
+  /* Remove any backgrounds or shadows */
+  .thermal-print-80mm,
+  .thermal-print-80mm * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-image: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Ensure QR code prints properly */
+  .thermal-print-80mm img {
+    max-width: 100% !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

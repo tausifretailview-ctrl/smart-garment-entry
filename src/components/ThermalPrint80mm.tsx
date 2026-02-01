@@ -38,7 +38,26 @@ interface ThermalPrint80mmProps {
   pointsRedeemed?: number;
   pointsRedemptionValue?: number;
   pointsBalance?: number;
+  cashier?: string;
+  counter?: string;
 }
+
+// Truncate item name to fit thermal width
+const truncateText = (text: string, maxLength: number): string => {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength - 2) + '..';
+};
+
+// Format currency for thermal (no decimals, Indian format)
+const formatAmount = (amount: number): string => {
+  return Math.round(amount).toLocaleString('en-IN');
+};
+
+// Text separator line
+const SEPARATOR_LINE = '------------------------------------------------';
+const DASHED_LINE = '- - - - - - - - - - - - - - - - - - - - - - - - ';
+const DOUBLE_LINE = '================================================';
 
 export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80mmProps>(
   (props, ref) => {
@@ -64,6 +83,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       pointsRedeemed = 0,
       pointsRedemptionValue = 0,
       pointsBalance = 0,
+      cashier,
+      counter,
     } = props;
 
     const getDocumentTitle = () => {
@@ -124,7 +145,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
         const upiString = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(businessName)}&am=${grandTotal.toFixed(2)}&cu=INR`;
         
         const qrUrl = await QRCode.toDataURL(upiString, {
-          width: 200,
+          width: 150,
           margin: 1,
           errorCorrectionLevel: 'M',
           color: {
@@ -139,312 +160,383 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       }
     };
 
-    const formatCurrency = (amount: number) => {
-      return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
-    };
-
     // Calculate GST if not provided
     const calculatedGst = gstBreakdown || {
       cgst: (grandTotal - subTotal + discount) / 2,
       sgst: (grandTotal - subTotal + discount) / 2,
     };
 
+    // Calculate total quantity
+    const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
+
+    // Base thermal print styles - optimized for 80mm (72mm printable area)
+    const baseStyle: React.CSSProperties = {
+      width: '70mm',
+      maxWidth: '70mm',
+      padding: '2mm',
+      backgroundColor: 'white',
+      fontFamily: '"Courier New", Courier, monospace',
+      fontSize: '11px',
+      lineHeight: '1.4',
+      color: '#000000',
+      fontWeight: 700,
+      WebkitFontSmoothing: 'none',
+      boxSizing: 'border-box',
+      WebkitPrintColorAdjust: 'exact',
+      printColorAdjust: 'exact',
+      letterSpacing: '0.1px',
+      overflow: 'hidden',
+    };
+
+    const centerStyle: React.CSSProperties = {
+      textAlign: 'center',
+      width: '100%',
+    };
+
+    const leftRightRow: React.CSSProperties = {
+      display: 'flex',
+      justifyContent: 'space-between',
+      width: '100%',
+    };
+
+    const boldText: React.CSSProperties = {
+      fontWeight: 900,
+    };
+
+    const separatorStyle: React.CSSProperties = {
+      textAlign: 'center',
+      fontSize: '10px',
+      letterSpacing: '-0.5px',
+      margin: '2px 0',
+      color: '#000000',
+      overflow: 'hidden',
+      whiteSpace: 'nowrap',
+    };
+
     return (
-      <div 
-        ref={ref} 
-        className="thermal-print-80mm thermal-receipt-container"
-        style={{
-          width: '70mm',
-          maxWidth: '70mm',
-          padding: '1mm 2mm',
-          backgroundColor: 'white',
-          fontFamily: '"Courier New", Courier, monospace',
-          fontSize: '11px',
-          color: '#000000',
-          fontWeight: 900,
-          WebkitFontSmoothing: 'none',
-          boxSizing: 'border-box',
-          WebkitPrintColorAdjust: 'exact',
-          printColorAdjust: 'exact',
-          letterSpacing: '0.2px',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Header - Business Details */}
-        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
-          <div style={{ fontWeight: 900, fontSize: '18px', marginBottom: '4px', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-            {settings?.business_name || 'BUSINESS NAME'}
-          </div>
-          <div style={{ fontSize: '11px', lineHeight: '1.4', marginBottom: '3px', fontWeight: 700 }}>
-            {settings?.address || 'Business Address'}
-          </div>
-          <div style={{ fontSize: '11px', fontWeight: 700 }}>
-            {settings?.mobile_number && `PHONE: ${settings.mobile_number}`}
-          </div>
-          {settings?.gst_number && (
-            <div style={{ fontSize: '11px', fontWeight: 700 }}>
-              GSTIN: {settings.gst_number}
-            </div>
-          )}
-          {/* Document Type Title */}
+      <div ref={ref} className="thermal-print-80mm thermal-receipt-container" style={baseStyle}>
+        
+        {/* ============ HEADER SECTION ============ */}
+        <div style={{ ...centerStyle, marginBottom: '4px' }}>
+          {/* Business Name */}
           <div style={{ 
             fontWeight: 900, 
             fontSize: '16px', 
-            marginTop: '6px',
-            padding: '6px 0',
-            borderTop: '2px dashed #000000',
-            borderBottom: '2px dashed #000000',
-            letterSpacing: '1.5px',
-            textTransform: 'uppercase'
+            letterSpacing: '0.5px', 
+            textTransform: 'uppercase',
+            marginBottom: '2px'
           }}>
-            {getDocumentTitle()}
+            {settings?.business_name || 'STORE NAME'}
           </div>
+          
+          {/* Address */}
+          <div style={{ fontSize: '10px', lineHeight: '1.3', marginBottom: '2px' }}>
+            {settings?.address || 'Store Address'}
+          </div>
+          
+          {/* Contact */}
+          {settings?.mobile_number && (
+            <div style={{ fontSize: '10px' }}>
+              Tel: {settings.mobile_number}
+            </div>
+          )}
+          
+          {/* GSTIN */}
+          {settings?.gst_number && (
+            <div style={{ fontSize: '10px', fontWeight: 900, marginTop: '2px' }}>
+              GSTIN: {settings.gst_number}
+            </div>
+          )}
         </div>
 
-        {/* Bill Info Row */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          fontSize: '12px', 
-          fontWeight: 900,
-          borderBottom: '2px dashed #000000',
-          padding: '6px 0',
-          marginBottom: '5px'
-        }}>
-          <span>{getDocumentNoLabel()}: {billNo}</span>
-          <span>Date: {format(date, 'dd/MM/yyyy')}</span>
-        </div>
+        {/* Separator */}
+        <div style={separatorStyle}>{DOUBLE_LINE}</div>
 
-        {/* Customer Details */}
-        {(customerName || customerPhone || customerAddress) && (
-          <div style={{ 
-            fontSize: '11px', 
-            fontWeight: 700,
-            marginBottom: '6px',
-            paddingBottom: '5px',
-            borderBottom: '2px dashed #000000'
-          }}>
-            {customerName && (
-              <div><span style={{ fontWeight: 900 }}>Customer:</span> {customerName}</div>
-            )}
-            {customerPhone && (
-              <div><span style={{ fontWeight: 900 }}>Phone:</span> {customerPhone}</div>
-            )}
-            {customerAddress && (
-              <div style={{ lineHeight: '1.3' }}><span style={{ fontWeight: 900 }}>Address:</span> {customerAddress}</div>
-            )}
-          </div>
-        )}
-
-        {/* Items Header */}
+        {/* Document Title */}
         <div style={{ 
-          display: 'flex', 
-          fontSize: '11px', 
-          fontWeight: 900,
-          borderBottom: '2px solid #000000',
-          paddingBottom: '4px',
-          marginBottom: '4px',
+          ...centerStyle, 
+          fontWeight: 900, 
+          fontSize: '14px',
+          letterSpacing: '1px',
+          margin: '4px 0',
           textTransform: 'uppercase'
         }}>
-          <div style={{ width: '48%', textAlign: 'left' }}>Item</div>
-          <div style={{ width: '12%', textAlign: 'center' }}>Qty</div>
-          <div style={{ width: '18%', textAlign: 'right' }}>Rate</div>
-          <div style={{ width: '22%', textAlign: 'right' }}>Amt</div>
+          {getDocumentTitle()}
         </div>
 
-        {/* Items List */}
-        <div style={{ marginBottom: '6px' }}>
+        <div style={separatorStyle}>{SEPARATOR_LINE}</div>
+
+        {/* ============ INVOICE META ============ */}
+        <div style={{ fontSize: '11px', marginBottom: '4px' }}>
+          <div style={leftRightRow}>
+            <span>{getDocumentNoLabel()}: <span style={boldText}>{billNo}</span></span>
+            <span>Date: {format(date, 'dd/MM/yy')}</span>
+          </div>
+          <div style={leftRightRow}>
+            <span>Time: {format(date, 'hh:mm a')}</span>
+            {(cashier || counter) && (
+              <span>{cashier ? `Cashier: ${truncateText(cashier, 12)}` : ''}{counter ? ` C:${counter}` : ''}</span>
+            )}
+          </div>
+        </div>
+
+        {/* ============ CUSTOMER SECTION ============ */}
+        {(customerName || customerPhone) && (
+          <>
+            <div style={separatorStyle}>{DASHED_LINE}</div>
+            <div style={{ fontSize: '10px', marginBottom: '4px' }}>
+              {customerName && (
+                <div><span style={boldText}>Customer:</span> {truncateText(customerName, 28)}</div>
+              )}
+              {customerPhone && (
+                <div><span style={boldText}>Mobile:</span> {customerPhone}</div>
+              )}
+              {customerAddress && (
+                <div style={{ lineHeight: '1.2' }}><span style={boldText}>Addr:</span> {truncateText(customerAddress, 32)}</div>
+              )}
+            </div>
+          </>
+        )}
+
+        <div style={separatorStyle}>{SEPARATOR_LINE}</div>
+
+        {/* ============ ITEMS HEADER ============ */}
+        <div style={{ 
+          display: 'flex', 
+          fontSize: '10px', 
+          fontWeight: 900,
+          marginBottom: '2px',
+          textTransform: 'uppercase',
+          borderBottom: '1px solid #000',
+          paddingBottom: '2px'
+        }}>
+          <div style={{ width: '48%', textAlign: 'left' }}>ITEM</div>
+          <div style={{ width: '12%', textAlign: 'center' }}>QTY</div>
+          <div style={{ width: '18%', textAlign: 'right' }}>RATE</div>
+          <div style={{ width: '22%', textAlign: 'right' }}>AMT</div>
+        </div>
+
+        {/* ============ ITEMS LIST ============ */}
+        <div style={{ marginBottom: '4px' }}>
           {items.map((item, index) => (
-            <div 
-              key={index} 
-              style={{ 
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '4px 0',
-                borderBottom: index < items.length - 1 ? '1px dotted #000000' : 'none'
-              }}
-            >
-              <div style={{ width: '100%', textAlign: 'left', wordWrap: 'break-word', marginBottom: '2px', fontWeight: 900, fontSize: '10px' }}>
-                {item.particulars}
+            <div key={index} style={{ fontSize: '10px', marginBottom: '3px' }}>
+              {/* Item name on its own line for readability */}
+              <div style={{ 
+                fontWeight: 700, 
+                fontSize: '10px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: '100%'
+              }}>
+                {truncateText(item.particulars, 40)}
               </div>
+              {/* Qty, Rate, Amount */}
               <div style={{ display: 'flex' }}>
                 <div style={{ width: '48%', textAlign: 'left' }}></div>
                 <div style={{ width: '12%', textAlign: 'center', fontWeight: 900 }}>{item.qty}</div>
-                <div style={{ width: '18%', textAlign: 'right', fontWeight: 700 }}>{Math.round(item.rate)}</div>
-                <div style={{ width: '22%', textAlign: 'right', fontWeight: 900 }}>{Math.round(item.total)}</div>
+                <div style={{ width: '18%', textAlign: 'right' }}>{formatAmount(item.rate)}</div>
+                <div style={{ width: '22%', textAlign: 'right', fontWeight: 900 }}>{formatAmount(item.total)}</div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Subtotal */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          fontSize: '12px',
-          fontWeight: 900,
-          borderTop: '2px solid #000000',
-          paddingTop: '5px',
-          marginBottom: '4px'
-        }}>
-          <span>SubTotal</span>
-          <span style={{ fontWeight: 900 }}>{items.length}</span>
-          <span style={{ fontWeight: 900 }}>{formatCurrency(subTotal)}</span>
+        <div style={separatorStyle}>{SEPARATOR_LINE}</div>
+
+        {/* ============ TOTALS SECTION ============ */}
+        <div style={{ fontSize: '11px' }}>
+          {/* Subtotal with Qty */}
+          <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+            <span>SubTotal ({totalQty} items)</span>
+            <span style={boldText}>₹{formatAmount(subTotal)}</span>
+          </div>
+
+          {/* Discount if any */}
+          {discount > 0 && (
+            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+              <span>Discount</span>
+              <span style={boldText}>-₹{formatAmount(discount)}</span>
+            </div>
+          )}
+
+          {/* Sale Return Adjust if any */}
+          {saleReturnAdjust > 0 && (
+            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+              <span>S/R Adjust</span>
+              <span style={boldText}>-₹{formatAmount(saleReturnAdjust)}</span>
+            </div>
+          )}
+
+          {/* Points Redemption if any */}
+          {pointsRedeemed > 0 && pointsRedemptionValue > 0 && (
+            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+              <span>Points ({pointsRedeemed} pts)</span>
+              <span style={boldText}>-₹{formatAmount(pointsRedemptionValue)}</span>
+            </div>
+          )}
+
+          {/* GST Breakdown */}
+          {(calculatedGst.cgst > 0 || calculatedGst.sgst > 0) && (
+            <>
+              <div style={{ ...separatorStyle, margin: '3px 0' }}>{DASHED_LINE}</div>
+              <div style={{ fontSize: '10px' }}>
+                {calculatedGst.cgst > 0 && (
+                  <div style={leftRightRow}>
+                    <span>CGST</span>
+                    <span>₹{formatAmount(calculatedGst.cgst)}</span>
+                  </div>
+                )}
+                {calculatedGst.sgst > 0 && (
+                  <div style={leftRightRow}>
+                    <span>SGST</span>
+                    <span>₹{formatAmount(calculatedGst.sgst)}</span>
+                  </div>
+                )}
+                {calculatedGst.igst && calculatedGst.igst > 0 && (
+                  <div style={leftRightRow}>
+                    <span>IGST</span>
+                    <span>₹{formatAmount(calculatedGst.igst)}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Discount if any */}
-        {discount > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 900, marginBottom: '3px' }}>
-            <span>Discount</span>
-            <span>-{formatCurrency(discount)}</span>
-          </div>
-        )}
-
-        {/* Sale Return Adjust if any */}
-        {saleReturnAdjust > 0 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: 900, marginBottom: '3px', color: '#000000' }}>
-            <span>S/R Adjust</span>
-            <span>-{formatCurrency(saleReturnAdjust)}</span>
-          </div>
-        )}
-
-        {/* GST Breakdown */}
-        <div style={{ fontSize: '11px', fontWeight: 700, marginBottom: '5px' }}>
-          {calculatedGst.cgst > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-              <span>CGST</span>
-              <span>{formatCurrency(calculatedGst.cgst)}</span>
-            </div>
-          )}
-          {calculatedGst.sgst > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-              <span>SGST</span>
-              <span>{formatCurrency(calculatedGst.sgst)}</span>
-            </div>
-          )}
-          {calculatedGst.igst && calculatedGst.igst > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-              <span>IGST</span>
-              <span>{formatCurrency(calculatedGst.igst)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Grand Total */}
+        {/* ============ GRAND TOTAL ============ */}
+        <div style={separatorStyle}>{DOUBLE_LINE}</div>
         <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
+          ...leftRightRow, 
           fontSize: '16px',
           fontWeight: 900,
-          borderTop: '2px dashed #000000',
-          borderBottom: '2px dashed #000000',
-          padding: '8px 0',
-          marginBottom: '8px',
+          margin: '4px 0',
+          letterSpacing: '0.5px'
+        }}>
+          <span>TOTAL</span>
+          <span>₹{formatAmount(grandTotal)}</span>
+        </div>
+        <div style={separatorStyle}>{DOUBLE_LINE}</div>
+
+        {/* ============ PAYMENT DETAILS ============ */}
+        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0 || paymentMethod) && (
+          <div style={{ fontSize: '10px', margin: '4px 0' }}>
+            {/* Payment Mode */}
+            <div style={{ ...leftRightRow, marginBottom: '2px' }}>
+              <span style={boldText}>Payment:</span>
+              <span style={boldText}>{paymentMethod?.toUpperCase() || 'CASH'}</span>
+            </div>
+            
+            {/* Payment breakdown for mixed payments */}
+            {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0) && (
+              <>
+                {cashPaid > 0 && (
+                  <div style={leftRightRow}>
+                    <span>Cash Received</span>
+                    <span>₹{formatAmount(cashPaid)}</span>
+                  </div>
+                )}
+                {upiPaid > 0 && (
+                  <div style={leftRightRow}>
+                    <span>UPI</span>
+                    <span>₹{formatAmount(upiPaid)}</span>
+                  </div>
+                )}
+                {cardPaid > 0 && (
+                  <div style={leftRightRow}>
+                    <span>Card</span>
+                    <span>₹{formatAmount(cardPaid)}</span>
+                  </div>
+                )}
+                {refundCash > 0 && (
+                  <div style={{ ...leftRightRow, fontWeight: 900 }}>
+                    <span>Change Return</span>
+                    <span>₹{formatAmount(refundCash)}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ============ LOYALTY POINTS ============ */}
+        {(pointsRedeemed > 0 || pointsBalance > 0) && (
+          <>
+            <div style={separatorStyle}>{DASHED_LINE}</div>
+            <div style={{ 
+              fontSize: '10px',
+              margin: '4px 0',
+              padding: '3px',
+              border: '1px solid #000',
+              borderRadius: '0'
+            }}>
+              <div style={{ ...centerStyle, fontWeight: 900, marginBottom: '2px' }}>LOYALTY POINTS</div>
+              {pointsRedeemed > 0 && (
+                <div style={leftRightRow}>
+                  <span>Redeemed</span>
+                  <span>{pointsRedeemed} pts (₹{formatAmount(pointsRedemptionValue)})</span>
+                </div>
+              )}
+              <div style={{ ...leftRightRow, fontWeight: 900 }}>
+                <span>Balance</span>
+                <span>{pointsBalance} pts</span>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ============ UPI QR CODE ============ */}
+        {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
+          <div style={{ ...centerStyle, margin: '6px 0' }}>
+            <div style={separatorStyle}>{DASHED_LINE}</div>
+            <div style={{ fontSize: '10px', fontWeight: 900, marginBottom: '3px' }}>SCAN TO PAY</div>
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
+            <div style={{ fontSize: '9px', marginTop: '2px' }}>{settings.bill_barcode_settings.upi_id}</div>
+          </div>
+        )}
+
+        {/* ============ TERMS & CONDITIONS ============ */}
+        {termsConditions && (
+          <>
+            <div style={separatorStyle}>{DASHED_LINE}</div>
+            <div style={{ 
+              fontSize: '9px', 
+              lineHeight: '1.3',
+              marginTop: '4px',
+              whiteSpace: 'pre-wrap'
+            }}>
+              {termsConditions}
+            </div>
+          </>
+        )}
+
+        {/* ============ FOOTER ============ */}
+        <div style={separatorStyle}>{SEPARATOR_LINE}</div>
+        <div style={{ 
+          ...centerStyle, 
+          fontSize: '12px',
+          fontWeight: 900,
+          margin: '6px 0 4px',
           letterSpacing: '1px',
           textTransform: 'uppercase'
         }}>
-          <span>TOTAL</span>
-          <span>{formatCurrency(grandTotal)}</span>
+          THANK YOU!
+        </div>
+        <div style={{ ...centerStyle, fontSize: '10px', marginBottom: '2px' }}>
+          Visit Again
         </div>
 
-        {/* Payment Details if mixed payment */}
-        {(cashPaid > 0 || upiPaid > 0 || cardPaid > 0) && (
-          <div style={{ fontSize: '11px', fontWeight: 900, marginBottom: '6px', paddingBottom: '5px', borderBottom: '1px dotted #000000' }}>
-            {cashPaid > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <span>Cash</span>
-                <span>{formatCurrency(cashPaid)}</span>
-              </div>
-            )}
-            {upiPaid > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <span>UPI</span>
-                <span>{formatCurrency(upiPaid)}</span>
-              </div>
-            )}
-            {cardPaid > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <span>Card</span>
-                <span>{formatCurrency(cardPaid)}</span>
-              </div>
-            )}
-            {refundCash > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <span>Change</span>
-                <span>{formatCurrency(refundCash)}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Points Information */}
-        {(pointsRedeemed > 0 || pointsBalance > 0) && (
-          <div style={{ 
-            fontSize: '11px', 
-            fontWeight: 700,
-            marginBottom: '6px', 
-            paddingBottom: '5px', 
-            borderBottom: '1px dotted #000000',
-            background: '#ffffff',
-            padding: '5px',
-            border: '1px solid #000000'
-          }}>
-            <div style={{ fontWeight: 900, marginBottom: '3px' }}>Loyalty Points</div>
-            {pointsRedeemed > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <span>Points Redeemed</span>
-                <span>{pointsRedeemed} pts (₹{pointsRedemptionValue.toFixed(0)})</span>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900 }}>
-              <span>Points Balance</span>
-              <span>{pointsBalance} pts</span>
-            </div>
-          </div>
-        )}
-
-        {/* UPI QR Code if available */}
-        {qrCodeUrl && settings?.bill_barcode_settings?.upi_id && (
-          <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-            <img src={qrCodeUrl} alt="UPI QR" style={{ width: '100px', height: '100px' }} />
-            <div style={{ fontSize: '11px', fontWeight: 900 }}>Scan to Pay</div>
-          </div>
-        )}
-
-        {/* Terms & Conditions */}
-        {termsConditions && (
-          <div style={{ 
-            fontSize: '10px', 
-            fontWeight: 700,
-            marginTop: '6px',
-            paddingTop: '5px',
-            borderTop: '2px dashed #000000'
-          }}>
-            <div style={{ fontWeight: 900, marginBottom: '3px' }}>Terms & Conditions:</div>
-            <div style={{ lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>{termsConditions}</div>
-          </div>
-        )}
-
-        {/* Thank You */}
-        <div style={{ 
-          textAlign: 'center', 
-          fontSize: '14px',
-          fontWeight: 900,
-          marginTop: '8px',
-          paddingTop: '8px',
-          borderTop: '2px dashed #000000',
-          letterSpacing: '1.5px',
-          textTransform: 'uppercase'
-        }}>
-          Thank You
-        </div>
-
-        {/* Footer Text */}
+        {/* Custom Footer Text */}
         {settings?.bill_barcode_settings?.footer_text && (
-          <div style={{ textAlign: 'center', fontSize: '10px', fontWeight: 700, marginTop: '5px' }}>
+          <div style={{ ...centerStyle, fontSize: '9px', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
             {settings.bill_barcode_settings.footer_text}
           </div>
         )}
+
+        {/* Powered By / Software info - optional */}
+        <div style={{ ...centerStyle, fontSize: '8px', marginTop: '6px', color: '#666' }}>
+          {format(date, 'dd-MM-yyyy HH:mm:ss')}
+        </div>
       </div>
     );
   }
