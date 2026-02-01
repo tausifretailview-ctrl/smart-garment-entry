@@ -337,7 +337,9 @@ export const useSaveSale = () => {
         pointsAwarded = result.pointsAwarded;
       }
 
-      // Auto-send WhatsApp invoice notification
+      // Auto-send WhatsApp invoice notification - TWO FLOW APPROACH
+      // Flow A: Utility/Text template (immediate notification)
+      // Flow B: Document template with PDF (only if enabled and configured)
       if (saleData.customerPhone && currentOrganization?.id) {
         try {
           // Check WhatsApp settings
@@ -388,22 +390,52 @@ export const useSaveSale = () => {
               facebook: whatsappSettings.social_links?.facebook || '',
             };
 
-            // Generate PDF if enabled (either for document header template or regular attachment)
-            let documentUrl: string | undefined;
-            let documentFilename: string | undefined;
-            let documentCaption: string | undefined;
-            let pdfBase64: string | undefined;
-            let useDocumentHeaderTemplate = false;
-            let documentHeaderTemplateName: string | undefined;
+            // ============================================
+            // FLOW A: Utility/Text Template (TEXT or NONE header)
+            // Send immediate invoice notification without PDF
+            // This template MUST have TEXT or NONE header type
+            // ============================================
+            const hasUtilityTemplate = whatsappSettings.invoice_template_name && 
+              !whatsappSettings.use_document_header_template;
 
-            // Check if we need PDF: either regular PDF attachment OR document header template (bypasses 24h)
-            const needsPdf = whatsappSettings.send_invoice_pdf || 
-              (whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name);
-
-            if (needsPdf) {
+            if (hasUtilityTemplate) {
               try {
-                
-                // Calculate tax amount
+                await supabase.functions.invoke('send-whatsapp', {
+                  body: {
+                    organizationId: currentOrganization.id,
+                    phone: saleData.customerPhone,
+                    message: messageText,
+                    templateType: 'sales_invoice',
+                    templateName: whatsappSettings.invoice_template_name,
+                    saleData: saleDataForWhatsApp,
+                    referenceId: sale.id,
+                    referenceType: 'sale',
+                    // Flow A: No PDF attachment
+                    documentUrl: undefined,
+                    documentFilename: undefined,
+                    documentCaption: undefined,
+                    useDocumentHeaderTemplate: false,
+                    documentHeaderTemplateName: null,
+                    pdfBlob: null,
+                  }
+                });
+              } catch (flowAError) {
+                // Log Flow A failure but continue to Flow B if enabled
+                console.error('WhatsApp Flow A (utility template) failed:', flowAError);
+              }
+            }
+
+            // ============================================
+            // FLOW B: Document Header Template with PDF
+            // Only if "Direct PDF Delivery" is enabled
+            // This uses DOCUMENT header template (bypasses 24h window)
+            // ============================================
+            const shouldSendPdfFlow = whatsappSettings.use_document_header_template && 
+              whatsappSettings.invoice_document_template_name;
+
+            if (shouldSendPdfFlow) {
+              try {
+                // Calculate tax amount for PDF
                 const taxAmount = saleData.items.reduce((sum, item) => {
                   const taxableAmount = item.netAmount / (1 + item.gstPer / 100);
                   return sum + (item.netAmount - taxableAmount);
@@ -438,54 +470,35 @@ export const useSaveSale = () => {
                   companyGst: companySettings?.gst_number || undefined,
                 };
 
-                documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
-                documentCaption = `Invoice ${saleNumber} - Rs ${formattedAmount}`;
+                const documentFilename = `Invoice_${saleNumber.replace(/\//g, '-')}.pdf`;
+                
+                // Generate base64 PDF for Meta upload
+                const pdfBase64 = generateInvoicePdfBase64(pdfData);
 
-                // Check if document header template is configured (bypasses 24h window)
-                if (whatsappSettings.use_document_header_template && whatsappSettings.invoice_document_template_name) {
-                  useDocumentHeaderTemplate = true;
-                  documentHeaderTemplateName = whatsappSettings.invoice_document_template_name;
-                  
-                  // Generate base64 PDF for Meta upload
-                  pdfBase64 = generateInvoicePdfBase64(pdfData);
-                } else {
-                  // Use regular flow - upload to Supabase storage
-                  documentUrl = await generateAndUploadInvoicePDF(pdfData, currentOrganization.id);
+                if (pdfBase64) {
+                  await supabase.functions.invoke('send-whatsapp', {
+                    body: {
+                      organizationId: currentOrganization.id,
+                      phone: saleData.customerPhone,
+                      message: `Invoice ${saleNumber} PDF attached`,
+                      templateType: 'sales_invoice_pdf',
+                      templateName: null, // Don't use regular template for PDF flow
+                      saleData: saleDataForWhatsApp,
+                      referenceId: sale.id,
+                      referenceType: 'sale',
+                      // Flow B: PDF embedded in document header template
+                      useDocumentHeaderTemplate: true,
+                      documentHeaderTemplateName: whatsappSettings.invoice_document_template_name,
+                      pdfBlob: pdfBase64,
+                      documentFilename: documentFilename,
+                    }
+                  });
                 }
-              } catch (pdfError: any) {
-                // Don't fail the sale if PDF generation fails - only log in dev
-                if (import.meta.env.DEV) {
-                  console.error('Failed to generate/upload invoice PDF:', pdfError?.message || pdfError);
-                }
+              } catch (flowBError) {
+                // Flow B failure should NOT block the sale
+                console.error('WhatsApp Flow B (PDF delivery) failed:', flowBError);
               }
             }
-
-            // When using document header template, don't pass regular templateName 
-            // to avoid the edge function trying to send it as a regular template
-            const effectiveTemplateName = useDocumentHeaderTemplate 
-              ? null 
-              : (whatsappSettings.invoice_template_name || null);
-
-            await supabase.functions.invoke('send-whatsapp', {
-              body: {
-                organizationId: currentOrganization.id,
-                phone: saleData.customerPhone,
-                message: messageText,
-                templateType: 'sales_invoice',
-                templateName: effectiveTemplateName,
-                saleData: saleDataForWhatsApp,
-                referenceId: sale.id,
-                referenceType: 'sale',
-                // Include PDF attachment if generated (regular flow)
-                documentUrl,
-                documentFilename,
-                documentCaption,
-                // Document header template options (bypasses 24h window)
-                useDocumentHeaderTemplate: useDocumentHeaderTemplate || false,
-                documentHeaderTemplateName: documentHeaderTemplateName || null,
-                pdfBlob: pdfBase64 || null,
-              }
-            });
           }
         } catch (whatsappError) {
           // Don't fail the sale if WhatsApp notification fails
