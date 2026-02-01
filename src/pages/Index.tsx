@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { MobileQuickActions } from "@/components/mobile/MobileQuickActions";
 import {
   Select,
   SelectContent,
@@ -224,7 +225,7 @@ const DashboardContent = () => {
     {
       label: "Size-wise Stock",
       icon: Layers,
-      onClick: () => navigate("/item-wise-stock-report"),
+      onClick: () => navigate("/stock-report?tab=size-wise"),
     },
     { label: "", separator: true, onClick: () => {} },
     {
@@ -831,8 +832,11 @@ const DashboardContent = () => {
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
       </div>
 
-      {/* Quick Action Buttons */}
-      <div className="flex flex-wrap items-center gap-2 py-1">
+      {/* Mobile Quick Actions - Cards */}
+      <MobileQuickActions />
+
+      {/* Quick Action Buttons - Hidden on mobile (replaced by MobileQuickActions) */}
+      <div className="hidden lg:flex flex-wrap items-center gap-2 py-1">
         <Button
           variant="default"
           size="sm"
@@ -863,7 +867,7 @@ const DashboardContent = () => {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => navigate("/item-wise-stock-report")}
+          onClick={() => navigate("/stock-report?tab=size-wise")}
           className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
         >
           <Layers className="h-4 w-4 mr-2" />
