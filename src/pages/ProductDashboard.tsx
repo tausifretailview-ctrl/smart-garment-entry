@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode } from "lucide-react";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -31,6 +31,8 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { ProductRelationDialog } from "@/components/ProductRelationDialog";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 
 interface ProductVariant {
   variant_id: string;
@@ -105,7 +107,125 @@ const ProductDashboard = () => {
   const [showProductHistory, setShowProductHistory] = useState(false);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<{id: string; name: string} | null>(null);
   const [showMrp, setShowMrp] = useState(false);
-  // Column visibility settings - persisted to database
+
+  // Context menu for desktop right-click
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<ProductRow>();
+  const pageContextMenu = useContextMenu<void>();
+
+  // Get context menu items for product row
+  const getProductContextMenuItems = (product: ProductRow): ContextMenuItem[] => {
+    return [
+      {
+        label: "View Details",
+        icon: Eye,
+        onClick: () => toggleExpanded(product.product_id),
+      },
+      {
+        label: "Edit Product",
+        icon: Edit,
+        onClick: () => navigate(`/product-entry/${product.product_id}`),
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Stock History",
+        icon: History,
+        onClick: () => {
+          setSelectedProductForHistory({
+            id: product.product_id,
+            name: product.product_name
+          });
+          setShowProductHistory(true);
+        },
+      },
+      {
+        label: "Print Barcodes",
+        icon: Barcode,
+        onClick: () => {
+          const barcodeItems = product.variants.map(variant => ({
+            sku_id: variant.variant_id,
+            product_name: product.product_name,
+            brand: product.brand || "",
+            category: product.category || "",
+            color: variant.color || product.color || "",
+            style: product.style || "",
+            size: variant.size,
+            sale_price: variant.sale_price,
+            mrp: variant.mrp,
+            pur_price: variant.pur_price,
+            barcode: variant.barcode,
+            qty: variant.stock_qty,
+            bill_number: "",
+            supplier_code: "",
+          }));
+          navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+        },
+      },
+      {
+        label: "Add Purchase",
+        icon: ShoppingCart,
+        onClick: () => navigate(`/purchase-entry?productId=${product.product_id}`),
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: product.status === 'active' ? "Mark Inactive" : "Mark Active",
+        icon: Ban,
+        onClick: async () => {
+          const newStatus = product.status === 'active' ? 'inactive' : 'active';
+          const { error } = await supabase
+            .from("products")
+            .update({ status: newStatus })
+            .eq("id", product.product_id);
+          
+          if (!error) {
+            toast({
+              title: "Success",
+              description: `Product marked as ${newStatus}`,
+            });
+            fetchProductVariants();
+          }
+        },
+      },
+      {
+        label: "Delete Product",
+        icon: Trash2,
+        onClick: () => {
+          setSelectedProducts(new Set([product.product_id]));
+          setShowBulkDeleteDialog(true);
+        },
+        destructive: true,
+      },
+    ];
+  };
+
+  // Get page-level context menu items
+  const getPageContextMenuItems = (): ContextMenuItem[] => [
+    {
+      label: "Add New Product",
+      icon: Plus,
+      onClick: () => navigate("/product-entry"),
+    },
+    {
+      label: "Refresh List",
+      icon: RefreshCw,
+      onClick: () => fetchProductVariants(),
+    },
+  ];
+
+  // Handle row right-click
+  const handleRowContextMenu = (e: React.MouseEvent, product: ProductRow) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, product);
+  };
+
+  // Handle page right-click (empty area)
+  const handlePageContextMenu = (e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
+    pageContextMenu.openMenu(e, undefined);
+  };
+
   const defaultColumnSettings = {
     image: true,
     productName: true,
@@ -1103,6 +1223,7 @@ const ProductDashboard = () => {
                           key={row.product_id}
                           className="cursor-pointer hover:bg-muted/30 transition-colors"
                           onClick={() => toggleExpanded(row.product_id)}
+                          onContextMenu={(e) => handleRowContextMenu(e, row)}
                         >
                           <TableCell>
                             {expandedProduct === row.product_id ? (
@@ -1378,6 +1499,25 @@ const ProductDashboard = () => {
         onMarkInactive={handleMarkProductInactive}
         isMarkingInactive={isMarkingInactive}
       />
+
+      {/* Desktop Context Menus */}
+      {isDesktop && (
+        <>
+          <DesktopContextMenu
+            isOpen={rowContextMenu.isOpen}
+            position={rowContextMenu.position}
+            items={rowContextMenu.contextData ? getProductContextMenuItems(rowContextMenu.contextData) : []}
+            onClose={rowContextMenu.closeMenu}
+          />
+          <PageContextMenu
+            isOpen={pageContextMenu.isOpen}
+            position={pageContextMenu.position}
+            items={getPageContextMenuItems()}
+            onClose={pageContextMenu.closeMenu}
+            title="Quick Actions"
+          />
+        </>
+      )}
     </div>
   );
 };

@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -30,6 +30,8 @@ import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete, StockDependency } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 
 interface PurchaseItem {
   id: string;
@@ -147,7 +149,102 @@ const PurchaseBillDashboard = () => {
   
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  
+
+  // Context menu for desktop right-click
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<PurchaseBill>();
+  const pageContextMenu = useContextMenu<void>();
+
+  // Get context menu items for purchase bill row
+  const getBillContextMenuItems = (bill: PurchaseBill): ContextMenuItem[] => {
+    return [
+      {
+        label: "View Details",
+        icon: Eye,
+        onClick: () => toggleExpanded(bill.id),
+      },
+      {
+        label: "Edit Bill",
+        icon: Edit,
+        onClick: () => navigate(`/purchase-entry/${bill.id}`),
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Record Payment",
+        icon: CreditCard,
+        onClick: () => {
+          setSelectedBillForPayment(bill);
+          const remainingAmount = bill.net_amount - (bill.paid_amount || 0);
+          setPaymentAmount(remainingAmount.toFixed(2));
+          setPaymentDate(format(new Date(), "yyyy-MM-dd"));
+          setPaymentMethod("cash");
+          setPaymentNotes("");
+          setShowPaymentDialog(true);
+        },
+        disabled: bill.payment_status === 'completed',
+      },
+      {
+        label: "Print Barcodes",
+        icon: Barcode,
+        onClick: () => {
+          const items = billItems[bill.id] || [];
+          const barcodeItems = items.map(item => ({
+            sku_id: item.id,
+            product_name: item.product_name || "",
+            brand: item.brand || "",
+            category: item.category || "",
+            color: item.color || "",
+            style: item.style || "",
+            size: item.size,
+            sale_price: item.sale_price,
+            mrp: item.mrp,
+            pur_price: item.pur_price,
+            barcode: item.barcode,
+            qty: item.qty,
+            bill_number: bill.software_bill_no || bill.supplier_invoice_no,
+            supplier_code: "",
+          }));
+          navigate("/barcode-printing", { state: { purchaseItems: barcodeItems } });
+        },
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Delete Bill",
+        icon: Trash2,
+        onClick: () => setBillToDelete(bill),
+        destructive: true,
+      },
+    ];
+  };
+
+  // Get page-level context menu items
+  const getPageContextMenuItems = (): ContextMenuItem[] => [
+    {
+      label: "New Purchase",
+      icon: Plus,
+      onClick: () => navigate("/purchase-entry"),
+    },
+    {
+      label: "Refresh List",
+      icon: RefreshCw,
+      onClick: () => fetchBills(),
+    },
+  ];
+
+  // Handle row right-click
+  const handleRowContextMenu = (e: React.MouseEvent, bill: PurchaseBill) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, bill);
+  };
+
+  // Handle page right-click (empty area)
+  const handlePageContextMenu = (e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
+    pageContextMenu.openMenu(e, undefined);
+  };
+
   // Fetch settings to check if MRP is enabled
   const { data: purchaseSettings } = useQuery({
     queryKey: ["settings", currentOrganization?.id],
@@ -1083,6 +1180,7 @@ const PurchaseBillDashboard = () => {
                           key={bill.id}
                           className="cursor-pointer hover:bg-muted/30 transition-colors"
                           onClick={() => toggleExpanded(bill.id)}
+                          onContextMenu={(e) => handleRowContextMenu(e, bill)}
                         >
                         <TableCell>
                           {expandedBill === bill.id ? (
@@ -1636,6 +1734,25 @@ const PurchaseBillDashboard = () => {
           supplierName={selectedSupplierForHistory.name}
           organizationId={currentOrganization.id}
         />
+      )}
+
+      {/* Desktop Context Menus */}
+      {isDesktop && (
+        <>
+          <DesktopContextMenu
+            isOpen={rowContextMenu.isOpen}
+            position={rowContextMenu.position}
+            items={rowContextMenu.contextData ? getBillContextMenuItems(rowContextMenu.contextData) : []}
+            onClose={rowContextMenu.closeMenu}
+          />
+          <PageContextMenu
+            isOpen={pageContextMenu.isOpen}
+            position={pageContextMenu.position}
+            items={getPageContextMenuItems()}
+            onClose={pageContextMenu.closeMenu}
+            title="Quick Actions"
+          />
+        </>
       )}
     </div>
   );

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye } from "lucide-react";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
@@ -46,6 +46,8 @@ import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 
 interface ColumnSettings {
   [key: string]: boolean;
@@ -145,6 +147,104 @@ export default function SalesInvoiceDashboard() {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
+
+  // Context menu for desktop right-click
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<any>();
+  const pageContextMenu = useContextMenu<void>();
+
+  // Get context menu items for invoice row
+  const getInvoiceContextMenuItems = (invoice: any): ContextMenuItem[] => {
+    const isLocked = invoice.payment_status === 'completed';
+    const canModify = hasSpecialPermission('modify_records') || !isLocked;
+    const canDelete = hasSpecialPermission('delete_records');
+    
+    return [
+      {
+        label: "Open Invoice",
+        icon: Eye,
+        onClick: () => toggleExpanded(invoice.id, invoice.sale_number),
+      },
+      {
+        label: "Edit Invoice",
+        icon: Edit,
+        onClick: () => navigate(`/sales-invoice/${invoice.id}`),
+        disabled: !canModify,
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Print Invoice",
+        icon: Printer,
+        onClick: () => {
+          setInvoiceToPrint(invoice);
+          setShowPrintPreview(true);
+        },
+      },
+      {
+        label: "Download PDF",
+        icon: Download,
+        onClick: () => handleDownloadPDF(invoice),
+      },
+      {
+        label: "Send on WhatsApp",
+        icon: MessageCircle,
+        onClick: () => {
+          if (invoice.customer_phone) {
+            const message = formatMessage("invoice", invoice) || `Invoice ${invoice.sale_number} - ₹${invoice.net_amount}`;
+            sendWhatsApp(invoice.customer_phone, message);
+          }
+        },
+        disabled: !invoice.customer_phone,
+      },
+      {
+        label: "Copy Invoice Link",
+        icon: Link2,
+        onClick: () => copyInvoiceLink(invoice),
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Duplicate Invoice",
+        icon: Copy,
+        onClick: () => navigate(`/sales-invoice/new?duplicate=${invoice.id}`),
+      },
+      {
+        label: "Delete Invoice",
+        icon: Trash2,
+        onClick: () => setInvoiceToDelete(invoice),
+        disabled: !canDelete,
+        destructive: true,
+      },
+    ];
+  };
+
+  // Get page-level context menu items
+  const getPageContextMenuItems = (): ContextMenuItem[] => [
+    {
+      label: "New Invoice",
+      icon: Plus,
+      onClick: () => navigate("/sales-invoice/new"),
+    },
+    {
+      label: "Refresh List",
+      icon: RefreshCw,
+      onClick: () => refetch(),
+    },
+  ];
+
+  // Handle row right-click
+  const handleRowContextMenu = (e: React.MouseEvent, invoice: any) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, invoice);
+  };
+
+  // Handle page right-click (empty area)
+  const handlePageContextMenu = (e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    // Only trigger if clicking on empty area (not on rows)
+    const target = e.target as HTMLElement;
+    if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
+    pageContextMenu.openMenu(e, undefined);
+  };
 
   // Fetch company settings for receipt branding
   const { data: settings } = useQuery({
@@ -1521,7 +1621,11 @@ export default function SalesInvoiceDashboard() {
                     ) : (
                       paginatedInvoices.map((invoice: any) => (
                         <>
-                          <TableRow key={invoice.id} className="cursor-pointer hover:bg-accent/50">
+                          <TableRow 
+                            key={invoice.id} 
+                            className="cursor-pointer hover:bg-accent/50"
+                            onContextMenu={(e) => handleRowContextMenu(e, invoice)}
+                          >
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedInvoices.has(invoice.id)}
@@ -2339,6 +2443,25 @@ export default function SalesInvoiceDashboard() {
               }}
             />
           </div>
+        )}
+
+        {/* Desktop Context Menus */}
+        {isDesktop && (
+          <>
+            <DesktopContextMenu
+              isOpen={rowContextMenu.isOpen}
+              position={rowContextMenu.position}
+              items={rowContextMenu.contextData ? getInvoiceContextMenuItems(rowContextMenu.contextData) : []}
+              onClose={rowContextMenu.closeMenu}
+            />
+            <PageContextMenu
+              isOpen={pageContextMenu.isOpen}
+              position={pageContextMenu.position}
+              items={getPageContextMenuItems()}
+              onClose={pageContextMenu.closeMenu}
+              title="Quick Actions"
+            />
+          </>
         )}
       </div>
   );
