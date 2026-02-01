@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -35,6 +35,9 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDialog";
 import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
 import { BrandDiscountDialog } from "@/components/BrandDiscountDialog";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 
 interface Customer {
   id: string;
@@ -77,8 +80,89 @@ const CustomerMaster = () => {
   const [showBrandDiscountDialog, setShowBrandDiscountDialog] = useState(false);
   const [selectedCustomerForBrandDiscount, setSelectedCustomerForBrandDiscount] = useState<{ id: string; name: string } | null>(null);
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
+  const { orgNavigate: navigate } = useOrgNavigation();
 
-  // Fetch ALL customers using pagination to bypass 1000 row limit
+  // Context menu for desktop right-click
+  const isDesktop = useIsDesktop();
+  const rowContextMenu = useContextMenu<Customer>();
+  const pageContextMenu = useContextMenu<void>();
+
+  // Get context menu items for customer row
+  const getCustomerContextMenuItems = (customer: Customer): ContextMenuItem[] => {
+    return [
+      {
+        label: "View Ledger",
+        icon: Eye,
+        onClick: () => {
+          setSelectedCustomerForHistory({
+            id: customer.id,
+            name: customer.customer_name
+          });
+          setShowCustomerHistory(true);
+        },
+      },
+      {
+        label: "Edit Customer",
+        icon: Pencil,
+        onClick: () => handleEdit(customer),
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Add Sale",
+        icon: ShoppingCart,
+        onClick: () => navigate(`/sales-invoice/new?customerId=${customer.id}`),
+      },
+      {
+        label: "Brand Discounts",
+        icon: Tag,
+        onClick: () => {
+          setSelectedCustomerForBrandDiscount({
+            id: customer.id,
+            name: customer.customer_name
+          });
+          setShowBrandDiscountDialog(true);
+        },
+      },
+      { label: "", separator: true, onClick: () => {} },
+      {
+        label: "Delete Customer",
+        icon: Trash2,
+        onClick: () => handleDelete(customer.id),
+        destructive: true,
+      },
+    ];
+  };
+
+  // Get page-level context menu items
+  const getPageContextMenuItems = (): ContextMenuItem[] => [
+    {
+      label: "Add New Customer",
+      icon: Plus,
+      onClick: () => {
+        resetForm();
+        setIsDialogOpen(true);
+      },
+    },
+    {
+      label: "Refresh List",
+      icon: RefreshCw,
+      onClick: () => queryClient.invalidateQueries({ queryKey: ["customers"] }),
+    },
+  ];
+
+  // Handle row right-click
+  const handleRowContextMenu = (e: React.MouseEvent, customer: Customer) => {
+    if (!isDesktop) return;
+    rowContextMenu.openMenu(e, customer);
+  };
+
+  // Handle page right-click (empty area)
+  const handlePageContextMenu = (e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
+    pageContextMenu.openMenu(e, undefined);
+  };
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id],
     queryFn: async () => {
@@ -613,7 +697,10 @@ const CustomerMaster = () => {
               </TableRow>
             ) : (
               paginatedCustomers.map((customer, index) => (
-                <TableRow key={customer.id}>
+                <TableRow 
+                  key={customer.id}
+                  onContextMenu={(e) => handleRowContextMenu(e, customer)}
+                >
                   <TableCell>
                     <Checkbox
                       checked={selectedCustomers.has(customer.id)}
@@ -755,6 +842,25 @@ const CustomerMaster = () => {
         onOpenChange={setShowBrandDiscountDialog}
         customer={selectedCustomerForBrandDiscount}
       />
+
+      {/* Desktop Context Menus */}
+      {isDesktop && (
+        <>
+          <DesktopContextMenu
+            isOpen={rowContextMenu.isOpen}
+            position={rowContextMenu.position}
+            items={rowContextMenu.contextData ? getCustomerContextMenuItems(rowContextMenu.contextData) : []}
+            onClose={rowContextMenu.closeMenu}
+          />
+          <PageContextMenu
+            isOpen={pageContextMenu.isOpen}
+            position={pageContextMenu.position}
+            items={getPageContextMenuItems()}
+            onClose={pageContextMenu.closeMenu}
+            title="Quick Actions"
+          />
+        </>
+      )}
     </div>
   );
 };
