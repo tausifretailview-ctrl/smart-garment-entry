@@ -220,9 +220,35 @@ export default function SalesInvoiceDashboard() {
   // Get page-level context menu items
   const getPageContextMenuItems = (): ContextMenuItem[] => [
     {
+      label: "POS Billing",
+      icon: Zap,
+      onClick: () => navigate("/pos-sales"),
+    },
+    {
+      label: "Stock Report",
+      icon: Package,
+      onClick: () => navigate("/stock-report"),
+    },
+    {
+      label: "Daily Cash Report",
+      icon: TrendingUp,
+      onClick: () => navigate("/daily-cashier-report"),
+    },
+    {
+      label: "Size-wise Stock",
+      icon: Percent,
+      onClick: () => navigate("/item-wise-stock-report"),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
       label: "New Invoice",
       icon: Plus,
       onClick: () => navigate("/sales-invoice/new"),
+    },
+    {
+      label: "Add New Party",
+      icon: Send,
+      onClick: () => navigate("/customers"),
     },
     {
       label: "Refresh List",

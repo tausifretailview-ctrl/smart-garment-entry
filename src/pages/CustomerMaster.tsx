@@ -108,10 +108,21 @@ const CustomerMaster = () => {
       },
       { label: "", separator: true, onClick: () => {} },
       {
-        label: "Add Sale",
+        label: "POS Sale",
         icon: ShoppingCart,
+        onClick: () => navigate(`/pos-sales?customerId=${customer.id}`),
+      },
+      {
+        label: "Add Invoice",
+        icon: FileText,
         onClick: () => navigate(`/sales-invoice/new?customerId=${customer.id}`),
       },
+      {
+        label: "Add Payment",
+        icon: Wallet,
+        onClick: () => navigate(`/payments-dashboard?customerId=${customer.id}`),
+      },
+      { label: "", separator: true, onClick: () => {} },
       {
         label: "Brand Discounts",
         icon: Tag,
@@ -136,12 +147,28 @@ const CustomerMaster = () => {
   // Get page-level context menu items
   const getPageContextMenuItems = (): ContextMenuItem[] => [
     {
+      label: "POS Billing",
+      icon: ShoppingCart,
+      onClick: () => navigate("/pos-sales"),
+    },
+    {
+      label: "Stock Report",
+      icon: History,
+      onClick: () => navigate("/stock-report"),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
       label: "Add New Customer",
       icon: Plus,
       onClick: () => {
         resetForm();
         setIsDialogOpen(true);
       },
+    },
+    {
+      label: "Add Invoice",
+      icon: FileText,
+      onClick: () => navigate("/sales-invoice/new"),
     },
     {
       label: "Refresh List",

@@ -83,7 +83,7 @@ export function ProductSearchDropdown({
           .eq("active", true)
           .is("deleted_at", null)
           .is("products.deleted_at", null)
-          .or(`barcode.eq.${value},barcode.ilike.%${value}%,products.product_name.ilike.%${value}%,products.brand.ilike.%${value}%,size.ilike.%${value}%`)
+          .or(`barcode.eq.${value},barcode.ilike.%${value}%,size.ilike.%${value}%,color.ilike.%${value}%`)
           .order("stock_qty", { ascending: false })
           .limit(50);
 

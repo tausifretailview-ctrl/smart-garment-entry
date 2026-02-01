@@ -220,9 +220,30 @@ const PurchaseBillDashboard = () => {
   // Get page-level context menu items
   const getPageContextMenuItems = (): ContextMenuItem[] => [
     {
+      label: "POS Billing",
+      icon: ShoppingCart,
+      onClick: () => navigate("/pos-sales"),
+    },
+    {
+      label: "Stock Report",
+      icon: Database,
+      onClick: () => navigate("/stock-report"),
+    },
+    {
+      label: "Size-wise Stock",
+      icon: Wallet,
+      onClick: () => navigate("/item-wise-stock-report"),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
       label: "New Purchase",
       icon: Plus,
       onClick: () => navigate("/purchase-entry"),
+    },
+    {
+      label: "Add Supplier",
+      icon: Home,
+      onClick: () => navigate("/suppliers"),
     },
     {
       label: "Refresh List",
