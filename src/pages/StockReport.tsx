@@ -304,11 +304,13 @@ export default function StockReport() {
         }
         
         // Apply stock status filter at query level for efficiency
+        // Note: We always include 0 stock items to show products even with zero stock
         if (stockStatusFilter === "out") {
           query = query.eq("stock_qty", 0);
-        } else if (stockStatusFilter !== "all") {
-          // For 'in' and 'low', we'll filter after to handle threshold
+        } else if (stockStatusFilter === "in") {
+          query = query.gt("stock_qty", 0);
         }
+        // For 'all' and 'low', we include all stock levels (0 and above)
         
         const { data, error } = await query
           .order("stock_qty", { ascending: true })
