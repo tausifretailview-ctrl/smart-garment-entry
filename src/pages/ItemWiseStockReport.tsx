@@ -29,40 +29,58 @@ export default function ItemWiseStockReport() {
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("");
 
-  // Fetch all product variants with stock
+  // Fetch all product variants with stock using pagination to bypass 1000 row limit
   const { data: stockData = [], isLoading } = useQuery({
     queryKey: ["item-wise-stock", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          stock_qty,
-          pur_price,
-          sale_price,
-          products!inner (
-            id,
-            product_name,
-            product_type,
-            brand,
-            category,
-            style,
-            deleted_at
-          )
-        `)
-        .eq("products.organization_id", currentOrganization.id)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .neq("products.product_type", "service");
+      const allVariants: any[] = [];
+      const batchSize = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (error) {
-        console.error("Error fetching stock data:", error);
-        throw error;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(`
+            id,
+            stock_qty,
+            pur_price,
+            sale_price,
+            products!inner (
+              id,
+              product_name,
+              product_type,
+              brand,
+              category,
+              style,
+              deleted_at
+            )
+          `)
+          .eq("products.organization_id", currentOrganization.id)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .neq("products.product_type", "service")
+          .range(from, from + batchSize - 1);
+
+        if (error) {
+          console.error("Error fetching stock data:", error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          allVariants.push(...data);
+          from += batchSize;
+          hasMore = data.length === batchSize;
+        } else {
+          hasMore = false;
+        }
       }
-      return data || [];
+
+      console.log(`ItemWiseStockReport: Fetched ${allVariants.length} total variants`);
+      return allVariants;
     },
     enabled: !!currentOrganization?.id,
   });
