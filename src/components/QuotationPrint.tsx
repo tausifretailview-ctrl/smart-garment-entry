@@ -1,6 +1,6 @@
 import React from 'react';
 import '../styles/professional-invoice.css';
-
+import '../styles/print-invoice-core.css';
 interface QuotationItem {
   sr: number;
   particulars: string;

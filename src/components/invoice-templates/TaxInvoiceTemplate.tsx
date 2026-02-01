@@ -219,9 +219,28 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
       fontFamily: font,
       fontSize: '9px',
       color: '#000',
-      border: `2px solid ${colors.primary}`,
+      border: '1px solid #000',
       boxSizing: 'border-box',
     }}>
+      <style>
+        {`
+          @media print {
+            @page {
+              size: ${format === 'a4' ? 'A4' : format === 'a5-horizontal' ? 'A5 landscape' : 'A5'} portrait;
+              margin: 5mm;
+            }
+            /* Remove gradients for clean print */
+            [style*="linear-gradient"] {
+              background: #f5f5f5 !important;
+            }
+            /* Ensure black borders and text */
+            table, th, td {
+              border: 1px solid #000 !important;
+              color: black !important;
+            }
+          }
+        `}
+      </style>
       {/* Custom Header Text */}
       {customHeaderText && (
         <div style={{ textAlign: 'center', marginBottom: '6px', fontSize: '10px', fontWeight: 'bold', color: colors.primary }}>

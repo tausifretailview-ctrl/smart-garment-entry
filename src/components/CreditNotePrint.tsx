@@ -72,90 +72,195 @@ const amountInWords = (amount: number): string => {
 export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintProps>(
   ({ creditNote, settings }, ref) => {
     return (
-      <div ref={ref} className="bg-white p-8 max-w-md mx-auto" style={{ fontFamily: 'Arial, sans-serif' }}>
-        {/* Header */}
-        <div className="text-center border-b-2 border-purple-600 pb-4 mb-4">
-          <h1 className="text-2xl font-bold text-purple-700">CREDIT NOTE</h1>
+      <div 
+        ref={ref} 
+        className="credit-note-print print-document"
+        style={{ 
+          fontFamily: 'Arial, sans-serif',
+          width: '148mm',
+          minHeight: '210mm',
+          padding: '8mm',
+          backgroundColor: 'white',
+          color: 'black',
+          boxSizing: 'border-box'
+        }}
+      >
+        <style>
+          {`
+            @media print {
+              @page {
+                size: A5 portrait;
+                margin: 5mm;
+              }
+              .credit-note-print {
+                width: 138mm !important;
+                min-height: 200mm !important;
+                padding: 5mm !important;
+              }
+              .credit-note-print * {
+                color: black !important;
+                background-image: none !important;
+                box-shadow: none !important;
+              }
+            }
+          `}
+        </style>
+
+        {/* Header with Border */}
+        <div style={{ 
+          textAlign: 'center', 
+          borderBottom: '2px solid #000', 
+          paddingBottom: '10px', 
+          marginBottom: '12px' 
+        }}>
+          <div style={{ 
+            fontSize: '14pt', 
+            fontWeight: 'bold',
+            letterSpacing: '2px',
+            padding: '6px 0',
+            border: '2px solid #000',
+            marginBottom: '10px'
+          }}>
+            CREDIT NOTE
+          </div>
           {settings?.business_name && (
-            <h2 className="text-lg font-semibold mt-2">{settings.business_name}</h2>
+            <div style={{ fontSize: '12pt', fontWeight: 'bold', marginBottom: '4px' }}>
+              {settings.business_name}
+            </div>
           )}
           {settings?.address && (
-            <p className="text-sm text-gray-600">{settings.address}</p>
+            <div style={{ fontSize: '9pt', marginBottom: '2px' }}>{settings.address}</div>
           )}
           {settings?.mobile_number && (
-            <p className="text-sm text-gray-600">Ph: {settings.mobile_number}</p>
+            <div style={{ fontSize: '9pt' }}>Ph: {settings.mobile_number}</div>
           )}
           {settings?.gst_number && (
-            <p className="text-sm text-gray-600">GSTIN: {settings.gst_number}</p>
+            <div style={{ fontSize: '9pt', fontWeight: 'bold', marginTop: '4px' }}>
+              GSTIN: {settings.gst_number}
+            </div>
           )}
         </div>
 
-        {/* Credit Note Details */}
-        <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-          <div>
-            <p className="font-semibold">Credit Note No:</p>
-            <p className="text-purple-700 font-bold">{creditNote.credit_note_number}</p>
+        {/* Credit Note Details - Bordered Box */}
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between',
+          border: '1px solid #000',
+          marginBottom: '12px',
+          fontSize: '9pt'
+        }}>
+          <div style={{ padding: '8px', borderRight: '1px solid #000', flex: 1 }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Credit Note No:</div>
+            <div style={{ fontSize: '11pt', fontWeight: 'bold' }}>{creditNote.credit_note_number}</div>
           </div>
-          <div className="text-right">
-            <p className="font-semibold">Issue Date:</p>
-            <p>{format(new Date(creditNote.issue_date), 'dd/MM/yyyy')}</p>
+          <div style={{ padding: '8px', flex: 1, textAlign: 'right' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Issue Date:</div>
+            <div>{format(new Date(creditNote.issue_date), 'dd/MM/yyyy')}</div>
           </div>
         </div>
 
-        {/* Customer Details */}
-        <div className="bg-purple-50 p-3 rounded-lg mb-4">
-          <p className="font-semibold text-sm">Customer:</p>
-          <p className="font-bold">{creditNote.customer_name}</p>
+        {/* Customer Details - Bordered Box */}
+        <div style={{ 
+          border: '1px solid #000', 
+          padding: '10px', 
+          marginBottom: '12px',
+          fontSize: '9pt'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', borderBottom: '1px solid #ccc', paddingBottom: '4px' }}>
+            CUSTOMER DETAILS:
+          </div>
+          <div style={{ fontWeight: 'bold', fontSize: '10pt' }}>{creditNote.customer_name}</div>
           {creditNote.customer_phone && (
-            <p className="text-sm text-gray-600">Ph: {creditNote.customer_phone}</p>
+            <div style={{ marginTop: '4px' }}>Phone: {creditNote.customer_phone}</div>
           )}
         </div>
 
-        {/* Amount */}
-        <div className="bg-purple-100 p-4 rounded-lg mb-4 text-center">
-          <p className="text-sm text-gray-600">Credit Amount</p>
-          <p className="text-3xl font-bold text-purple-700">
+        {/* Amount Box - Prominent */}
+        <div style={{ 
+          border: '2px solid #000', 
+          padding: '12px', 
+          marginBottom: '12px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '9pt', marginBottom: '6px' }}>Credit Amount</div>
+          <div style={{ fontSize: '18pt', fontWeight: 'bold' }}>
             ₹{creditNote.credit_amount.toFixed(2)}
-          </p>
-          <p className="text-xs text-gray-600 mt-2 italic">
+          </div>
+          <div style={{ 
+            fontSize: '8pt', 
+            marginTop: '8px', 
+            fontStyle: 'italic',
+            borderTop: '1px solid #ccc',
+            paddingTop: '8px'
+          }}>
             {amountInWords(creditNote.credit_amount)}
-          </p>
+          </div>
         </div>
 
-        {/* Expiry Date (if any) */}
+        {/* Expiry Date */}
         {creditNote.expiry_date && (
-          <div className="text-center text-sm mb-4">
-            <p className="text-gray-600">
-              Valid Until: <span className="font-semibold">{format(new Date(creditNote.expiry_date), 'dd/MM/yyyy')}</span>
-            </p>
+          <div style={{ 
+            textAlign: 'center', 
+            marginBottom: '12px', 
+            fontSize: '9pt',
+            padding: '6px',
+            border: '1px dashed #999'
+          }}>
+            <strong>Valid Until:</strong> {format(new Date(creditNote.expiry_date), 'dd/MM/yyyy')}
           </div>
         )}
 
         {/* Notes */}
         {creditNote.notes && (
-          <div className="border-t pt-3 mb-4">
-            <p className="text-sm font-semibold">Notes:</p>
-            <p className="text-sm text-gray-600">{creditNote.notes}</p>
+          <div style={{ 
+            border: '1px solid #000', 
+            padding: '8px', 
+            marginBottom: '12px',
+            fontSize: '8pt'
+          }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Notes:</div>
+            <div>{creditNote.notes}</div>
           </div>
         )}
 
         {/* Terms */}
-        <div className="border-t pt-3 text-xs text-gray-500">
-          <p className="font-semibold mb-1">Terms & Conditions:</p>
-          <ul className="list-disc list-inside space-y-0.5">
+        <div style={{ 
+          border: '1px solid #000', 
+          padding: '8px', 
+          marginBottom: '12px',
+          fontSize: '7pt'
+        }}>
+          <div style={{ fontWeight: 'bold', marginBottom: '6px', textTransform: 'uppercase' }}>
+            Terms & Conditions:
+          </div>
+          <ol style={{ margin: 0, paddingLeft: '15px', lineHeight: 1.5 }}>
             <li>This credit note can be used for future purchases</li>
             <li>Not redeemable for cash</li>
             <li>Please present this note at the time of purchase</li>
             <li>Balance credit can be used in multiple transactions</li>
-          </ul>
+          </ol>
         </div>
 
         {/* Footer */}
-        <div className="mt-6 pt-4 border-t text-center">
-          <p className="text-sm font-semibold">Thank you for your business!</p>
-          <p className="text-xs text-gray-500 mt-1">
-            This is a computer generated credit note
-          </p>
+        <div style={{ 
+          marginTop: '15px', 
+          paddingTop: '10px', 
+          borderTop: '2px solid #000',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end'
+        }}>
+          <div style={{ fontSize: '8pt' }}>
+            <div style={{ fontWeight: 'bold' }}>Thank you for your business!</div>
+            <div style={{ fontSize: '7pt', marginTop: '4px', color: '#666' }}>
+              This is a computer generated credit note
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ borderTop: '1px solid #000', paddingTop: '4px', minWidth: '100px' }}>
+              <div style={{ fontSize: '8pt', fontWeight: 'bold' }}>Authorised Signatory</div>
+            </div>
+          </div>
         </div>
       </div>
     );

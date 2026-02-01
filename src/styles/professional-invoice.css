@@ -1,6 +1,54 @@
-/* Professional Invoice Template Print Styles */
+/* ============================================
+   PROFESSIONAL INVOICE TEMPLATE PRINT STYLES
+   GST-Compliant, Tally/Zoho Quality
+   ============================================ */
+
+/* Import core print utilities */
+@import './print-invoice-core.css';
+
+/* ============================================
+   SCREEN PREVIEW STYLES
+   ============================================ */
+
+.professional-invoice-template {
+  font-family: 'Arial', 'Helvetica Neue', sans-serif;
+  color: #000;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.professional-invoice-template * {
+  box-sizing: border-box;
+}
+
+/* ============================================
+   FORMAT-SPECIFIC DIMENSIONS
+   ============================================ */
+
+.professional-invoice-template.format-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+}
+
+.professional-invoice-template.format-a5-vertical {
+  width: 148mm;
+  min-height: 210mm;
+  padding: 5mm;
+}
+
+.professional-invoice-template.format-a5-horizontal {
+  width: 210mm;
+  min-height: 148mm;
+  padding: 5mm;
+}
+
+/* ============================================
+   @MEDIA PRINT - PROFESSIONAL OUTPUT
+   ============================================ */
 
 @media print {
+  /* Reset body for clean printing */
   body {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
@@ -8,24 +56,23 @@
     padding: 0;
   }
 
-  /* Hide non-printable UI elements but keep invoice container visible */
+  /* Hide non-printable UI elements */
   .no-print,
   button:not(.print-invoice-container button),
-  .MuiButton-root,
   header,
   nav,
   footer:not(.print-invoice-container footer) {
     display: none !important;
   }
 
-  /* Hide dialog overlay and header/footer, but keep content visible */
+  /* Hide dialog overlay and header/footer */
   [role="dialog"] > [class*="Overlay"],
   [role="dialog"] > [class*="Content"] > [class*="Header"],
   [role="dialog"] > [class*="Content"] > [class*="Footer"] {
     display: none !important;
   }
 
-  /* Make dialog content transparent and remove padding */
+  /* Make dialog content full page */
   [role="dialog"] {
     position: static !important;
     pointer-events: none !important;
@@ -43,7 +90,7 @@
     overflow: visible !important;
   }
 
-  /* Ensure print container is visible and properly sized */
+  /* Print container visible */
   .print-invoice-container {
     display: block !important;
     visibility: visible !important;
@@ -56,13 +103,69 @@
     background: white !important;
   }
 
+  /* Professional Invoice Template - Clean print output */
   .professional-invoice-template {
     box-shadow: none !important;
     margin: 0 !important;
     page-break-inside: avoid;
     overflow: hidden !important;
+    background: white !important;
+    
+    /* Remove all decorative elements for print */
+    background-image: none !important;
   }
 
+  /* Remove gradients and colors for clean B/W printing */
+  .professional-invoice-template *:not(img) {
+    background-image: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Ensure all text is black */
+  .professional-invoice-template,
+  .professional-invoice-template * {
+    color: #000 !important;
+  }
+
+  /* Ensure table borders print correctly */
+  .professional-invoice-template table {
+    border-collapse: collapse !important;
+  }
+
+  .professional-invoice-template table,
+  .professional-invoice-template th,
+  .professional-invoice-template td {
+    border: 1px solid #000 !important;
+  }
+
+  /* Table header background for print */
+  .professional-invoice-template th,
+  .professional-invoice-template .row-total,
+  .professional-invoice-template .grand-total-row {
+    background-color: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Right-align numeric columns */
+  .professional-invoice-template td.amount,
+  .professional-invoice-template td.rate,
+  .professional-invoice-template td.total,
+  .professional-invoice-template td[style*="text-align: right"] {
+    text-align: right !important;
+  }
+
+  /* Center align specific columns */
+  .professional-invoice-template td.qty,
+  .professional-invoice-template td.sr,
+  .professional-invoice-template td.hsn,
+  .professional-invoice-template td[style*="text-align: center"] {
+    text-align: center !important;
+  }
+
+  /* Format-specific print dimensions */
   .professional-invoice-template.format-a5-vertical {
     width: 138mm !important;
     max-width: 138mm !important;
@@ -90,10 +193,35 @@
     padding: 5mm !important;
   }
 
+  /* Font sizes for print */
+  .professional-invoice-template {
+    font-size: 9pt !important;
+    line-height: 1.3 !important;
+  }
+
+  .professional-invoice-template th {
+    font-size: 8pt !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+  }
+
+  .professional-invoice-template td {
+    font-size: 8pt !important;
+    padding: 3px 4px !important;
+  }
+
+  /* Grand total emphasis */
+  .professional-invoice-template .grand-total-row,
+  .professional-invoice-template .row-grand-total {
+    font-weight: bold !important;
+    font-size: 10pt !important;
+  }
+
   /* Ensure elements don't break across pages */
-  table,
-  .declaration,
-  .terms-section {
+  .professional-invoice-template table,
+  .professional-invoice-template .declaration,
+  .professional-invoice-template .terms-section,
+  .professional-invoice-template .signature-section {
     page-break-inside: avoid;
   }
 
@@ -104,12 +232,16 @@
   }
 }
 
-/* Default page setup - minimal margins so browser Default works well */
+/* ============================================
+   @PAGE RULES - Paper Size Configuration
+   ============================================ */
+
+/* Default page setup - minimal margins */
 @page {
   margin: 2mm;
 }
 
-/* Force A5 Vertical using page name */
+/* A5 Vertical */
 .professional-invoice-template.format-a5-vertical {
   page: a5vertical;
 }
@@ -119,7 +251,7 @@
   margin: 2mm;
 }
 
-/* Force A5 Horizontal using page name */
+/* A5 Horizontal */
 .professional-invoice-template.format-a5-horizontal {
   page: a5horizontal;
 }
@@ -129,7 +261,7 @@
   margin: 2mm;
 }
 
-/* Force A4 using page name */
+/* A4 */
 .professional-invoice-template.format-a4 {
   page: a4page;
 }

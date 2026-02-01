@@ -1,7 +1,7 @@
 import React from 'react';
 import { numberToWords } from '@/lib/utils';
 import '@/styles/professional-invoice.css';
-
+import '@/styles/print-invoice-core.css';
 interface InvoiceItem {
   sr: number;
   particulars: string;
@@ -938,10 +938,25 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
           @media print {
             .invoice-page {
               box-shadow: none !important;
+              border: none !important;
+              background: white !important;
             }
             .invoice-page:last-child {
               page-break-after: auto;
               break-after: auto;
+            }
+            /* Force black text and borders for clean print output */
+            .invoice-page * {
+              color: black !important;
+            }
+            .invoice-page table,
+            .invoice-page th,
+            .invoice-page td {
+              border-color: black !important;
+            }
+            /* Remove gradient backgrounds for print */
+            .invoice-page [style*="linear-gradient"] {
+              background: #f5f5f5 !important;
             }
           }
         `}
