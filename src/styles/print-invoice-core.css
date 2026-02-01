@@ -1,0 +1,551 @@
+/* ============================================
+   CORE PRINT INVOICE STYLES
+   Professional, GST-Compliant Print Templates
+   ============================================ */
+
+/* Print Typography Standards */
+:root {
+  --print-font-primary: 'Arial', 'Helvetica Neue', sans-serif;
+  --print-font-size-company: 14pt;
+  --print-font-size-title: 12pt;
+  --print-font-size-section: 10pt;
+  --print-font-size-table-header: 8pt;
+  --print-font-size-body: 9pt;
+  --print-font-size-small: 8pt;
+  --print-font-size-terms: 7pt;
+  
+  /* Print Colors - Black/White for professional output */
+  --print-color-text: #000000;
+  --print-color-bg: #ffffff;
+  --print-color-border: #000000;
+  --print-color-header-bg: #f5f5f5;
+  --print-color-total-bg: #f0f0f0;
+  --print-color-accent: #333333;
+}
+
+/* ============================================
+   BASE PRINT DOCUMENT STYLES
+   ============================================ */
+
+.print-document {
+  font-family: var(--print-font-primary);
+  font-size: var(--print-font-size-body);
+  line-height: 1.4;
+  color: var(--print-color-text);
+  background: var(--print-color-bg);
+  box-sizing: border-box;
+}
+
+.print-document * {
+  box-sizing: border-box;
+}
+
+/* ============================================
+   COMPANY HEADER SECTION
+   ============================================ */
+
+.print-header {
+  border-bottom: 2px solid var(--print-color-border);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.print-header-company {
+  font-size: var(--print-font-size-company);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.print-header-address {
+  font-size: var(--print-font-size-small);
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+
+.print-header-gstin {
+  font-size: var(--print-font-size-body);
+  font-weight: bold;
+}
+
+/* ============================================
+   DOCUMENT TITLE SECTION
+   ============================================ */
+
+.print-title {
+  text-align: center;
+  font-size: var(--print-font-size-title);
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 6px 0;
+  border: 2px solid var(--print-color-border);
+  margin-bottom: 10px;
+}
+
+.print-title-secondary {
+  text-align: center;
+  font-size: var(--print-font-size-section);
+  font-weight: bold;
+  padding: 4px 0;
+  border: 1px solid var(--print-color-border);
+  background: var(--print-color-header-bg);
+  margin-bottom: 8px;
+}
+
+/* ============================================
+   BILL TO / SHIP TO SECTIONS
+   ============================================ */
+
+.print-parties-row {
+  display: flex;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+}
+
+.print-party-section {
+  flex: 1;
+  padding: 8px;
+  font-size: var(--print-font-size-body);
+}
+
+.print-party-section:first-child {
+  border-right: 1px solid var(--print-color-border);
+}
+
+.print-party-label {
+  font-size: var(--print-font-size-section);
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #ccc;
+}
+
+.print-party-name {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.print-party-detail {
+  margin-bottom: 2px;
+  line-height: 1.4;
+}
+
+/* ============================================
+   INVOICE METADATA SECTION
+   ============================================ */
+
+.print-meta-row {
+  display: flex;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+}
+
+.print-meta-section {
+  padding: 8px;
+  font-size: var(--print-font-size-body);
+}
+
+.print-meta-label {
+  font-weight: bold;
+  display: inline-block;
+  min-width: 80px;
+}
+
+/* ============================================
+   ITEMS TABLE - GST COMPLIANT
+   ============================================ */
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--print-font-size-body);
+  margin-bottom: 10px;
+}
+
+.print-table th,
+.print-table td {
+  border: 1px solid var(--print-color-border);
+  padding: 4px 6px;
+}
+
+.print-table th {
+  background: var(--print-color-header-bg);
+  font-weight: bold;
+  font-size: var(--print-font-size-table-header);
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.print-table td {
+  vertical-align: top;
+}
+
+/* Column alignments */
+.print-table .col-sr { width: 6%; text-align: center; }
+.print-table .col-desc { text-align: left; }
+.print-table .col-hsn { width: 10%; text-align: center; }
+.print-table .col-size { width: 8%; text-align: center; }
+.print-table .col-qty { width: 7%; text-align: center; }
+.print-table .col-rate { width: 10%; text-align: right; }
+.print-table .col-taxable { width: 12%; text-align: right; }
+.print-table .col-gst { width: 6%; text-align: center; }
+.print-table .col-gst-amt { width: 10%; text-align: right; }
+.print-table .col-total { width: 12%; text-align: right; font-weight: bold; }
+
+/* Total row */
+.print-table .row-total {
+  background: var(--print-color-header-bg);
+  font-weight: bold;
+}
+
+.print-table .row-total td {
+  padding: 6px;
+}
+
+/* Empty rows for minimum display */
+.print-table .row-empty td {
+  height: 20px;
+}
+
+/* ============================================
+   GST SUMMARY TABLE
+   ============================================ */
+
+.gst-summary-section {
+  display: flex;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+}
+
+.gst-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--print-font-size-small);
+}
+
+.gst-summary-table th,
+.gst-summary-table td {
+  border: 1px solid var(--print-color-border);
+  padding: 3px 5px;
+}
+
+.gst-summary-table th {
+  background: var(--print-color-header-bg);
+  font-weight: bold;
+  text-align: center;
+}
+
+/* ============================================
+   AMOUNT SUMMARY SECTION
+   ============================================ */
+
+.print-amount-summary {
+  width: 45%;
+  margin-left: auto;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+}
+
+.print-amount-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid #ddd;
+  font-size: var(--print-font-size-body);
+}
+
+.print-amount-row:last-child {
+  border-bottom: none;
+}
+
+.print-amount-row.row-grand-total {
+  background: var(--print-color-total-bg);
+  font-weight: bold;
+  font-size: var(--print-font-size-section);
+  padding: 6px 8px;
+  border-top: 2px solid var(--print-color-border);
+}
+
+/* ============================================
+   AMOUNT IN WORDS
+   ============================================ */
+
+.print-amount-words {
+  padding: 8px;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+  font-size: var(--print-font-size-body);
+  font-style: italic;
+}
+
+.print-amount-words-label {
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* ============================================
+   BANK DETAILS SECTION
+   ============================================ */
+
+.print-bank-details {
+  padding: 8px;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+  font-size: var(--print-font-size-small);
+}
+
+.print-bank-details-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+/* ============================================
+   DECLARATION SECTION
+   ============================================ */
+
+.print-declaration {
+  padding: 8px;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+  font-size: var(--print-font-size-terms);
+  line-height: 1.4;
+}
+
+.print-declaration-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+/* ============================================
+   TERMS & CONDITIONS
+   ============================================ */
+
+.print-terms {
+  padding: 8px;
+  border: 1px solid var(--print-color-border);
+  margin-bottom: 10px;
+  font-size: var(--print-font-size-terms);
+}
+
+.print-terms-title {
+  font-weight: bold;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.print-terms-list {
+  margin: 0;
+  padding-left: 15px;
+  line-height: 1.4;
+}
+
+/* ============================================
+   SIGNATURE SECTION
+   ============================================ */
+
+.print-signature-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding-top: 15px;
+  margin-top: 10px;
+  border-top: 1px solid var(--print-color-border);
+}
+
+.print-signature-block {
+  text-align: center;
+  min-width: 150px;
+}
+
+.print-signature-line {
+  border-top: 1px solid var(--print-color-border);
+  padding-top: 4px;
+  margin-top: 40px;
+  font-size: var(--print-font-size-small);
+  font-weight: bold;
+}
+
+.print-footer-note {
+  font-size: var(--print-font-size-terms);
+  color: #666;
+}
+
+/* ============================================
+   @MEDIA PRINT OVERRIDES
+   Ensures clean output regardless of screen styles
+   ============================================ */
+
+@media print {
+  .print-document,
+  .print-document * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Force remove all decorations */
+  .print-document {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    background-image: none !important;
+  }
+
+  .print-document * {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    text-shadow: none !important;
+    background-image: none !important;
+  }
+
+  /* Ensure borders print */
+  .print-table,
+  .print-table th,
+  .print-table td,
+  .gst-summary-table,
+  .gst-summary-table th,
+  .gst-summary-table td {
+    border: 1px solid #000 !important;
+  }
+
+  /* Page break controls */
+  .print-table {
+    page-break-inside: auto;
+  }
+
+  .print-table tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .print-table thead {
+    display: table-header-group;
+  }
+
+  .print-signature-section {
+    page-break-inside: avoid;
+  }
+
+  /* Hide screen-only elements */
+  .no-print,
+  .screen-only {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   CREDIT NOTE SPECIFIC STYLES
+   ============================================ */
+
+.credit-note-print .print-title {
+  border-color: #000;
+}
+
+.credit-note-print .print-amount-row.row-credit {
+  font-weight: bold;
+  color: #000;
+}
+
+/* ============================================
+   DEBIT NOTE SPECIFIC STYLES
+   ============================================ */
+
+.debit-note-print .print-title {
+  border-color: #000;
+}
+
+/* ============================================
+   QUOTATION SPECIFIC STYLES
+   ============================================ */
+
+.quotation-print .print-validity {
+  font-style: italic;
+  padding: 6px 8px;
+  border: 1px dashed #999;
+  margin-bottom: 10px;
+  font-size: var(--print-font-size-small);
+}
+
+/* ============================================
+   SALE ORDER SPECIFIC STYLES
+   ============================================ */
+
+.sale-order-print .print-status {
+  display: inline-block;
+  padding: 2px 8px;
+  font-weight: bold;
+  border: 1px solid #000;
+  font-size: var(--print-font-size-small);
+  text-transform: uppercase;
+}
+
+/* ============================================
+   FORMAT-SPECIFIC SIZING (A4, A5)
+   ============================================ */
+
+/* A4 Portrait */
+.print-format-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+}
+
+/* A5 Vertical (Portrait) */
+.print-format-a5-vertical {
+  width: 148mm;
+  min-height: 210mm;
+  padding: 5mm;
+}
+
+.print-format-a5-vertical {
+  font-size: 8pt;
+}
+
+.print-format-a5-vertical .print-header-company {
+  font-size: 12pt;
+}
+
+.print-format-a5-vertical .print-title {
+  font-size: 10pt;
+  padding: 4px 0;
+}
+
+.print-format-a5-vertical .print-table th,
+.print-format-a5-vertical .print-table td {
+  padding: 3px 4px;
+  font-size: 7pt;
+}
+
+.print-format-a5-vertical .print-table th {
+  font-size: 7pt;
+}
+
+/* A5 Horizontal (Landscape) */
+.print-format-a5-horizontal {
+  width: 210mm;
+  min-height: 148mm;
+  padding: 5mm;
+}
+
+.print-format-a5-horizontal {
+  font-size: 8pt;
+}
+
+.print-format-a5-horizontal .print-header-company {
+  font-size: 12pt;
+}
+
+.print-format-a5-horizontal .print-title {
+  font-size: 10pt;
+  padding: 4px 0;
+}
+
+.print-format-a5-horizontal .print-table th,
+.print-format-a5-horizontal .print-table td {
+  padding: 3px 4px;
+  font-size: 7pt;
+}
