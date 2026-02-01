@@ -6,6 +6,8 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import {
   Package,
   ShoppingCart,
@@ -26,6 +28,10 @@ import {
   TrendingDown,
   Minus,
   Megaphone,
+  Plus,
+  BarChart3,
+  Calculator,
+  Layers,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -190,6 +196,53 @@ const DashboardContent = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
+
+  // Context menu for desktop right-click
+  const isDesktop = useIsDesktop();
+  const pageContextMenu = useContextMenu<void>();
+
+  // Dashboard context menu items
+  const getDashboardContextMenuItems = (): ContextMenuItem[] => [
+    {
+      label: "POS Billing",
+      icon: ShoppingCart,
+      onClick: () => navigate("/pos-sales"),
+    },
+    {
+      label: "Stock Report",
+      icon: Package,
+      onClick: () => navigate("/stock-report"),
+    },
+    {
+      label: "Daily Cash Report",
+      icon: Calculator,
+      onClick: () => navigate("/daily-cashier-report"),
+    },
+    {
+      label: "Size-wise Stock",
+      icon: Layers,
+      onClick: () => navigate("/item-wise-stock-report"),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Today Sales",
+      icon: TrendingUp,
+      onClick: () => navigate("/sales-invoice-dashboard"),
+    },
+    {
+      label: "Refresh Dashboard",
+      icon: RefreshCw,
+      onClick: () => handleRefreshAll(),
+    },
+  ];
+
+  // Handle page right-click (empty area)
+  const handlePageContextMenu = (e: React.MouseEvent) => {
+    if (!isDesktop) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a') || target.closest('[role="button"]')) return;
+    pageContextMenu.openMenu(e, undefined);
+  };
   
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
   
@@ -698,7 +751,19 @@ const DashboardContent = () => {
 
   return (
     <TooltipProvider>
-    <div className="space-y-4 bg-background min-h-full">
+    <div 
+      className="space-y-4 bg-background min-h-full"
+      onContextMenu={handlePageContextMenu}
+    >
+      {/* Desktop Context Menu */}
+      <PageContextMenu
+        isOpen={pageContextMenu.isOpen}
+        position={pageContextMenu.position}
+        items={getDashboardContextMenuItems()}
+        onClose={pageContextMenu.closeMenu}
+        title="Quick Actions"
+      />
+
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
@@ -761,6 +826,46 @@ const DashboardContent = () => {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
+      </div>
+
+      {/* Quick Action Buttons */}
+      <div className="flex flex-wrap items-center gap-2 py-1">
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => navigate("/pos-sales")}
+          className="h-9 px-4 text-sm font-medium shadow-sm"
+        >
+          <ShoppingCart className="h-4 w-4 mr-2" />
+          POS Billing
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/stock-report")}
+          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Stock Report
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/daily-cashier-report")}
+          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
+        >
+          <Calculator className="h-4 w-4 mr-2" />
+          Daily Cash
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => navigate("/item-wise-stock-report")}
+          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
+        >
+          <Layers className="h-4 w-4 mr-2" />
+          Size-wise Stock
+        </Button>
       </div>
 
       {/* Main Content Grid with New Updates Sidebar */}

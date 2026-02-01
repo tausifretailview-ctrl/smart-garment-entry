@@ -128,6 +128,11 @@ const ProductDashboard = () => {
       },
       { label: "", separator: true, onClick: () => {} },
       {
+        label: "Stock Report",
+        icon: Package,
+        onClick: () => navigate(`/stock-report?search=${encodeURIComponent(product.product_name)}`),
+      },
+      {
         label: "Stock History",
         icon: History,
         onClick: () => {
@@ -138,6 +143,12 @@ const ProductDashboard = () => {
           setShowProductHistory(true);
         },
       },
+      {
+        label: "Adjust Stock",
+        icon: Filter,
+        onClick: () => navigate(`/stock-adjustment?productId=${product.product_id}`),
+      },
+      { label: "", separator: true, onClick: () => {} },
       {
         label: "Print Barcodes",
         icon: Barcode,
@@ -201,9 +212,30 @@ const ProductDashboard = () => {
   // Get page-level context menu items
   const getPageContextMenuItems = (): ContextMenuItem[] => [
     {
+      label: "POS Billing",
+      icon: Home,
+      onClick: () => navigate("/pos-sales"),
+    },
+    {
+      label: "Stock Report",
+      icon: Package,
+      onClick: () => navigate("/stock-report"),
+    },
+    {
+      label: "Size-wise Stock",
+      icon: Filter,
+      onClick: () => navigate("/item-wise-stock-report"),
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
       label: "Add New Product",
       icon: Plus,
       onClick: () => navigate("/product-entry"),
+    },
+    {
+      label: "Add Purchase",
+      icon: ShoppingCart,
+      onClick: () => navigate("/purchase-entry"),
     },
     {
       label: "Refresh List",
