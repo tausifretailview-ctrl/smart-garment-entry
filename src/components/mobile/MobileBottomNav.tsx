@@ -1,0 +1,108 @@
+import { Home, ShoppingCart, Package, BarChart3, MoreHorizontal } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { cn } from "@/lib/utils";
+
+interface NavItem {
+  icon: React.ElementType;
+  label: string;
+  path: string;
+  matchPaths?: string[];
+}
+
+const navItems: NavItem[] = [
+  { 
+    icon: Home, 
+    label: "Dashboard", 
+    path: "/",
+    matchPaths: ["/"]
+  },
+  { 
+    icon: ShoppingCart, 
+    label: "POS", 
+    path: "/pos-sales",
+    matchPaths: ["/pos-sales", "/pos", "/pos-dashboard", "/sales-invoice"]
+  },
+  { 
+    icon: Package, 
+    label: "Stock", 
+    path: "/stock-report",
+    matchPaths: ["/stock-report", "/products", "/stock-adjustment", "/stock-analysis"]
+  },
+  { 
+    icon: BarChart3, 
+    label: "Reports", 
+    path: "/daily-cashier-report",
+    matchPaths: ["/daily-cashier-report", "/sales-invoice-dashboard", "/item-wise-sales", "/gst-reports"]
+  },
+  { 
+    icon: MoreHorizontal, 
+    label: "More", 
+    path: "/settings",
+    matchPaths: ["/settings", "/customers", "/suppliers", "/employees"]
+  },
+];
+
+export const MobileBottomNav = () => {
+  const location = useLocation();
+  const { orgNavigate, getOrgPath } = useOrgNavigation();
+
+  const isActive = (item: NavItem) => {
+    const currentPath = location.pathname;
+    const orgPath = getOrgPath(item.path);
+    
+    // Exact match for dashboard
+    if (item.path === "/" && currentPath === orgPath) return true;
+    
+    // Check all match paths
+    if (item.matchPaths) {
+      return item.matchPaths.some(path => {
+        const fullPath = getOrgPath(path);
+        return currentPath === fullPath || currentPath.startsWith(fullPath + "/");
+      });
+    }
+    
+    return currentPath.startsWith(orgPath);
+  };
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-md border-t border-border lg:hidden safe-area-pb">
+      <div className="flex items-center justify-around h-16">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item);
+          
+          return (
+            <button
+              key={item.path}
+              onClick={() => orgNavigate(item.path)}
+              className={cn(
+                "flex flex-col items-center justify-center flex-1 h-full py-1 transition-all duration-150",
+                "active:scale-95 touch-manipulation",
+                active
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <div className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150",
+                active && "bg-primary/10"
+              )}>
+                <Icon className={cn(
+                  "h-5 w-5 transition-transform",
+                  active && "scale-110"
+                )} />
+              </div>
+              <span className={cn(
+                "text-[10px] mt-0.5 font-medium transition-all",
+                active ? "text-primary" : "text-muted-foreground"
+              )}>
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+  );
+};

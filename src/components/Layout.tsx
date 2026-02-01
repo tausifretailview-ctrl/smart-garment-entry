@@ -8,6 +8,10 @@ import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/Keybo
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { MobileFAB } from "@/components/mobile/MobileFAB";
+import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+
 interface LayoutProps {
   children: ReactNode;
 }
@@ -18,6 +22,9 @@ export const Layout = ({ children }: LayoutProps) => {
   return (
     <ChatProvider>
       <SidebarProvider>
+        {/* Mobile offline indicator */}
+        <OfflineIndicator />
+        
         <div className="flex min-h-screen w-full bg-background">
           <AppSidebar />
           <SidebarInset className="flex flex-col flex-1">
@@ -26,10 +33,16 @@ export const Layout = ({ children }: LayoutProps) => {
             <div className="flex lg:hidden items-center gap-1 px-2 py-0.5 border-b bg-sidebar">
               <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
             </div>
-            <main className="flex-1 overflow-auto p-4">{children}</main>
+            {/* Add bottom padding on mobile for bottom nav */}
+            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-4">{children}</main>
             <Footer />
           </SidebarInset>
         </div>
+        
+        {/* Mobile navigation */}
+        <MobileBottomNav />
+        <MobileFAB />
+        
         <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
         <FloatingWhatsAppInbox />
         <FloatingChatButton />

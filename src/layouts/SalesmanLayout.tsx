@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useInstallPrompt } from "@/hooks/useInstallPrompt";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
+import { useOfflineSync } from "@/hooks/useOfflineSync";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
@@ -17,6 +18,7 @@ const SalesmanLayout = () => {
   const { signOut } = useAuth();
   const { isInstallable, isInstalled, promptInstall } = useInstallPrompt();
   const { hasAccess, employeeName, isLoading } = useFieldSalesAccess();
+  const { isOnline, pendingActions, isSyncing } = useOfflineSync();
   const [sizeStockOpen, setSizeStockOpen] = useState(false);
 
   // Dynamic manifest and theme for Field Sales PWA
@@ -134,6 +136,31 @@ const SalesmanLayout = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* Offline Status Banner */}
+      {(!isOnline || pendingActions > 0) && (
+        <div className={cn(
+          "flex items-center justify-center gap-2 py-1.5 px-4 text-sm font-medium text-white",
+          !isOnline ? "bg-amber-500" : isSyncing ? "bg-blue-500" : "bg-orange-500"
+        )}>
+          {!isOnline ? (
+            <>
+              <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
+              <span>Offline Mode{pendingActions > 0 ? ` • ${pendingActions} pending` : ""}</span>
+            </>
+          ) : isSyncing ? (
+            <>
+              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Syncing {pendingActions} action{pendingActions !== 1 ? "s" : ""}...</span>
+            </>
+          ) : (
+            <>
+              <div className="h-2 w-2 rounded-full bg-white" />
+              <span>{pendingActions} pending sync</span>
+            </>
+          )}
+        </div>
+      )}
+      
       {/* Header - Orange gradient theme */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500 text-white px-4 py-3 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">

@@ -24,6 +24,9 @@ import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+
 interface POSLayoutProps {
   children: ReactNode;
 }
@@ -174,7 +177,14 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       
       <WindowTabsBar />
       
-      <main className="flex-1 animate-fade-in p-4">{children}</main>
+      {/* Mobile offline indicator */}
+      <OfflineIndicator />
+      
+      {/* Add bottom padding on mobile for bottom nav */}
+      <main className="flex-1 animate-fade-in p-4 pb-20 lg:pb-4">{children}</main>
+      
+      {/* Mobile navigation */}
+      <MobileBottomNav />
       
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
     </div>
