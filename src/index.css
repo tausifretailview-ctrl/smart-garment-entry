@@ -515,35 +515,64 @@ All colors MUST be HSL.
 }
 
 /* ============================================
-   THERMAL PRINTER MODE (72mm for 80mm rolls)
+   THERMAL PRINTER MODE (70mm for 80mm rolls)
+   Optimized for retail POS thermal printers
    ============================================ */
 .print-thermal,
+.thermal-print-80mm,
+.thermal-receipt-container,
 .invoice-format-thermal-receipt {
-  width: 72mm !important;
-  max-width: 72mm !important;
-  font-size: 10px !important;
+  width: 70mm !important;
+  max-width: 70mm !important;
+  font-family: 'Courier New', Courier, monospace !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
   padding: 2mm !important;
+  margin: 0 !important;
+  color: #000000 !important;
+  background: #ffffff !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: none !important;
+  letter-spacing: 0.1px !important;
 }
 
 @media print {
+  /* Thermal receipt print optimizations */
   .print-thermal,
+  .thermal-print-80mm,
+  .thermal-receipt-container,
   .invoice-format-thermal-receipt {
-    width: 72mm !important;
-    max-width: 72mm !important;
-    font-size: 10px !important;
+    width: 70mm !important;
+    max-width: 70mm !important;
+    font-size: 11px !important;
+    padding: 2mm !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+    page-break-inside: avoid !important;
+  }
+  
+  /* Remove all decorations for thermal */
+  .thermal-print-80mm,
+  .thermal-print-80mm * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    background-image: none !important;
+    border-radius: 0 !important;
+  }
+  
+  /* Ensure QR codes print properly on thermal */
+  .thermal-print-80mm img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    max-width: 100% !important;
   }
   
   /* Auto-cut after thermal receipt - triggers paper cutter on thermal printers */
-  .thermal-receipt-container {
-    page-break-after: always !important;
-    break-after: page !important;
-  }
-  
-  /* Add bottom margin for clean cut separation */
   .thermal-receipt-container::after {
     content: '';
     display: block;
-    height: 10mm;
+    height: 8mm;
   }
 }
 
