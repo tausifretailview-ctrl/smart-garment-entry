@@ -831,47 +831,6 @@ const DashboardContent = () => {
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
       </div>
 
-
-      {/* Quick Action Buttons - Hidden on mobile (replaced by MobileQuickActions) */}
-      <div className="hidden lg:flex flex-wrap items-center gap-2 py-1">
-        <Button
-          variant="default"
-          size="sm"
-          onClick={() => navigate("/pos-sales")}
-          className="h-9 px-4 text-sm font-medium shadow-sm"
-        >
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          POS Billing
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/stock-report")}
-          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
-        >
-          <Package className="h-4 w-4 mr-2" />
-          Stock Report
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/daily-cashier-report")}
-          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
-        >
-          <Calculator className="h-4 w-4 mr-2" />
-          Daily Cash
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate("/stock-report?tab=size-wise")}
-          className="h-9 px-4 text-sm font-medium border-border bg-card hover:bg-accent"
-        >
-          <Layers className="h-4 w-4 mr-2" />
-          Size-wise Stock
-        </Button>
-      </div>
-
       {/* Main Content Grid with New Updates Sidebar */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-4">
 
