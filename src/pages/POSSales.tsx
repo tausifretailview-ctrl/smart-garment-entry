@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,7 @@ import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -182,6 +183,11 @@ export default function POSSales() {
 
   // Cash drawer hook
   const { openDrawer: openCashDrawer } = useCashDrawer();
+
+  // Barcode scanner detection for instant cart add
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const lastInputTime = useRef<number>(0);
+  const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -736,22 +742,93 @@ export default function POSSales() {
     }
   }, [customerId, customers, hasBrandDiscounts]);
 
-  // Handle barcode/product search on Enter
-  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  // Handle barcode/product search on Enter - optimized for scanner input
+  const handleSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchInput.trim()) {
+      e.preventDefault();
+      
+      // Clear any pending dropdown timer
+      if (dropdownDebounceTimer.current) {
+        clearTimeout(dropdownDebounceTimer.current);
+        dropdownDebounceTimer.current = null;
+      }
+      
+      // Close dropdown immediately for scanner input
+      setOpenProductSearch(false);
+      
+      // Search and add product directly
       searchAndAddProduct(searchInput.trim());
+      
+      // Reset scanner detection for next input
+      resetScannerDetection();
+      
+      // Keep focus on barcode input for continuous scanning
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 50);
     }
-  };
+  }, [searchInput, resetScannerDetection]);
 
-  const searchAndAddProduct = (searchTerm: string) => {
-    if (!productsData) return;
+  // Optimized input change handler with scanner detection
+  const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const now = Date.now();
+    const timeSinceLastKeystroke = now - lastInputTime.current;
+    
+    // Record keystroke for scanner detection
+    recordKeystroke();
+    lastInputTime.current = now;
+    
+    // Update the input value
+    setSearchInput(value);
+    
+    // Clear previous debounce timer
+    if (dropdownDebounceTimer.current) {
+      clearTimeout(dropdownDebounceTimer.current);
+      dropdownDebounceTimer.current = null;
+    }
+    
+    // Detect if this looks like scanner input
+    const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
+    
+    // For scanner input: DON'T open dropdown, wait for Enter key
+    if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
+      // Keep dropdown closed for scanner input
+      setOpenProductSearch(false);
+      return;
+    }
+    
+    // For manual typing: debounce dropdown opening
+    // Only show dropdown for manual searches (alphabetic or slow input)
+    if (value.length >= 2) {
+      dropdownDebounceTimer.current = setTimeout(() => {
+        // Only open dropdown if:
+        // 1. Input contains non-numeric characters OR
+        // 2. Input is relatively short (likely partial search)
+        const hasNonNumeric = /[a-zA-Z]/.test(value);
+        const isShortNumeric = /^\d+$/.test(value) && value.length < 8;
+        
+        if (hasNonNumeric || isShortNumeric) {
+          setOpenProductSearch(true);
+        }
+      }, 300); // 300ms debounce for dropdown
+    } else {
+      setOpenProductSearch(false);
+    }
+  }, [recordKeystroke, detectScannerInput]);
 
-    // Search by barcode or product name
+  const searchAndAddProduct = useCallback((searchTerm: string) => {
+    if (!productsData) {
+      setSearchInput("");
+      return;
+    }
+
+    // Search by barcode first (exact match for speed)
     let foundVariant: any = null;
     let foundProduct: any = null;
 
+    // Priority 1: Exact barcode match (most common for scanners)
     for (const product of productsData) {
-      // Check variants for barcode match
       const variantMatch = product.product_variants?.find((v: any) => 
         v.barcode?.toLowerCase() === searchTerm.toLowerCase()
       );
@@ -761,27 +838,34 @@ export default function POSSales() {
         foundProduct = product;
         break;
       }
+    }
 
-      // Check product name match
-      if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
-        // Get first available variant
-        foundVariant = product.product_variants?.[0];
-        foundProduct = product;
-        break;
+    // Priority 2: Product name match (for manual search)
+    if (!foundVariant) {
+      for (const product of productsData) {
+        if (product.product_name.toLowerCase().includes(searchTerm.toLowerCase())) {
+          foundVariant = product.product_variants?.[0];
+          foundProduct = product;
+          break;
+        }
       }
     }
 
     if (foundVariant && foundProduct) {
+      // addItemToCart handles beep sound internally
       addItemToCart(foundProduct, foundVariant);
       setSearchInput("");
     } else {
+      // Clear input and show error for barcode not found
+      setSearchInput("");
+      playErrorBeep();
       toast({
         title: "Product not found",
-        description: "No product matches your search.",
+        description: `No product matches: ${searchTerm}`,
         variant: "destructive",
       });
     }
-  };
+  }, [productsData, playErrorBeep, toast]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
@@ -2281,10 +2365,7 @@ export default function POSSales() {
                   ref={barcodeInputRef}
                   placeholder="Scan Barcode/Enter Product Name"
                   value={searchInput}
-                  onChange={(e) => {
-                    setSearchInput(e.target.value);
-                    setOpenProductSearch(true);
-                  }}
+                  onChange={handleBarcodeInputChange}
                   onKeyDown={handleSearch}
                   className="h-12 text-lg pr-12"
                   autoFocus
