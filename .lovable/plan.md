@@ -1,70 +1,129 @@
 
+# Fix: POS Search Input Text Selection Bug
 
-# Cloud Cost Optimization Plan
+## Problem Analysis
 
-## ✅ IMPLEMENTATION COMPLETE
+When typing in the POS barcode search field, the first letter gets selected/highlighted and typing the second letter replaces it.
 
-All phases have been implemented successfully.
+### Root Cause
+The issue occurs due to a **focus conflict** between two input elements sharing the same state:
 
----
+1. **Main Barcode Input** (`<Input>` at line 2368)
+   - User types here directly
+   - Uses `value={searchInput}` and `onChange={handleBarcodeInputChange}`
 
-## Summary of Changes Made
+2. **CommandInput Inside Popover** (line 2382-2386)
+   - Inside the dropdown when it opens
+   - Uses `value={searchInput}` and `onValueChange={setSearchInput}`
+   - **Auto-focuses and selects text** when the popover opens (default cmdk behavior)
 
-### 1. Created `useVisibilityRefetch` Hook
-**File**: `src/hooks/useVisibilityRefetch.tsx`
-- Tracks `document.visibilityState` to pause polling when tab is hidden
-- Exports three utilities: `useVisibilityRefetch`, `useVisibilityInvalidate`, `usePageVisibility`
-- Returns `false` for `refetchInterval` when tab is hidden, completely stopping background queries
-
-### 2. Dashboard Optimizations
-**File**: `src/pages/Index.tsx`
-- Applied visibility-based polling to all dashboard queries
-- Removed auto-refresh from count queries (customers, products, suppliers) - now on-demand only
-- Added 5-minute staleTime to count queries
-- Sales, purchases, and returns use `fastRefetchInterval` (60s, pauses when hidden)
-- Stock, profit, cash collection, receivables use `mediumRefetchInterval` (120s, pauses when hidden)
-
-### 3. Chart Optimizations
-**File**: `src/components/dashboard/StatsChartsSection.tsx`
-- Applied visibility-based polling (120s interval, pauses when hidden)
-- Removed auto-refresh from top-products query (now on-demand only)
-
-### 4. WhatsApp Optimizations
-**Files**: `src/pages/WhatsAppInbox.tsx`, `src/components/FloatingWhatsAppInbox.tsx`
-- Applied visibility-based polling
-- Conversations: 60s interval (pauses when hidden)
-- Messages: 30s interval (pauses when hidden)
-- Relies primarily on Supabase Realtime for instant updates
-
-### 5. POS Sales Optimizations
-**File**: `src/pages/POSSales.tsx`
-- Applied visibility-based polling (60s interval)
-- Increased products staleTime from 30s to 60s
-- Increased today's sales staleTime from 10s to 30s
-
-### 6. Customer Balance Optimization
-**File**: `src/hooks/useCustomerBalance.tsx`
-- Increased staleTime from 30s to 60s
+### Flow That Causes The Bug
+1. User types "M" in the main barcode input
+2. After 300ms debounce, popover opens (`setOpenProductSearch(true)`)
+3. `CommandInput` inside popover auto-focuses
+4. `CommandInput` selects all existing text ("M")
+5. User types "A" (second letter)
+6. Selected text "M" gets replaced with "A"
 
 ---
 
-## Expected Cost Savings
+## Solution
 
-| Optimization | Estimated Reduction |
-|--------------|-------------------|
-| Visibility-based pausing | 30-50% during idle tabs |
-| Removing count auto-refresh | 15-20% |
-| Increasing POS cache times | 10-15% |
-| Smart WhatsApp polling | 10-15% |
-| **Total Estimated Savings** | **40-60%** |
+Prevent the `CommandInput` from auto-focusing and selecting text when the popover opens. Keep focus on the main barcode input field.
+
+### Implementation Steps
+
+### Step 1: Prevent PopoverContent from stealing focus
+
+Add `onOpenAutoFocus` prop to prevent automatic focus shift:
+
+```tsx
+<PopoverContent
+  className="w-[400px] p-0 z-50"
+  align="start"
+  onOpenAutoFocus={(e) => e.preventDefault()}
+>
+```
+
+### Step 2: Make CommandInput read-only or hidden
+
+Since we want users to continue typing in the main barcode input (not in the CommandInput), we should either:
+- **Option A**: Hide the CommandInput entirely (use a visually hidden version for filtering)
+- **Option B**: Make the CommandInput purely for display and keep it in sync
+
+**Recommended: Option A** - Hide the duplicate CommandInput since search filtering is already done based on the main input's `searchInput` state.
+
+```tsx
+<Command shouldFilter={false}>
+  {/* Hidden command input for accessibility, synced with main input */}
+  <div className="sr-only">
+    <CommandInput value={searchInput} />
+  </div>
+  <CommandList>
+    ...
+  </CommandList>
+</Command>
+```
+
+### Step 3: Ensure keyboard navigation works
+
+Allow keyboard navigation (arrow keys, Enter) in the command list while focus remains on the main input:
+
+```tsx
+// In handleSearch (onKeyDown handler):
+// Forward arrow key navigation to command list when popover is open
+if (openProductSearch && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+  // Let command handle navigation
+}
+```
 
 ---
 
-## How It Works
+## Files to Modify
 
-1. **When tab is visible**: All queries poll at their configured intervals
-2. **When tab is hidden**: All polling stops completely (refetchInterval = false)
-3. **When tab becomes visible again**: React Query's built-in mechanisms will refetch stale data
-4. **Count queries**: Only refresh when user manually triggers or navigates to dashboard
+| File | Changes |
+|------|---------|
+| `src/pages/POSSales.tsx` | Add `onOpenAutoFocus` to PopoverContent, hide CommandInput, update keyboard handling |
 
-This approach maintains real-time feel for active users while dramatically reducing costs when the app is in background or idle.
+---
+
+## Expected Result
+
+- User can type continuously without text being selected/replaced
+- Search dropdown appears after 300ms debounce
+- Focus remains on main barcode input
+- Keyboard navigation (arrows, Enter) still works in dropdown
+- Fast barcode scanning workflow remains unaffected
+
+---
+
+## Technical Details
+
+### Key Change Location (Line ~2380)
+
+Before:
+```tsx
+<PopoverContent className="w-[400px] p-0 z-50" align="start">
+  <Command>
+    <CommandInput 
+      placeholder="Search by name, barcode, brand..." 
+      value={searchInput}
+      onValueChange={setSearchInput}
+    />
+```
+
+After:
+```tsx
+<PopoverContent 
+  className="w-[400px] p-0 z-50" 
+  align="start"
+  onOpenAutoFocus={(e) => e.preventDefault()}
+>
+  <Command shouldFilter={false}>
+    {/* Hidden input for cmdk internals - visible input is outside popover */}
+    <div className="hidden">
+      <CommandInput value={searchInput} onValueChange={() => {}} />
+    </div>
+```
+
+This prevents focus theft and ensures smooth continuous typing in the POS search field.
