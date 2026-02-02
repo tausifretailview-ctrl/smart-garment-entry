@@ -7,6 +7,7 @@ import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
+import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
@@ -185,10 +186,11 @@ const getDateRange = (type: DateRangeType) => {
 
 // Refresh intervals in milliseconds - optimized to reduce cloud usage
 const REFRESH_INTERVALS = {
-  FAST: 60000,    // 1 minute - sales, purchase (was 15s)
-  MEDIUM: 120000, // 2 minutes - stock, profit, receivables (was 30s)
-  SLOW: 300000,   // 5 minutes - counts (was 60s)
-};
+  FAST: 60000,    // 1 minute - sales, purchase
+  MEDIUM: 120000, // 2 minutes - stock, profit, receivables
+  SLOW: 300000,   // 5 minutes - rarely changing data
+  NONE: false,    // No auto-refresh - on-demand only (Phase 4)
+} as const;
 
 const DashboardContent = () => {
   const { currentOrganization } = useOrganization();
@@ -199,6 +201,10 @@ const DashboardContent = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
+  
+  // Visibility-based polling - pauses all queries when tab is hidden
+  const fastRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.FAST);
+  const mediumRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.MEDIUM);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -302,10 +308,10 @@ const DashboardContent = () => {
       return { total, count, soldQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.FAST,
+    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
   });
 
-  // Fetch total customers
+  // Fetch total customers - NO auto-refresh (Phase 4: on-demand only)
   const { data: customersCount } = useQuery({
     queryKey: ["customers-count", currentOrganization?.id],
     queryFn: async () => {
@@ -319,7 +325,8 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.SLOW,
+    staleTime: 300000, // 5 minutes - counts change rarely
+    refetchInterval: false, // No auto-refresh - on-demand only
   });
   
   // Fetch total stock quantity - also filter out variants whose parent products are soft-deleted
@@ -357,10 +364,10 @@ const DashboardContent = () => {
       return allVariants.reduce((sum, item) => sum + (item.stock_qty || 0), 0);
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.MEDIUM,
+    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
   });
 
-  // Fetch total products
+  // Fetch total products - NO auto-refresh (Phase 4: on-demand only)
   const { data: productsCount } = useQuery({
     queryKey: ["products-count", currentOrganization?.id],
     queryFn: async () => {
@@ -375,7 +382,8 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.SLOW,
+    staleTime: 300000, // 5 minutes - counts change rarely
+    refetchInterval: false, // No auto-refresh - on-demand only
   });
 
   // Fetch total purchase for selected period
@@ -410,7 +418,7 @@ const DashboardContent = () => {
       return { total, count, purchaseQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.FAST,
+    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
   });
   
   const isLoading = salesFetching || purchaseFetching;
@@ -447,7 +455,7 @@ const DashboardContent = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.FAST,
+    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch purchase returns for selected period
@@ -482,10 +490,10 @@ const DashboardContent = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.FAST,
+    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
   });
 
-  // Fetch total suppliers
+  // Fetch total suppliers - NO auto-refresh (Phase 4: on-demand only)
   const { data: suppliersCount } = useQuery({
     queryKey: ["suppliers-count", currentOrganization?.id],
     queryFn: async () => {
@@ -499,7 +507,8 @@ const DashboardContent = () => {
       return count || 0;
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.SLOW,
+    staleTime: 300000, // 5 minutes - counts change rarely
+    refetchInterval: false, // No auto-refresh - on-demand only
   });
 
   // Fetch stock value (using purchase price for accurate inventory valuation)
@@ -523,7 +532,7 @@ const DashboardContent = () => {
       );
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.MEDIUM,
+    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
   });
 
   // Calculate Gross Profit using actual COGS (Cost of Goods Sold)
@@ -574,7 +583,7 @@ const DashboardContent = () => {
       return totalSalesRevenue - totalCOGS;
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.MEDIUM,
+    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch cash collection
@@ -594,7 +603,7 @@ const DashboardContent = () => {
       return data?.reduce((sum, item) => sum + (item.cash_amount || item.paid_amount || 0), 0) || 0;
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.MEDIUM,
+    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch total receivables (outstanding balance from all pending/partial payments)
@@ -619,7 +628,7 @@ const DashboardContent = () => {
       return { total, count };
     },
     enabled: !!currentOrganization,
-    refetchInterval: REFRESH_INTERVALS.MEDIUM,
+    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
   });
 
   // New Updates Panel Component - Maximized height to show all updates

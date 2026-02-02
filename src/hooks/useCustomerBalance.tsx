@@ -101,7 +101,7 @@ export function useCustomerBalance(customerId: string | null, organizationId: st
       };
     },
     enabled: !!customerId && !!organizationId,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 60000, // Cache for 60 seconds (was 30s)
   });
 
   return {

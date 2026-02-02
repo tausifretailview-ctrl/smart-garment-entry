@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { usePOS } from "@/contexts/POSContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
@@ -188,6 +189,9 @@ export default function POSSales() {
   const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
   const lastInputTime = useRef<number>(0);
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Visibility-based polling - pauses when tab is hidden
+  const posRefetchInterval = useVisibilityRefetch(60000); // 1 minute
 
   // Load sale data if saleId is in URL (edit mode)
   useEffect(() => {
@@ -567,8 +571,8 @@ export default function POSSales() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 10000, // Cache for 10 seconds
-    refetchInterval: 30000, // Auto-refetch every 30 seconds
+    staleTime: 30000, // Cache for 30 seconds
+    refetchInterval: posRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch employees for salesman dropdown
@@ -693,8 +697,8 @@ export default function POSSales() {
       }) || [];
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30000, // Cache for 30 seconds
-    refetchInterval: 60000, // Auto-refetch every 60 seconds
+    staleTime: 60000, // Cache for 60 seconds (was 30s)
+    refetchInterval: posRefetchInterval, // Pauses when tab hidden
   });
 
   // Use reliable customer search hook - pass customerName directly as search term

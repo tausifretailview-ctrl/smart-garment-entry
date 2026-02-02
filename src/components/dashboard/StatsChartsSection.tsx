@@ -3,9 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
+import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
+  
+  // Visibility-based polling - pauses when tab is hidden
+  const chartRefetchInterval = useVisibilityRefetch(120000); // 2 minutes
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -46,7 +50,7 @@ export const StatsChartsSection = () => {
     },
     enabled: !!currentOrganization,
     staleTime: 60000, // 1 minute stale time
-    refetchInterval: 120000, // 2 minutes (was 15s)
+    refetchInterval: chartRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch last 7 days purchase data
@@ -88,7 +92,7 @@ export const StatsChartsSection = () => {
     },
     enabled: !!currentOrganization,
     staleTime: 60000, // 1 minute stale time
-    refetchInterval: 120000, // 2 minutes (was 15s)
+    refetchInterval: chartRefetchInterval, // Pauses when tab hidden
   });
 
   // Fetch top 5 products by stock value
@@ -116,7 +120,7 @@ export const StatsChartsSection = () => {
     },
     enabled: !!currentOrganization,
     staleTime: 120000, // 2 minutes stale time
-    refetchInterval: 180000, // 3 minutes (was 30s)
+    refetchInterval: false, // No auto-refresh - on-demand only (Phase 4)
   });
 
   // Combine sales and purchases for comparison
