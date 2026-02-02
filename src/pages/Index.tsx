@@ -40,7 +40,6 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { MobileQuickActions } from "@/components/mobile/MobileQuickActions";
 import {
   Select,
   SelectContent,
