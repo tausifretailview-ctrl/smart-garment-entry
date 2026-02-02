@@ -2377,13 +2377,16 @@ export default function POSSales() {
                 <Scan className="absolute right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground" />
               </div>
             </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0 z-50" align="start">
-              <Command>
-                <CommandInput 
-                  placeholder="Search by name, barcode, brand..." 
-                  value={searchInput}
-                  onValueChange={setSearchInput}
-                />
+            <PopoverContent 
+              className="w-[400px] p-0 z-50" 
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <Command shouldFilter={false}>
+                {/* Hidden input to satisfy cmdk internals - main input is outside popover */}
+                <div className="hidden">
+                  <CommandInput value={searchInput} onValueChange={() => {}} />
+                </div>
                 <CommandList>
                   <CommandEmpty>No products found.</CommandEmpty>
                   <CommandGroup heading="Products">
