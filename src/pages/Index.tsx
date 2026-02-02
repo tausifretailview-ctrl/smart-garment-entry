@@ -832,8 +832,6 @@ const DashboardContent = () => {
         <span>Live • Last updated: {format(lastUpdated, "HH:mm:ss")}</span>
       </div>
 
-      {/* Mobile Quick Actions - Cards */}
-      <MobileQuickActions />
 
       {/* Quick Action Buttons - Hidden on mobile (replaced by MobileQuickActions) */}
       <div className="hidden lg:flex flex-wrap items-center gap-2 py-1">
