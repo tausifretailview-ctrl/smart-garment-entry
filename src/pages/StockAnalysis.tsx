@@ -4,11 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, TrendingDown, History, Search, Loader2 } from "lucide-react";
+import { Package, TrendingDown, History, Search, AlertCircle, CheckCircle2 } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
-import { Button } from "@/components/ui/button";
+import { StockAnalysisSearch, StockAnalysisLoadingSkeleton } from "@/components/StockAnalysisSearch";
 
 interface StockItem {
   id: string;
@@ -55,6 +54,16 @@ interface BatchStock {
   supplier_invoice_no: string;
 }
 
+interface SelectedProduct {
+  id: string;
+  product_name: string;
+  brand: string;
+  barcode: string;
+  size: string;
+  color: string;
+  stock_qty: number;
+}
+
 export default function StockAnalysis() {
   const { currentOrganization } = useOrganization();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -62,15 +71,14 @@ export default function StockAnalysis() {
   const [batchStock, setBatchStock] = useState<BatchStock[]>([]);
   const [loading, setLoading] = useState(false);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
   const [activeTab, setActiveTab] = useState("low");
 
-  const handleSearch = useCallback(async () => {
-    if (!currentOrganization?.id || !searchTerm.trim()) return;
+  const loadStockAnalysis = useCallback(async (product: SelectedProduct) => {
+    if (!currentOrganization?.id) return;
     
     setLoading(true);
-    setHasSearched(true);
+    setSelectedProduct(product);
     
     try {
       // Fetch settings first
@@ -84,13 +92,8 @@ export default function StockAnalysis() {
         setLowStockThreshold((settingsData as any).product_settings.low_stock_threshold);
       }
 
-      const searchValue = searchTerm.trim();
-      
-      // Split search into multiple terms for multi-field matching
-      const searchTerms = searchValue.split(/[\s,\-]+/).filter(t => t.length > 0);
-
-      // Build query - fetch all active variants first, then filter
-      let query = supabase
+      // Search for all variants of this product by name
+      const { data: variantsData, error: variantsError } = await supabase
         .from("product_variants")
         .select(`
           id,
@@ -115,44 +118,14 @@ export default function StockAnalysis() {
         .eq("active", true)
         .is("deleted_at", null)
         .is("products.deleted_at", null)
-        .neq("products.product_type", "service");
-
-      // If search has only one term, use simple OR query
-      // If multiple terms, we'll fetch more and filter client-side
-      if (searchTerms.length === 1) {
-        const term = searchTerms[0];
-        query = query.or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%,products.brand.ilike.%${term}%,products.category.ilike.%${term}%,products.style.ilike.%${term}%,size.ilike.%${term}%,color.ilike.%${term}%`);
-      } else {
-        // For multi-term search, match first term to narrow results, filter rest client-side
-        const firstTerm = searchTerms[0];
-        query = query.or(`barcode.ilike.%${firstTerm}%,products.product_name.ilike.%${firstTerm}%,products.brand.ilike.%${firstTerm}%,products.category.ilike.%${firstTerm}%,products.style.ilike.%${firstTerm}%,size.ilike.%${firstTerm}%,color.ilike.%${firstTerm}%`);
-      }
-
-      const { data: variantsData, error: variantsError } = await query
+        .neq("products.product_type", "service")
+        .ilike("products.product_name", `%${product.product_name}%`)
         .order("stock_qty", { ascending: true })
-        .limit(1000);
+        .limit(500);
 
       if (variantsError) throw variantsError;
 
-      // Filter for multi-term matching: each term must match at least one field
-      let filteredVariants = variantsData || [];
-      if (searchTerms.length > 1) {
-        filteredVariants = filteredVariants.filter((item: any) => {
-          const searchableText = [
-            item.barcode || '',
-            item.products?.product_name || '',
-            item.products?.brand || '',
-            item.products?.category || '',
-            item.products?.style || '',
-            item.size || '',
-            item.color || item.products?.color || ''
-          ].join(' ').toLowerCase();
-          
-          // Each search term must be found somewhere in the searchable text
-          return searchTerms.every(term => searchableText.includes(term.toLowerCase()));
-        });
-      }
-
+      const filteredVariants = variantsData || [];
       const variantIds = filteredVariants.map((v: any) => v.id);
 
       // Only fetch movements and batch if we have variants
@@ -241,7 +214,7 @@ export default function StockAnalysis() {
         setStockItems([]);
       }
 
-      // Fetch movements with search - use variant IDs for more accurate results
+      // Fetch movements with search
       let formattedMovements: StockMovement[] = [];
       if (variantIds.length > 0) {
         const { data: movementHistory } = await supabase
@@ -281,7 +254,7 @@ export default function StockAnalysis() {
 
       setMovements(formattedMovements);
 
-      // Fetch batch stock with search - use variant IDs for accurate results
+      // Fetch batch stock
       let formattedBatch: BatchStock[] = [];
       if (variantIds.length > 0) {
         const { data: batchStockData } = await supabase
@@ -335,17 +308,23 @@ export default function StockAnalysis() {
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, searchTerm]);
+  }, [currentOrganization?.id]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
+  const handleClear = useCallback(() => {
+    setSelectedProduct(null);
+    setStockItems([]);
+    setMovements([]);
+    setBatchStock([]);
+  }, []);
 
   const lowStockItems = useMemo(() => 
     stockItems.filter(item => item.stock_qty <= lowStockThreshold), 
     [stockItems, lowStockThreshold]
+  );
+
+  const totalStock = useMemo(() => 
+    stockItems.reduce((sum, item) => sum + item.stock_qty, 0),
+    [stockItems]
   );
 
   return (
@@ -360,42 +339,59 @@ export default function StockAnalysis() {
       </div>
 
       {/* Search */}
-      <div className="flex gap-2 max-w-lg">
-        <ProductSearchDropdown
-          value={searchTerm}
-          onChange={setSearchTerm}
-          onSelect={(product) => {
-            setSearchTerm(product.product_name);
-            handleSearch();
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder="Search by product name, brand, or barcode..."
-          className="flex-1"
+      <div className="max-w-lg">
+        <StockAnalysisSearch
+          onProductSelect={loadStockAnalysis}
+          onClear={handleClear}
+          disabled={loading}
         />
-        <Button onClick={handleSearch} disabled={loading || !searchTerm.trim()}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
-        </Button>
       </div>
 
-      {!hasSearched ? (
+      {!selectedProduct ? (
         <Card className="py-16">
           <CardContent className="flex flex-col items-center justify-center text-center">
             <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-medium mb-2">Search to View Stock Analysis</h3>
             <p className="text-muted-foreground text-sm max-w-md">
-              Enter a product name, brand, or barcode to view low stock alerts, batch details, and movement history.
+              Enter a product name or scan a barcode to view low stock alerts, batch details, and movement history.
             </p>
           </CardContent>
         </Card>
       ) : loading ? (
-        <Card className="py-16">
-          <CardContent className="flex flex-col items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-muted-foreground">Searching...</p>
-          </CardContent>
-        </Card>
+        <StockAnalysisLoadingSkeleton />
       ) : (
         <>
+          {/* Selected Product Info */}
+          {stockItems.length === 0 && totalStock === 0 ? (
+            <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
+              <CardContent className="flex items-center gap-3 py-4">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-800 dark:text-amber-200">
+                    Product found – Stock is 0
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    {selectedProduct.product_name} has no stock records.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30">
+              <CardContent className="flex items-center gap-3 py-4">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-green-800 dark:text-green-200">
+                    {selectedProduct.product_name}
+                  </p>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    {stockItems.length} variant(s) found • Total Stock: {totalStock} units
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Stats Cards */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card 
@@ -422,7 +418,7 @@ export default function StockAnalysis() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">{batchStock.length}</div>
-                <p className="text-xs text-white/70">Found in search</p>
+                <p className="text-xs text-white/70">Active batches</p>
               </CardContent>
             </Card>
 
@@ -468,7 +464,10 @@ export default function StockAnalysis() {
                 </CardHeader>
                 <CardContent>
                   {lowStockItems.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No low stock items found for this search</p>
+                    <div className="text-center py-8">
+                      <CheckCircle2 className="h-10 w-10 text-green-500 mx-auto mb-2" />
+                      <p className="text-muted-foreground">No low stock items for this product</p>
+                    </div>
                   ) : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -528,7 +527,10 @@ export default function StockAnalysis() {
                 </CardHeader>
                 <CardContent>
                   {batchStock.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No batch stock found for this search</p>
+                    <div className="text-center py-8">
+                      <Package className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-muted-foreground">No batch records found for this product</p>
+                    </div>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -600,11 +602,14 @@ export default function StockAnalysis() {
                     <History className="h-5 w-5" />
                     Stock Movement History
                   </CardTitle>
-                  <CardDescription>Recent stock transactions (max 50)</CardDescription>
+                  <CardDescription>Recent stock transactions (max 100)</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {movements.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">No movements found for this search</p>
+                    <div className="text-center py-8">
+                      <History className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-muted-foreground">No movements found for this product</p>
+                    </div>
                   ) : (
                     <Table>
                       <TableHeader>
