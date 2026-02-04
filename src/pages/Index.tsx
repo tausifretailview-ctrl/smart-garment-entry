@@ -195,7 +195,17 @@ const REFRESH_INTERVALS = {
   NONE: false,    // No auto-refresh - on-demand only (Phase 4)
 } as const;
 
-const DashboardContent = () => {
+// Mobile-specific dashboard wrapper - separate component to avoid hook order issues
+const MobileDashboardWrapper = () => {
+  return (
+    <MobileErrorBoundary>
+      <MobileDashboard />
+    </MobileErrorBoundary>
+  );
+};
+
+// Desktop dashboard with all hooks
+const DesktopDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
   const { hasAccess: hasFieldSalesAccess, employeeName } = useFieldSalesAccess();
@@ -204,7 +214,6 @@ const DashboardContent = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
-  const isMobile = useIsMobile();
   
   // Visibility-based polling - pauses all queries when tab is hidden
   const fastRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.FAST);
@@ -213,15 +222,6 @@ const DashboardContent = () => {
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const pageContextMenu = useContextMenu<void>();
-  
-  // Render dedicated mobile dashboard on mobile devices with error boundary
-  if (isMobile) {
-    return (
-      <MobileErrorBoundary>
-        <MobileDashboard />
-      </MobileErrorBoundary>
-    );
-  }
 
   // Dashboard context menu items
   const getDashboardContextMenuItems = (): ContextMenuItem[] => [
@@ -1128,6 +1128,18 @@ const DashboardContent = () => {
     </div>
     </TooltipProvider>
   );
+};
+
+// DashboardContent decides between mobile and desktop
+// This keeps hook order consistent by NOT calling hooks before conditional
+const DashboardContent = () => {
+  const isMobile = useIsMobile();
+  
+  if (isMobile) {
+    return <MobileDashboardWrapper />;
+  }
+  
+  return <DesktopDashboard />;
 };
 
 const Index = () => {
