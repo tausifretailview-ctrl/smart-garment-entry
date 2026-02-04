@@ -1,107 +1,139 @@
 
-# Mobile Dashboard Enhancement Plan
+
+# Mobile Dashboard Performance Optimization Plan
 
 ## Overview
 
-Create a dedicated **Mobile Dashboard** with a clean, touch-friendly UI design featuring proper summary cards, quick action menu, and essential metrics - optimized for one-hand mobile operation following Vyapar-style Android patterns.
+Optimize the Ezzy ERP mobile dashboard for low-memory Android devices and slow networks (3G/4G) with lazy loading, error handling, retry mechanisms, and lightweight data fetching.
 
 ---
 
-## Current State Analysis
+## Current Issues Identified
 
-### What Exists
-- **Index.tsx** (~1138 lines) - Desktop-focused dashboard with 18 metric cards in 3 rows of 6 columns
-- **MobileBottomNav.tsx** - 5-tab bottom navigation (Home, POS, Reports, Accounts, More)
-- **MobileQuickActions.tsx** - 4 gradient action buttons (POS, Payments, Stock, Reports)
-- **MobileAccountsSummary.tsx** - 4 summary cards for accounts page
-- **MobileReportsSummary.tsx** - Stats cards + report links
-- **Layout.tsx** - Shared layout with bottom nav and FAB on mobile
-
-### Problems for Mobile
-1. **18 metric cards too overwhelming** - 6 columns shrink to 2 on mobile, creates long scroll
-2. **No mobile-specific dashboard** - Uses desktop layout with responsive shrinking
-3. **No quick summary header** - User must scroll to see key metrics
-4. **Date filter hard to access** - Compact desktop selector not touch-optimized
-5. **Charts take up space** - Mobile users want quick stats, not charts
-6. **New Updates panel not useful** - Desktop sidebar clutters mobile view
+| Issue | Current State | Impact |
+|-------|---------------|--------|
+| **Heavy API calls on load** | 4 parallel queries + summary component queries | Slow initial render on 3G |
+| **No error handling in cards** | API failure shows loading forever | Poor UX |
+| **No retry mechanism** | Failed queries stay failed | Users must refresh |
+| **Summary loads immediately** | MobileDashboardSummary makes 3 DB calls on mount | Extra latency |
+| **ErrorBoundary is basic** | No retry button, no friendly message | Confusing for users |
+| **Stock value query is heavy** | Fetches all product variants | Memory intensive |
 
 ---
 
 ## Implementation Plan
 
-### 1. Create Dedicated Mobile Dashboard Component
+### 1. Create Mobile-Optimized Error Boundary
 
-**New File**: `src/components/mobile/MobileDashboard.tsx`
+**New File**: `src/components/mobile/MobileErrorBoundary.tsx`
 
-A mobile-first dashboard with:
-- Compact header with greeting and date
-- Key metrics in 2x2 grid cards
-- Quick action buttons
-- Compact summary sections
+Mobile-friendly error UI with:
+- Friendly error message with icon
+- Retry button to reload component
+- "Go Home" fallback button
+- Network status indicator
+- Touch-optimized styling
 
-**Mobile Dashboard Layout**:
-```
+```text
 ┌────────────────────────────────────┐
-│ Good Morning!          [Feb 2026] │
-│ Ezzy ERP                          │
-├────────────────────────────────────┤
-│ ┌──────────┐  ┌──────────┐        │
-│ │ Today's  │  │ This     │        │
-│ │ Sales    │  │ Month    │        │
-│ │ ₹45,000  │  │ ₹3.5L    │        │
-│ └──────────┘  └──────────┘        │
-│ ┌──────────┐  ┌──────────┐        │
-│ │ Stock    │  │ Pending  │        │
-│ │ Value    │  │ Payments │        │
-│ │ ₹12L     │  │ ₹85,000  │        │
-│ └──────────┘  └──────────┘        │
-├────────────────────────────────────┤
-│ QUICK ACTIONS                      │
-│ [POS] [Purchase] [Stock] [Cashier]│
-├────────────────────────────────────┤
-│ RECENT SUMMARY                     │
-│ • Invoices Today: 12               │
-│ • Customers Served: 8              │
-│ • Items Sold: 45                   │
+│                                    │
+│         ⚠️ Oops!                   │
+│                                    │
+│   Something went wrong.            │
+│   Please check your connection.    │
+│                                    │
+│      [ 🔄 Try Again ]              │
+│      [ 🏠 Go Home ]                │
+│                                    │
 └────────────────────────────────────┘
 ```
 
-### 2. Add Mobile Detection in Index.tsx
+### 2. Add API Error Card Component
+
+**New File**: `src/components/mobile/MobileDashboardErrorCard.tsx`
+
+Fallback UI when individual card API fails:
+- Shows card with error state
+- Retry button on the card
+- Shows last known value if available
+- Network offline indicator
+
+### 3. Optimize MobileDashboard with Lazy Loading
+
+**File**: `src/components/mobile/MobileDashboard.tsx`
+
+Changes:
+- Remove heavy queries from initial load
+- Use lightweight COUNT queries instead of fetching all rows
+- Add visibility-aware polling (pause when hidden)
+- Implement stale-while-revalidate pattern
+- Lazy load MobileDashboardSummary only when scrolled into view
+
+**Optimized Data Fetching Strategy**:
+```text
+Initial Load (Priority 1 - Instant):
+├── Today's Sales → SELECT SUM(net_amount) with date filter
+├── Total Products → SELECT COUNT(*) from products
+├── Cash Balance → Lightweight aggregation
+└── Pending Bills → SELECT COUNT(*) with status filter
+
+Lazy Load (Priority 2 - On Scroll):
+└── MobileDashboardSummary → Load when visible
+```
+
+### 4. Use Lightweight Aggregate Queries
+
+Replace heavy queries with optimized versions:
+
+| Current Query | Optimized Query |
+|---------------|-----------------|
+| Fetch all sales → sum | `SELECT COALESCE(SUM(net_amount), 0)` via RPC |
+| Fetch all variants → calculate stock | Use pre-aggregated count or limit |
+| Fetch all pending sales | `SELECT COUNT(*)` with head:true |
+
+### 5. Implement Query Retry with Fallback
+
+**Update**: `src/components/mobile/MobileDashboardCard.tsx`
+
+Add error state handling:
+- `isError` prop for failed queries
+- `onRetry` callback for retry button
+- Fallback to cached/stale data
+- Offline indicator when network unavailable
+
+### 6. Add Network-Aware Loading
+
+**New File**: `src/hooks/useNetworkStatus.tsx`
+
+Hook to detect:
+- Online/offline status
+- Connection type (3G/4G/WiFi via navigator.connection)
+- Slow network mode (reduce polling frequency)
+
+### 7. Wrap Dashboard in Error Boundary
 
 **File**: `src/pages/Index.tsx`
 
-Use `useIsMobile()` hook to conditionally render:
-- Mobile: Show MobileDashboard component
-- Desktop: Keep existing dashboard layout
+Wrap MobileDashboard with MobileErrorBoundary:
+```tsx
+if (isMobile) {
+  return (
+    <MobileErrorBoundary>
+      <MobileDashboard />
+    </MobileErrorBoundary>
+  );
+}
+```
 
-### 3. Enhanced Mobile Metric Cards
+### 8. Optimize MobileDashboardSummary
 
-**New File**: `src/components/mobile/MobileDashboardCard.tsx`
+**File**: `src/components/mobile/MobileDashboardSummary.tsx`
 
-Touch-optimized metric cards with:
-- Larger text for readability
-- Icon with colored background
-- Tap to navigate to detail page
-- Loading skeleton support
-
-### 4. Mobile Quick Actions Grid
-
-**Updated File**: `src/components/mobile/MobileQuickActions.tsx`
-
-Enhanced with:
-- 4 primary actions in gradient cards
-- 4 secondary actions in outline style
-- Touch-friendly sizing (min 48px)
-
-### 5. Mobile Summary Section
-
-**New File**: `src/components/mobile/MobileDashboardSummary.tsx`
-
-Compact list showing:
-- Today's invoice count
-- Customers served
-- Items sold quantity
-- Pending payments count
+Changes:
+- Accept `isVisible` prop to prevent loading when off-screen
+- Reduce query complexity
+- Add error/retry state
+- Use staleTime to reduce refetches
 
 ---
 
@@ -109,123 +141,120 @@ Compact list showing:
 
 | File | Purpose |
 |------|---------|
-| `src/components/mobile/MobileDashboard.tsx` | Complete mobile dashboard layout |
-| `src/components/mobile/MobileDashboardCard.tsx` | Touch-friendly metric card |
-| `src/components/mobile/MobileDashboardSummary.tsx` | Compact stats summary list |
+| `src/components/mobile/MobileErrorBoundary.tsx` | Mobile-friendly error boundary with retry |
+| `src/components/mobile/MobileDashboardErrorCard.tsx` | Error state for individual metric cards |
+| `src/hooks/useNetworkStatus.tsx` | Network detection hook |
 
 ## Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/pages/Index.tsx` | Add mobile detection, render MobileDashboard |
-| `src/components/mobile/MobileQuickActions.tsx` | Add secondary action row |
+| `src/components/mobile/MobileDashboard.tsx` | Lightweight queries, lazy loading, error handling |
+| `src/components/mobile/MobileDashboardCard.tsx` | Add error state, retry button |
+| `src/components/mobile/MobileDashboardSummary.tsx` | Lazy loading, optimized queries |
+| `src/pages/Index.tsx` | Wrap with MobileErrorBoundary |
+| `src/components/mobile/index.ts` | Export new components |
 
 ---
 
-## Technical Implementation
+## Technical Implementation Details
 
-### Mobile Dashboard Structure
+### MobileErrorBoundary Component
 ```tsx
-// src/components/mobile/MobileDashboard.tsx
-export const MobileDashboard = () => {
-  const { currentOrganization } = useOrganization();
-  const { orgNavigate } = useOrgNavigation();
-  
-  // Greeting based on time
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good Morning";
-    if (hour < 17) return "Good Afternoon";
-    return "Good Evening";
+class MobileErrorBoundary extends Component<Props, State> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
   };
 
-  return (
-    <div className="min-h-screen bg-background pb-24">
-      {/* Compact Header */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-semibold">{getGreeting()}!</h1>
-            <p className="text-xs text-muted-foreground">{currentOrganization?.name}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-medium">{format(new Date(), "MMM yyyy")}</p>
-            <p className="text-xs text-muted-foreground">{format(new Date(), "EEEE")}</p>
-          </div>
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
+          <AlertTriangle className="h-16 w-16 text-warning mb-4" />
+          <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
+          <p className="text-sm text-muted-foreground text-center mb-6">
+            Please check your internet connection and try again.
+          </p>
+          <Button onClick={this.handleRetry} className="mb-3">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+          <Button variant="outline" onClick={() => window.location.href = '/'}>
+            Go to Home
+          </Button>
         </div>
-      </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
 
-      {/* Key Metrics Grid - 2x2 */}
-      <div className="px-4 py-3">
-        <div className="grid grid-cols-2 gap-3">
-          <MobileDashboardCard
-            title="Today's Sales"
-            value={todaysSales}
-            icon={TrendingUp}
-            color="text-green-500"
-            bgColor="bg-green-500/10"
-            onClick={() => orgNavigate("/sales-invoice-dashboard")}
-            isCurrency
-          />
-          <MobileDashboardCard
-            title="This Month"
-            value={monthSales}
-            icon={BarChart3}
-            color="text-blue-500"
-            bgColor="bg-blue-500/10"
-            onClick={() => orgNavigate("/daily-cashier-report")}
-            isCurrency
-          />
-          <MobileDashboardCard
-            title="Stock Value"
-            value={stockValue}
-            icon={Package}
-            color="text-amber-500"
-            bgColor="bg-amber-500/10"
-            onClick={() => orgNavigate("/stock-report")}
-            isCurrency
-          />
-          <MobileDashboardCard
-            title="Receivables"
-            value={receivables}
-            icon={AlertCircle}
-            color="text-red-500"
-            bgColor="bg-red-500/10"
-            onClick={() => orgNavigate("/payments-dashboard")}
-            isCurrency
-          />
-        </div>
-      </div>
+### Optimized Dashboard Queries
+```tsx
+// Lightweight query - uses COUNT instead of fetching rows
+const { data: productCount, isLoading, isError, refetch } = useQuery({
+  queryKey: ["mobile-product-count", organizationId],
+  queryFn: async () => {
+    const { count, error } = await supabase
+      .from("products")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null);
+    
+    if (error) throw error;
+    return count || 0;
+  },
+  enabled: !!organizationId,
+  staleTime: 300000, // 5 minutes - products don't change often
+  retry: 2, // Retry twice on failure
+});
+```
 
-      {/* Quick Actions */}
-      <div className="px-4 py-3">
-        <h2 className="text-sm font-medium text-muted-foreground mb-3">Quick Actions</h2>
-        <MobileQuickActions />
-      </div>
+### Network Status Hook
+```tsx
+export const useNetworkStatus = () => {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isSlowConnection, setIsSlowConnection] = useState(false);
 
-      {/* Today's Summary */}
-      <div className="px-4 py-3">
-        <MobileDashboardSummary />
-      </div>
-    </div>
-  );
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Check connection speed if available
+    const connection = (navigator as any).connection;
+    if (connection) {
+      const checkSpeed = () => {
+        setIsSlowConnection(
+          connection.effectiveType === "2g" || 
+          connection.effectiveType === "slow-2g"
+        );
+      };
+      connection.addEventListener("change", checkSpeed);
+      checkSpeed();
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  return { isOnline, isSlowConnection };
 };
 ```
 
-### Mobile Dashboard Card Component
+### Enhanced Dashboard Card with Error State
 ```tsx
-// src/components/mobile/MobileDashboardCard.tsx
-interface MobileDashboardCardProps {
-  title: string;
-  value: number;
-  icon: React.ElementType;
-  color: string;
-  bgColor: string;
-  onClick?: () => void;
-  isCurrency?: boolean;
-  isLoading?: boolean;
-}
-
 export const MobileDashboardCard = ({
   title,
   value,
@@ -234,154 +263,99 @@ export const MobileDashboardCard = ({
   bgColor,
   onClick,
   isCurrency,
-  isLoading
+  isLoading,
+  isError,
+  onRetry
 }: MobileDashboardCardProps) => {
-  const formatValue = (val: number) => {
-    if (isCurrency) {
-      if (val >= 100000) return `₹${(val / 100000).toFixed(1)}L`;
-      if (val >= 1000) return `₹${(val / 1000).toFixed(1)}K`;
-      return `₹${Math.round(val).toLocaleString("en-IN")}`;
-    }
-    return val.toLocaleString("en-IN");
-  };
-
-  return (
-    <Card 
-      className="overflow-hidden active:scale-[0.98] transition-transform touch-manipulation cursor-pointer"
-      onClick={onClick}
-    >
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", bgColor)}>
-            <Icon className={cn("h-5 w-5", color)} />
+  if (isError) {
+    return (
+      <Card className="overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center bg-destructive/10")}>
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            </div>
           </div>
-        </div>
-        <p className="text-xs text-muted-foreground">{title}</p>
-        {isLoading ? (
-          <Skeleton className="h-7 w-24 mt-1" />
-        ) : (
-          <p className={cn("text-xl font-bold mt-1", color)}>
-            {formatValue(value)}
-          </p>
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-```
-
-### Enhanced Quick Actions with Secondary Row
-```tsx
-// Update MobileQuickActions.tsx
-const primaryActions = [
-  { icon: ShoppingCart, label: "POS", path: "/pos-sales", gradient: "from-green-500 to-emerald-600" },
-  { icon: ShoppingBag, label: "Purchase", path: "/purchase-entry", gradient: "from-blue-500 to-indigo-600" },
-  { icon: Package, label: "Stock", path: "/stock-report", gradient: "from-amber-500 to-orange-600" },
-  { icon: Calculator, label: "Cashier", path: "/daily-cashier-report", gradient: "from-purple-500 to-violet-600" },
-];
-
-const secondaryActions = [
-  { icon: Users, label: "Customers", path: "/customers", color: "text-purple-500" },
-  { icon: Building2, label: "Suppliers", path: "/suppliers", color: "text-orange-500" },
-  { icon: CreditCard, label: "Payments", path: "/payments-dashboard", color: "text-blue-500" },
-  { icon: BarChart3, label: "Reports", path: "/mobile-reports", color: "text-green-500" },
-];
-```
-
-### Mobile Dashboard Summary
-```tsx
-// src/components/mobile/MobileDashboardSummary.tsx
-export const MobileDashboardSummary = () => {
-  // Fetch today's stats
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-primary" />
-          Today's Summary
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="flex justify-between items-center py-2 border-b">
-          <span className="text-sm text-muted-foreground">Invoices Created</span>
-          <span className="text-sm font-semibold">{invoiceCount}</span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b">
-          <span className="text-sm text-muted-foreground">Customers Served</span>
-          <span className="text-sm font-semibold">{customersServed}</span>
-        </div>
-        <div className="flex justify-between items-center py-2 border-b">
-          <span className="text-sm text-muted-foreground">Items Sold</span>
-          <span className="text-sm font-semibold">{itemsSold}</span>
-        </div>
-        <div className="flex justify-between items-center py-2">
-          <span className="text-sm text-muted-foreground">Pending Payments</span>
-          <span className="text-sm font-semibold text-amber-500">{pendingCount}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
-```
-
-### Index.tsx Mobile Detection
-```tsx
-// src/pages/Index.tsx - Add at top
-import { useIsMobile } from "@/hooks/use-mobile";
-import { MobileDashboard } from "@/components/mobile/MobileDashboard";
-
-// In DashboardContent component
-const DashboardContent = () => {
-  const isMobile = useIsMobile();
-  
-  // If mobile, render dedicated mobile dashboard
-  if (isMobile) {
-    return <MobileDashboard />;
+          <p className="text-xs text-muted-foreground">{title}</p>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={(e) => { e.stopPropagation(); onRetry?.(); }}
+            className="mt-1 h-7 text-xs"
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
-  
-  // Desktop: Keep existing implementation
-  return (
-    <TooltipProvider>
-      {/* ... existing desktop dashboard ... */}
-    </TooltipProvider>
-  );
+  // ... existing render logic
 };
+```
+
+### Lazy Loading Summary with Intersection Observer
+```tsx
+// In MobileDashboard.tsx
+const [summaryVisible, setSummaryVisible] = useState(false);
+const summaryRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  const observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting) {
+        setSummaryVisible(true);
+        observer.disconnect();
+      }
+    },
+    { threshold: 0.1 }
+  );
+
+  if (summaryRef.current) {
+    observer.observe(summaryRef.current);
+  }
+
+  return () => observer.disconnect();
+}, []);
+
+// In render:
+<div ref={summaryRef} className="px-4 py-3">
+  {summaryVisible ? <MobileDashboardSummary /> : <SummarySkeleton />}
+</div>
 ```
 
 ---
 
-## UX Design Guidelines
+## Performance Optimizations Summary
 
-### Card Styling
-- Rounded corners: `rounded-lg` 
-- Touch feedback: `active:scale-[0.98]`
-- Icon backgrounds: Soft tints (`bg-green-500/10`)
-- Text hierarchy: Label xs, Value xl bold
-
-### Touch Targets
-- All buttons minimum 44px height
-- Cards minimum 80px height for easy tap
-- Adequate spacing between elements (gap-3)
-
-### Mobile-First Layout
-- 2-column grid for metrics
-- Full-width quick actions
-- Bottom padding for nav bar (pb-24)
-- Sticky header with greeting
-
-### Visual Hierarchy
-1. Greeting + Date (context)
-2. Key Metrics (primary info)
-3. Quick Actions (primary tasks)
-4. Today's Summary (secondary info)
+| Optimization | Benefit |
+|--------------|---------|
+| COUNT queries instead of SELECT * | 90% less data transfer |
+| Visibility-aware polling | No background requests when hidden |
+| 5-min staleTime for products | Reduces API calls |
+| Lazy load summary section | Faster initial render |
+| Retry mechanism | Self-healing on failures |
+| Network detection | Graceful offline handling |
+| Error boundaries | No blank screens |
 
 ---
 
-## Benefits
+## Mobile/Android WebView Compatibility
 
-1. **Cleaner Mobile UX** - Purpose-built layout, not responsive shrinking
-2. **Faster Access** - Key metrics visible without scroll
-3. **Touch-Friendly** - Large tap targets, proper spacing
-4. **Reduced Clutter** - Only essential info on mobile
-5. **Better Performance** - Fewer queries, simpler components
-6. **Consistent Design** - Follows Vyapar-style Android patterns
+1. **HTTPS**: All Supabase calls use HTTPS by default
+2. **Token Refresh**: Already implemented in AuthContext with cross-tab coordination
+3. **Memory Optimization**: Lighter queries, no chart loading
+4. **3G/4G Support**: Network detection adjusts polling frequency
+5. **Offline Fallback**: Shows cached data with "Offline" indicator
+
+---
+
+## Metric Cards Configuration
+
+| Card | Query Type | staleTime | Polling |
+|------|------------|-----------|---------|
+| Today's Sales | SUM aggregate | 60s | 60s (visible only) |
+| Total Products | COUNT | 5min | None |
+| Cash Balance | SUM aggregate | 60s | 60s (visible only) |
+| Pending Bills | COUNT | 2min | 2min (visible only) |
+
