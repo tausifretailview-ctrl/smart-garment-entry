@@ -12,6 +12,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import { MobileDashboard } from "@/components/mobile/MobileDashboard";
+import { MobileErrorBoundary } from "@/components/mobile/MobileErrorBoundary";
 import {
   Package,
   ShoppingCart,
@@ -213,9 +214,13 @@ const DashboardContent = () => {
   const isDesktop = useIsDesktop();
   const pageContextMenu = useContextMenu<void>();
   
-  // Render dedicated mobile dashboard on mobile devices
+  // Render dedicated mobile dashboard on mobile devices with error boundary
   if (isMobile) {
-    return <MobileDashboard />;
+    return (
+      <MobileErrorBoundary>
+        <MobileDashboard />
+      </MobileErrorBoundary>
+    );
   }
 
   // Dashboard context menu items
