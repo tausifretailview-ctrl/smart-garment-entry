@@ -51,10 +51,12 @@ export const FloatingWhatsAppInbox = () => {
   };
 
   return (
+    // Hidden on mobile to avoid overlap with MobileFAB
     <Button
       onClick={handleClick}
       className={cn(
         "fixed bottom-24 right-6 z-50 h-14 w-14 rounded-full shadow-lg transition-all duration-300 hover:scale-110",
+        "hidden lg:flex", // Hide on mobile
         "bg-green-600 hover:bg-green-700"
       )}
       size="icon"
