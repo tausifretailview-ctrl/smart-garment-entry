@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Plus, X, ShoppingCart, CreditCard, Package, Users, Building2, Box, Undo2 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,18 @@ export const MobileFAB = () => {
   const [showCustomerDialog, setShowCustomerDialog] = useState(false);
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
   const [showProductDialog, setShowProductDialog] = useState(false);
-  const { orgNavigate } = useOrgNavigation();
+  const { orgNavigate, getOrgPath } = useOrgNavigation();
+  const location = useLocation();
+
+  // Hide FAB on POS page - POS has its own interface
+  const hiddenRoutes = ["/pos-sales", "/pos"];
+  const shouldHide = hiddenRoutes.some(route => 
+    location.pathname === getOrgPath(route) || 
+    location.pathname.includes("/pos-sales") ||
+    location.pathname.includes("/pos")
+  );
+
+  if (shouldHide) return null;
 
   const handleAction = (action: FABAction) => {
     setIsOpen(false);
