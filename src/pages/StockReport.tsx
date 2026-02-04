@@ -108,13 +108,73 @@ export default function StockReport() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Fetch settings on mount
+  // Fetch settings and filter options on mount
   useEffect(() => {
     if (currentOrganization?.id) {
       fetchSettings();
       fetchGlobalTotals();
+      fetchFilterOptions();
     }
   }, [currentOrganization?.id]);
+
+  // Pre-load filter dropdown options from products and variants
+  const fetchFilterOptions = async () => {
+    if (!currentOrganization?.id) return;
+    
+    try {
+      // Fetch distinct brands, categories, styles from products
+      const { data: products } = await supabase
+        .from("products")
+        .select("brand, category, style")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .neq("product_type", "service");
+      
+      // Fetch distinct sizes from product_variants
+      const { data: variants } = await supabase
+        .from("product_variants")
+        .select("size")
+        .eq("organization_id", currentOrganization.id)
+        .eq("active", true)
+        .is("deleted_at", null);
+      
+      // Fetch distinct suppliers from batch_stock
+      const { data: batchData } = await supabase
+        .from("batch_stock")
+        .select(`
+          purchase_bills (
+            supplier_name,
+            supplier_invoice_no
+          )
+        `)
+        .eq("organization_id", currentOrganization.id);
+      
+      // Extract unique values
+      const brands = [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[];
+      const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[];
+      const departments = [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[];
+      const sizes = [...new Set((variants || []).map(v => v.size).filter(Boolean))].sort() as string[];
+      
+      const suppliers = [...new Set((batchData || [])
+        .map((b: any) => b.purchase_bills?.supplier_name)
+        .filter(Boolean))].sort() as string[];
+      
+      const supplierInvoices = [...new Set((batchData || [])
+        .map((b: any) => b.purchase_bills?.supplier_invoice_no)
+        .filter(Boolean))].sort() as string[];
+      
+      setFilterOptions({
+        brands,
+        categories,
+        departments,
+        sizes,
+        suppliers,
+        supplierInvoices
+      });
+    } catch (error) {
+      console.error("Error fetching filter options:", error);
+    }
+  };
 
   // Fetch global stock totals for default cards
   const fetchGlobalTotals = async () => {
