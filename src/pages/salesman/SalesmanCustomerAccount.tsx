@@ -223,15 +223,36 @@ const SalesmanCustomerAccount = () => {
   const shareStatement = async () => {
     if (!customer?.phone || !summary) return;
 
+    // Get recent transactions (excluding opening balance entry)
+    const recentTxns = transactions
+      .filter(t => t.id !== "opening")
+      .slice(-10); // Last 10 transactions
+
+    let txnList = "";
+    if (recentTxns.length > 0) {
+      txnList = "\n📋 *Recent Transactions:*\n";
+      recentTxns.forEach(txn => {
+        const dateStr = txn.date === "Opening Balance" 
+          ? "Opening" 
+          : format(new Date(txn.date), "dd/MM/yy");
+        const amount = txn.debit > 0 
+          ? `+₹${txn.debit.toLocaleString("en-IN")}` 
+          : `-₹${txn.credit.toLocaleString("en-IN")}`;
+        txnList += `${dateStr} | ${txn.reference} | ${amount}\n`;
+      });
+    }
+
     const message = `📊 *Account Statement*\n\n` +
-      `Customer: ${customer.customer_name}\n\n` +
+      `*${customer.customer_name}*\n` +
+      `As on: ${format(new Date(), "dd MMM yyyy")}\n\n` +
       `Opening Balance: ₹${summary.openingBalance.toLocaleString("en-IN")}\n` +
       `Total Sales: ₹${summary.totalSales.toLocaleString("en-IN")}\n` +
       `Total Paid: ₹${summary.totalPaid.toLocaleString("en-IN")}\n` +
       `────────────────\n` +
-      `*Outstanding: ₹${summary.currentBalance.toLocaleString("en-IN")}*\n\n` +
-      `Pending Invoices: ${summary.pendingInvoices}\n\n` +
-      `Please clear your dues at the earliest.`;
+      `*Outstanding: ₹${Math.abs(summary.currentBalance).toLocaleString("en-IN")}${summary.currentBalance < 0 ? " CR" : ""}*\n` +
+      `Pending Invoices: ${summary.pendingInvoices}` +
+      txnList +
+      `\n\nPlease clear your dues at the earliest. Thank you! 🙏`;
 
     await sendWhatsApp(customer.phone, message);
   };
