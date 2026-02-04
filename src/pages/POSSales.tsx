@@ -9,6 +9,7 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins } from "lucide-react";
+import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 
 
 import { useToast } from "@/hooks/use-toast";
@@ -103,6 +105,7 @@ export default function POSSales() {
   const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
+  const isMobile = useIsMobile();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
@@ -113,6 +116,7 @@ export default function POSSales() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   
   // Customer balance hook
   const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
@@ -2222,6 +2226,219 @@ export default function POSSales() {
     ) || []
   ) || [];
 
+  // Mobile POS Layout
+  if (isMobile) {
+    return (
+      <>
+        <MobilePOSLayout
+          items={items}
+          totals={totals}
+          finalAmount={finalAmount}
+          updateQuantity={updateQuantity}
+          removeItem={removeItem}
+          invoiceNumber={currentInvoiceNumber || nextInvoicePreview}
+          customerId={customerId}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          customers={customers || []}
+          customerSearchInput={customerName}
+          onCustomerSearchChange={(value) => {
+            setCustomerName(value);
+            setOpenCustomerSearch(true);
+          }}
+          openCustomerSearch={openCustomerSearch}
+          setOpenCustomerSearch={setOpenCustomerSearch}
+          onCustomerSelect={(customer) => {
+            if (customer) {
+              setCustomerId(customer.id);
+              setCustomerName(customer.customer_name);
+              setCustomerPhone(customer.phone || "");
+            } else {
+              setCustomerId("");
+              setCustomerName("");
+              setCustomerPhone("");
+            }
+          }}
+          onAddCustomer={() => setShowAddCustomerDialog(true)}
+          searchInput={searchInput}
+          onSearchInputChange={(value) => {
+            setSearchInput(value);
+            // Open product search if typing
+            if (value.length > 0) {
+              setOpenProductSearch(true);
+            }
+          }}
+          onBarcodeSubmit={() => {
+            if (searchInput.trim()) {
+              searchAndAddProduct(searchInput.trim());
+              setSearchInput("");
+            }
+          }}
+          barcodeInputRef={barcodeInputRef}
+          isSaving={isSaving}
+          onPaymentAndPrint={handlePaymentAndPrint}
+          onMixPayment={handleMixPayment}
+          onHoldBill={handleHoldBill}
+          showMobilePaymentSheet={showMobilePaymentSheet}
+          setShowMobilePaymentSheet={setShowMobilePaymentSheet}
+        />
+
+        {/* Dialogs needed for mobile too */}
+        <MixPaymentDialog
+          open={showMixPaymentDialog}
+          onOpenChange={setShowMixPaymentDialog}
+          billAmount={finalAmount}
+          creditApplied={creditApplied}
+          onSave={handleMixPaymentSave}
+        />
+
+        {/* Add Customer Dialog */}
+        <Dialog open={showAddCustomerDialog} onOpenChange={setShowAddCustomerDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5" />
+                Add New Customer
+              </DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="customer_name">Name *</Label>
+                <Input
+                  id="customer_name"
+                  value={newCustomerForm.customer_name}
+                  onChange={(e) => setNewCustomerForm(prev => ({ ...prev, customer_name: e.target.value }))}
+                  placeholder="Customer name"
+                  autoFocus
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Mobile *</Label>
+                <Input
+                  id="phone"
+                  value={newCustomerForm.phone}
+                  onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Mobile number"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  value={newCustomerForm.address}
+                  onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Address (optional)"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAddCustomerDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => createCustomer.mutate(newCustomerForm)}
+                disabled={!newCustomerForm.customer_name || !newCustomerForm.phone}
+              >
+                Add Customer
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Print Confirmation Dialog */}
+        <AlertDialog open={showPrintConfirmDialog} onOpenChange={setShowPrintConfirmDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Check className="h-5 w-5 text-green-600" />
+                Invoice Saved!
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Invoice {savedInvoiceData?.invoiceNumber} saved successfully.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-row gap-2">
+              <AlertDialogCancel onClick={() => {
+                setShowPrintConfirmDialog(false);
+                setSavedInvoiceData(null);
+                barcodeInputRef.current?.focus();
+              }}>
+                New Bill
+              </AlertDialogCancel>
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => {
+                  handleWhatsAppShare();
+                  setShowPrintConfirmDialog(false);
+                  setSavedInvoiceData(null);
+                }}
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </Button>
+              <AlertDialogAction onClick={handlePrintFromDialog}>
+                <Printer className="h-4 w-4 mr-2" />
+                Print
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Hidden Invoice for Printing */}
+        <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+          <InvoiceWrapper
+            ref={invoicePrintRef}
+            template={posInvoiceTemplate}
+            format={posBillFormat || 'thermal'}
+            billNo={savedInvoiceData?.invoiceNumber || currentInvoiceNumber}
+            date={currentDateTime}
+            customerName={savedInvoiceData?.customerName || customerName || "Walk in Customer"}
+            customerMobile={savedInvoiceData?.customerPhone || customerPhone}
+            items={savedInvoiceData ? savedInvoiceData.items.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.productName,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: item.hsnCode || "",
+              color: item.color || "",
+              sp: item.unitCost,
+              mrp: item.originalMrp || item.mrp,
+              qty: item.quantity,
+              rate: item.unitCost,
+              total: item.netAmount,
+              gstPercent: item.gstPer || 0,
+            })) : items.map((item, index) => ({
+              sr: index + 1,
+              particulars: item.productName,
+              size: item.size,
+              barcode: item.barcode || "",
+              hsn: item.hsnCode || "",
+              color: item.color || "",
+              sp: item.unitCost,
+              mrp: item.originalMrp || item.mrp,
+              qty: item.quantity,
+              rate: item.unitCost,
+              total: item.netAmount,
+              gstPercent: item.gstPer || 0,
+            }))}
+            subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
+            discount={savedInvoiceData ? (savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount) : (totals.discount + flatDiscountAmount)}
+            saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
+            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
+            upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
+            paymentMethod={savedInvoiceData?.method || paymentMethod}
+            notes={savedInvoiceData?.notes || saleNotes}
+            paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
+            previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // Desktop POS Layout
   return (
     <div className="min-h-screen w-full bg-background flex">
       {/* Left Action Button Bar */}
