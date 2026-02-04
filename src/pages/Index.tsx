@@ -211,12 +211,12 @@ const DashboardContent = () => {
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
+  const pageContextMenu = useContextMenu<void>();
   
   // Render dedicated mobile dashboard on mobile devices
   if (isMobile) {
     return <MobileDashboard />;
   }
-  const pageContextMenu = useContextMenu<void>();
 
   // Dashboard context menu items
   const getDashboardContextMenuItems = (): ContextMenuItem[] => [
