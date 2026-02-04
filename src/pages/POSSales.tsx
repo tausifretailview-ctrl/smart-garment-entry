@@ -117,6 +117,7 @@ export default function POSSales() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
+  const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
   // Customer balance hook
   const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
@@ -2281,6 +2282,8 @@ export default function POSSales() {
           onHoldBill={handleHoldBill}
           showMobilePaymentSheet={showMobilePaymentSheet}
           setShowMobilePaymentSheet={setShowMobilePaymentSheet}
+          selectedProductType={selectedProductType}
+          onProductTypeChange={setSelectedProductType}
         />
 
         {/* Dialogs needed for mobile too */}

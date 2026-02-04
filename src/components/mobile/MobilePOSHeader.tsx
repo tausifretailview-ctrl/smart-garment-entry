@@ -25,6 +25,13 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface MobilePOSHeaderProps {
   invoiceNumber: string;
@@ -45,6 +52,8 @@ interface MobilePOSHeaderProps {
   openCustomerSearch: boolean;
   setOpenCustomerSearch: (open: boolean) => void;
   onMenuClick?: () => void;
+  selectedProductType: string;
+  onProductTypeChange: (type: string) => void;
 }
 
 export const MobilePOSHeader = ({
@@ -65,6 +74,8 @@ export const MobilePOSHeader = ({
   openCustomerSearch,
   setOpenCustomerSearch,
   onMenuClick,
+  selectedProductType,
+  onProductTypeChange,
 }: MobilePOSHeaderProps) => {
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
@@ -98,25 +109,38 @@ export const MobilePOSHeader = ({
         </Badge>
       </div>
 
-      {/* Barcode Search */}
-      <div className="relative">
-        <Scan className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          ref={barcodeInputRef}
-          placeholder="Scan barcode or search product..."
-          value={searchInput}
-          onChange={(e) => onSearchInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              onBarcodeSubmit();
-            }
-          }}
-          className="pl-10 h-11 text-base"
-          autoComplete="off"
-          autoCapitalize="off"
-          autoCorrect="off"
-        />
+      {/* Barcode Search with Product Type Filter */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Scan className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            ref={barcodeInputRef}
+            placeholder="Scan barcode or search..."
+            value={searchInput}
+            onChange={(e) => onSearchInputChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onBarcodeSubmit();
+              }
+            }}
+            className="pl-10 h-10 text-base"
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+        </div>
+        <Select value={selectedProductType} onValueChange={onProductTypeChange}>
+          <SelectTrigger className="h-10 w-[90px] text-xs bg-card">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent className="bg-popover z-[100]">
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="goods">Goods</SelectItem>
+            <SelectItem value="service">Service</SelectItem>
+            <SelectItem value="combo">Combo</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Customer Row */}
