@@ -8,8 +8,10 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
+import { MobileDashboard } from "@/components/mobile/MobileDashboard";
 import {
   Package,
   ShoppingCart,
@@ -201,6 +203,7 @@ const DashboardContent = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
   
   // Visibility-based polling - pauses all queries when tab is hidden
   const fastRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.FAST);
@@ -208,6 +211,11 @@ const DashboardContent = () => {
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
+  
+  // Render dedicated mobile dashboard on mobile devices
+  if (isMobile) {
+    return <MobileDashboard />;
+  }
   const pageContextMenu = useContextMenu<void>();
 
   // Dashboard context menu items
