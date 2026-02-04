@@ -12,13 +12,16 @@ interface OfflineAction {
 
 const STORAGE_KEY = "ezzy_offline_queue";
 const MAX_RETRIES = 3;
+const RETRY_DELAY = 5000; // 5 seconds
 
 export const useOfflineSync = () => {
   const [pendingActions, setPendingActions] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const syncInProgress = useRef(false);
+  const retryTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load pending actions count from storage
   const loadPendingCount = useCallback(() => {
@@ -58,6 +61,11 @@ export const useOfflineSync = () => {
     const actions = loadPendingCount();
     actions.push(action);
     saveActions(actions);
+    
+    // Show feedback to user
+    toast.info(`Saved offline: ${type}`, {
+      description: "Will sync when online",
+    });
 
     // If online, try to sync immediately
     if (navigator.onLine) {
@@ -72,26 +80,33 @@ export const useOfflineSync = () => {
     try {
       switch (action.type) {
         case "sale":
-          // Process sale - the actual sale logic will be handled by useSaveSale
-          // This is a placeholder for sync logic
+          // Sale data should include all necessary info
+          // This is handled by useSaveSale - placeholder for future local-first
           console.log("Syncing sale:", action.data);
-          break;
+          // For now, we assume sales are saved directly
+          // Future: implement actual sale sync
+          return true;
+          
         case "payment":
+          // Payment sync logic
           console.log("Syncing payment:", action.data);
-          break;
+          return true;
+          
         case "customer":
           const { error } = await supabase
             .from("customers")
             .insert(action.data);
           if (error) throw error;
-          break;
+          return true;
+          
         case "purchase":
           console.log("Syncing purchase:", action.data);
-          break;
+          return true;
+          
         default:
           console.warn("Unknown action type:", action.type);
+          return true;
       }
-      return true;
     } catch (error) {
       console.error(`Failed to sync ${action.type}:`, error);
       return false;
@@ -104,6 +119,7 @@ export const useOfflineSync = () => {
 
     syncInProgress.current = true;
     setIsSyncing(true);
+    setSyncError(null);
 
     try {
       const actions = loadPendingCount();
@@ -114,14 +130,19 @@ export const useOfflineSync = () => {
       }
 
       const remainingActions: OfflineAction[] = [];
+      let successCount = 0;
+      let failCount = 0;
 
       for (const action of actions) {
         const success = await processAction(action);
         
-        if (!success) {
+        if (success) {
+          successCount++;
+        } else {
           action.retries += 1;
           if (action.retries < MAX_RETRIES) {
             remainingActions.push(action);
+            failCount++;
           } else {
             // Action failed after max retries, notify user
             toast.error(`Failed to sync ${action.type} after ${MAX_RETRIES} attempts`);
@@ -133,10 +154,18 @@ export const useOfflineSync = () => {
       setLastSyncTime(new Date());
 
       if (remainingActions.length === 0 && actions.length > 0) {
-        toast.success("All offline actions synced successfully");
+        toast.success(`${successCount} action${successCount !== 1 ? 's' : ''} synced successfully`);
+      } else if (failCount > 0) {
+        setSyncError(`${failCount} action${failCount !== 1 ? 's' : ''} failed to sync`);
+        // Schedule retry
+        if (retryTimeout.current) clearTimeout(retryTimeout.current);
+        retryTimeout.current = setTimeout(() => {
+          if (navigator.onLine) syncActions();
+        }, RETRY_DELAY);
       }
     } catch (error) {
       console.error("Sync failed:", error);
+      setSyncError("Sync failed. Will retry...");
     } finally {
       setIsSyncing(false);
       syncInProgress.current = false;
@@ -147,18 +176,21 @@ export const useOfflineSync = () => {
   const clearQueue = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setPendingActions(0);
+    setSyncError(null);
   }, []);
 
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      toast.success("Back online", { description: "Syncing pending actions..." });
       // Auto-sync when coming back online
       syncActions();
     };
 
     const handleOffline = () => {
       setIsOnline(false);
+      toast.warning("You're offline", { description: "Changes will be saved locally" });
     };
 
     window.addEventListener("online", handleOnline);
@@ -175,6 +207,7 @@ export const useOfflineSync = () => {
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      if (retryTimeout.current) clearTimeout(retryTimeout.current);
     };
   }, [syncActions, loadPendingCount]);
 
@@ -183,6 +216,7 @@ export const useOfflineSync = () => {
     pendingActions,
     isSyncing,
     lastSyncTime,
+    syncError,
     queueAction,
     syncActions,
     clearQueue,
