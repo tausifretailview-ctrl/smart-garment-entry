@@ -97,5 +97,13 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Deduplicate React to prevent hook issues on older Android WebViews
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
+  },
+  build: {
+    // Target modern browsers while maintaining compatibility
+    target: 'es2020',
+    // Generate sourcemaps for debugging in development
+    sourcemap: mode === 'development',
   },
 }));
