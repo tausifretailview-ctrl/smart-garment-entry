@@ -72,6 +72,8 @@ export function StockAnalysisSearch({
 
     setLoading(true);
     try {
+      // Fetch ALL variants first (without OR filter that breaks cross-table search)
+      // Then filter client-side for product_name, brand, barcode, size, color
       const { data, error } = await supabase
         .from("product_variants")
         .select(`
@@ -90,13 +92,12 @@ export function StockAnalysisSearch({
         .eq("active", true)
         .is("deleted_at", null)
         .is("products.deleted_at", null)
-        .or(`barcode.ilike.%${term}%,size.ilike.%${term}%,color.ilike.%${term}%`)
         .order("stock_qty", { ascending: false })
-        .limit(50);
+        .limit(500); // Get more results for client-side filtering
 
       if (error) throw error;
 
-      // Client-side filter for product_name/brand (Supabase limitation with nested OR)
+      // Client-side filter for ALL fields including product_name/brand
       const termLower = term.toLowerCase();
       const formatted = (data || [])
         .filter((item: any) => {
@@ -113,6 +114,7 @@ export function StockAnalysisSearch({
             color.includes(termLower)
           );
         })
+        .slice(0, 50) // Limit to 50 after filtering
         .map((item: any) => ({
           id: item.id,
           product_name: item.products?.product_name || "",
