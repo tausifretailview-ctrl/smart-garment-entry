@@ -57,14 +57,12 @@ export default function MobileMoreMenu() {
       ],
     },
     {
-      title: "Reports",
+      title: "Inventory",
       items: [
-        { icon: BarChart3, label: "Sales Report", path: "/sales-invoice-dashboard", color: "text-green-500" },
-        { icon: FileText, label: "Purchase Report", path: "/purchase-bills", color: "text-amber-500" },
-        { icon: Receipt, label: "GST Report", path: "/gst-reports", color: "text-indigo-500" },
-        { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", color: "text-emerald-500" },
-        { icon: FileSpreadsheet, label: "Daily Cashier", path: "/daily-cashier-report", color: "text-cyan-500" },
-        { icon: Package, label: "Item-wise Sales", path: "/item-wise-sales", color: "text-violet-500" },
+        { icon: Package, label: "Products", path: "/products", color: "text-amber-500" },
+        { icon: BarChart3, label: "Stock Report", path: "/stock-report", color: "text-green-500" },
+        { icon: FileText, label: "Stock Adjustment", path: "/stock-adjustment", color: "text-blue-500" },
+        { icon: FileSpreadsheet, label: "Barcode Printing", path: "/barcode-printing", color: "text-purple-500" },
       ],
     },
     {
