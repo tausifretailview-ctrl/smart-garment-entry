@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -13,7 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
-import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarIcon, Search, Package, IndianRupee, TrendingUp, Printer, FileSpreadsheet, FileText, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 
@@ -26,9 +26,17 @@ interface SaleItemData {
   brand: string | null;
   category: string | null;
   color: string | null;
+  customer_name: string | null;
   total_qty: number;
   avg_price: number;
   total_amount: number;
+}
+
+interface FilterOptions {
+  brands: string[];
+  categories: string[];
+  departments: string[];
+  customers: string[];
 }
 
 const CHART_COLORS = [
@@ -51,6 +59,51 @@ export default function ItemWiseSalesReport() {
     to: new Date(),
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedBrand, setSelectedBrand] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
+  const [selectedCustomer, setSelectedCustomer] = useState<string>("all");
+  const [filterOptions, setFilterOptions] = useState<FilterOptions>({
+    brands: [],
+    categories: [],
+    departments: [],
+    customers: [],
+  });
+
+  // Fetch filter options on mount
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      if (!currentOrganization?.id) return;
+
+      try {
+        // Fetch unique brands, categories, departments from products
+        const { data: products } = await supabase
+          .from("products")
+          .select("brand, category, style")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+
+        // Fetch unique customer names from sales
+        const { data: sales } = await supabase
+          .from("sales")
+          .select("customer_name")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null);
+
+        const brands = [...new Set((products || []).map(p => p.brand).filter(Boolean))].sort() as string[];
+        const categories = [...new Set((products || []).map(p => p.category).filter(Boolean))].sort() as string[];
+        const departments = [...new Set((products || []).map(p => p.style).filter(Boolean))].sort() as string[];
+        const customers = [...new Set((sales || []).map(s => s.customer_name).filter(Boolean))].sort() as string[];
+
+        setFilterOptions({ brands, categories, departments, customers });
+      } catch (error) {
+        console.error("Error fetching filter options:", error);
+      }
+    };
+
+    fetchFilterOptions();
+  }, [currentOrganization?.id]);
 
   // Calculate date range based on period type
   const dateRange = useMemo(() => {
@@ -78,23 +131,31 @@ export default function ItemWiseSalesReport() {
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading } = useQuery({
-    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to],
+    queryKey: ["item-wise-sales", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
       // First get sales within date range for the organization
-      const { data: salesData, error: salesError } = await supabase
+      let salesQuery = supabase
         .from("sales")
-        .select("id")
+        .select("id, customer_name")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .gte("sale_date", dateRange.from.toISOString())
         .lte("sale_date", dateRange.to.toISOString());
 
+      // Apply customer filter at query level if selected
+      if (selectedCustomer !== "all") {
+        salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+      }
+
+      const { data: salesData, error: salesError } = await salesQuery;
+
       if (salesError) throw salesError;
       if (!salesData || salesData.length === 0) return [];
 
       const saleIds = salesData.map((s) => s.id);
+      const salesMap = new Map(salesData.map(s => [s.id, s.customer_name]));
 
       // Use paginated fetch to bypass 1000 row limit
       const saleItemsData = await fetchAllSaleItems(saleIds);
@@ -103,23 +164,24 @@ export default function ItemWiseSalesReport() {
       // Get unique product IDs and fetch product details - use batched fetch to bypass 1000 limit
       const productIds = [...new Set(saleItemsData.map(item => item.product_id).filter(Boolean))];
       
-      let productsMap: Record<string, { brand: string | null; category: string | null; color: string | null }> = {};
+      let productsMap: Record<string, { brand: string | null; category: string | null; color: string | null; style: string | null }> = {};
       
       if (productIds.length > 0) {
         const { fetchProductsByIds } = await import("@/utils/fetchAllRows");
-        const productsData = await fetchProductsByIds(productIds, "id, brand, category, color");
+        const productsData = await fetchProductsByIds(productIds, "id, brand, category, color, style");
         
         if (productsData) {
           productsMap = productsData.reduce((acc: any, p: any) => {
-            acc[p.id] = { brand: p.brand, category: p.category, color: p.color };
+            acc[p.id] = { brand: p.brand, category: p.category, color: p.color, style: p.style };
             return acc;
-          }, {} as Record<string, { brand: string | null; category: string | null; color: string | null }>);
+          }, {} as Record<string, { brand: string | null; category: string | null; color: string | null; style: string | null }>);
         }
       }
 
-      // Merge product details into sale items
+      // Merge product details and customer name into sale items
       return saleItemsData.map(item => ({
         ...item,
+        customer_name: salesMap.get(item.sale_id) || null,
         products: item.product_id ? productsMap[item.product_id] || null : null
       }));
     },
@@ -146,6 +208,7 @@ export default function ItemWiseSalesReport() {
           brand: item.products?.brand || null,
           category: item.products?.category || null,
           color: item.products?.color || null,
+          customer_name: item.customer_name || null,
           total_qty: item.quantity,
           avg_price: Number(item.unit_price),
           total_amount: Number(item.line_total),
@@ -156,21 +219,38 @@ export default function ItemWiseSalesReport() {
     return Array.from(productMap.values()).sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems]);
 
-  // Filter data based on search
+  // Filter data based on search and dropdown filters
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return aggregatedData;
+    let data = aggregatedData;
 
-    const query = searchQuery.toLowerCase();
-    return aggregatedData.filter(
-      (item) =>
-        item.product_name?.toLowerCase().includes(query) ||
-        item.barcode?.toLowerCase().includes(query) ||
-        item.brand?.toLowerCase().includes(query) ||
-        item.category?.toLowerCase().includes(query) ||
-        item.color?.toLowerCase().includes(query) ||
-        item.size?.toLowerCase().includes(query)
-    );
-  }, [aggregatedData, searchQuery]);
+    // Apply dropdown filters
+    if (selectedBrand !== "all") {
+      data = data.filter(item => item.brand === selectedBrand);
+    }
+    if (selectedCategory !== "all") {
+      data = data.filter(item => item.category === selectedCategory);
+    }
+    if (selectedDepartment !== "all") {
+      // Department maps to style/color in this context
+      data = data.filter(item => item.color === selectedDepartment);
+    }
+
+    // Apply search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      data = data.filter(
+        (item) =>
+          item.product_name?.toLowerCase().includes(query) ||
+          item.barcode?.toLowerCase().includes(query) ||
+          item.brand?.toLowerCase().includes(query) ||
+          item.category?.toLowerCase().includes(query) ||
+          item.color?.toLowerCase().includes(query) ||
+          item.size?.toLowerCase().includes(query)
+      );
+    }
+
+    return data;
+  }, [aggregatedData, searchQuery, selectedBrand, selectedCategory, selectedDepartment]);
 
   // Summary statistics
   const summary = useMemo(() => {
@@ -250,108 +330,193 @@ export default function ItemWiseSalesReport() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            {/* Period Type */}
-            <div className="w-full md:w-40">
-              <label className="text-sm font-medium text-muted-foreground mb-1 block">Period</label>
-              <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="monthly">Monthly</SelectItem>
-                  <SelectItem value="quarterly">Quarterly</SelectItem>
-                  <SelectItem value="yearly">Yearly (FY)</SelectItem>
-                  <SelectItem value="custom">Custom Range</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Picker */}
-            {periodType !== "custom" && (
-              <div className="w-full md:w-48">
-                <label className="text-sm font-medium text-muted-foreground mb-1 block">Date</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(selectedDate, "PPP")}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={(date) => date && setSelectedDate(date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-end">
+              {/* Period Type */}
+              <div className="w-full md:w-40">
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Period</label>
+                <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                    <SelectItem value="yearly">Yearly (FY)</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
 
-            {/* Custom Date Range */}
-            {periodType === "custom" && (
-              <>
+              {/* Date Picker */}
+              {periodType !== "custom" && (
                 <div className="w-full md:w-48">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">From</label>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Date</label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" className="w-full justify-start text-left font-normal">
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(customDateRange.from, "PPP")}
+                        {format(selectedDate, "PPP")}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0">
                       <Calendar
                         mode="single"
-                        selected={customDateRange.from}
-                        onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, from: date }))}
+                        selected={selectedDate}
+                        onSelect={(date) => date && setSelectedDate(date)}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
+              )}
+
+              {/* Custom Date Range */}
+              {periodType === "custom" && (
+                <>
+                  <div className="w-full md:w-48">
+                    <label className="text-sm font-medium text-muted-foreground mb-1 block">From</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(customDateRange.from, "PPP")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange.from}
+                          onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, from: date }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="w-full md:w-48">
+                    <label className="text-sm font-medium text-muted-foreground mb-1 block">To</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start text-left font-normal">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {format(customDateRange.to, "PPP")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={customDateRange.to}
+                          onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, to: date }))}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </>
+              )}
+
+              {/* Search */}
+              <div className="flex-1">
+                <label className="text-sm font-medium text-muted-foreground mb-1 block">Search</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by product, barcode, brand, category..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              {/* Filter Toggle Button */}
+              <Button
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="h-10"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+            </div>
+
+            {/* Dropdown Filters Row */}
+            {showFilters && (
+              <div className="flex flex-wrap gap-4 pt-2 border-t">
+                {/* Brand Filter */}
+                <div className="w-full md:w-44">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Brand</label>
+                  <Select value={selectedBrand} onValueChange={setSelectedBrand}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Brands" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Brands</SelectItem>
+                      {filterOptions.brands.map((brand) => (
+                        <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Category Filter */}
+                <div className="w-full md:w-44">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Category</label>
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {filterOptions.categories.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Department Filter */}
+                <div className="w-full md:w-44">
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Department</label>
+                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Departments" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Departments</SelectItem>
+                      {filterOptions.departments.map((dept) => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Customer Filter */}
                 <div className="w-full md:w-48">
-                  <label className="text-sm font-medium text-muted-foreground mb-1 block">To</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {format(customDateRange.to, "PPP")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={customDateRange.to}
-                        onSelect={(date) => date && setCustomDateRange((prev) => ({ ...prev, to: date }))}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">Customer</label>
+                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Customers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Customers</SelectItem>
+                      {filterOptions.customers.map((cust) => (
+                        <SelectItem key={cust} value={cust}>{cust}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </>
+              </div>
             )}
 
-            {/* Search */}
-            <div className="flex-1">
-              <label className="text-sm font-medium text-muted-foreground mb-1 block">Search</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by product, barcode, brand, category..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+            <div className="text-sm text-muted-foreground">
+              Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
+              {(selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedCustomer !== "all") && (
+                <span className="ml-2 text-primary">• Filters applied</span>
+              )}
             </div>
-          </div>
-
-          <div className="mt-2 text-sm text-muted-foreground">
-            Showing data from {format(dateRange.from, "dd MMM yyyy")} to {format(dateRange.to, "dd MMM yyyy")}
           </div>
         </CardContent>
       </Card>
