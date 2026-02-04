@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle } from "lucide-react";
 import jsPDF from "jspdf";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface CustomerLedgerProps {
   organizationId: string;
@@ -59,6 +61,9 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("transactions");
+  
+  const isMobile = useIsMobile();
+  const { sendWhatsApp } = useWhatsAppSend();
 
   // Sync external filter with internal state
   useEffect(() => {
@@ -579,6 +584,48 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
     }), { totalDebit: 0, totalCredit: 0 });
   }, [transactions]);
 
+  // Send ledger summary via WhatsApp
+  const handleSendLedgerWhatsApp = useCallback(() => {
+    if (!selectedCustomer) return;
+    if (!selectedCustomer.phone) {
+      return;
+    }
+
+    const openingBalance = selectedCustomer.opening_balance || 0;
+    const dateRange = (startDate || endDate) 
+      ? `\n📅 Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} - ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`
+      : "";
+
+    // Build last 5 transactions summary
+    const recentTxns = transactions?.slice(-5) || [];
+    let txnSummary = "";
+    if (recentTxns.length > 0) {
+      txnSummary = "\n\n📋 *Recent Transactions:*";
+      recentTxns.forEach((t) => {
+        const dateStr = t.id === 'opening-balance' ? 'Opening' : format(new Date(t.date), "dd/MM/yy");
+        if (t.debit > 0) {
+          txnSummary += `\n${dateStr} - ${t.reference}: +₹${Math.round(t.debit).toLocaleString("en-IN")}`;
+        } else if (t.credit > 0) {
+          txnSummary += `\n${dateStr} - ${t.reference}: -₹${Math.round(t.credit).toLocaleString("en-IN")}`;
+        }
+      });
+    }
+
+    const message = `📊 *Account Statement*
+
+👤 *${selectedCustomer.customer_name}*${dateRange}
+
+💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}
+📈 Total Sales: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
+✅ Total Paid: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
+────────────────
+💵 *Outstanding: ₹${Math.abs(Math.round(selectedCustomer.balance)).toLocaleString("en-IN")}${selectedCustomer.balance < 0 ? " (Advance)" : ""}*${txnSummary}
+
+Please clear your dues at the earliest. Thank you!`;
+
+    sendWhatsApp(selectedCustomer.phone, message);
+  }, [selectedCustomer, transactions, startDate, endDate, sendWhatsApp]);
+
   const handleExportToExcel = () => {
     if (!selectedCustomer || !transactions) return;
 
@@ -810,19 +857,33 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
               variant="outline"
               size="sm"
               onClick={handleExportToExcel}
+              className={isMobile ? "flex-1" : ""}
             >
               <Download className="mr-2 h-4 w-4" />
-              Export Excel
+              {isMobile ? "Excel" : "Export Excel"}
             </Button>
 
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportToPDF}
+              className={isMobile ? "flex-1" : ""}
             >
               <FileDown className="mr-2 h-4 w-4" />
-              Export PDF
+              {isMobile ? "PDF" : "Export PDF"}
             </Button>
+
+            {selectedCustomer.phone && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSendLedgerWhatsApp}
+                className={cn("bg-green-600 hover:bg-green-700", isMobile ? "flex-1" : "")}
+              >
+                <MessageCircle className="mr-2 h-4 w-4" />
+                {isMobile ? "WhatsApp" : "Send on WhatsApp"}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -1322,82 +1383,66 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
             )}
           </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Customer Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead className="text-right">Total Sales</TableHead>
-                  <TableHead className="text-right">Total Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      Loading customers...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredCustomers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                      No customers found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredCustomers.map((customer) => (
-                    <TableRow 
-                      key={customer.id}
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedCustomer(customer)}
-                    >
-                      <TableCell className="font-medium">{customer.customer_name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+          {/* Mobile Card View */}
+          {isMobile ? (
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="text-center text-muted-foreground py-8">
+                  Loading customers...
+                </div>
+              ) : filteredCustomers.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">
+                  No customers found
+                </div>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <Card 
+                    key={customer.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setSelectedCustomer(customer)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-base">{customer.customer_name}</h3>
                           {customer.phone && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                               <Phone className="h-3 w-3" />
                               {customer.phone}
                             </div>
                           )}
-                          {customer.email && (
-                            <div className="flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {customer.email}
-                            </div>
-                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        ₹{customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-right text-green-600 dark:text-green-400">
-                        ₹{customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className={cn(
-                        "text-right font-bold",
-                        customer.balance > 0 ? "text-red-600 dark:text-red-400" : 
-                        customer.balance < 0 ? "text-green-600 dark:text-green-400" : 
-                        "text-foreground"
-                      )}>
-                        ₹{Math.abs(customer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-center">
                         {customer.balance > 0 && (
-                          <Badge variant="destructive">Outstanding</Badge>
+                          <Badge variant="destructive" className="ml-2">Outstanding</Badge>
                         )}
                         {customer.balance < 0 && (
-                          <Badge variant="default" className="bg-green-600">Advance</Badge>
+                          <Badge variant="default" className="bg-green-600 ml-2">Advance</Badge>
                         )}
                         {customer.balance === 0 && (
-                          <Badge variant="outline">Settled</Badge>
+                          <Badge variant="outline" className="ml-2">Settled</Badge>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </div>
+                      
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Sales</div>
+                          <div className="font-medium text-sm">₹{customer.totalSales.toLocaleString("en-IN")}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Paid</div>
+                          <div className="font-medium text-sm text-green-600 dark:text-green-400">₹{customer.totalPaid.toLocaleString("en-IN")}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-muted-foreground">Balance</div>
+                          <div className={cn(
+                            "font-bold text-sm",
+                            customer.balance > 0 ? "text-red-600 dark:text-red-400" : 
+                            customer.balance < 0 ? "text-green-600 dark:text-green-400" : 
+                            "text-foreground"
+                          )}>
+                            ₹{Math.abs(customer.balance).toLocaleString("en-IN")}
+                          </div>
+                        </div>
                         <Button
                           variant="outline"
                           size="sm"
@@ -1408,13 +1453,108 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
                         >
                           View Ledger
                         </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          ) : (
+            /* Desktop Table View */
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Customer Name</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead className="text-right">Total Sales</TableHead>
+                    <TableHead className="text-right">Total Paid</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        Loading customers...
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : filteredCustomers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                        No customers found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredCustomers.map((customer) => (
+                      <TableRow 
+                        key={customer.id}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedCustomer(customer)}
+                      >
+                        <TableCell className="font-medium">{customer.customer_name}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                            {customer.phone && (
+                              <div className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {customer.phone}
+                              </div>
+                            )}
+                            {customer.email && (
+                              <div className="flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {customer.email}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          ₹{customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-right text-green-600 dark:text-green-400">
+                          ₹{customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-right font-bold",
+                          customer.balance > 0 ? "text-red-600 dark:text-red-400" : 
+                          customer.balance < 0 ? "text-green-600 dark:text-green-400" : 
+                          "text-foreground"
+                        )}>
+                          ₹{Math.abs(customer.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {customer.balance > 0 && (
+                            <Badge variant="destructive">Outstanding</Badge>
+                          )}
+                          {customer.balance < 0 && (
+                            <Badge variant="default" className="bg-green-600">Advance</Badge>
+                          )}
+                          {customer.balance === 0 && (
+                            <Badge variant="outline">Settled</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedCustomer(customer);
+                            }}
+                          >
+                            View Ledger
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
