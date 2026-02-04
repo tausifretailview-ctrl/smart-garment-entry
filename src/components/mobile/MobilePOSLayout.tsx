@@ -66,6 +66,10 @@ interface MobilePOSLayoutProps {
   // Mobile payment sheet
   showMobilePaymentSheet: boolean;
   setShowMobilePaymentSheet: (show: boolean) => void;
+  
+  // Product type filter
+  selectedProductType: string;
+  onProductTypeChange: (type: string) => void;
 }
 
 export const MobilePOSLayout = ({
@@ -95,6 +99,8 @@ export const MobilePOSLayout = ({
   onHoldBill,
   showMobilePaymentSheet,
   setShowMobilePaymentSheet,
+  selectedProductType,
+  onProductTypeChange,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -130,12 +136,14 @@ export const MobilePOSLayout = ({
         onCustomerSearchChange={onCustomerSearchChange}
         openCustomerSearch={openCustomerSearch}
         setOpenCustomerSearch={setOpenCustomerSearch}
+        selectedProductType={selectedProductType}
+        onProductTypeChange={onProductTypeChange}
       />
 
       {/* Cart Items - Scrollable area with bottom padding for payment bar */}
       <ScrollArea 
         ref={scrollAreaRef}
-        className="flex-1 px-3 pb-[140px]"
+        className="flex-1 px-3 pb-[100px]"
       >
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
