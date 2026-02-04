@@ -82,7 +82,7 @@ import SalesmanOrders from "./pages/salesman/SalesmanOrders";
 import SalesmanOutstanding from "./pages/salesman/SalesmanOutstanding";
 import WhatsAppLogs from "./pages/WhatsAppLogs";
 import WhatsAppInbox from "./pages/WhatsAppInbox";
-
+import MobileMoreMenu from "./pages/mobile/MobileMoreMenu";
 // Helpers for redirecting when org slug is missing in URL (PWA resilience)
 function getStoredOrgSlug(): string | null {
   return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
@@ -780,6 +780,18 @@ const App = () => {
                           <WhatsAppInbox />
                         </FullScreenLayout>
                       </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Mobile More Menu */}
+                <Route
+                  path="mobile-more"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <MobileMoreMenu />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
