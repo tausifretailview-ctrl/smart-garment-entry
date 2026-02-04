@@ -1,4 +1,4 @@
-import { Home, ShoppingCart, Package, Wallet, MoreHorizontal } from "lucide-react";
+import { Home, ShoppingCart, BarChart3, Wallet, MoreHorizontal } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { cn } from "@/lib/utils";
@@ -24,10 +24,10 @@ const navItems: NavItem[] = [
     matchPaths: ["/pos-sales", "/pos", "/pos-dashboard", "/sales-invoice"]
   },
   { 
-    icon: Package, 
-    label: "Inventory", 
-    path: "/stock-report",
-    matchPaths: ["/stock-report", "/products", "/stock-adjustment", "/stock-analysis", "/barcode-printing"]
+    icon: BarChart3, 
+    label: "Reports", 
+    path: "/mobile-reports",
+    matchPaths: ["/mobile-reports", "/stock-report", "/sales-invoice-dashboard", "/daily-cashier-report", "/item-wise-sales", "/item-wise-stock", "/stock-analysis", "/purchase-bills", "/net-profit-analysis", "/gst-reports"]
   },
   { 
     icon: Wallet, 
@@ -39,7 +39,7 @@ const navItems: NavItem[] = [
     icon: MoreHorizontal, 
     label: "More", 
     path: "/mobile-more",
-    matchPaths: ["/mobile-more", "/settings", "/customers", "/suppliers", "/employees", "/gst-reports"]
+    matchPaths: ["/mobile-more", "/settings", "/customers", "/suppliers", "/employees", "/products", "/barcode-printing", "/stock-adjustment"]
   },
 ];
 
