@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -123,6 +123,17 @@ function NonOrgRedirect({ path }: { path: string }) {
 }
 
 const App = () => {
+  // Global unhandled rejection handler
+  useEffect(() => {
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("Unhandled promise rejection:", event.reason);
+      // Don't prevent default - let error boundaries handle if possible
+    };
+    
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => window.removeEventListener("unhandledrejection", handleRejection);
+  }, []);
+
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
