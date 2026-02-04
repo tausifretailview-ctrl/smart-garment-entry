@@ -1,193 +1,107 @@
 
+# Fix "Something Went Wrong" Error - Comprehensive Solution
 
-# Mobile Dashboard Performance Optimization Plan
+## Problem Analysis
 
-## Overview
+Based on my investigation, the "Something went wrong" error can be caused by several issues affecting mobile browsers, Android WebViews, older browsers, and PWA installations:
 
-Optimize the Ezzy ERP mobile dashboard for low-memory Android devices and slow networks (3G/4G) with lazy loading, error handling, retry mechanisms, and lightweight data fetching.
+### Identified Issues
 
----
+1. **Missing Global Unhandled Promise Rejection Handler** - Async errors in event handlers (like API calls) aren't caught by React error boundaries, causing app crashes with blank screens
 
-## Current Issues Identified
+2. **React Instance Deduplication Missing** - No `resolve.dedupe` configuration in Vite can cause hooks to fail on older Android WebViews when multiple React instances are bundled
 
-| Issue | Current State | Impact |
-|-------|---------------|--------|
-| **Heavy API calls on load** | 4 parallel queries + summary component queries | Slow initial render on 3G |
-| **No error handling in cards** | API failure shows loading forever | Poor UX |
-| **No retry mechanism** | Failed queries stay failed | Users must refresh |
-| **Summary loads immediately** | MobileDashboardSummary makes 3 DB calls on mount | Extra latency |
-| **ErrorBoundary is basic** | No retry button, no friendly message | Confusing for users |
-| **Stock value query is heavy** | Fetches all product variants | Memory intensive |
+3. **ErrorBoundary Doesn't Have Reset Key** - When the global ErrorBoundary catches an error and user clicks "Refresh Page", it reloads the whole page instead of trying to re-render
+
+4. **No Service Worker Cache Busting** - PWA may serve stale cached assets that cause crashes after deployment
+
+5. **MobileErrorBoundary Uses Tailwind** - When loaded before CSS, the error UI may not render correctly on older browsers
+
+6. **No unhandledrejection Handler** - Promise rejections in async code are not caught, causing silent crashes
 
 ---
 
 ## Implementation Plan
 
-### 1. Create Mobile-Optimized Error Boundary
+### 1. Add Global Unhandled Promise Rejection Handler
 
-**New File**: `src/components/mobile/MobileErrorBoundary.tsx`
+**File**: `src/main.tsx`
 
-Mobile-friendly error UI with:
-- Friendly error message with icon
-- Retry button to reload component
-- "Go Home" fallback button
-- Network status indicator
-- Touch-optimized styling
+Add a safety net for async errors that escape error boundaries:
 
-```text
-┌────────────────────────────────────┐
-│                                    │
-│         ⚠️ Oops!                   │
-│                                    │
-│   Something went wrong.            │
-│   Please check your connection.    │
-│                                    │
-│      [ 🔄 Try Again ]              │
-│      [ 🏠 Go Home ]                │
-│                                    │
-└────────────────────────────────────┘
-```
-
-### 2. Add API Error Card Component
-
-**New File**: `src/components/mobile/MobileDashboardErrorCard.tsx`
-
-Fallback UI when individual card API fails:
-- Shows card with error state
-- Retry button on the card
-- Shows last known value if available
-- Network offline indicator
-
-### 3. Optimize MobileDashboard with Lazy Loading
-
-**File**: `src/components/mobile/MobileDashboard.tsx`
-
-Changes:
-- Remove heavy queries from initial load
-- Use lightweight COUNT queries instead of fetching all rows
-- Add visibility-aware polling (pause when hidden)
-- Implement stale-while-revalidate pattern
-- Lazy load MobileDashboardSummary only when scrolled into view
-
-**Optimized Data Fetching Strategy**:
-```text
-Initial Load (Priority 1 - Instant):
-├── Today's Sales → SELECT SUM(net_amount) with date filter
-├── Total Products → SELECT COUNT(*) from products
-├── Cash Balance → Lightweight aggregation
-└── Pending Bills → SELECT COUNT(*) with status filter
-
-Lazy Load (Priority 2 - On Scroll):
-└── MobileDashboardSummary → Load when visible
-```
-
-### 4. Use Lightweight Aggregate Queries
-
-Replace heavy queries with optimized versions:
-
-| Current Query | Optimized Query |
-|---------------|-----------------|
-| Fetch all sales → sum | `SELECT COALESCE(SUM(net_amount), 0)` via RPC |
-| Fetch all variants → calculate stock | Use pre-aggregated count or limit |
-| Fetch all pending sales | `SELECT COUNT(*)` with head:true |
-
-### 5. Implement Query Retry with Fallback
-
-**Update**: `src/components/mobile/MobileDashboardCard.tsx`
-
-Add error state handling:
-- `isError` prop for failed queries
-- `onRetry` callback for retry button
-- Fallback to cached/stale data
-- Offline indicator when network unavailable
-
-### 6. Add Network-Aware Loading
-
-**New File**: `src/hooks/useNetworkStatus.tsx`
-
-Hook to detect:
-- Online/offline status
-- Connection type (3G/4G/WiFi via navigator.connection)
-- Slow network mode (reduce polling frequency)
-
-### 7. Wrap Dashboard in Error Boundary
-
-**File**: `src/pages/Index.tsx`
-
-Wrap MobileDashboard with MobileErrorBoundary:
 ```tsx
-if (isMobile) {
-  return (
-    <MobileErrorBoundary>
-      <MobileDashboard />
-    </MobileErrorBoundary>
-  );
-}
+// Global handler for unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  event.preventDefault(); // Prevent crash
+});
+
+// Global handler for uncaught errors
+window.addEventListener('error', (event) => {
+  console.error('Uncaught error:', event.error);
+});
 ```
 
-### 8. Optimize MobileDashboardSummary
+### 2. Configure Vite for React Deduplication
 
-**File**: `src/components/mobile/MobileDashboardSummary.tsx`
+**File**: `vite.config.ts`
 
-Changes:
-- Accept `isVisible` prop to prevent loading when off-screen
-- Reduce query complexity
-- Add error/retry state
-- Use staleTime to reduce refetches
+Add resolve.dedupe to prevent duplicate React instances:
 
----
+```ts
+resolve: {
+  alias: {
+    "@": path.resolve(__dirname, "./src"),
+  },
+  dedupe: ["react", "react-dom", "@tanstack/react-query"],
+},
+```
 
-## Files to Create
+### 3. Enhance Global ErrorBoundary with Retry
 
-| File | Purpose |
-|------|---------|
-| `src/components/mobile/MobileErrorBoundary.tsx` | Mobile-friendly error boundary with retry |
-| `src/components/mobile/MobileDashboardErrorCard.tsx` | Error state for individual metric cards |
-| `src/hooks/useNetworkStatus.tsx` | Network detection hook |
+**File**: `src/components/ErrorBoundary.tsx`
 
-## Files to Modify
+Enhance with:
+- Clear cache option on error
+- Service worker unregistration on retry
+- Better error information
+- Inline styles (no Tailwind dependency)
 
-| File | Changes |
-|------|---------|
-| `src/components/mobile/MobileDashboard.tsx` | Lightweight queries, lazy loading, error handling |
-| `src/components/mobile/MobileDashboardCard.tsx` | Add error state, retry button |
-| `src/components/mobile/MobileDashboardSummary.tsx` | Lazy loading, optimized queries |
-| `src/pages/Index.tsx` | Wrap with MobileErrorBoundary |
-| `src/components/mobile/index.ts` | Export new components |
-
----
-
-## Technical Implementation Details
-
-### MobileErrorBoundary Component
 ```tsx
-class MobileErrorBoundary extends Component<Props, State> {
-  state = { hasError: false, error: null };
+class ErrorBoundary extends Component<Props, State> {
+  // ... existing code ...
 
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+  handleRetry = async () => {
+    // Unregister service workers to clear cached assets
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+      }
+    }
+    
+    // Clear cache storage
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    }
+    
+    // Reload from server, not cache
+    window.location.reload();
   };
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6">
-          <AlertTriangle className="h-16 w-16 text-warning mb-4" />
-          <h1 className="text-xl font-semibold mb-2">Something went wrong</h1>
-          <p className="text-sm text-muted-foreground text-center mb-6">
-            Please check your internet connection and try again.
-          </p>
-          <Button onClick={this.handleRetry} className="mb-3">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Try Again
-          </Button>
-          <Button variant="outline" onClick={() => window.location.href = '/'}>
-            Go to Home
-          </Button>
+        // Inline-styled error UI (no CSS dependencies)
+        <div style={styles.container}>
+          <h1>Something went wrong</h1>
+          <button onClick={this.handleRetry}>
+            Clear Cache & Retry
+          </button>
+          <button onClick={() => window.location.reload()}>
+            Refresh Page
+          </button>
         </div>
       );
     }
@@ -196,166 +110,359 @@ class MobileErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### Optimized Dashboard Queries
+### 4. Update MobileErrorBoundary Fallback Styling
+
+**File**: `src/components/mobile/MobileErrorBoundary.tsx`
+
+Add inline styles fallback for cases where Tailwind CSS fails to load:
+
 ```tsx
-// Lightweight query - uses COUNT instead of fetching rows
-const { data: productCount, isLoading, isError, refetch } = useQuery({
-  queryKey: ["mobile-product-count", organizationId],
-  queryFn: async () => {
-    const { count, error } = await supabase
-      .from("products")
-      .select("*", { count: "exact", head: true })
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null);
-    
-    if (error) throw error;
-    return count || 0;
+// Add inline style fallback for when CSS fails
+const fallbackStyles = {
+  container: {
+    minHeight: '100vh',
+    background: '#0f172a',
+    color: '#f1f5f9',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    fontFamily: 'system-ui, sans-serif',
   },
-  enabled: !!organizationId,
-  staleTime: 300000, // 5 minutes - products don't change often
-  retry: 2, // Retry twice on failure
-});
+  // ... more inline styles
+};
 ```
 
-### Network Status Hook
+### 5. Add Cache Clear Utility Hook
+
+**New File**: `src/hooks/useClearCache.tsx`
+
+Utility to clear PWA cache programmatically:
+
 ```tsx
-export const useNetworkStatus = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isSlowConnection, setIsSlowConnection] = useState(false);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    // Check connection speed if available
-    const connection = (navigator as any).connection;
-    if (connection) {
-      const checkSpeed = () => {
-        setIsSlowConnection(
-          connection.effectiveType === "2g" || 
-          connection.effectiveType === "slow-2g"
-        );
-      };
-      connection.addEventListener("change", checkSpeed);
-      checkSpeed();
+export const useClearCache = () => {
+  const clearAllCaches = async () => {
+    // Unregister all service workers
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        await registration.unregister();
+      }
     }
+    
+    // Clear cache storage
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+    }
+    
+    // Clear localStorage except essential keys
+    const essentialKeys = ['selectedOrgSlug'];
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && !essentialKeys.some(ek => key.includes(ek))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    return true;
+  };
 
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
+  return { clearAllCaches };
+};
+```
+
+### 6. Wrap App with Additional Error Handling
+
+**File**: `src/App.tsx`
+
+Add try-catch wrappers and error recovery:
+
+```tsx
+const App = () => {
+  useEffect(() => {
+    // Global unhandled rejection handler
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      console.error("Unhandled promise rejection:", event.reason);
+      event.preventDefault();
     };
+    
+    window.addEventListener("unhandledrejection", handleRejection);
+    return () => window.removeEventListener("unhandledrejection", handleRejection);
   }, []);
 
-  return { isOnline, isSlowConnection };
+  // ... rest of App
 };
 ```
 
-### Enhanced Dashboard Card with Error State
+### 7. Update Index.tsx for Safe Mobile Rendering
+
+**File**: `src/pages/Index.tsx`
+
+Add try-catch in mobile detection:
+
 ```tsx
-export const MobileDashboardCard = ({
-  title,
-  value,
-  icon: Icon,
-  color,
-  bgColor,
-  onClick,
-  isCurrency,
-  isLoading,
-  isError,
-  onRetry
-}: MobileDashboardCardProps) => {
-  if (isError) {
-    return (
-      <Card className="overflow-hidden">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center bg-destructive/10")}>
-              <AlertCircle className="h-5 w-5 text-destructive" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">{title}</p>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={(e) => { e.stopPropagation(); onRetry?.(); }}
-            className="mt-1 h-7 text-xs"
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
+const DashboardContent = () => {
+  // Safe mobile detection with fallback
+  let isMobile = false;
+  try {
+    isMobile = useIsMobile();
+  } catch (error) {
+    console.error("Error detecting mobile:", error);
+    isMobile = window.innerWidth < 768;
   }
-  // ... existing render logic
+  
+  // ... rest of component
 };
 ```
 
-### Lazy Loading Summary with Intersection Observer
-```tsx
-// In MobileDashboard.tsx
-const [summaryVisible, setSummaryVisible] = useState(false);
-const summaryRef = useRef<HTMLDivElement>(null);
+---
 
-useEffect(() => {
-  const observer = new IntersectionObserver(
-    ([entry]) => {
-      if (entry.isIntersecting) {
-        setSummaryVisible(true);
-        observer.disconnect();
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/main.tsx` | Add global error handlers for unhandledrejection and error events |
+| `vite.config.ts` | Add React deduplication and browser targeting |
+| `src/components/ErrorBoundary.tsx` | Enhance with cache clear, retry, and inline styles |
+| `src/components/mobile/MobileErrorBoundary.tsx` | Add inline style fallbacks |
+| `src/App.tsx` | Add unhandledrejection handler in useEffect |
+
+## Files to Create
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/useClearCache.tsx` | Utility to clear PWA caches |
+
+---
+
+## Technical Details
+
+### Enhanced ErrorBoundary
+```tsx
+import { Component, ErrorInfo, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error?: Error;
+}
+
+class ErrorBoundary extends Component<Props, State> {
+  public state: State = { hasError: false };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Application Error:', error, errorInfo);
+  }
+
+  private handleClearCacheAndRetry = async () => {
+    try {
+      // Unregister service workers
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
       }
-    },
-    { threshold: 0.1 }
-  );
+      
+      // Clear cache storage
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+    } catch (e) {
+      console.error('Error clearing cache:', e);
+    }
+    
+    // Force reload from server
+    window.location.reload();
+  };
 
-  if (summaryRef.current) {
-    observer.observe(summaryRef.current);
+  private handleRetry = () => {
+    this.setState({ hasError: false, error: undefined });
+  };
+
+  public render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ 
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px',
+          textAlign: 'center',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          background: '#0f172a',
+          color: '#f1f5f9'
+        }}>
+          <div style={{ maxWidth: '400px' }}>
+            <div style={{ 
+              fontSize: '48px', 
+              marginBottom: '16px' 
+            }}>
+              ⚠️
+            </div>
+            <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>
+              Something went wrong
+            </h1>
+            <p style={{ marginBottom: '24px', color: '#94a3b8', fontSize: '14px' }}>
+              The application encountered an unexpected error. 
+              Please try again or clear the cache.
+            </p>
+            
+            <button 
+              onClick={this.handleRetry}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: 600,
+                background: '#6366f1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                marginBottom: '12px',
+                width: '100%'
+              }}
+            >
+              Try Again
+            </button>
+            
+            <button 
+              onClick={this.handleClearCacheAndRetry}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: 600,
+                background: 'transparent',
+                color: '#94a3b8',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                marginBottom: '12px',
+                width: '100%'
+              }}
+            >
+              Clear Cache & Reload
+            </button>
+            
+            <button 
+              onClick={() => window.location.href = '/'}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: 600,
+                background: 'transparent',
+                color: '#64748b',
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%'
+              }}
+            >
+              Go to Home
+            </button>
+            
+            {this.state.error && (
+              <p style={{ 
+                marginTop: '24px', 
+                fontSize: '11px', 
+                color: '#475569',
+                wordBreak: 'break-word'
+              }}>
+                Error: {this.state.error.message}
+              </p>
+            )}
+            
+            <p style={{ marginTop: '16px', fontSize: '12px', color: '#64748b' }}>
+              Recommended: Chrome 80+, Firefox 75+, Edge 80+, Safari 13+
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
   }
+}
 
-  return () => observer.disconnect();
-}, []);
+export default ErrorBoundary;
+```
 
-// In render:
-<div ref={summaryRef} className="px-4 py-3">
-  {summaryVisible ? <MobileDashboardSummary /> : <SummarySkeleton />}
-</div>
+### Enhanced main.tsx
+```tsx
+import { createRoot } from "react-dom/client";
+import App from "./App.tsx";
+import ErrorBoundary from "./components/ErrorBoundary";
+import "./index.css";
+
+// Global error handlers for async errors (not caught by React error boundaries)
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+  // Don't prevent default - let ErrorBoundary handle if possible
+});
+
+window.addEventListener('error', (event) => {
+  console.error('Uncaught error:', event.error);
+});
+
+createRoot(document.getElementById("root")!).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>
+);
+```
+
+### Enhanced vite.config.ts
+```ts
+export default defineConfig(({ mode }) => ({
+  // ... existing config
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+    // Deduplicate React to prevent hook issues
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
+  },
+  build: {
+    // Target modern browsers while maintaining compatibility
+    target: 'es2020',
+    // Generate sourcemaps for debugging
+    sourcemap: mode === 'development',
+  },
+}));
 ```
 
 ---
 
-## Performance Optimizations Summary
+## Expected Results
 
-| Optimization | Benefit |
-|--------------|---------|
-| COUNT queries instead of SELECT * | 90% less data transfer |
-| Visibility-aware polling | No background requests when hidden |
-| 5-min staleTime for products | Reduces API calls |
-| Lazy load summary section | Faster initial render |
-| Retry mechanism | Self-healing on failures |
-| Network detection | Graceful offline handling |
-| Error boundaries | No blank screens |
+After implementing these changes:
 
----
-
-## Mobile/Android WebView Compatibility
-
-1. **HTTPS**: All Supabase calls use HTTPS by default
-2. **Token Refresh**: Already implemented in AuthContext with cross-tab coordination
-3. **Memory Optimization**: Lighter queries, no chart loading
-4. **3G/4G Support**: Network detection adjusts polling frequency
-5. **Offline Fallback**: Shows cached data with "Offline" indicator
+1. **Unhandled Promise Rejections** - Caught globally, preventing blank screens
+2. **React Hook Issues** - Fixed via deduplication
+3. **PWA Cache Problems** - Users can clear cache from error screen
+4. **Error Recovery** - Try Again button attempts re-render before full reload
+5. **Better Diagnostics** - Error messages displayed for debugging
+6. **CSS Independence** - Error UI works even if CSS fails to load
+7. **Android WebView Compatibility** - ES2020 target with deduplication
 
 ---
 
-## Metric Cards Configuration
+## Deployment Notes
 
-| Card | Query Type | staleTime | Polling |
-|------|------------|-----------|---------|
-| Today's Sales | SUM aggregate | 60s | 60s (visible only) |
-| Total Products | COUNT | 5min | None |
-| Cash Balance | SUM aggregate | 60s | 60s (visible only) |
-| Pending Bills | COUNT | 2min | 2min (visible only) |
+After implementing:
 
+1. **Clear existing caches** - The new error UI will help users do this
+2. **Force service worker update** - VitePWA autoUpdate handles this
+3. **Monitor console logs** - Global handlers will log async errors for debugging
