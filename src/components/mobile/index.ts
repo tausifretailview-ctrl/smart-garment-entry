@@ -12,3 +12,4 @@ export { MobileReportsSummary } from "./MobileReportsSummary";
 export { MobileDashboard } from "./MobileDashboard";
 export { MobileDashboardCard } from "./MobileDashboardCard";
 export { MobileDashboardSummary } from "./MobileDashboardSummary";
+export { MobileErrorBoundary } from "./MobileErrorBoundary";
