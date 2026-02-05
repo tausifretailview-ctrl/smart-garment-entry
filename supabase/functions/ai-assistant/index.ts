@@ -503,40 +503,218 @@ const fetchProductContext = async (supabase: any, orgId: string, query: string) 
   return { type: "product_summary", totalProducts, totalVariants };
 };
 
-const getSupportContent = (): string => {
-  return `
-Here are common operations in the system:
+const getSupportContent = (query: string): string => {
+  const lowerQuery = query.toLowerCase();
+  
+  // GST Reports
+  if (lowerQuery.includes("gst") || lowerQuery.includes("tax")) {
+    return `
+**GST Reports Navigation:**
+📍 Go to **Reports → GST Reports** from the left sidebar menu
 
-**Creating a Sale:**
-1. Go to Sales → New Sale
-2. Enter customer name or phone
+**Available GST Reports:**
+1. **GSTR-1 Report** - Outward supplies (sales)
+2. **GSTR-2 Report** - Inward supplies (purchases)
+3. **GST Sale/Purchase Register** - Detailed register with HSN codes
+
+**Quick Access:**
+- From Dashboard, click on **Reports** in sidebar
+- Select **GST Reports** or **GST Register**
+- Choose date range and export to Excel/PDF
+
+**Tips:**
+- Ensure products have correct HSN codes for accurate GST reports
+- GST percentage should be set at product level
+`;
+  }
+  
+  // Stock Reports
+  if (lowerQuery.includes("stock report") || lowerQuery.includes("inventory report")) {
+    return `
+**Stock Reports Navigation:**
+📍 Go to **Reports → Stock Report** from the left sidebar
+
+**Available Stock Reports:**
+1. **Stock Report** - Current stock with valuation
+2. **Stock Analysis** - Size-wise and brand-wise analysis
+3. **Item-wise Stock Report** - Detailed item breakdown
+4. **Low Stock Alert** - Items below reorder level
+
+**Quick Access:**
+- Click **Reports** in sidebar → **Stock Report**
+- Use filters for Brand, Category, Department
+- Export to Excel for detailed analysis
+`;
+  }
+  
+  // Sales Reports
+  if (lowerQuery.includes("sales report") || lowerQuery.includes("sale report") || lowerQuery.includes("sales analytics")) {
+    return `
+**Sales Reports Navigation:**
+📍 Go to **Reports → Sales Analytics** or **Sales Dashboard**
+
+**Available Sales Reports:**
+1. **Sales Analytics** - Revenue trends, top customers, top products
+2. **Sales Report by Customer** - Customer-wise sales summary
+3. **Item-wise Sales Report** - Product-wise sales breakdown
+4. **Daily Cashier Report** - Day-end cash summary
+
+**Quick Access:**
+- Dashboard → Click any metric card
+- Reports → Sales Analytics
+- Use date filters: Today, Week, Month, Custom
+`;
+  }
+  
+  // Purchase Reports
+  if (lowerQuery.includes("purchase report")) {
+    return `
+**Purchase Reports Navigation:**
+📍 Go to **Reports → Purchase Report by Supplier**
+
+**Available Purchase Reports:**
+1. **Purchase Report by Supplier** - Supplier-wise purchase summary
+2. **Purchase Dashboard** - All purchase bills
+3. **Pending Purchase Bills** - Unpaid supplier bills
+
+**Quick Access:**
+- Inventory → Purchase Bills Dashboard
+- Reports → Purchase Report by Supplier
+`;
+  }
+  
+  // Customer Ledger
+  if (lowerQuery.includes("ledger") || lowerQuery.includes("customer balance") || lowerQuery.includes("outstanding")) {
+    return `
+**Customer Ledger Navigation:**
+📍 Go to **Master → Customers** → Select customer → **View Ledger**
+
+**To Check Customer Outstanding:**
+1. Go to **Master → Customers**
+2. Search for the customer
+3. Click on the customer row
+4. Select **View Ledger** from options
+
+**Alternative:**
+- Dashboard → Click **Receivables** card
+- Shows all pending customer payments
+`;
+  }
+  
+  // Barcode Printing
+  if (lowerQuery.includes("barcode") || lowerQuery.includes("label") || lowerQuery.includes("print barcode")) {
+    return `
+**Barcode Printing Navigation:**
+📍 Go to **Settings → Barcode Printing**
+
+**Steps to Print Barcodes:**
+1. Go to **Settings** → **Barcode Printing**
+2. Search products by name or scan existing barcode
+3. Enter quantity of labels needed
+4. Select label template (50x25mm, 38x25mm, etc.)
+5. Click **Print**
+
+**Tips:**
+- Connect thermal printer for best results
+- Use BarTender or TSPL templates for professional labels
+`;
+  }
+  
+  // Creating Sale / Invoice
+  if (lowerQuery.includes("create sale") || lowerQuery.includes("new sale") || lowerQuery.includes("make invoice") || lowerQuery.includes("billing")) {
+    return `
+**Creating a New Sale/Invoice:**
+📍 Go to **Sales → POS Sales** or **Sales Invoice**
+
+**Steps:**
+1. Click **Sales** in sidebar → **POS Sales**
+2. Enter customer name/phone or select existing
 3. Scan barcode or search product
-4. Enter quantity and discount if any
-5. Select payment method
-6. Click Save
+4. Enter quantity (adjust discount if needed)
+5. Select payment method (Cash/Card/UPI)
+6. Click **Save & Print**
 
-**Adding a Product:**
-1. Go to Products → Add New
-2. Enter product name, brand, category
-3. Add sizes with MRP, sale price, purchase price
-4. Save to generate barcodes
+**Shortcuts:**
+- F2: New Sale
+- F4: Search Product
+- F8: Save Sale
+- Ctrl+P: Print Invoice
+`;
+  }
+  
+  // Adding Product
+  if (lowerQuery.includes("add product") || lowerQuery.includes("new product") || lowerQuery.includes("create product")) {
+    return `
+**Adding a New Product:**
+📍 Go to **Inventory → Product Entry**
 
-**Purchase Entry:**
-1. Go to Purchase → New Purchase
-2. Select or add supplier
-3. Add items with quantities and prices
-4. Stock will be automatically updated
+**Steps:**
+1. Click **Inventory** → **Product Entry**
+2. Enter Product Name, Brand, Category
+3. Set HSN Code and GST %
+4. Add sizes with MRP, Sale Price, Purchase Price
+5. Click **Save** (barcodes auto-generated)
 
-**Customer Management:**
-1. Go to Customers → Add New
-2. Enter name, phone, address
-3. Set opening balance if any
-4. Customer will be searchable in sales
+**Tips:**
+- Use Excel Import for bulk product upload
+- Set size groups for quick size selection
+`;
+  }
+  
+  // Purchase Entry
+  if (lowerQuery.includes("purchase entry") || lowerQuery.includes("add purchase") || lowerQuery.includes("grn")) {
+    return `
+**Creating a Purchase Entry:**
+📍 Go to **Inventory → Purchase Entry**
 
-**Reports:**
-- Stock Report: Products → Stock Report
-- Sales Report: Sales → Dashboard
-- Customer Ledger: Customers → View Ledger
+**Steps:**
+1. Click **Inventory** → **Purchase Entry**
+2. Select or add Supplier
+3. Enter Bill No and Bill Date
+4. Scan/search products and add quantities
+5. Click **Save** (stock updated automatically)
+
+**Tips:**
+- Purchase prices update product cost automatically
+- Use Purchase Orders for planned purchases
+`;
+  }
+  
+  // Default support content
+  return `
+**Quick Navigation Guide:**
+
+**📊 Reports:**
+- GST Reports: Reports → GST Reports
+- Stock Report: Reports → Stock Report
+- Sales Analytics: Reports → Sales Analytics
+- Customer Ledger: Master → Customers → View Ledger
+
+**💰 Sales:**
+- POS Billing: Sales → POS Sales
+- Sale Invoice: Sales → Sales Invoice
+- Sale Returns: Sales → Sale Returns
+
+**📦 Inventory:**
+- Add Product: Inventory → Product Entry
+- Purchase Entry: Inventory → Purchase Entry
+- Stock Analysis: Reports → Stock Analysis
+
+**👥 Master Data:**
+- Customers: Master → Customers
+- Suppliers: Master → Suppliers
+- Employees: Master → Employees
+
+**⚙️ Settings:**
+- Barcode Printing: Settings → Barcode Printing
+- User Management: Settings → User Rights
+- Organization: Settings → Organization
+
+**Keyboard Shortcuts:**
+- F2: New Sale | F4: Search | F8: Save
+- Ctrl+P: Print | Esc: Cancel
+
+Need help with something specific? Ask me about any report or feature!
 `;
 };
 
@@ -586,7 +764,7 @@ serve(async (req) => {
         context = await fetchProductContext(supabase, organizationId, message);
         break;
       case "support":
-        context = { type: "support", content: getSupportContent() };
+        context = { type: "support", content: getSupportContent(message) };
         break;
       default:
         // Fetch general summary for dashboard-like queries
