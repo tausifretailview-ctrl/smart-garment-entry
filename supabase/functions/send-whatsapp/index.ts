@@ -484,6 +484,38 @@ serve(async (req) => {
       );
     }
 
+    // ========== DUPLICATE MESSAGE PREVENTION ==========
+    // Check if a message was already sent for this invoice within the cooldown period
+    if (referenceId && referenceType === 'sale') {
+      const { data: existingLog } = await supabase
+        .from('whatsapp_logs')
+        .select('id, status, created_at')
+        .eq('reference_id', referenceId)
+        .eq('template_type', templateType || 'sales_invoice')
+        .in('status', ['sent', 'delivered', 'read', 'pending'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingLog) {
+        const hoursSinceLastSend = (Date.now() - new Date(existingLog.created_at).getTime()) / (1000 * 60 * 60);
+        
+        // Block if message was sent within last 60 minutes
+        if (hoursSinceLastSend < 1) {
+          console.log(`Duplicate message blocked for sale ${referenceId} - message already sent ${hoursSinceLastSend.toFixed(2)} hours ago`);
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              skipped: true,
+              reason: 'Message already sent for this invoice within the last 60 minutes'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+    // ===================================================
+
     // Create pending log entry
     const { data: logEntry, error: logError } = await supabase
       .from('whatsapp_logs')
