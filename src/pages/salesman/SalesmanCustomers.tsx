@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
+import { buildVoucherPaymentMaps, calculateCustomerBalance } from "@/utils/customerBalanceUtils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -65,43 +66,68 @@ const SalesmanCustomers = () => {
 
       if (customersError) throw customersError;
 
-      // Fetch all sales for balance calculation
+      // Fetch all sales for balance calculation (include id for voucher matching)
       const { data: salesData, error: salesError } = await supabase
         .from("sales")
-        .select("customer_id, net_amount, paid_amount, sale_date")
+        .select("id, customer_id, net_amount, paid_amount, sale_date")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null);
 
       if (salesError) throw salesError;
 
-      // Calculate balances
-      const customerBalances: Record<string, { totalSales: number; totalPaid: number; lastOrderDate: string | null }> = {};
+      // Fetch ALL voucher payments (both opening balance and invoice payments)
+      const { data: allVouchers, error: voucherError } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, reference_type, total_amount')
+        .eq('organization_id', currentOrganization!.id)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+
+      if (voucherError) throw voucherError;
+
+      // Group sales by customer and track last order date
+      const customerSales: Record<string, { sales: typeof salesData; lastOrderDate: string | null }> = {};
       
       salesData?.forEach((sale) => {
         if (sale.customer_id) {
-          if (!customerBalances[sale.customer_id]) {
-            customerBalances[sale.customer_id] = { totalSales: 0, totalPaid: 0, lastOrderDate: null };
+          if (!customerSales[sale.customer_id]) {
+            customerSales[sale.customer_id] = { sales: [], lastOrderDate: null };
           }
-          customerBalances[sale.customer_id].totalSales += sale.net_amount || 0;
-          customerBalances[sale.customer_id].totalPaid += sale.paid_amount || 0;
-          if (!customerBalances[sale.customer_id].lastOrderDate || 
-              sale.sale_date > customerBalances[sale.customer_id].lastOrderDate!) {
-            customerBalances[sale.customer_id].lastOrderDate = sale.sale_date;
+          customerSales[sale.customer_id].sales.push(sale);
+          if (!customerSales[sale.customer_id].lastOrderDate || 
+              sale.sale_date > customerSales[sale.customer_id].lastOrderDate!) {
+            customerSales[sale.customer_id].lastOrderDate = sale.sale_date;
           }
         }
       });
 
       const customersWithBalance: CustomerWithBalance[] = (customersData || []).map((c) => {
-        const balanceData = customerBalances[c.id] || { totalSales: 0, totalPaid: 0, lastOrderDate: null };
+        const customerData = customerSales[c.id] || { sales: [], lastOrderDate: null };
         const openingBalance = c.opening_balance || 0;
-        const balance = openingBalance + balanceData.totalSales - balanceData.totalPaid;
+        
+        // Build voucher payment maps for this customer's sales
+        const saleIds = customerData.sales.map(s => s.id);
+        const { invoiceVoucherPayments, openingBalancePayments } = buildVoucherPaymentMaps(
+          allVouchers || [],
+          saleIds,
+          c.id
+        );
+        
+        // Calculate balance using Math.max() logic
+        const balanceResult = calculateCustomerBalance(
+          openingBalance,
+          customerData.sales,
+          invoiceVoucherPayments,
+          openingBalancePayments
+        );
+        
         return {
           ...c,
           opening_balance: openingBalance,
-          totalSales: balanceData.totalSales,
-          totalPaid: balanceData.totalPaid,
-          balance,
-          lastOrderDate: balanceData.lastOrderDate,
+          totalSales: balanceResult.totalSales,
+          totalPaid: balanceResult.totalPaid,
+          balance: balanceResult.balance,
+          lastOrderDate: customerData.lastOrderDate,
         };
       });
 
