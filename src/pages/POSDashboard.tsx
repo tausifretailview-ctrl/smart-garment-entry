@@ -587,13 +587,49 @@ const POSDashboard = () => {
       
       const { data: sales } = await supabase
         .from('sales')
-        .select('net_amount, paid_amount')
+        .select('id, net_amount, paid_amount')
         .eq('customer_id', sale.customer_id)
-        .eq('organization_id', currentOrganization?.id);
+        .eq('organization_id', currentOrganization?.id)
+        .is('deleted_at', null);
       
-      const totalSales = sales?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-      const totalPaid = sales?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-      customerBalance = openingBalance + totalSales - totalPaid;
+      const saleIds = sales?.map(s => s.id) || [];
+      
+      // Fetch voucher payments for accurate balance
+      const { data: allVouchers } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, reference_type, total_amount')
+        .eq('organization_id', currentOrganization?.id)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+      
+      // Calculate using Math.max() logic to avoid double-counting
+      let totalSales = 0;
+      let totalPaidOnSales = 0;
+      let openingBalancePayments = 0;
+      
+      // Build invoice voucher payments map
+      const invoiceVoucherPayments = new Map<string, number>();
+      allVouchers?.forEach(v => {
+        if (!v.reference_id) return;
+        if (saleIds.includes(v.reference_id)) {
+          invoiceVoucherPayments.set(
+            v.reference_id,
+            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
+          );
+        } else if (v.reference_type === 'customer' && v.reference_id === sale.customer_id) {
+          openingBalancePayments += Number(v.total_amount) || 0;
+        }
+      });
+      
+      sales?.forEach(s => {
+        totalSales += s.net_amount || 0;
+        const salePaidAmount = s.paid_amount || 0;
+        const voucherAmount = invoiceVoucherPayments.get(s.id) || 0;
+        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
+      });
+      
+      const totalPaid = totalPaidOnSales + openingBalancePayments;
+      customerBalance = Math.round(openingBalance + totalSales - totalPaid);
     }
     
     // Use template for message

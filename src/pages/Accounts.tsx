@@ -30,6 +30,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 
 export default function Accounts() {
@@ -316,18 +317,32 @@ export default function Accounts() {
       
       console.log(`Accounts: Fetched ${allCustomers.length} customers, ${allSales.length} sales`);
 
-      // Calculate invoice balance per customer using actual amounts (net_amount - paid_amount)
-      // NOT relying on payment_status which may be stale
-      const customerBalances = new Map<string, number>();
-      allSales.forEach((sale: any) => {
-        if (sale.customer_id) {
-          const outstanding = Math.max(0, (sale.net_amount || 0) - (sale.paid_amount || 0));
-          customerBalances.set(
-            sale.customer_id,
-            (customerBalances.get(sale.customer_id) || 0) + outstanding
+      // Fetch ALL voucher payments for accurate balance calculation
+      const { data: allVouchers, error: voucherError } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, reference_type, total_amount')
+        .eq('organization_id', currentOrganization!.id)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+      
+      if (voucherError) throw voucherError;
+      
+      // Build invoice voucher payments map
+      const invoiceVoucherPayments = new Map<string, number>();
+      allVouchers?.forEach((v: any) => {
+        if (!v.reference_id) return;
+        // Only count payments that reference a sale_id (not customer opening balance payments)
+        const isSalePayment = allSales.some((s: any) => s.id === v.reference_id);
+        if (isSalePayment) {
+          invoiceVoucherPayments.set(
+            v.reference_id,
+            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
           );
         }
       });
+      
+      // Calculate invoice balance per customer using Math.max() logic
+      const customerBalances = calculateCustomerInvoiceBalances(allSales, invoiceVoucherPayments);
 
       // Filter customers with total balance > 0 (opening_balance + invoice balance)
       return allCustomers
