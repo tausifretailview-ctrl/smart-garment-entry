@@ -822,36 +822,80 @@ export default function Accounts() {
           // Opening balance payment - reference the customer
           finalReferenceType = 'customer';
           finalReferenceId = referenceId;
-        } else if (invoicesToProcess.length > 0) {
-          // Invoice payment - reference the sale with type='sale'
-          finalReferenceType = 'sale';
-          finalReferenceId = invoicesToProcess[0];
         }
+        // For invoice payments, we'll create separate vouchers below
       } else if (voucherType === 'payment' && referenceType === 'supplier') {
         // Supplier payments always reference the supplier
         finalReferenceType = 'supplier';
         finalReferenceId = referenceId;
       }
 
-      // Create voucher entry with discount
-      const { data: voucher, error: voucherError } = await supabase
-        .from("voucher_entries")
-        .insert({
-          organization_id: currentOrganization?.id,
-          voucher_number: voucherNumber,
-          voucher_type: voucherType,
-          voucher_date: format(voucherDate, "yyyy-MM-dd"),
-          reference_type: finalReferenceType,
-          reference_id: finalReferenceId,
-          description: finalDescription + discountSuffix,
-          total_amount: paymentAmount,
-          discount_amount: discountValue,
-          discount_reason: discountReason || null,
-        })
-        .select()
-        .single();
+      // Create voucher entries
+      let createdVouchers: any[] = [];
+      
+      // For multi-invoice payments, create separate voucher for each invoice
+      if (voucherType === 'receipt' && referenceType === 'customer' && !isOpeningBalancePayment && processedInvoices.length > 0) {
+        for (let i = 0; i < processedInvoices.length; i++) {
+          const processed = processedInvoices[i];
+          // Use numbered suffix only when multiple invoices
+          const invoiceVoucherNumber = processedInvoices.length > 1 
+            ? `${voucherNumber}-${i + 1}`
+            : voucherNumber;
+          
+          const invoiceDescription = `Payment for ${processed.invoice.sale_number}${paymentDetails}`;
+          const invoiceDiscountSuffix = i === 0 && discountValue > 0 
+            ? ` | Discount: ₹${discountValue.toFixed(2)}${discountReason ? ` (${discountReason})` : ''}`
+            : '';
+          
+          const { data: voucher, error: voucherError } = await supabase
+            .from("voucher_entries")
+            .insert({
+              organization_id: currentOrganization?.id,
+              voucher_number: invoiceVoucherNumber,
+              voucher_type: voucherType,
+              voucher_date: format(voucherDate, "yyyy-MM-dd"),
+              reference_type: 'sale',
+              reference_id: processed.invoice.id,
+              description: invoiceDescription + invoiceDiscountSuffix,
+              total_amount: processed.amountApplied,
+              discount_amount: i === 0 ? discountValue : 0,
+              discount_reason: i === 0 ? discountReason || null : null,
+            })
+            .select()
+            .single();
 
-      if (voucherError) throw voucherError;
+          if (voucherError) throw voucherError;
+          createdVouchers.push(voucher);
+        }
+      } else {
+        // Single voucher for opening balance, supplier payments, or single invoice
+        if (voucherType === 'receipt' && referenceType === 'customer' && !isOpeningBalancePayment && processedInvoices.length === 1) {
+          finalReferenceType = 'sale';
+          finalReferenceId = processedInvoices[0].invoice.id;
+        }
+        
+        const { data: voucher, error: voucherError } = await supabase
+          .from("voucher_entries")
+          .insert({
+            organization_id: currentOrganization?.id,
+            voucher_number: voucherNumber,
+            voucher_type: voucherType,
+            voucher_date: format(voucherDate, "yyyy-MM-dd"),
+            reference_type: finalReferenceType,
+            reference_id: finalReferenceId,
+            description: finalDescription + discountSuffix,
+            total_amount: paymentAmount,
+            discount_amount: discountValue,
+            discount_reason: discountReason || null,
+          })
+          .select()
+          .single();
+
+        if (voucherError) throw voucherError;
+        createdVouchers.push(voucher);
+      }
+
+      const voucher = createdVouchers[0];
 
       return { 
         voucher, 
