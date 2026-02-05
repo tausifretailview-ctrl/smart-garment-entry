@@ -224,10 +224,10 @@ export const MobileDashboard = () => {
 
       {/* Key Metrics Grid - 2x2 */}
       <div className="px-4 py-3">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
           <MobileDashboardCard
             title="Today's Sales"
-            value={todaysSales || 0}
+            value={todaysSales ?? 0}
             icon={TrendingUp}
             color="text-success"
             bgColor="bg-success/10"
@@ -239,7 +239,7 @@ export const MobileDashboard = () => {
           />
           <MobileDashboardCard
             title="This Month"
-            value={monthSales || 0}
+            value={monthSales ?? 0}
             icon={BarChart3}
             color="text-primary"
             bgColor="bg-primary/10"
@@ -251,7 +251,7 @@ export const MobileDashboard = () => {
           />
           <MobileDashboardCard
             title="Stock Value"
-            value={stockValue || 0}
+            value={stockValue ?? 0}
             icon={Package}
             color="text-warning"
             bgColor="bg-warning/10"
@@ -263,7 +263,7 @@ export const MobileDashboard = () => {
           />
           <MobileDashboardCard
             title="Receivables"
-            value={receivables || 0}
+            value={receivables ?? 0}
             icon={AlertCircle}
             color="text-destructive"
             bgColor="bg-destructive/10"
