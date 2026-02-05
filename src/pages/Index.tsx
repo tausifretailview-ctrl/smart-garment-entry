@@ -648,6 +648,31 @@ const DesktopDashboard = () => {
   const NewUpdatesPanel = () => {
     const updates = [
       {
+        version: "v1.3.0",
+        date: "05/02/2026",
+        changes: [
+          "Purple theme with improved contrast",
+          "White text on sidebar for better visibility",
+          "Header & footer styling improvements"
+        ]
+      },
+      {
+        version: "v1.2.9",
+        date: "04/02/2026",
+        changes: [
+          "Sidebar font size increased for readability",
+          "Menu alignment improvements"
+        ]
+      },
+      {
+        version: "v1.2.8",
+        date: "02/02/2026",
+        changes: [
+          "WhatsApp duplicate prevention for invoices",
+          "Improved message delivery tracking"
+        ]
+      },
+      {
         version: "v1.2.7",
         date: "31/01/2026",
         changes: [
@@ -710,30 +735,6 @@ const DesktopDashboard = () => {
         changes: [
           "New dark theme with VASY ERP styling",
           "Vibrant gradient card backgrounds"
-        ]
-      },
-      {
-        version: "v1.1.9",
-        date: "15/01/2026",
-        changes: [
-          "WhatsApp integration improvements",
-          "Enhanced customer search"
-        ]
-      },
-      {
-        version: "v1.1.8",
-        date: "12/01/2026",
-        changes: [
-          "Barcode printing enhancements",
-          "Label designer improvements"
-        ]
-      },
-      {
-        version: "v1.1.7",
-        date: "10/01/2026",
-        changes: [
-          "GST report generation fixes",
-          "Improved export functionality"
         ]
       }
     ];
