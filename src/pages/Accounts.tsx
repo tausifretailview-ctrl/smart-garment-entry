@@ -1460,7 +1460,7 @@ export default function Accounts() {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-8">
             <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
             <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
             <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
@@ -1469,7 +1469,6 @@ export default function Accounts() {
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
-            <TabsTrigger value="pl-report">P&L Report</TabsTrigger>
           </TabsList>
 
           {/* Customer Ledger Tab */}
@@ -3239,22 +3238,6 @@ export default function Accounts() {
             </Card>
           </TabsContent>
 
-          {/* P&L Report Tab */}
-          <TabsContent value="pl-report" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Profit & Loss Report</CardTitle>
-                <CardDescription>View income and expenses summary</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center text-muted-foreground">
-                    P&L Report will be calculated based on sales revenue and expenses
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
         </Tabs>
 
