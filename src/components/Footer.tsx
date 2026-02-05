@@ -43,7 +43,7 @@ export const Footer = () => {
                   <Package className="h-5 w-5 text-sidebar-primary-foreground" />
                 </div>
               </div>
-              <span className="font-display text-lg font-bold text-sidebar-primary dark:text-white">
+              <span className="font-display text-lg font-bold text-sidebar-foreground">
                 Smart Inventory
               </span>
             </div>
