@@ -42,10 +42,11 @@ export const MobileDashboard = () => {
   const [summaryVisible, setSummaryVisible] = useState(false);
   const summaryRef = useRef<HTMLDivElement>(null);
   
-  const todayStart = format(startOfDay(new Date()), "yyyy-MM-dd");
-  const todayEnd = format(endOfDay(new Date()), "yyyy-MM-dd");
-  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
-  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  // Use ISO timestamps for proper UTC comparison
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = endOfDay(new Date()).toISOString();
+  const monthStart = startOfMonth(new Date()).toISOString();
+  const monthEnd = endOfMonth(new Date()).toISOString();
   
   // Intersection Observer for lazy loading summary
   useEffect(() => {
@@ -88,7 +89,7 @@ export const MobileDashboard = () => {
     isError: todaySalesError,
     refetch: refetchTodaySales
   } = useQuery({
-    queryKey: ["mobile-today-sales", currentOrganization?.id, todayStart],
+    queryKey: ["mobile-today-sales", currentOrganization?.id, format(new Date(), "yyyy-MM-dd")],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
@@ -116,7 +117,7 @@ export const MobileDashboard = () => {
     isError: monthSalesError,
     refetch: refetchMonthSales
   } = useQuery({
-    queryKey: ["mobile-month-sales", currentOrganization?.id, monthStart],
+    queryKey: ["mobile-month-sales", currentOrganization?.id, format(new Date(), "yyyy-MM")],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
