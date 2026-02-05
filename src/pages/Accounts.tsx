@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search, Pencil } from "lucide-react";
+ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import * as XLSX from "xlsx";
@@ -91,6 +92,10 @@ export default function Accounts() {
   const [editTransactionId, setEditTransactionId] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
+   // Pagination state for Recent Customer Payments
+   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
+   const CUSTOMER_PAYMENTS_PER_PAGE = 10;
+ 
   // Reconciliation filters
   const [reconStartDate, setReconStartDate] = useState<Date>(startOfMonth(new Date()));
   const [reconEndDate, setReconEndDate] = useState<Date>(endOfMonth(new Date()));
@@ -1899,7 +1904,8 @@ export default function Accounts() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Customer Payments</CardTitle>
-                {isAdmin && selectedPaymentIds.length > 0 && (
+                <div className="flex items-center gap-2">
+                  {isAdmin && selectedPaymentIds.length > 0 && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="destructive" size="sm">
@@ -1929,10 +1935,23 @@ export default function Accounts() {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
-                )}
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <Table>
+                {(() => {
+                  const customerPayments = vouchers
+                    ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
+                    .sort((a, b) => new Date(b.voucher_date).getTime() - new Date(a.voucher_date).getTime()) || [];
+                  
+                  const totalPages = Math.ceil(customerPayments.length / CUSTOMER_PAYMENTS_PER_PAGE);
+                  const startIndex = (customerPaymentsPage - 1) * CUSTOMER_PAYMENTS_PER_PAGE;
+                  const endIndex = startIndex + CUSTOMER_PAYMENTS_PER_PAGE;
+                  const paginatedPayments = customerPayments.slice(startIndex, endIndex);
+                  
+                  return (
+                    <>
+                      <Table>
                   <TableHeader>
                     <TableRow>
                       {isAdmin && <TableHead className="w-10"></TableHead>}
@@ -1945,10 +1964,7 @@ export default function Accounts() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vouchers
-                      ?.filter((v) => (v.reference_type === "customer" || v.reference_type === "customer_payment" || v.reference_type === "SALE") && (v.voucher_type === "receipt" || v.voucher_type === "RECEIPT"))
-                      .slice(0, 10)
-                      .map((voucher) => {
+                        {paginatedPayments.map((voucher) => {
                         // Look up customer from sales table via reference_id (invoice id)
                         const invoice = sales?.find((s) => s.id === voucher.reference_id);
                         const customerName = invoice?.customer_name || 
@@ -2023,6 +2039,41 @@ export default function Accounts() {
                       })}
                   </TableBody>
                 </Table>
+                      
+                      {/* Pagination Controls */}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                          <p className="text-sm text-muted-foreground">
+                            Showing {startIndex + 1}-{Math.min(endIndex, customerPayments.length)} of {customerPayments.length} receipts
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCustomerPaymentsPage(p => Math.max(1, p - 1))}
+                              disabled={customerPaymentsPage === 1}
+                            >
+                              <ChevronLeft className="h-4 w-4 mr-1" />
+                              Previous
+                            </Button>
+                            <span className="text-sm font-medium px-2">
+                              Page {customerPaymentsPage} of {totalPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCustomerPaymentsPage(p => Math.min(totalPages, p + 1))}
+                              disabled={customerPaymentsPage === totalPages}
+                            >
+                              Next
+                              <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
