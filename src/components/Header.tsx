@@ -115,7 +115,7 @@ export const Header = () => {
             <div className="bg-sidebar-primary p-1 rounded">
               <Package className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
             </div>
-            <span className="hidden sm:block text-xs font-semibold text-sidebar-primary">
+            <span className="hidden sm:block text-sm font-semibold text-sidebar-foreground">
               Ezzy ERP
             </span>
           </button>
