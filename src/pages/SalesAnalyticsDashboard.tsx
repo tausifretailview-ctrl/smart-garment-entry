@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
@@ -33,9 +34,19 @@ const CHART_COLORS = [
 
 export default function SalesAnalyticsDashboard() {
   const { currentOrganization } = useOrganization();
+  const [searchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(tabFromUrl || "overview");
   const [periodType, setPeriodType] = useState<PeriodType>("this-month");
   const [startDate, setStartDate] = useState<Date>(startOfMonth(new Date()));
   const [endDate, setEndDate] = useState<Date>(new Date());
+  
+  // Sync tab from URL on mount
+  useEffect(() => {
+    if (tabFromUrl) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   // Calculate date range based on period type
   const dateRange = useMemo(() => {
@@ -475,7 +486,7 @@ export default function SalesAnalyticsDashboard() {
       </div>
 
       {/* Charts Section */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5 lg:w-[500px]">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>

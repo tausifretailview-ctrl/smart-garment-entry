@@ -1099,25 +1099,37 @@ const DesktopDashboard = () => {
           
           {/* Customer Category Cards */}
           <div className="grid grid-cols-2 gap-2">
-            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
+            <Card 
+              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
+              onClick={() => navigate("/sales-analytics?tab=customers")}
+            >
               <CardContent className="p-3 text-center">
                 <div className="text-2xl font-bold text-warning">5</div>
                 <div className="text-xs text-muted-foreground font-medium">VIP Customer</div>
               </CardContent>
             </Card>
-            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-success">
+            <Card 
+              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-success cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
+              onClick={() => navigate("/sales-analytics?tab=customers")}
+            >
               <CardContent className="p-3 text-center">
                 <div className="text-2xl font-bold text-success">22</div>
                 <div className="text-xs text-muted-foreground font-medium">Regular Customer</div>
               </CardContent>
             </Card>
-            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning">
+            <Card 
+              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-warning cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
+              onClick={() => navigate("/sales-analytics?tab=customers")}
+            >
               <CardContent className="p-3 text-center">
                 <div className="text-2xl font-bold text-warning">410</div>
                 <div className="text-xs text-muted-foreground font-medium">Risk Customer</div>
               </CardContent>
             </Card>
-            <Card className="border border-border bg-card shadow-elevated border-l-[3px] border-l-destructive">
+            <Card 
+              className="border border-border bg-card shadow-elevated border-l-[3px] border-l-destructive cursor-pointer hover:bg-muted/50 transition-colors active:scale-[0.98]"
+              onClick={() => navigate("/sales-analytics?tab=customers")}
+            >
               <CardContent className="p-3 text-center">
                 <div className="text-2xl font-bold text-destructive">6221</div>
                 <div className="text-xs text-muted-foreground font-medium">Lost Customer</div>
