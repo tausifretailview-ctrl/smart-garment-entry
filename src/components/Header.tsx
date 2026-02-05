@@ -132,7 +132,7 @@ export const Header = () => {
               className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"
               title={action.label}
             >
-              <action.icon className="h-4 w-4 text-sidebar-primary" />
+              <action.icon className="h-4 w-4" />
             </Button>
           ))}
         </div>
