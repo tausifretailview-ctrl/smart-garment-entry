@@ -12,12 +12,13 @@ export const MobileDashboardSummary = () => {
   const { currentOrganization } = useOrganization();
   const { isOnline } = useNetworkStatus();
   
-  const todayStart = format(startOfDay(new Date()), "yyyy-MM-dd");
-  const todayEnd = format(endOfDay(new Date()), "yyyy-MM-dd");
+  // Use ISO timestamps for proper UTC comparison
+  const todayStart = startOfDay(new Date()).toISOString();
+  const todayEnd = endOfDay(new Date()).toISOString();
 
   // Fetch today's stats with optimized queries
   const { data: todayStats, isLoading, isError, refetch } = useQuery({
-    queryKey: ["mobile-dashboard-summary", currentOrganization?.id, todayStart],
+    queryKey: ["mobile-dashboard-summary", currentOrganization?.id, format(new Date(), "yyyy-MM-dd")],
     queryFn: async () => {
       if (!currentOrganization) return { invoiceCount: 0, customersServed: 0, itemsSold: 0, pendingCount: 0 };
       
