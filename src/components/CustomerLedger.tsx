@@ -46,6 +46,7 @@ interface Transaction {
   debit: number;
   credit: number;
   balance: number;
+  paymentStatus?: string;
   paymentBreakdown?: {
     cash?: number;
     card?: number;
@@ -309,6 +310,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
             debit: sale.net_amount,
             credit: 0,
             balance: runningBalance,
+            paymentStatus: sale.payment_status,
             paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
           });
 
@@ -1032,13 +1034,18 @@ Please clear your dues at the earliest. Thank you!`;
                                   B/F
                                 </Badge>
                               ) : (
-                                <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
-                                  {transaction.type === 'invoice' ? (
-                                    <><FileText className="h-3 w-3 mr-1" /> Invoice</>
-                                  ) : (
-                                    <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                <div className="flex items-center gap-1">
+                                  <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                                    {transaction.type === 'invoice' ? (
+                                      <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                                    ) : (
+                                      <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                    )}
+                                  </Badge>
+                                  {transaction.type === 'invoice' && transaction.paymentStatus === 'completed' && (
+                                    <Badge className="bg-green-500 text-white text-xs">PAID</Badge>
                                   )}
-                                </Badge>
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
