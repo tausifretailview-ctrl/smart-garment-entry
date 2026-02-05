@@ -1,222 +1,90 @@
 
-# Fix "Something Went Wrong" Error - Comprehensive Solution
 
-## Problem Analysis
+# Fix: Customer Ledger Showing Incorrect "Advance" Balance
 
-Based on my investigation, the "Something went wrong" error can be caused by several issues affecting mobile browsers, Android WebViews, older browsers, and PWA installations:
+## Problem Identified
 
-### Identified Issues
+When a user selects multiple invoices for payment in Accounts → Customer Payment, the system:
+1. **Correctly** updates `paid_amount` on ALL selected invoices (distributed proportionally)
+2. **Incorrectly** creates only ONE voucher_entry that references only the FIRST invoice
 
-1. **Missing Global Unhandled Promise Rejection Handler** - Async errors in event handlers (like API calls) aren't caught by React error boundaries, causing app crashes with blank screens
+This causes the balance calculation to double-count payments:
+- The voucher amount (₹27,731) is compared against only the first invoice
+- Other invoices also have their `paid_amount` counted
+- Result: ₹50,609 counted as paid instead of ₹27,731
 
-2. **React Instance Deduplication Missing** - No `resolve.dedupe` configuration in Vite can cause hooks to fail on older Android WebViews when multiple React instances are bundled
+## Root Cause Location
 
-3. **ErrorBoundary Doesn't Have Reset Key** - When the global ErrorBoundary catches an error and user clicks "Refresh Page", it reloads the whole page instead of trying to re-render
+**File**: `src/pages/Accounts.tsx` (Lines 820-828)
 
-4. **No Service Worker Cache Busting** - PWA may serve stale cached assets that cause crashes after deployment
-
-5. **MobileErrorBoundary Uses Tailwind** - When loaded before CSS, the error UI may not render correctly on older browsers
-
-6. **No unhandledrejection Handler** - Promise rejections in async code are not caught, causing silent crashes
-
----
-
-## Implementation Plan
-
-### 1. Add Global Unhandled Promise Rejection Handler
-
-**File**: `src/main.tsx`
-
-Add a safety net for async errors that escape error boundaries:
-
-```tsx
-// Global handler for unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-  event.preventDefault(); // Prevent crash
-});
-
-// Global handler for uncaught errors
-window.addEventListener('error', (event) => {
-  console.error('Uncaught error:', event.error);
-});
-```
-
-### 2. Configure Vite for React Deduplication
-
-**File**: `vite.config.ts`
-
-Add resolve.dedupe to prevent duplicate React instances:
-
-```ts
-resolve: {
-  alias: {
-    "@": path.resolve(__dirname, "./src"),
-  },
-  dedupe: ["react", "react-dom", "@tanstack/react-query"],
-},
-```
-
-### 3. Enhance Global ErrorBoundary with Retry
-
-**File**: `src/components/ErrorBoundary.tsx`
-
-Enhance with:
-- Clear cache option on error
-- Service worker unregistration on retry
-- Better error information
-- Inline styles (no Tailwind dependency)
-
-```tsx
-class ErrorBoundary extends Component<Props, State> {
-  // ... existing code ...
-
-  handleRetry = async () => {
-    // Unregister service workers to clear cached assets
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const registration of registrations) {
-        await registration.unregister();
-      }
-    }
-    
-    // Clear cache storage
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
-    }
-    
-    // Reload from server, not cache
-    window.location.reload();
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        // Inline-styled error UI (no CSS dependencies)
-        <div style={styles.container}>
-          <h1>Something went wrong</h1>
-          <button onClick={this.handleRetry}>
-            Clear Cache & Retry
-          </button>
-          <button onClick={() => window.location.reload()}>
-            Refresh Page
-          </button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
+```typescript
+if (invoicesToProcess.length > 0) {
+  // BUG: Only references the FIRST invoice!
+  finalReferenceType = 'sale';
+  finalReferenceId = invoicesToProcess[0];
 }
 ```
 
-### 4. Update MobileErrorBoundary Fallback Styling
+## Solution
 
-**File**: `src/components/mobile/MobileErrorBoundary.tsx`
+Create separate voucher entries for each invoice when multiple invoices are selected, OR change the balance calculation to handle multi-invoice vouchers correctly.
 
-Add inline styles fallback for cases where Tailwind CSS fails to load:
+**Recommended Fix**: Create separate voucher entries for each processed invoice with the actual amount applied to that invoice.
 
-```tsx
-// Add inline style fallback for when CSS fails
-const fallbackStyles = {
-  container: {
-    minHeight: '100vh',
-    background: '#0f172a',
-    color: '#f1f5f9',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px',
-    fontFamily: 'system-ui, sans-serif',
-  },
-  // ... more inline styles
-};
+---
+
+## Implementation Details
+
+### Option A: Create Separate Voucher per Invoice (Recommended)
+
+Modify `src/pages/Accounts.tsx` to create individual voucher entries for each invoice processed:
+
+```typescript
+// After processing all invoices, create individual vouchers
+for (const processed of processedInvoices) {
+  await supabase.from("voucher_entries").insert({
+    organization_id: currentOrganization?.id,
+    voucher_number: voucherNumber + '-' + (index + 1), // e.g., RCP/25-26/152-1
+    voucher_type: voucherType,
+    voucher_date: format(voucherDate, "yyyy-MM-dd"),
+    reference_type: 'sale',
+    reference_id: processed.invoice.id,
+    description: `Payment for ${processed.invoice.sale_number}`,
+    total_amount: processed.amountApplied,
+  });
+}
 ```
 
-### 5. Add Cache Clear Utility Hook
+### Option B: Fix Balance Calculation Logic
 
-**New File**: `src/hooks/useClearCache.tsx`
+If we keep one voucher for multiple invoices, the balance calculation must NOT use `Math.max()`. Instead:
 
-Utility to clear PWA cache programmatically:
+1. For invoices with `reference_type='sale'` voucher → use voucher amount only
+2. For invoices without voucher → use `paid_amount`
 
-```tsx
-export const useClearCache = () => {
-  const clearAllCaches = async () => {
-    // Unregister all service workers
-    if ('serviceWorker' in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      for (const registration of registrations) {
-        await registration.unregister();
-      }
-    }
-    
-    // Clear cache storage
-    if ('caches' in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(cacheNames.map(name => caches.delete(name)));
-    }
-    
-    // Clear localStorage except essential keys
-    const essentialKeys = ['selectedOrgSlug'];
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && !essentialKeys.some(ek => key.includes(ek))) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    return true;
-  };
+This requires changing logic in:
+- `src/hooks/useCustomerBalance.tsx`
+- `src/components/CustomerLedger.tsx`
+- `src/hooks/useCustomerSearch.tsx`
 
-  return { clearAllCaches };
-};
-```
+---
 
-### 6. Wrap App with Additional Error Handling
+## Fixing Existing Data
 
-**File**: `src/App.tsx`
+The Janata Footwear data needs a corrective entry. Since ₹27,731 voucher was created but invoices already have correct `paid_amount`, options are:
 
-Add try-catch wrappers and error recovery:
+1. **Delete the voucher** - The `paid_amount` fields are already correct
+2. **Split the voucher** - Create 6 vouchers matching the `paid_amount` on each invoice
 
-```tsx
-const App = () => {
-  useEffect(() => {
-    // Global unhandled rejection handler
-    const handleRejection = (event: PromiseRejectionEvent) => {
-      console.error("Unhandled promise rejection:", event.reason);
-      event.preventDefault();
-    };
-    
-    window.addEventListener("unhandledrejection", handleRejection);
-    return () => window.removeEventListener("unhandledrejection", handleRejection);
-  }, []);
+### SQL to Verify Affected Records
 
-  // ... rest of App
-};
-```
-
-### 7. Update Index.tsx for Safe Mobile Rendering
-
-**File**: `src/pages/Index.tsx`
-
-Add try-catch in mobile detection:
-
-```tsx
-const DashboardContent = () => {
-  // Safe mobile detection with fallback
-  let isMobile = false;
-  try {
-    isMobile = useIsMobile();
-  } catch (error) {
-    console.error("Error detecting mobile:", error);
-    isMobile = window.innerWidth < 768;
-  }
-  
-  // ... rest of component
-};
+```sql
+-- Find vouchers where total_amount > referenced invoice net_amount
+SELECT ve.*, s.sale_number, s.net_amount, s.paid_amount
+FROM voucher_entries ve
+JOIN sales s ON ve.reference_id = s.id
+WHERE ve.total_amount > s.net_amount
+AND ve.reference_type = 'sale';
 ```
 
 ---
@@ -225,244 +93,68 @@ const DashboardContent = () => {
 
 | File | Changes |
 |------|---------|
-| `src/main.tsx` | Add global error handlers for unhandledrejection and error events |
-| `vite.config.ts` | Add React deduplication and browser targeting |
-| `src/components/ErrorBoundary.tsx` | Enhance with cache clear, retry, and inline styles |
-| `src/components/mobile/MobileErrorBoundary.tsx` | Add inline style fallbacks |
-| `src/App.tsx` | Add unhandledrejection handler in useEffect |
-
-## Files to Create
-
-| File | Purpose |
-|------|---------|
-| `src/hooks/useClearCache.tsx` | Utility to clear PWA caches |
+| `src/pages/Accounts.tsx` | Create separate voucher entries per invoice when multiple selected |
+| `src/hooks/useCustomerBalance.tsx` | Improve logic to handle edge cases |
+| `src/components/CustomerLedger.tsx` | Improve balance calculation for multi-invoice payments |
 
 ---
 
-## Technical Details
+## Technical Implementation
 
-### Enhanced ErrorBoundary
-```tsx
-import { Component, ErrorInfo, ReactNode } from 'react';
+### Modified Voucher Creation (Accounts.tsx)
 
-interface Props {
-  children: ReactNode;
+Instead of creating one voucher referencing just the first invoice, create a voucher for each processed invoice:
+
+```typescript
+// Create voucher entries for EACH processed invoice
+const createdVouchers = [];
+for (let i = 0; i < processedInvoices.length; i++) {
+  const processed = processedInvoices[i];
+  const invoiceVoucherNumber = processedInvoices.length > 1 
+    ? `${voucherNumber}-${i + 1}`  // RCP/25-26/152-1, RCP/25-26/152-2, etc.
+    : voucherNumber;
+
+  const { data: voucher, error: voucherError } = await supabase
+    .from("voucher_entries")
+    .insert({
+      organization_id: currentOrganization?.id,
+      voucher_number: invoiceVoucherNumber,
+      voucher_type: voucherType,
+      voucher_date: format(voucherDate, "yyyy-MM-dd"),
+      reference_type: 'sale',
+      reference_id: processed.invoice.id,
+      description: `Payment for ${processed.invoice.sale_number}${paymentDetails}`,
+      total_amount: processed.amountApplied,
+      discount_amount: i === 0 ? discountValue : 0, // Apply discount to first only
+      discount_reason: i === 0 ? discountReason : null,
+    })
+    .select()
+    .single();
+
+  if (voucherError) throw voucherError;
+  createdVouchers.push(voucher);
 }
-
-interface State {
-  hasError: boolean;
-  error?: Error;
-}
-
-class ErrorBoundary extends Component<Props, State> {
-  public state: State = { hasError: false };
-
-  public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
-  }
-
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Application Error:', error, errorInfo);
-  }
-
-  private handleClearCacheAndRetry = async () => {
-    try {
-      // Unregister service workers
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        for (const registration of registrations) {
-          await registration.unregister();
-        }
-      }
-      
-      // Clear cache storage
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
-      }
-    } catch (e) {
-      console.error('Error clearing cache:', e);
-    }
-    
-    // Force reload from server
-    window.location.reload();
-  };
-
-  private handleRetry = () => {
-    this.setState({ hasError: false, error: undefined });
-  };
-
-  public render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ 
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '40px',
-          textAlign: 'center',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-          background: '#0f172a',
-          color: '#f1f5f9'
-        }}>
-          <div style={{ maxWidth: '400px' }}>
-            <div style={{ 
-              fontSize: '48px', 
-              marginBottom: '16px' 
-            }}>
-              ⚠️
-            </div>
-            <h1 style={{ fontSize: '24px', marginBottom: '16px' }}>
-              Something went wrong
-            </h1>
-            <p style={{ marginBottom: '24px', color: '#94a3b8', fontSize: '14px' }}>
-              The application encountered an unexpected error. 
-              Please try again or clear the cache.
-            </p>
-            
-            <button 
-              onClick={this.handleRetry}
-              style={{
-                padding: '12px 24px',
-                fontSize: '14px',
-                fontWeight: 600,
-                background: '#6366f1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                marginBottom: '12px',
-                width: '100%'
-              }}
-            >
-              Try Again
-            </button>
-            
-            <button 
-              onClick={this.handleClearCacheAndRetry}
-              style={{
-                padding: '12px 24px',
-                fontSize: '14px',
-                fontWeight: 600,
-                background: 'transparent',
-                color: '#94a3b8',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                marginBottom: '12px',
-                width: '100%'
-              }}
-            >
-              Clear Cache & Reload
-            </button>
-            
-            <button 
-              onClick={() => window.location.href = '/'}
-              style={{
-                padding: '12px 24px',
-                fontSize: '14px',
-                fontWeight: 600,
-                background: 'transparent',
-                color: '#64748b',
-                border: 'none',
-                cursor: 'pointer',
-                width: '100%'
-              }}
-            >
-              Go to Home
-            </button>
-            
-            {this.state.error && (
-              <p style={{ 
-                marginTop: '24px', 
-                fontSize: '11px', 
-                color: '#475569',
-                wordBreak: 'break-word'
-              }}>
-                Error: {this.state.error.message}
-              </p>
-            )}
-            
-            <p style={{ marginTop: '16px', fontSize: '12px', color: '#64748b' }}>
-              Recommended: Chrome 80+, Firefox 75+, Edge 80+, Safari 13+
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-export default ErrorBoundary;
 ```
 
-### Enhanced main.tsx
-```tsx
-import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import ErrorBoundary from "./components/ErrorBoundary";
-import "./index.css";
+### Data Fix for Janata Footwear
 
-// Global error handlers for async errors (not caught by React error boundaries)
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-  // Don't prevent default - let ErrorBoundary handle if possible
-});
+Delete the incorrect voucher and let the `paid_amount` values serve as the payment record:
 
-window.addEventListener('error', (event) => {
-  console.error('Uncaught error:', event.error);
-});
-
-createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-);
+```sql
+-- Delete the problematic voucher (since paid_amount is already correct)
+UPDATE voucher_entries 
+SET deleted_at = NOW() 
+WHERE id = '4e2a1e57-c505-442e-a1aa-04382fc24341';
 ```
 
-### Enhanced vite.config.ts
-```ts
-export default defineConfig(({ mode }) => ({
-  // ... existing config
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
-    // Deduplicate React to prevent hook issues
-    dedupe: ["react", "react-dom", "@tanstack/react-query"],
-  },
-  build: {
-    // Target modern browsers while maintaining compatibility
-    target: 'es2020',
-    // Generate sourcemaps for debugging
-    sourcemap: mode === 'development',
-  },
-}));
-```
+Or create proper split vouchers matching actual paid amounts.
 
 ---
 
-## Expected Results
+## Verification After Fix
 
-After implementing these changes:
+After implementation:
+- Total Sales: ₹43,692
+- Total Paid: ₹27,731 (from paid_amount OR vouchers, not both)
+- Balance: ₹15,961 (Outstanding, not Advance)
 
-1. **Unhandled Promise Rejections** - Caught globally, preventing blank screens
-2. **React Hook Issues** - Fixed via deduplication
-3. **PWA Cache Problems** - Users can clear cache from error screen
-4. **Error Recovery** - Try Again button attempts re-render before full reload
-5. **Better Diagnostics** - Error messages displayed for debugging
-6. **CSS Independence** - Error UI works even if CSS fails to load
-7. **Android WebView Compatibility** - ES2020 target with deduplication
-
----
-
-## Deployment Notes
-
-After implementing:
-
-1. **Clear existing caches** - The new error UI will help users do this
-2. **Force service worker update** - VitePWA autoUpdate handles this
-3. **Monitor console logs** - Global handlers will log async errors for debugging
