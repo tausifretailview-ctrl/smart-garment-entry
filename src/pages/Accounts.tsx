@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search, Pencil } from "lucide-react";
+import { CalendarIcon, Plus, TrendingUp, TrendingDown, DollarSign, Wallet, Printer, Send, FileDown, Filter, X, CheckCircle2, Clock, AlertCircle, Receipt, Trash2, Check, ChevronsUpDown, Search, Pencil, Coins } from "lucide-react";
  import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -33,6 +33,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
+import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -68,6 +69,9 @@ export default function Accounts() {
   
   // Cheque print state
   const [showChequePrintDialog, setShowChequePrintDialog] = useState(false);
+  
+  // Advance booking dialog state
+  const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
 
   // Customer search state
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -1905,6 +1909,15 @@ export default function Accounts() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Recent Customer Payments</CardTitle>
                 <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowAdvanceDialog(true)}
+                    className="border-primary/30 text-primary hover:bg-primary/10"
+                  >
+                    <Coins className="mr-2 h-4 w-4" />
+                    Booking Advance
+                  </Button>
                   {isAdmin && selectedPaymentIds.length > 0 && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -3458,6 +3471,15 @@ export default function Accounts() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Advance Booking Dialog */}
+        {currentOrganization?.id && (
+          <AddAdvanceBookingDialog
+            open={showAdvanceDialog}
+            onOpenChange={setShowAdvanceDialog}
+            organizationId={currentOrganization.id}
+          />
+        )}
       </div>
   );
 }

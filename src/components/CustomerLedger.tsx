@@ -40,7 +40,7 @@ interface Customer {
 interface Transaction {
   id: string;
   date: string;
-  type: 'invoice' | 'payment';
+  type: 'invoice' | 'payment' | 'advance';
   reference: string;
   description: string;
   debit: number;
@@ -241,10 +241,29 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       // Merge invoice payments and opening balance payments
       const allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])];
 
+      // Fetch customer advances
+      let advancesQuery = supabase
+        .from("customer_advances")
+        .select("*")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("organization_id", organizationId);
+
+      if (startDate) {
+        advancesQuery = advancesQuery.gte("advance_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        advancesQuery = advancesQuery.lte("advance_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: advancesData, error: advancesError } = await advancesQuery.order("advance_date", { ascending: true });
+
+      if (advancesError) throw advancesError;
+
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Invoice payments found:', vouchersData?.length || 0);
       console.log('Opening balance payments found:', openingBalancePayments?.length || 0);
+      console.log('Advances found:', advancesData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
@@ -276,7 +295,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
         });
       }
 
-      // Merge sales and payments chronologically (use allVouchers which includes opening balance payments)
+      // Merge sales, payments, and advances chronologically
       const combined = [
         ...salesData.map((sale) => ({
           date: sale.sale_date,
@@ -287,6 +306,11 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           date: voucher.voucher_date,
           type: 'payment' as const,
           data: voucher,
+        })),
+        ...(advancesData || []).map((advance) => ({
+          date: advance.advance_date,
+          type: 'advance' as const,
+          data: advance,
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -345,6 +369,37 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
               },
             });
           }
+        } else if (item.type === 'advance') {
+          // Handle advance booking entries
+          const advance = item.data as any;
+          const availableAmount = (advance.amount || 0) - (advance.used_amount || 0);
+          
+          // Advances reduce the customer's balance (credit)
+          runningBalance -= advance.amount;
+          
+          const paymentMethodText = advance.payment_method 
+            ? advance.payment_method.charAt(0).toUpperCase() + advance.payment_method.slice(1)
+            : 'Cash';
+          
+          let description = `Advance Booking - ${paymentMethodText}`;
+          if (advance.description) {
+            description += ` - ${advance.description}`;
+          }
+          if (advance.used_amount > 0) {
+            description += ` (Used: ₹${advance.used_amount.toLocaleString('en-IN')}, Available: ₹${availableAmount.toLocaleString('en-IN')})`;
+          }
+          
+          allTransactions.push({
+            id: advance.id,
+            date: advance.advance_date,
+            type: 'advance',
+            reference: advance.advance_number,
+            description: description,
+            debit: 0,
+            credit: advance.amount,
+            balance: runningBalance,
+            paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
+          });
         } else {
           const voucher = item.data as any;
           const discountAmount = voucher.discount_amount || 0;
@@ -1035,15 +1090,21 @@ Please clear your dues at the earliest. Thank you!`;
                                 </Badge>
                               ) : (
                                 <div className="flex items-center gap-1">
-                                  <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
-                                    {transaction.type === 'invoice' ? (
-                                      <><FileText className="h-3 w-3 mr-1" /> Invoice</>
-                                    ) : (
-                                      <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
-                                    )}
-                                  </Badge>
+                                  {transaction.type === 'advance' ? (
+                                    <Badge className="bg-primary/20 text-primary border-primary/30">
+                                      <Wallet className="h-3 w-3 mr-1" /> ADVANCE
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>
+                                      {transaction.type === 'invoice' ? (
+                                        <><FileText className="h-3 w-3 mr-1" /> Invoice</>
+                                      ) : (
+                                        <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
+                                      )}
+                                    </Badge>
+                                  )}
                                   {transaction.type === 'invoice' && transaction.paymentStatus === 'completed' && (
-                                    <Badge className="bg-green-500 text-white text-xs">PAID</Badge>
+                                    <Badge className="bg-success text-success-foreground text-xs">PAID</Badge>
                                   )}
                                 </div>
                               )}
