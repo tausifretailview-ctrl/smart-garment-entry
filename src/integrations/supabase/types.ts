@@ -506,6 +506,72 @@ export type Database = {
           },
         ]
       }
+      customer_advances: {
+        Row: {
+          advance_date: string
+          advance_number: string
+          amount: number
+          cheque_number: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string
+          description: string | null
+          id: string
+          organization_id: string
+          payment_method: string | null
+          status: string | null
+          transaction_id: string | null
+          used_amount: number
+        }
+        Insert: {
+          advance_date?: string
+          advance_number: string
+          amount?: number
+          cheque_number?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id: string
+          description?: string | null
+          id?: string
+          organization_id: string
+          payment_method?: string | null
+          status?: string | null
+          transaction_id?: string | null
+          used_amount?: number
+        }
+        Update: {
+          advance_date?: string
+          advance_number?: string
+          amount?: number
+          cheque_number?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string
+          description?: string | null
+          id?: string
+          organization_id?: string
+          payment_method?: string | null
+          status?: string | null
+          transaction_id?: string | null
+          used_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_advances_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_advances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_brand_discounts: {
         Row: {
           brand: string
@@ -4218,6 +4284,10 @@ export type Database = {
           details: Json
           fixed_count: number
         }[]
+      }
+      generate_advance_number: {
+        Args: { p_organization_id: string }
+        Returns: string
       }
       generate_challan_number: {
         Args: { p_organization_id: string }
