@@ -1573,64 +1573,9 @@ Thank you for choosing us!`;
           .eq('id', editingInvoiceId)
           .single();
 
-        // Auto-send WhatsApp invoice notification on update (does not block saving)
-        if (selectedCustomer?.phone && currentOrganization?.id && invoiceData?.sale_number) {
-          try {
-            const { data: whatsappSettings } = await (supabase as any)
-              .from('whatsapp_api_settings')
-              .select('is_active, auto_send_invoice, invoice_template_name')
-              .eq('organization_id', currentOrganization.id)
-              .maybeSingle();
-
-            if (whatsappSettings?.is_active && whatsappSettings?.auto_send_invoice) {
-              const { data: companySettings } = await supabase
-                .from('settings')
-                .select('business_name, mobile_number')
-                .eq('organization_id', currentOrganization.id)
-                .maybeSingle();
-
-              const companyName = companySettings?.business_name || currentOrganization.name || 'Our Company';
-
-              const formattedDate = new Date(invoiceDate).toLocaleDateString('en-IN', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-              });
-              const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
-
-              // Calculate total quantity from items
-              const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
-
-              const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${invoiceData.sale_number} has been updated.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
-
-              await supabase.functions.invoke('send-whatsapp', {
-                body: {
-                  organizationId: currentOrganization.id,
-                  phone: selectedCustomer.phone,
-                  message: messageText,
-                  templateType: 'sales_invoice',
-                  templateName: whatsappSettings.invoice_template_name || null,
-                  saleData: {
-                    sale_id: editingInvoiceId,
-                    org_slug: currentOrganization.slug,
-                    customer_name: selectedCustomer.customer_name,
-                    sale_number: invoiceData.sale_number,
-                    sale_date: invoiceDate,
-                    net_amount: netAmount,
-                    gross_amount: grossAmount,
-                    discount_amount: flatDiscountAmount,
-                    items_count: totalQty,
-                    organization_name: companyName,
-                  },
-                  referenceId: editingInvoiceId,
-                  referenceType: 'sale',
-                },
-              });
-            }
-          } catch (e) {
-            console.error('WhatsApp auto-send failed (SalesInvoice update):', e);
-          }
-        }
+        // NOTE: WhatsApp auto-send is DISABLED for invoice updates to prevent duplicate messages
+        // Users can manually resend from the WhatsApp Logs or Sales Dashboard if needed
+        // The edge function also has a 60-minute duplicate prevention check as a fallback
 
         // Store invoice data and show print dialog
         setSavedInvoiceData({
