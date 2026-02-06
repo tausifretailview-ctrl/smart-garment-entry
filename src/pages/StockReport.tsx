@@ -1252,75 +1252,86 @@ export default function StockReport() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0 md:p-6">
                   {sizeWiseData.rows.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No products found matching your filters</p>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead className="font-semibold min-w-[250px]">Product</TableHead>
-                            {sizeWiseData.sizes.map(size => (
-                              <TableHead key={size} className="text-center font-semibold min-w-[60px] bg-primary/10">
-                                {size}
+                    <>
+                      {/* Mobile hint for horizontal scroll */}
+                      <div className="md:hidden px-4 pb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <ChevronLeft className="h-3 w-3" />
+                        <span>Swipe to see all sizes</span>
+                        <ChevronRight className="h-3 w-3" />
+                      </div>
+                      <div className="overflow-x-auto scroll-smooth snap-x snap-mandatory md:snap-none scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+                        <Table className="min-w-max">
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead className="font-semibold min-w-[180px] md:min-w-[250px] sticky left-0 bg-muted/95 z-10 backdrop-blur-sm">Product</TableHead>
+                              {sizeWiseData.sizes.map((size, idx) => (
+                                <TableHead 
+                                  key={size} 
+                                  className={`text-center font-semibold min-w-[50px] md:min-w-[60px] bg-primary/10 snap-start ${idx === 0 ? 'scroll-ml-[180px] md:scroll-ml-0' : ''}`}
+                                >
+                                  {size}
+                                </TableHead>
+                              ))}
+                              <TableHead className="text-center font-bold min-w-[60px] md:min-w-[80px] bg-primary/20 text-primary sticky right-0 backdrop-blur-sm">
+                                Stock
                               </TableHead>
-                            ))}
-                            <TableHead className="text-center font-bold min-w-[80px] bg-primary/20 text-primary">
-                              Stock
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sizeWiseData.rows.map((row, index) => (
-                            <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
-                              <TableCell className="font-medium">
-                                <div className="flex flex-col">
-                                  <span>{row.productName}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {[row.brand, row.color].filter(Boolean).join(' - ')}
-                                  </span>
-                                  {row.category && (
-                                    <span className="text-xs text-muted-foreground/70">
-                                      {row.category}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {sizeWiseData.rows.map((row, index) => (
+                              <TableRow key={row.productKey} className={index % 2 === 0 ? "bg-background" : "bg-muted/30"}>
+                                <TableCell className="font-medium sticky left-0 bg-inherit z-10 backdrop-blur-sm">
+                                  <div className="flex flex-col">
+                                    <span className="text-sm md:text-base truncate max-w-[160px] md:max-w-none">{row.productName}</span>
+                                    <span className="text-xs text-muted-foreground truncate max-w-[160px] md:max-w-none">
+                                      {[row.brand, row.color].filter(Boolean).join(' - ')}
                                     </span>
-                                  )}
-                                </div>
-                              </TableCell>
-                              {sizeWiseData.sizes.map(size => {
-                                const qty = row.sizeStocks[size] || 0;
-                                return (
-                                  <TableCell 
-                                    key={size} 
-                                    className={`text-center ${
-                                      qty === 0 ? 'text-muted-foreground/50' : 
-                                      'font-bold text-foreground bg-green-100 dark:bg-green-900/40'
-                                    }`}
-                                  >
-                                    {qty}
-                                  </TableCell>
-                                );
-                              })}
-                              <TableCell className="text-center font-bold text-primary bg-primary/10">
-                                {row.totalStock}
+                                    {row.category && (
+                                      <span className="text-xs text-muted-foreground/70 truncate max-w-[160px] md:max-w-none">
+                                        {row.category}
+                                      </span>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                {sizeWiseData.sizes.map(size => {
+                                  const qty = row.sizeStocks[size] || 0;
+                                  return (
+                                    <TableCell 
+                                      key={size} 
+                                      className={`text-center text-sm md:text-base ${
+                                        qty === 0 ? 'text-muted-foreground/50' : 
+                                        'font-bold text-foreground bg-green-100 dark:bg-green-900/40'
+                                      }`}
+                                    >
+                                      {qty}
+                                    </TableCell>
+                                  );
+                                })}
+                                <TableCell className="text-center font-bold text-primary bg-primary/10 sticky right-0 backdrop-blur-sm">
+                                  {row.totalStock}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            {/* Total Row */}
+                            <TableRow className="bg-destructive/10 font-bold border-t-2">
+                              <TableCell className="text-destructive font-bold sticky left-0 bg-destructive/10 z-10 backdrop-blur-sm">Total Stock</TableCell>
+                              {sizeWiseData.sizes.map(size => (
+                                <TableCell key={size} className="text-center text-destructive font-bold text-sm md:text-base">
+                                  {sizeWiseTotals.sizeTotals[size] || 0}
+                                </TableCell>
+                              ))}
+                              <TableCell className="text-center font-bold text-destructive bg-destructive/20 sticky right-0 backdrop-blur-sm">
+                                {sizeWiseTotals.grandTotal}
                               </TableCell>
                             </TableRow>
-                          ))}
-                          {/* Total Row */}
-                          <TableRow className="bg-destructive/10 font-bold border-t-2">
-                            <TableCell className="text-destructive font-bold">Total Stock</TableCell>
-                            {sizeWiseData.sizes.map(size => (
-                              <TableCell key={size} className="text-center text-destructive font-bold">
-                                {sizeWiseTotals.sizeTotals[size] || 0}
-                              </TableCell>
-                            ))}
-                            <TableCell className="text-center font-bold text-destructive bg-destructive/20">
-                              {sizeWiseTotals.grandTotal}
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </>
                   )}
                 </CardContent>
               </Card>
