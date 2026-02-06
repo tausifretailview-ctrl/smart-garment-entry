@@ -1393,8 +1393,8 @@ const ProductEntry = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-6rem)] bg-background p-2 overflow-auto">
-      <div className="max-w-7xl mx-auto">
+    <div className="h-[calc(100vh-6rem)] bg-background p-4 overflow-auto">
+      <div className="w-full">
         <BackToDashboard label="Back to Products" to="/products" />
         <div className="mb-2 flex items-center gap-2">
           <Package className="h-5 w-5 text-primary" />
