@@ -4110,7 +4110,7 @@ export default function BarcodePrinting() {
         <Button onClick={handlePrint} variant="outline">
           Print
         </Button>
-        {sheetType.startsWith('thermal') && (
+        {(sheetType.startsWith('thermal') || sheetType === 'custom') && (
           <Button 
             onClick={() => setIsDirectPrintDialogOpen(true)} 
             variant="outline"
