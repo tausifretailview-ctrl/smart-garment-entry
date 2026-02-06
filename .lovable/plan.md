@@ -1,90 +1,128 @@
 
-## Field Sales Size Grid - Show All Colors at Once
+## Add Multiple Product Images with Gallery View
 
-### Problem
-The current Field Sales order entry requires selecting one color at a time to enter size quantities. This is slower for salesmen who need to quickly enter quantities across all colors in a single view.
+### Overview
+Add the ability to upload and manage 2-3 images per product from the Product Dashboard, with a full-screen image viewer when clicking on product images.
 
-### Screenshot Reference
-- **Desired (Old Style)**: All colors (MR, RED, BLUE, BK) visible with size input boxes for each color shown simultaneously
-- **Current (New Style)**: Shows "Select Color" first, requiring individual color selection
+### Current State
+- Products have a single `image_url` column storing one image
+- Product images are uploaded to the `product-images` storage bucket
+- The dashboard shows a single thumbnail in the "Image" column
 
 ### Solution
-Update the `SalesmanSizeGridDialog` component to display all colors with their size grids simultaneously, similar to how the desktop `SizeGridDialog` works with `allowMultiColor=true`.
 
----
-
-### Technical Changes
-
-**File: `src/components/SalesmanSizeGridDialog.tsx`**
-
-1. **Add Multi-Color State Management**
-   - Add state for tracking quantities per color: `multiColorQty` 
-   - Add state for custom sizes per color: `multiColorCustomSizes`
-   - Add state for active custom size color: `activeCustomSizeColor`
-
-2. **Replace Color Selection UI with Multi-Color Grid**
-   - Remove the "Select Color" step for multi-color products
-   - Show all colors in a vertical layout with:
-     - Color badge and running quantity total
-     - Size input boxes for each color's variants
-     - "Add Size" button per color for custom sizes
-   - Add "Add Colour" button at bottom for adding new colors
-
-3. **Update Confirm Logic**
-   - Collect items from all colors at once
-   - Build combined items array from `multiColorQty` state
-
-4. **Reset Logic Update**
-   - Initialize multi-color states on dialog open
-   - Clear all color quantities on close
-
-### User Experience Changes
-
-| Before | After |
-|--------|-------|
-| Select color first | See all colors at once |
-| Enter quantities for one color | Enter quantities for any/all colors |
-| Must go back to add another color | Submit everything in one go |
-| ~3 taps per color to start entry | ~1 tap per size to enter quantity |
-
-### Layout Structure
+#### 1. Database Changes
+Create a new `product_images` table to store multiple images per product:
 
 ```text
-+-------------------------------------------+
-| Enter Size-wise Quantity              [X] |
-| PUL61                        + Add Colour |
-+-------------------------------------------+
-| [MR]                             Qty: 0   |
-|   5    6    3    9    7    8    4         |
-|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
-|  + Add Size                               |
-+-------------------------------------------+
-| [RED]                            Qty: 0   |
-|   3    6    9    7    5    4    8         |
-|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
-|  + Add Size                               |
-+-------------------------------------------+
-| [BLUE]                           Qty: 0   |
-|   3    9    8    7    5    4    6         |
-|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
-|  + Add Size                               |
-+-------------------------------------------+
-| [BK]                             Qty: 0   |
-|   9    8    6    7    4    5    3         |
-|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
-|  + Add Size                               |
-+-------------------------------------------+
-|              + Add Colour                 |
-+-------------------------------------------+
-| Total Quantity (All Colors):          0   |
-+-------------------------------------------+
-|              [Cancel]     [Confirm]       |
-+-------------------------------------------+
+product_images
++---------------+--------+------------------------------------------+
+| Column        | Type   | Description                              |
++---------------+--------+------------------------------------------+
+| id            | uuid   | Primary key                              |
+| product_id    | uuid   | Foreign key to products table            |
+| image_url     | text   | URL of the uploaded image                |
+| display_order | int    | Order of image (1, 2, or 3)              |
+| created_at    | date   | Timestamp                                |
+| organization_id | uuid | Foreign key to organizations            |
++---------------+--------+------------------------------------------+
 ```
 
-### Implementation Notes
-- Size order will respect the product's size group ordering
-- Stock quantities shown below each size (when `showStock=true`)
-- Custom sizes can be added per-color with the "+ Add Size" button
-- New colors added via "+ Add Colour" get empty variant slots
-- Focus automatically moves to first input on open
+RLS Policies:
+- SELECT: Users can view images for their organization
+- INSERT/UPDATE/DELETE: Users can manage images for their organization
+
+#### 2. New Components
+
+**ProductImageGallery Component**
+- Displays a row of 1-3 thumbnail images
+- Shows "Add Image" button if fewer than 3 images
+- Clickable thumbnails to open full-size viewer
+
+**ProductImageViewer Dialog**
+- Full-screen modal to view product images
+- Image carousel with navigation (prev/next)
+- Close button to dismiss
+
+**ProductImageUploader Dialog**
+- Upload new images (max 3 per product)
+- Shows existing images with delete option
+- Drag-and-drop or click to upload
+
+#### 3. ProductDashboard Updates
+
+**Image Column Enhancement**
+- Replace single Avatar with gallery component
+- Show primary image as main thumbnail
+- Small "+" icon to add more images
+- Click opens image viewer dialog
+
+**New State Variables**
+```typescript
+const [imageViewerOpen, setImageViewerOpen] = useState(false);
+const [imageUploaderOpen, setImageUploaderOpen] = useState(false);
+const [selectedProductImages, setSelectedProductImages] = useState<{
+  productId: string;
+  productName: string;
+  images: Array<{ id: string; url: string; order: number }>;
+}>({ productId: '', productName: '', images: [] });
+```
+
+#### 4. User Flow
+
+**Adding Images:**
+1. User clicks "+" or empty image area in product row
+2. Image uploader dialog opens
+3. User can upload up to 3 images (5MB each)
+4. Images are uploaded to `product-images` bucket
+5. Records are created in `product_images` table
+
+**Viewing Images:**
+1. User clicks on any product image thumbnail
+2. Full-screen image viewer opens
+3. User can navigate between images if multiple exist
+4. Click outside or X button closes viewer
+
+### UI Mockup
+
+```text
+Product Dashboard Table - Image Column
++----------------------------------+
+| [img1] [img2] [+]               |  <- 2 images + add button
++----------------------------------+
+| [img]                           |  <- 1 image (click to add more)
++----------------------------------+
+| [   +   ]                       |  <- No images, upload prompt
++----------------------------------+
+
+Image Viewer Dialog (Full Screen)
++------------------------------------------+
+|                                    [X]   |
+|                                          |
+|       +------------------------+         |
+|   [<] |                        | [>]     |
+|       |      FULL IMAGE        |         |
+|       |                        |         |
+|       +------------------------+         |
+|                                          |
+|            [ 1 ] [ 2 ] [ 3 ]             |  <- Dot indicators
++------------------------------------------+
+```
+
+### Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `src/components/ProductImageGallery.tsx` | Create | Thumbnail gallery component |
+| `src/components/ProductImageViewer.tsx` | Create | Full-screen viewer dialog |
+| `src/components/ProductImageUploader.tsx` | Create | Upload/manage images dialog |
+| `src/pages/ProductDashboard.tsx` | Modify | Integrate gallery, viewer, uploader |
+| Migration | Create | Add product_images table with RLS |
+
+### Technical Considerations
+
+- **Image Limit**: Enforce max 3 images per product in both UI and database
+- **Storage**: Reuse existing `product-images` bucket
+- **Performance**: Lazy load images, use optimized thumbnails
+- **Migration**: Existing `image_url` from products table will be migrated to first image in new table
+- **Backward Compatibility**: Keep `image_url` field on products synced with primary image
