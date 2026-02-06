@@ -1187,51 +1187,34 @@ export default function SalesInvoice() {
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
-      // Use phone as customer name if name is empty
-      const customerName = values.customer_name?.trim() || values.phone;
+      if (!currentOrganization?.id) throw new Error("No organization selected");
       
-      // Check if customer with this phone already exists
-      const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('phone', values.phone)
-        .eq('organization_id', currentOrganization?.id)
-        .is('deleted_at', null)
-        .maybeSingle();
+      const { createOrGetCustomer } = await import("@/utils/customerUtils");
       
-      let data;
-      if (existingCustomer) {
-        // Use existing customer instead of creating duplicate
-        data = existingCustomer;
+      const result = await createOrGetCustomer({
+        customer_name: values.customer_name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        gst_number: values.gst_number,
+        organization_id: currentOrganization.id,
+      });
+      
+      if (result.isExisting) {
         toast({
           title: "Customer Found",
-          description: `${existingCustomer.customer_name} already exists and has been selected`,
+          description: `${result.customer.customer_name} already exists and has been selected`,
         });
       } else {
-        const { data: newCustomer, error } = await supabase
-          .from('customers')
-          .insert([{
-            customer_name: customerName,
-            phone: values.phone,
-            email: values.email || null,
-            address: values.address || null,
-            gst_number: values.gst_number || null,
-            organization_id: currentOrganization?.id,
-          }])
-          .select()
-          .single();
-
-        if (error) throw error;
-        data = newCustomer;
-        
         toast({
           title: "Customer Created",
-          description: `${customerName} has been added successfully`,
+          description: `${result.customer.customer_name} has been added successfully`,
         });
       }
-      // Auto-select the new customer
-      setSelectedCustomerId(data.id);
-      setSelectedCustomer(data);
+      
+      // Auto-select the customer
+      setSelectedCustomerId(result.customer.id);
+      setSelectedCustomer(result.customer);
       
       // Reset form and close dialog
       customerForm.reset();

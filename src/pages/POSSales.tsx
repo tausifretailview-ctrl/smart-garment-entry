@@ -2181,29 +2181,18 @@ export default function POSSales() {
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       
-      // Check if customer with this phone already exists
-      const { data: existingCustomer } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("phone", data.phone)
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .maybeSingle();
+      const { createOrGetCustomer } = await import("@/utils/customerUtils");
       
-      if (existingCustomer) {
-        // Return existing customer instead of creating duplicate
-        return existingCustomer;
-      }
+      const result = await createOrGetCustomer({
+        customer_name: data.customer_name,
+        phone: data.phone,
+        email: data.email,
+        address: data.address,
+        gst_number: data.gst_number,
+        organization_id: currentOrganization.id,
+      });
       
-      // Use phone as customer name if name is empty
-      const customerData = {
-        ...data,
-        customer_name: data.customer_name.trim() || data.phone,
-        organization_id: currentOrganization.id
-      };
-      const { data: newCustomer, error } = await supabase.from("customers").insert([customerData]).select().single();
-      if (error) throw error;
-      return newCustomer;
+      return { ...result.customer, isExisting: result.isExisting };
     },
     onSuccess: (newCustomer) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });

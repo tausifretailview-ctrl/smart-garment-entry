@@ -69,30 +69,31 @@ export const QuickAddCustomerDialog = ({
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from("customers")
-        .insert({
-          customer_name: customerName.trim(),
-          phone: phone.trim(),
-          gst_number: gstNumber.trim() || null,
-          address: address.trim() || null,
-          organization_id: currentOrganization.id,
-          opening_balance: 0,
-        })
-        .select()
-        .single();
+      const { createOrGetCustomer } = await import("@/utils/customerUtils");
+      
+      const result = await createOrGetCustomer({
+        customer_name: customerName.trim(),
+        phone: phone.trim(),
+        gst_number: gstNumber.trim() || undefined,
+        address: address.trim() || undefined,
+        organization_id: currentOrganization.id,
+        opening_balance: 0,
+      });
 
-      if (error) throw error;
-
-      toast.success("Customer added successfully");
+      if (result.isExisting) {
+        toast.success(`Customer "${result.customer.customer_name}" already exists and was selected`);
+      } else {
+        toast.success("Customer added successfully");
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       
       resetForm();
       onOpenChange(false);
       
-      if (onSuccess && data) {
-        onSuccess(data.id);
+      if (onSuccess) {
+        onSuccess(result.customer.id);
       }
     } catch (error: any) {
       console.error("Error adding customer:", error);
