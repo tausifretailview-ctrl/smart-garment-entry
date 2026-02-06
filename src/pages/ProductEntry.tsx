@@ -1912,7 +1912,6 @@ const ProductEntry = () => {
                         {showMrp && <TableHead className="text-xs py-1">MRP<span className="text-destructive">*</span></TableHead>}
                         {showMrp && <TableHead className="text-xs py-1">Disc</TableHead>}
                         <TableHead className="text-xs py-1">Barcode<span className="text-destructive">*</span></TableHead>
-                        {formData.product_type !== 'service' && <TableHead className="text-xs py-1">Open Qty</TableHead>}
                         <TableHead className="text-xs py-1 text-center">Active</TableHead>
                         <TableHead className="text-xs py-1"></TableHead>
                       </TableRow>
@@ -2017,25 +2016,6 @@ const ProductEntry = () => {
                                 />
                               )}
                             </TableCell>
-                            {formData.product_type !== 'service' && (
-                              <TableCell className="py-1">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="1"
-                                  value={variant.opening_qty}
-                                  onChange={(e) =>
-                                    handleVariantChange(
-                                      index,
-                                      "opening_qty",
-                                      parseInt(e.target.value) || 0
-                                    )
-                                  }
-                                  className="w-16 h-6 text-xs"
-                                  placeholder="0"
-                                />
-                              </TableCell>
-                            )}
                             <TableCell className="text-center py-1">
                               <Switch
                                 checked={variant.active}
