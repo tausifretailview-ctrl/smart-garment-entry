@@ -105,6 +105,29 @@ export const ProductImageUploader = ({
     setUploading(true);
 
     try {
+      // Get the next available display order from database
+      const { data: existingOrders } = await supabase
+        .from("product_images")
+        .select("display_order")
+        .eq("product_id", productId)
+        .order("display_order", { ascending: false })
+        .limit(1);
+
+      const nextOrder = existingOrders && existingOrders.length > 0 
+        ? existingOrders[0].display_order + 1 
+        : 1;
+
+      // Check if we've reached max images
+      if (nextOrder > MAX_IMAGES) {
+        toast({
+          title: "Maximum images reached",
+          description: `You can only have ${MAX_IMAGES} images per product`,
+          variant: "destructive",
+        });
+        setUploading(false);
+        return;
+      }
+
       // Generate unique filename
       const fileExt = file.name.split(".").pop();
       const fileName = `${productId}/${Date.now()}.${fileExt}`;
@@ -123,11 +146,7 @@ export const ProductImageUploader = ({
       const { data: publicUrlData } = supabase.storage
         .from("product-images")
         .getPublicUrl(fileName);
-
       const imageUrl = publicUrlData.publicUrl;
-
-      // Calculate next display order
-      const nextOrder = images.length + 1;
 
       // Insert into product_images table
       const { data: insertedImage, error: insertError } = await supabase
