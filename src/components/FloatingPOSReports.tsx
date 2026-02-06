@@ -312,6 +312,7 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
           id,
           barcode,
           size,
+          color,
           stock_qty,
           sale_price,
           mrp,
@@ -319,7 +320,6 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
             id,
             product_name,
             brand,
-            color,
             category,
             deleted_at
           )
@@ -327,8 +327,9 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
         .eq("products.organization_id", currentOrganization.id)
         .is("products.deleted_at", null)
         .is("deleted_at", null)
+        .eq("active", true)
         .order("stock_qty", { ascending: false })
-        .limit(500);
+        .limit(1000);
 
       if (error) throw error;
       return data || [];
@@ -342,16 +343,16 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
         const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
         const productName = (item.product?.product_name || '').toLowerCase();
         const brand = (item.product?.brand || '').toLowerCase();
-        const color = (item.product?.color || '').toLowerCase();
+        const variantColor = (item.color || '').toLowerCase(); // Use variant color
         const category = (item.product?.category || '').toLowerCase();
         const barcode = (item.barcode || '').toLowerCase();
         const size = (item.size || '').toLowerCase();
         
-        const combinedText = `${productName} ${brand} ${color} ${category} ${barcode} ${size}`;
+        const combinedText = `${productName} ${brand} ${variantColor} ${category} ${barcode} ${size}`;
         
         // All search terms must match
         return searchTerms.every(term => combinedText.includes(term));
-      }).slice(0, 50)
+      }).slice(0, 100)
     : [];
 
   // Total stock value
@@ -437,7 +438,7 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
                         <div>
                           <p className="font-medium">{item.product?.product_name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {[item.product?.brand, item.product?.color].filter(Boolean).join(' | ')}
+                            {[item.product?.brand, item.color].filter(Boolean).join(' | ')}
                           </p>
                         </div>
                       </TableCell>
