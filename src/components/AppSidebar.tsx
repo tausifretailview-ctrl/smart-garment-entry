@@ -93,7 +93,7 @@ export function AppSidebar() {
       <SidebarContent className="font-sans text-[15px] text-white pt-0 mt-0">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
-          <SidebarGroup>
+          <SidebarGroup className="pt-0 first:pt-0">
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/platform-admin")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
@@ -114,7 +114,7 @@ export function AppSidebar() {
 
         {/* Dashboard */}
         {(isAdminPermissions || hasMenuAccess("main_dashboard")) && (
-          <SidebarGroup>
+          <SidebarGroup className="pt-0 first:pt-0">
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
