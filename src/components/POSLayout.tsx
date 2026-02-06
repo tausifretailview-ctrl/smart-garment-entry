@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,7 +36,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
-  const { onNewSale, onClearCart, hasItems } = usePOS();
+  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, hasItems } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
 
   const handleSignOut = async () => {
@@ -136,6 +136,42 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                   <p>Clear cart <kbd className="ml-1 px-1 py-0.5 bg-muted rounded text-xs">Esc</kbd></p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onOpenCashierReport && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onOpenCashierReport}
+                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="hidden sm:inline">Cashier</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Daily Cashier Report</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onOpenStockReport && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onOpenStockReport}
+                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  >
+                    <PackageIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Stock</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Quick Stock Check</p>
                 </TooltipContent>
               </Tooltip>
             )}
