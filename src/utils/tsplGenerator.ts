@@ -186,7 +186,7 @@ export const generateTSPLLabelFromTemplate = (
   // Label setup
   commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
   commands.push(generateGapCommand(labelConfig.gap));
-  commands.push('DIRECTION 1');
+  commands.push('DIRECTION 0');
   commands.push('CLS'); // Clear buffer
   
   const labelWidthDots = mmToDots(labelConfig.width);
@@ -332,7 +332,7 @@ export const generateTSPLLabel = (
   // Label setup
   commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
   commands.push(generateGapCommand(labelConfig.gap));
-  commands.push('DIRECTION 1');
+  commands.push('DIRECTION 0');
   commands.push('CLS'); // Clear buffer
   
   // Calculate positions based on label size (in dots, 8 dots = 1mm at 203 DPI)
