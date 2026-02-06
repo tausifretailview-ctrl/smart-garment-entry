@@ -102,7 +102,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { setOnNewSale, setOnClearCart, setHasItems } = usePOS();
+  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setHasItems } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
@@ -521,11 +521,22 @@ export default function POSSales() {
       });
     });
 
+    // Register floating report handlers
+    setOnOpenCashierReport(() => () => {
+      setShowFloatingCashierReport(true);
+    });
+    
+    setOnOpenStockReport(() => () => {
+      setShowFloatingStockReport(true);
+    });
+
     return () => {
       setOnNewSale(null);
       setOnClearCart(null);
+      setOnOpenCashierReport(null);
+      setOnOpenStockReport(null);
     };
-  }, [setOnNewSale, setOnClearCart, toast]);
+  }, [setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, toast]);
 
   // Update hasItems in header
   useEffect(() => {
@@ -2994,44 +3005,6 @@ export default function POSSales() {
                   {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             </div>
-
-              {/* Quick Report Buttons */}
-              <TooltipProvider>
-                <div className="flex gap-1">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-12 px-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
-                        onClick={() => setShowFloatingCashierReport(true)}
-                      >
-                        <BarChart3 className="h-4 w-4 mr-1.5" />
-                        <span className="text-xs font-medium">Cashier</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View Daily Cashier Report</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-12 px-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white border-0"
-                        onClick={() => setShowFloatingStockReport(true)}
-                      >
-                        <Package className="h-4 w-4 mr-1.5" />
-                        <span className="text-xs font-medium">Stock</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Quick Stock Check</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-              </TooltipProvider>
           </div>
         </div>
 
