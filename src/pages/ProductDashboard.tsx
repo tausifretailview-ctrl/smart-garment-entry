@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,9 @@ import { useProductProtection } from "@/hooks/useProductProtection";
 import { ProductRelationDialog } from "@/components/ProductRelationDialog";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { ProductImageGallery, ProductImage } from "@/components/ProductImageGallery";
+import { ProductImageViewer } from "@/components/ProductImageViewer";
+import { ProductImageUploader } from "@/components/ProductImageUploader";
 
 interface ProductVariant {
   variant_id: string;
@@ -107,6 +110,16 @@ const ProductDashboard = () => {
   const [showProductHistory, setShowProductHistory] = useState(false);
   const [selectedProductForHistory, setSelectedProductForHistory] = useState<{id: string; name: string} | null>(null);
   const [showMrp, setShowMrp] = useState(false);
+
+  // Product image gallery states
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [imageUploaderOpen, setImageUploaderOpen] = useState(false);
+  const [selectedProductImages, setSelectedProductImages] = useState<{
+    productId: string;
+    productName: string;
+    images: ProductImage[];
+  }>({ productId: "", productName: "", images: [] });
+  const [galleryRefreshKey, setGalleryRefreshKey] = useState(0);
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -257,6 +270,23 @@ const ProductDashboard = () => {
     if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
     pageContextMenu.openMenu(e, undefined);
   };
+
+  // Handle image gallery click to open viewer
+  const handleImageClick = useCallback((images: ProductImage[], productId: string, productName: string) => {
+    setSelectedProductImages({ productId, productName, images });
+    setImageViewerOpen(true);
+  }, []);
+
+  // Handle add image click to open uploader
+  const handleAddImageClick = useCallback((productId: string, productName: string, existingImages: ProductImage[]) => {
+    setSelectedProductImages({ productId, productName, images: existingImages });
+    setImageUploaderOpen(true);
+  }, []);
+
+  // Handle images updated - refresh gallery
+  const handleImagesUpdated = useCallback(() => {
+    setGalleryRefreshKey(prev => prev + 1);
+  }, []);
 
   const defaultColumnSettings = {
     image: true,
@@ -1274,23 +1304,21 @@ const ProductDashboard = () => {
                             {startIndex + index + 1}
                           </TableCell>
                           {columnVisibility.image && (
-                          <TableCell>
-                            <Avatar className="h-12 w-12 rounded">
-                              <AvatarImage
-                                src={row.image_url}
-                                alt={row.product_name}
-                                className="object-cover"
-                              />
-                              <AvatarFallback className="rounded bg-muted">
-                                <Package className="h-5 w-5 text-muted-foreground" />
-                              </AvatarFallback>
-                            </Avatar>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <ProductImageGallery
+                              key={`${row.product_id}-${galleryRefreshKey}`}
+                              productId={row.product_id}
+                              productName={row.product_name}
+                              fallbackImageUrl={row.image_url}
+                              onImageClick={handleImageClick}
+                              onAddClick={handleAddImageClick}
+                            />
                           </TableCell>
                           )}
                           {columnVisibility.productName && (
                             <TableCell className="font-medium">
                               <span 
-                                className="cursor-pointer text-blue-600 hover:underline"
+                                className="cursor-pointer text-primary hover:underline"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setSelectedProductForHistory({ id: row.product_id, name: row.product_name });
@@ -1550,6 +1578,24 @@ const ProductDashboard = () => {
           />
         </>
       )}
+
+      {/* Product Image Viewer */}
+      <ProductImageViewer
+        open={imageViewerOpen}
+        onOpenChange={setImageViewerOpen}
+        images={selectedProductImages.images}
+        productName={selectedProductImages.productName}
+      />
+
+      {/* Product Image Uploader */}
+      <ProductImageUploader
+        open={imageUploaderOpen}
+        onOpenChange={setImageUploaderOpen}
+        productId={selectedProductImages.productId}
+        productName={selectedProductImages.productName}
+        existingImages={selectedProductImages.images}
+        onImagesUpdated={handleImagesUpdated}
+      />
     </div>
   );
 };
