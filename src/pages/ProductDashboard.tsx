@@ -807,20 +807,20 @@ const ProductDashboard = () => {
     );
   }
 
-  // Calculate totals
-  const totalStockQty = productRows.reduce((sum, product) => 
+  // Calculate totals from filtered products
+  const totalStockQty = filteredRows.reduce((sum, product) => 
     sum + product.variants.reduce((vSum, variant) => vSum + variant.stock_qty, 0), 0
   );
   
-  const totalItems = productRows.reduce((sum, product) => sum + product.variants.length, 0);
+  const totalItems = filteredRows.reduce((sum, product) => sum + product.variants.length, 0);
   
-  const totalPurchaseValue = productRows.reduce((sum, product) => 
+  const totalPurchaseValue = filteredRows.reduce((sum, product) => 
     sum + product.variants.reduce((vSum, variant) => 
       vSum + (variant.stock_qty * variant.pur_price), 0
     ), 0
   );
   
-  const totalSaleValue = productRows.reduce((sum, product) => 
+  const totalSaleValue = filteredRows.reduce((sum, product) => 
     sum + product.variants.reduce((vSum, variant) => 
       vSum + (variant.stock_qty * variant.sale_price), 0
     ), 0
