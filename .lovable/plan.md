@@ -1,79 +1,90 @@
 
+## Field Sales Size Grid - Show All Colors at Once
 
-## Label Print Position Issue - Analysis & Fix
+### Problem
+The current Field Sales order entry requires selecting one color at a time to enter size quantities. This is slower for salesmen who need to quickly enter quantities across all colors in a single view.
 
-### Problem Identified
-
-The printed label shows content at the **bottom** of the 50×38mm label with large empty space at the **top**. This is opposite to what the visual label designer shows.
-
-### Root Cause
-
-The TSPL generator uses `DIRECTION 1` which inverts the coordinate system:
-
-| DIRECTION | Origin Position | Effect |
-|-----------|-----------------|--------|
-| 0 | Top-left corner | Y=0 is at top, content prints as designed |
-| 1 | Bottom-right corner | Y=0 is at bottom, effectively flips the layout |
-
-Your template has fields positioned from the top (brand at y=1.35mm, productName at y=9.97mm), but `DIRECTION 1` interprets these as positions from the bottom, causing the empty space at the top.
-
----
+### Screenshot Reference
+- **Desired (Old Style)**: All colors (MR, RED, BLUE, BK) visible with size input boxes for each color shown simultaneously
+- **Current (New Style)**: Shows "Select Color" first, requiring individual color selection
 
 ### Solution
-
-Change the TSPL `DIRECTION` command from `1` to `0` so the printer coordinate system matches the visual designer:
-
-**File**: `src/utils/tsplGenerator.ts`
-
-**Line 189 - Current code:**
-```typescript
-commands.push('DIRECTION 1');
-```
-
-**Fixed code:**
-```typescript
-commands.push('DIRECTION 0');
-```
-
-This single change will make the printed output match the visual designer exactly.
+Update the `SalesmanSizeGridDialog` component to display all colors with their size grids simultaneously, similar to how the desktop `SizeGridDialog` works with `allowMultiColor=true`.
 
 ---
 
-### Technical Details
+### Technical Changes
 
-The visual label designer in BarTenderLabelDesigner uses a standard web coordinate system:
-- Origin (0,0) at **top-left**
-- Y increases downward
+**File: `src/components/SalesmanSizeGridDialog.tsx`**
 
-TSPL `DIRECTION 0` uses the same coordinate system:
-- Origin at **top-left** relative to feed direction
-- Y increases toward bottom of label
+1. **Add Multi-Color State Management**
+   - Add state for tracking quantities per color: `multiColorQty` 
+   - Add state for custom sizes per color: `multiColorCustomSizes`
+   - Add state for active custom size color: `activeCustomSizeColor`
 
-TSPL `DIRECTION 1` inverts this:
-- Origin at **bottom-right**
-- Content appears "upside down" relative to designer positions
+2. **Replace Color Selection UI with Multi-Color Grid**
+   - Remove the "Select Color" step for multi-color products
+   - Show all colors in a vertical layout with:
+     - Color badge and running quantity total
+     - Size input boxes for each color's variants
+     - "Add Size" button per color for custom sizes
+   - Add "Add Colour" button at bottom for adding new colors
 
----
+3. **Update Confirm Logic**
+   - Collect items from all colors at once
+   - Build combined items array from `multiColorQty` state
 
-### Additional Consideration
+4. **Reset Logic Update**
+   - Initialize multi-color states on dialog open
+   - Clear all color quantities on close
 
-The same fix should be applied to the legacy `generateTSPLLabel` function (line 335) to maintain consistency across both template-based and legacy label generation.
+### User Experience Changes
 
-**Line 335 - Also needs updating:**
-```typescript
-commands.push('DIRECTION 0');
+| Before | After |
+|--------|-------|
+| Select color first | See all colors at once |
+| Enter quantities for one color | Enter quantities for any/all colors |
+| Must go back to add another color | Submit everything in one go |
+| ~3 taps per color to start entry | ~1 tap per size to enter quantity |
+
+### Layout Structure
+
+```text
++-------------------------------------------+
+| Enter Size-wise Quantity              [X] |
+| PUL61                        + Add Colour |
++-------------------------------------------+
+| [MR]                             Qty: 0   |
+|   5    6    3    9    7    8    4         |
+|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
+|  + Add Size                               |
++-------------------------------------------+
+| [RED]                            Qty: 0   |
+|   3    6    9    7    5    4    8         |
+|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
+|  + Add Size                               |
++-------------------------------------------+
+| [BLUE]                           Qty: 0   |
+|   3    9    8    7    5    4    6         |
+|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
+|  + Add Size                               |
++-------------------------------------------+
+| [BK]                             Qty: 0   |
+|   9    8    6    7    4    5    3         |
+|  [_]  [_]  [_]  [_]  [_]  [_]  [_]       |
+|  + Add Size                               |
++-------------------------------------------+
+|              + Add Colour                 |
++-------------------------------------------+
+| Total Quantity (All Colors):          0   |
++-------------------------------------------+
+|              [Cancel]     [Confirm]       |
++-------------------------------------------+
 ```
 
----
-
-### Expected Result After Fix
-
-| Field | Designer Y Position | Printed Position |
-|-------|---------------------|------------------|
-| Brand | 1.35mm from top | Near top edge |
-| Product Name | 9.97mm from top | Below brand |
-| Size | 16.03mm from top | Middle area |
-| Price | 15.85mm from top | Middle area |
-| Barcode | 22.39mm from top | Lower section |
-| Barcode Text | 30.55mm from top | Near bottom |
-
+### Implementation Notes
+- Size order will respect the product's size group ordering
+- Stock quantities shown below each size (when `showStock=true`)
+- Custom sizes can be added per-color with the "+ Add Size" button
+- New colors added via "+ Add Colour" get empty variant slots
+- Focus automatically moves to first input on open
