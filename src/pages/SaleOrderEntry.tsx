@@ -778,26 +778,29 @@ export default function SaleOrderEntry() {
 
   const handleCreateCustomer = async (values: z.infer<typeof customerSchema>) => {
     try {
-      const customerName = values.customer_name?.trim() || values.phone;
-      const { data, error } = await supabase
-        .from('customers')
-        .insert([{
-          customer_name: customerName,
-          phone: values.phone,
-          email: values.email || null,
-          address: values.address || null,
-          gst_number: values.gst_number || null,
-          organization_id: currentOrganization?.id,
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-      toast({ title: "Customer Created", description: `${customerName} has been added` });
-      setSelectedCustomerId(data.id);
-      setSelectedCustomer(data);
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      
+      const { createOrGetCustomer } = await import("@/utils/customerUtils");
+      
+      const result = await createOrGetCustomer({
+        customer_name: values.customer_name,
+        phone: values.phone,
+        email: values.email,
+        address: values.address,
+        gst_number: values.gst_number,
+        organization_id: currentOrganization.id,
+      });
+      
+      setSelectedCustomerId(result.customer.id);
+      setSelectedCustomer(result.customer);
       customerForm.reset();
       setOpenCustomerDialog(false);
+      
+      if (result.isExisting) {
+        toast({ title: "Customer Found", description: `${result.customer.customer_name} already exists and has been selected` });
+      } else {
+        toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
+      }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }
