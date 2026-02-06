@@ -1,162 +1,323 @@
 
-# Plan: Fix Customer Duplicate Prevention Across All Entry Points
 
-## Problem Identified
-The screenshot shows two customers with the same phone number:
-- `Anil Thomas` with phone `919819082836` (with country code)
-- `Anil Thomas` with phone `9819082836` (without country code)
+# Plan: Safe Customer Duplicate Merge for SM Hair Replacement
 
-These are **the same phone number** but were allowed to be created because duplicate prevention is inconsistent across the application.
+## Summary
 
-## Root Cause Analysis
-| Entry Point | Has Duplicate Check? | Uses Normalized Phone? |
-|-------------|---------------------|------------------------|
-| CustomerMaster.tsx (Manual) | Yes | Yes (normalizePhoneNumber) |
-| CustomerMaster.tsx (Excel Import) | Yes | Yes |
-| POSSales.tsx | Yes | **No** (exact match) |
-| SalesInvoice.tsx | Yes | **No** (exact match) |
-| DeliveryChallanEntry.tsx | **No** | N/A |
-| QuotationEntry.tsx | **No** | N/A |
-| SaleOrderEntry.tsx | **No** | N/A |
-| QuickAddCustomerDialog.tsx (Mobile) | **No** | N/A |
+This plan provides SQL queries to safely merge 122 duplicate customer groups (246 records) in the SM Hair Replacement organization, preserving all sales history and linked records.
 
-## Solution
+## Duplicate Analysis
 
-### Part 1: Create Reusable Customer Creation Utility
-Create a shared utility function that handles customer creation with proper duplicate prevention using normalized phone matching.
+| Metric | Count |
+|--------|-------|
+| Duplicate phone groups | 122 |
+| Total duplicate records | 246 |
+| Sales affected | 353 |
+| Legacy invoices | 8,073 |
+| Customer product prices | 436 |
 
-**New file: `src/utils/customerUtils.ts`**
-- `createOrGetCustomer()` - Checks for existing customer by normalized phone, returns existing or creates new
-- Centralizes the duplicate check logic
-- Uses `normalizePhoneNumber()` from excelImportUtils
+## Tables with Customer References
 
-### Part 2: Update All Customer Creation Points
-
-**Files to modify:**
-1. **POSSales.tsx** - Replace exact match with normalized check
-2. **SalesInvoice.tsx** - Replace exact match with normalized check  
-3. **DeliveryChallanEntry.tsx** - Add duplicate check using normalized phone
-4. **QuotationEntry.tsx** - Add duplicate check using normalized phone
-5. **SaleOrderEntry.tsx** - Add duplicate check using normalized phone
-6. **QuickAddCustomerDialog.tsx** - Add duplicate check using normalized phone
-
-### Part 3: Store Normalized Phone in Database
-Ensure all customer creation stores the **normalized** phone number (last 10 digits) instead of the raw input. This ensures consistency:
-- `919819082836` → `9819082836`
-- `9819082836` → `9819082836`
-- `+91-9819082836` → `9819082836`
-
-### Part 4: Data Cleanup (Optional Query)
-Provide a query to identify and merge existing duplicate customers that slipped through.
+| Table | Has Foreign Key | Records |
+|-------|-----------------|---------|
+| sales | Yes | 1,751 |
+| legacy_invoices | Yes | 8,073 |
+| customer_product_prices | Yes | 436 |
+| sale_orders | Yes | 0 |
+| quotations | Yes | 0 |
+| sale_returns | Yes | 0 |
+| delivery_challans | Yes | 0 |
+| credit_notes | Yes | 0 |
+| customer_advances | Yes | 0 |
+| customer_points_history | Yes | 0 |
+| customer_brand_discounts | Yes | 0 |
+| payment_links | Yes | 0 |
+| gift_redemptions | Yes | 0 |
 
 ---
 
-## Technical Implementation Details
+## Safe Merge Queries
 
-### Step 1: Create Customer Utility (`src/utils/customerUtils.ts`)
-```typescript
-import { supabase } from "@/integrations/supabase/client";
-import { normalizePhoneNumber } from "./excelImportUtils";
+### Step 1: Preview Duplicate Groups (Read-Only)
 
-export interface CreateCustomerParams {
-  customer_name?: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  gst_number?: string;
-  organization_id: string;
-  opening_balance?: number;
-  discount_percent?: number;
-}
+This query shows all duplicate groups with their sales counts to help identify which customer to keep as the "primary":
 
-export interface CreateCustomerResult {
-  customer: Customer;
-  isExisting: boolean;
-}
-
-export async function createOrGetCustomer(params: CreateCustomerParams): Promise<CreateCustomerResult> {
-  const normalizedPhone = normalizePhoneNumber(params.phone);
-  
-  if (!normalizedPhone) {
-    throw new Error("Valid phone number is required");
-  }
-  
-  // Fetch all customers and check with normalized phone
-  const { data: existingCustomers, error: checkError } = await supabase
-    .from("customers")
-    .select("*")
-    .eq("organization_id", params.organization_id)
-    .is("deleted_at", null);
-  
-  if (checkError) throw checkError;
-  
-  // Find duplicate by normalized phone
-  const existing = existingCustomers?.find(c => 
-    normalizePhoneNumber(c.phone) === normalizedPhone
-  );
-  
-  if (existing) {
-    return { customer: existing, isExisting: true };
-  }
-  
-  // Create new customer with NORMALIZED phone
-  const customerData = {
-    customer_name: params.customer_name?.trim() || normalizedPhone,
-    phone: normalizedPhone, // Store normalized
-    email: params.email || null,
-    address: params.address || null,
-    gst_number: params.gst_number || null,
-    opening_balance: params.opening_balance || 0,
-    discount_percent: params.discount_percent || 0,
-    organization_id: params.organization_id,
-  };
-  
-  const { data: newCustomer, error } = await supabase
-    .from("customers")
-    .insert([customerData])
-    .select()
-    .single();
-    
-  if (error) throw error;
-  
-  return { customer: newCustomer, isExisting: false };
-}
+```sql
+-- Preview duplicates before merging
+WITH normalized AS (
+  SELECT 
+    id,
+    customer_name,
+    phone,
+    RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) as normalized_phone,
+    created_at,
+    opening_balance
+  FROM customers
+  WHERE organization_id = 'ceb7f3dd-3619-4718-a8c1-43a02252e5b9'
+    AND deleted_at IS NULL
+    AND phone IS NOT NULL
+    AND LENGTH(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g')) >= 10
+),
+duplicates AS (
+  SELECT normalized_phone, COUNT(*) as cnt
+  FROM normalized
+  GROUP BY normalized_phone
+  HAVING COUNT(*) > 1
+)
+SELECT 
+  n.normalized_phone,
+  n.id,
+  n.customer_name,
+  n.phone,
+  n.created_at,
+  COALESCE(n.opening_balance, 0) as opening_balance,
+  (SELECT COUNT(*) FROM sales s WHERE s.customer_id = n.id AND s.deleted_at IS NULL) as sales_count,
+  (SELECT COUNT(*) FROM legacy_invoices li WHERE li.customer_id = n.id) as legacy_count
+FROM normalized n
+JOIN duplicates d ON n.normalized_phone = d.normalized_phone
+ORDER BY n.normalized_phone, sales_count DESC, n.created_at
 ```
 
-### Step 2: Update POSSales.tsx (lines ~2180-2206)
-Replace the existing `createCustomer` mutation to use the utility and normalize phone.
+### Step 2: Create Primary Customer Mapping Table
 
-### Step 3: Update SalesInvoice.tsx (lines ~1188-1246)
-Replace `handleCreateCustomer` to use normalized phone matching.
+Creates a temporary mapping that identifies the "primary" customer for each duplicate group (the one with most sales, or oldest if tied):
 
-### Step 4: Update DeliveryChallanEntry.tsx (lines ~488-512)
-Add duplicate check before insert using normalized phone.
+```sql
+-- Create a mapping of duplicate -> primary customer
+CREATE TEMP TABLE customer_merge_map AS
+WITH normalized AS (
+  SELECT 
+    id,
+    customer_name,
+    phone,
+    opening_balance,
+    RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) as normalized_phone,
+    created_at
+  FROM customers
+  WHERE organization_id = 'ceb7f3dd-3619-4718-a8c1-43a02252e5b9'
+    AND deleted_at IS NULL
+    AND phone IS NOT NULL
+    AND LENGTH(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g')) >= 10
+),
+ranked AS (
+  SELECT 
+    n.*,
+    (SELECT COUNT(*) FROM sales s WHERE s.customer_id = n.id AND s.deleted_at IS NULL) as sales_count,
+    ROW_NUMBER() OVER (
+      PARTITION BY n.normalized_phone 
+      ORDER BY 
+        (SELECT COUNT(*) FROM sales s WHERE s.customer_id = n.id AND s.deleted_at IS NULL) DESC,
+        n.created_at ASC
+    ) as rn
+  FROM normalized n
+),
+primaries AS (
+  SELECT id as primary_id, normalized_phone
+  FROM ranked WHERE rn = 1
+)
+SELECT 
+  r.id as duplicate_id,
+  p.primary_id,
+  r.normalized_phone,
+  r.customer_name as duplicate_name,
+  (SELECT customer_name FROM customers WHERE id = p.primary_id) as primary_name,
+  r.sales_count
+FROM ranked r
+JOIN primaries p ON r.normalized_phone = p.normalized_phone
+WHERE r.id != p.primary_id;
+```
 
-### Step 5: Update QuotationEntry.tsx (lines ~634-658)
-Add duplicate check before insert using normalized phone.
+### Step 3: Reassign All Linked Records
 
-### Step 6: Update SaleOrderEntry.tsx (lines ~779-804)
-Add duplicate check before insert using normalized phone.
+These UPDATE statements move all records from duplicate customers to their primary:
 
-### Step 7: Update QuickAddCustomerDialog.tsx (lines ~51-103)
-Add duplicate check before insert using normalized phone.
+```sql
+-- 3a. Reassign sales
+UPDATE sales s
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE s.customer_id = m.duplicate_id;
+
+-- 3b. Reassign legacy_invoices
+UPDATE legacy_invoices li
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE li.customer_id = m.duplicate_id;
+
+-- 3c. Reassign customer_product_prices (merge or update)
+-- First, delete duplicates that would conflict
+DELETE FROM customer_product_prices cpp
+WHERE EXISTS (
+  SELECT 1 FROM customer_merge_map m
+  WHERE cpp.customer_id = m.duplicate_id
+    AND EXISTS (
+      SELECT 1 FROM customer_product_prices cpp2
+      WHERE cpp2.customer_id = m.primary_id
+        AND cpp2.variant_id = cpp.variant_id
+    )
+);
+
+-- Then update remaining
+UPDATE customer_product_prices cpp
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE cpp.customer_id = m.duplicate_id;
+
+-- 3d. Reassign sale_orders (if any)
+UPDATE sale_orders so
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE so.customer_id = m.duplicate_id;
+
+-- 3e. Reassign quotations (if any)
+UPDATE quotations q
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE q.customer_id = m.duplicate_id;
+
+-- 3f. Reassign sale_returns (if any)
+UPDATE sale_returns sr
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE sr.customer_id = m.duplicate_id;
+
+-- 3g. Reassign delivery_challans (if any)
+UPDATE delivery_challans dc
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE dc.customer_id = m.duplicate_id;
+
+-- 3h. Reassign credit_notes (if any)
+UPDATE credit_notes cn
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE cn.customer_id = m.duplicate_id;
+
+-- 3i. Reassign customer_advances (if any)
+UPDATE customer_advances ca
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE ca.customer_id = m.duplicate_id;
+
+-- 3j. Reassign customer_points_history (if any)
+UPDATE customer_points_history cph
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE cph.customer_id = m.duplicate_id;
+
+-- 3k. Reassign customer_brand_discounts (delete conflicting first)
+DELETE FROM customer_brand_discounts cbd
+WHERE EXISTS (
+  SELECT 1 FROM customer_merge_map m
+  WHERE cbd.customer_id = m.duplicate_id
+    AND EXISTS (
+      SELECT 1 FROM customer_brand_discounts cbd2
+      WHERE cbd2.customer_id = m.primary_id
+        AND cbd2.brand = cbd.brand
+    )
+);
+
+UPDATE customer_brand_discounts cbd
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE cbd.customer_id = m.duplicate_id;
+
+-- 3l. Reassign payment_links (if any)
+UPDATE payment_links pl
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE pl.customer_id = m.duplicate_id;
+
+-- 3m. Reassign gift_redemptions (if any)
+UPDATE gift_redemptions gr
+SET customer_id = m.primary_id
+FROM customer_merge_map m
+WHERE gr.customer_id = m.duplicate_id;
+```
+
+### Step 4: Normalize Primary Customer Phone Numbers
+
+Update the primary customer records to use normalized 10-digit phone format:
+
+```sql
+-- Normalize phone numbers on primary customers
+UPDATE customers c
+SET phone = RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10)
+WHERE organization_id = 'ceb7f3dd-3619-4718-a8c1-43a02252e5b9'
+  AND deleted_at IS NULL
+  AND phone IS NOT NULL
+  AND LENGTH(phone) > 10;
+```
+
+### Step 5: Soft-Delete Duplicate Customers
+
+Mark duplicate customers as deleted (preserves audit trail):
+
+```sql
+-- Soft-delete the duplicate customers
+UPDATE customers c
+SET 
+  deleted_at = NOW(),
+  deleted_by = NULL  -- or a specific admin user ID if available
+FROM customer_merge_map m
+WHERE c.id = m.duplicate_id;
+```
+
+### Step 6: Verification Query
+
+Confirm no duplicates remain:
+
+```sql
+-- Verify no more duplicates
+SELECT 
+  RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) as normalized_phone,
+  COUNT(*) as cnt
+FROM customers
+WHERE organization_id = 'ceb7f3dd-3619-4718-a8c1-43a02252e5b9'
+  AND deleted_at IS NULL
+  AND phone IS NOT NULL
+  AND LENGTH(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g')) >= 10
+GROUP BY 1
+HAVING COUNT(*) > 1;
+-- Should return 0 rows
+```
 
 ---
 
-## Expected Result
-After implementation:
-- All customer creation points will check for duplicates using **normalized phone numbers**
-- Phone numbers will be stored in **consistent format** (10-digit Indian mobile)
-- Users will see "Customer already exists" message instead of creating duplicates
-- The existing duplicate (Anil Thomas) can be manually merged by deleting one record
+## Complete Single-Transaction Script
 
-## Files to Create/Modify
-| File | Action |
-|------|--------|
-| `src/utils/customerUtils.ts` | **Create** - Centralized customer creation utility |
-| `src/pages/POSSales.tsx` | Modify - Use normalized phone check |
-| `src/pages/SalesInvoice.tsx` | Modify - Use normalized phone check |
-| `src/pages/DeliveryChallanEntry.tsx` | Modify - Add duplicate check |
-| `src/pages/QuotationEntry.tsx` | Modify - Add duplicate check |
-| `src/pages/SaleOrderEntry.tsx` | Modify - Add duplicate check |
-| `src/components/mobile/QuickAddCustomerDialog.tsx` | Modify - Add duplicate check |
+For safety, run all steps in a single transaction:
+
+```sql
+BEGIN;
+
+-- Step 2: Create mapping (inline CTE version)
+-- Step 3: All reassignments
+-- Step 4: Normalize phones
+-- Step 5: Soft-delete duplicates
+
+-- If anything fails, ROLLBACK
+-- If successful, COMMIT
+
+COMMIT;
+```
+
+---
+
+## Important Notes
+
+1. **Backup First**: Always take a database backup before running merge operations
+2. **Test Environment**: Run on a test copy first if possible
+3. **Transaction Safety**: All operations should run in a single transaction
+4. **Opening Balance**: The primary customer keeps their opening balance; consider manually merging balances if both duplicates have non-zero values
+5. **Points Balance**: If loyalty points are used, may need additional logic to sum points from duplicates
+
+## Expected Outcome
+
+After running these queries:
+- 122 duplicate customer records will be soft-deleted
+- 353+ sales records will point to the correct primary customer
+- All legacy invoices and product prices will be consolidated
+- Phone numbers will be normalized to 10-digit format
+- Customer ledger and reports will show accurate consolidated history
+
