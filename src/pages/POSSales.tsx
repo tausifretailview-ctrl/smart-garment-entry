@@ -16,9 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins } from "lucide-react";
+import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
-
+import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 
 import { useToast } from "@/hooks/use-toast";
 import { useSaveSale } from "@/hooks/useSaveSale";
@@ -184,7 +184,10 @@ export default function POSSales() {
   const [showStockNotAvailableDialog, setShowStockNotAvailableDialog] = useState(false);
   const [stockNotAvailableMessage, setStockNotAvailableMessage] = useState("");
 
-  // Beep sound feedback
+  // Floating reports state
+  const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
+  const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
+
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
 
   // Cash drawer hook
@@ -2991,6 +2994,44 @@ export default function POSSales() {
                   {currentDateTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             </div>
+
+              {/* Quick Report Buttons */}
+              <TooltipProvider>
+                <div className="flex gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-12 px-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border-0"
+                        onClick={() => setShowFloatingCashierReport(true)}
+                      >
+                        <BarChart3 className="h-4 w-4 mr-1.5" />
+                        <span className="text-xs font-medium">Cashier</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>View Daily Cashier Report</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-12 px-3 bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600 text-white border-0"
+                        onClick={() => setShowFloatingStockReport(true)}
+                      >
+                        <Package className="h-4 w-4 mr-1.5" />
+                        <span className="text-xs font-medium">Stock</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Quick Stock Check</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
           </div>
         </div>
 
@@ -3778,6 +3819,14 @@ export default function POSSales() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Floating Reports */}
+        <FloatingPOSReports
+          showCashierReport={showFloatingCashierReport}
+          onCloseCashierReport={() => setShowFloatingCashierReport(false)}
+          showStockReport={showFloatingStockReport}
+          onCloseStockReport={() => setShowFloatingStockReport(false)}
+        />
 
       </div>
     </div>
