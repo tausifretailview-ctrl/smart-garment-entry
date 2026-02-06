@@ -58,10 +58,14 @@ export function SalesmanSizeGridDialog({
   title = "Enter Size-wise Quantity",
 }: SalesmanSizeGridDialogProps) {
   const { toast } = useToast();
-  const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
-  const [showAddCustom, setShowAddCustom] = useState(false);
+  
+  // Multi-color state: { colorName: { variantId: qtyString } }
+  const [multiColorQty, setMultiColorQty] = useState<{ [color: string]: { [variantId: string]: string } }>({});
+  // Custom sizes per color: { colorName: CustomSizeEntry[] }
+  const [multiColorCustomSizes, setMultiColorCustomSizes] = useState<{ [color: string]: CustomSizeEntry[] }>({});
+  // Which color is currently adding a custom size
+  const [activeCustomSizeColor, setActiveCustomSizeColor] = useState<string | null>(null);
+  
   const [newSize, setNewSize] = useState("");
   const [newQty, setNewQty] = useState("");
   const [newRate, setNewRate] = useState("");
@@ -80,7 +84,6 @@ export function SalesmanSizeGridDialog({
           .single();
         
         if (data?.sizes) {
-          // sizes can be an array of strings or objects with 'size' property
           const sizes = Array.isArray(data.sizes) 
             ? data.sizes.map((s: any) => typeof s === 'string' ? s : s.size || s.name || String(s))
             : [];
@@ -108,62 +111,67 @@ export function SalesmanSizeGridDialog({
   // Check if product has multiple colors
   const hasMultipleColors = uniqueColors.length > 1;
 
-  // Filter and sort variants by selected color and size group order
-  const filteredVariants = useMemo(() => {
-    let filtered = variants;
-    if (hasMultipleColors) {
-      if (!selectedColor) return [];
-      filtered = variants.filter((v) => v.color === selectedColor);
-    }
+  // Get variants grouped by color and sorted by size order
+  const variantsByColor = useMemo(() => {
+    const grouped: { [color: string]: Variant[] } = {};
     
-    // Sort by size group order if available
-    if (sizeOrder.length > 0) {
-      filtered = [...filtered].sort((a, b) => {
-        const aIndex = sizeOrder.indexOf(a.size);
-        const bIndex = sizeOrder.indexOf(b.size);
-        // Put sizes not in order at the end
-        if (aIndex === -1 && bIndex === -1) return 0;
-        if (aIndex === -1) return 1;
-        if (bIndex === -1) return -1;
-        return aIndex - bIndex;
+    // If no colors, use empty string as key
+    if (uniqueColors.length === 0) {
+      grouped[''] = [...variants];
+    } else {
+      uniqueColors.forEach(color => {
+        grouped[color] = variants.filter(v => v.color === color);
       });
     }
     
-    return filtered;
-  }, [variants, selectedColor, hasMultipleColors, sizeOrder]);
+    // Sort each color's variants by size order
+    Object.keys(grouped).forEach(color => {
+      if (sizeOrder.length > 0) {
+        grouped[color] = [...grouped[color]].sort((a, b) => {
+          const aIndex = sizeOrder.indexOf(a.size);
+          const bIndex = sizeOrder.indexOf(b.size);
+          if (aIndex === -1 && bIndex === -1) return 0;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
+      }
+    });
+    
+    return grouped;
+  }, [variants, uniqueColors, sizeOrder]);
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
-      setSizeQty({});
-      setSelectedColor(null);
-      setCustomSizes([]);
-      setShowAddCustom(false);
+      setMultiColorQty({});
+      setMultiColorCustomSizes({});
+      setActiveCustomSizeColor(null);
       setNewSize("");
       setNewQty("");
       setNewRate("");
-      if (uniqueColors.length === 1) {
-        setSelectedColor(uniqueColors[0]);
-      }
       setTimeout(() => firstInputRef.current?.focus(), 100);
     }
-  }, [open, product?.id, uniqueColors]);
-
-  // Focus first input when color is selected
-  useEffect(() => {
-    if (selectedColor && filteredVariants.length > 0) {
-      setTimeout(() => firstInputRef.current?.focus(), 100);
-    }
-  }, [selectedColor, filteredVariants.length]);
+  }, [open, product?.id]);
 
   // Focus custom size input when shown
   useEffect(() => {
-    if (showAddCustom) {
+    if (activeCustomSizeColor) {
       setTimeout(() => customSizeInputRef.current?.focus(), 100);
     }
-  }, [showAddCustom]);
+  }, [activeCustomSizeColor]);
 
-  const handleAddCustomSize = () => {
+  const handleQtyChange = (color: string, variantId: string, value: string) => {
+    setMultiColorQty(prev => ({
+      ...prev,
+      [color]: {
+        ...(prev[color] || {}),
+        [variantId]: value
+      }
+    }));
+  };
+
+  const handleAddCustomSize = (color: string) => {
     if (!newSize.trim()) {
       toast({ title: "Error", description: "Please enter a size name", variant: "destructive" });
       return;
@@ -173,11 +181,13 @@ export function SalesmanSizeGridDialog({
       return;
     }
 
-    const rate = Number(newRate) || product?.default_sale_price || filteredVariants[0]?.sale_price || 0;
+    const colorVariants = variantsByColor[color] || [];
+    const rate = Number(newRate) || product?.default_sale_price || colorVariants[0]?.sale_price || 0;
 
-    // Check if size already exists in variants or custom sizes
-    const existsInVariants = filteredVariants.some(v => v.size.toLowerCase() === newSize.trim().toLowerCase());
-    const existsInCustom = customSizes.some(c => c.size.toLowerCase() === newSize.trim().toLowerCase());
+    // Check if size already exists in variants
+    const existsInVariants = colorVariants.some(v => v.size.toLowerCase() === newSize.trim().toLowerCase());
+    const existingCustomSizes = multiColorCustomSizes[color] || [];
+    const existsInCustom = existingCustomSizes.some(c => c.size.toLowerCase() === newSize.trim().toLowerCase());
 
     if (existsInVariants) {
       toast({ title: "Size Exists", description: "This size already exists. Enter quantity in the grid above.", variant: "destructive" });
@@ -186,38 +196,60 @@ export function SalesmanSizeGridDialog({
 
     if (existsInCustom) {
       // Update existing custom size quantity
-      setCustomSizes(prev => prev.map(c =>
-        c.size.toLowerCase() === newSize.trim().toLowerCase()
-          ? { ...c, qty: c.qty + Number(newQty) }
-          : c
-      ));
+      setMultiColorCustomSizes(prev => ({
+        ...prev,
+        [color]: (prev[color] || []).map(c =>
+          c.size.toLowerCase() === newSize.trim().toLowerCase()
+            ? { ...c, qty: c.qty + Number(newQty) }
+            : c
+        )
+      }));
     } else {
       // Add new custom size
-      setCustomSizes(prev => [...prev, {
-        id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        size: newSize.trim(),
-        qty: Number(newQty),
-        rate,
-      }]);
+      setMultiColorCustomSizes(prev => ({
+        ...prev,
+        [color]: [...(prev[color] || []), {
+          id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          size: newSize.trim(),
+          qty: Number(newQty),
+          rate,
+        }]
+      }));
     }
 
     // Reset inputs
     setNewSize("");
     setNewQty("");
     setNewRate("");
-    setShowAddCustom(false);
+    setActiveCustomSizeColor(null);
   };
 
-  const removeCustomSize = (id: string) => {
-    setCustomSizes(prev => prev.filter(c => c.id !== id));
+  const removeCustomSize = (color: string, id: string) => {
+    setMultiColorCustomSizes(prev => ({
+      ...prev,
+      [color]: (prev[color] || []).filter(c => c.id !== id)
+    }));
   };
+
+  // Calculate total qty for a specific color
+  const getColorTotalQty = (color: string) => {
+    const colorQty = multiColorQty[color] || {};
+    const variantTotal = Object.values(colorQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0);
+    const customTotal = (multiColorCustomSizes[color] || []).reduce((sum, c) => sum + c.qty, 0);
+    return variantTotal + customTotal;
+  };
+
+  // Calculate grand total qty across all colors
+  const grandTotalQty = useMemo(() => {
+    let total = 0;
+    Object.keys(variantsByColor).forEach(color => {
+      total += getColorTotalQty(color);
+    });
+    return total;
+  }, [multiColorQty, multiColorCustomSizes, variantsByColor]);
 
   const handleConfirm = () => {
-    const entries = Object.entries(sizeQty);
-    const hasExistingQty = entries.some(([_, qty]) => Number(qty) > 0);
-    const hasCustomQty = customSizes.length > 0;
-
-    if (!hasExistingQty && !hasCustomQty) {
+    if (grandTotalQty === 0) {
       toast({
         title: "No Items",
         description: "Please enter quantities for at least one size",
@@ -226,53 +258,58 @@ export function SalesmanSizeGridDialog({
       return;
     }
 
-    // Validate stock for existing variants if required
-    if (validateStock) {
-      for (const [sizeKey, qtyStr] of entries) {
+    const items: Array<{ variant: Variant; qty: number }> = [];
+
+    // Collect items from all colors
+    Object.entries(variantsByColor).forEach(([color, colorVariants]) => {
+      const colorQty = multiColorQty[color] || {};
+      
+      // Add existing variant items
+      for (const [variantId, qtyStr] of Object.entries(colorQty)) {
         const qty = Number(qtyStr);
         if (qty > 0) {
-          const variant = filteredVariants.find((v) => v.id === sizeKey) ||
-                         filteredVariants.find((v) => v.size === sizeKey);
-          const stockQty = variant?.stock_qty || 0;
-          if (qty > stockQty) {
-            toast({
-              title: "Insufficient Stock",
-              description: `${product?.product_name} (${variant?.size}): Only ${stockQty} available`,
-              variant: "destructive",
-            });
-            return;
+          const variant = colorVariants.find((v) => v.id === variantId);
+          if (variant) {
+            // Validate stock if required
+            if (validateStock) {
+              const stockQty = variant.stock_qty || 0;
+              if (qty > stockQty) {
+                toast({
+                  title: "Insufficient Stock",
+                  description: `${product?.product_name} (${color ? color + ' - ' : ''}${variant.size}): Only ${stockQty} available`,
+                  variant: "destructive",
+                });
+                return;
+              }
+            }
+            items.push({ variant, qty });
           }
         }
       }
-    }
 
-    // Build items array
-    const items: Array<{ variant: Variant; qty: number }> = [];
-    
-    // Add existing variant items
-    for (const [sizeKey, qtyStr] of entries) {
-      const qty = Number(qtyStr);
-      if (qty > 0) {
-        const variant = filteredVariants.find((v) => v.id === sizeKey) ||
-                       filteredVariants.find((v) => v.size === sizeKey);
-        if (variant) {
-          items.push({ variant, qty });
-        }
+      // Add custom size items for this color
+      const customSizes = multiColorCustomSizes[color] || [];
+      for (const custom of customSizes) {
+        const customVariant: Variant = {
+          id: custom.id,
+          size: custom.size,
+          stock_qty: 0,
+          sale_price: custom.rate,
+          color: color || null,
+          barcode: null,
+          isCustomSize: true,
+        };
+        items.push({ variant: customVariant, qty: custom.qty });
       }
-    }
+    });
 
-    // Add custom size items
-    for (const custom of customSizes) {
-      const customVariant: Variant = {
-        id: custom.id,
-        size: custom.size,
-        stock_qty: 0,
-        sale_price: custom.rate,
-        color: selectedColor || uniqueColors[0] || null,
-        barcode: null,
-        isCustomSize: true,
-      };
-      items.push({ variant: customVariant, qty: custom.qty });
+    if (items.length === 0) {
+      toast({
+        title: "No Items",
+        description: "Please enter quantities for at least one size",
+        variant: "destructive",
+      });
+      return;
     }
 
     onConfirm(items);
@@ -280,23 +317,15 @@ export function SalesmanSizeGridDialog({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && !showAddCustom) {
+    if (e.key === "Enter" && !e.shiftKey && !activeCustomSizeColor) {
       e.preventDefault();
       handleConfirm();
     }
   };
 
-  const handleColorSelect = (color: string) => {
-    setSelectedColor(color);
-    setSizeQty({});
-    setCustomSizes([]);
-  };
-
-  // Calculate total quantity
-  const totalQty = Object.values(sizeQty).reduce((sum, qty) => sum + (Number(qty) || 0), 0) +
-                   customSizes.reduce((sum, c) => sum + c.qty, 0);
-
   if (!product) return null;
+
+  const colorsToShow = Object.keys(variantsByColor);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -305,214 +334,197 @@ export function SalesmanSizeGridDialog({
         onKeyDown={handleKeyDown}
       >
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="flex items-center justify-between">
+            <span>{title}</span>
+          </DialogTitle>
         </DialogHeader>
 
         <div className="mb-4">
           <h3 className="font-semibold text-lg">{product.product_name}</h3>
-          {selectedColor && (
-            <Badge variant="outline" className="mt-1">{selectedColor}</Badge>
-          )}
         </div>
 
-        {/* Color Selection */}
-        {hasMultipleColors && !selectedColor && (
-          <div className="mb-4">
-            <Label className="mb-2 block">Select Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {uniqueColors.map((color) => (
-                <Button
-                  key={color}
-                  variant="outline"
-                  className="min-w-[80px]"
-                  onClick={() => handleColorSelect(color)}
-                >
-                  {color}
-                </Button>
-              ))}
+        {/* All Colors Grid */}
+        <div className="space-y-4">
+          {colorsToShow.map((color, colorIndex) => {
+            const colorVariants = variantsByColor[color] || [];
+            const colorQty = multiColorQty[color] || {};
+            const colorCustomSizes = multiColorCustomSizes[color] || [];
+            const colorTotal = getColorTotalQty(color);
+            const isAddingCustomSize = activeCustomSizeColor === color;
+
+            return (
+              <div key={color || 'no-color'} className="border rounded-lg p-3 bg-muted/30">
+                {/* Color Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {color && (
+                      <Badge variant="outline" className="font-medium">
+                        {color}
+                      </Badge>
+                    )}
+                    {!color && hasMultipleColors === false && (
+                      <span className="text-sm text-muted-foreground">Sizes</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium">
+                    Qty: <span className="text-primary">{colorTotal}</span>
+                  </span>
+                </div>
+
+                {/* Size Grid for this color */}
+                {colorVariants.length > 0 && (
+                  <div className="flex gap-3 mb-3 flex-wrap">
+                    {colorVariants.map((v, index) => (
+                      <div key={v.id} className="flex flex-col items-center gap-1">
+                        <span className="text-sm font-medium">{v.size}</span>
+                        <input
+                          ref={colorIndex === 0 && index === 0 ? firstInputRef : undefined}
+                          type="number"
+                          min="0"
+                          className="w-16 text-center border rounded p-2 bg-background"
+                          value={colorQty[v.id] || ""}
+                          onChange={(e) => handleQtyChange(color, v.id, e.target.value)}
+                          placeholder="0"
+                        />
+                        {showStock && (
+                          <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
+                            {v.stock_qty || 0}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Custom Sizes for this color */}
+                {colorCustomSizes.length > 0 && (
+                  <div className="mb-3">
+                    <div className="flex gap-2 flex-wrap">
+                      {colorCustomSizes.map((custom) => (
+                        <div key={custom.id} className="flex flex-col items-center gap-1 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800">
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm font-medium">{custom.size}</span>
+                            <Badge variant="secondary" className="text-xs bg-amber-200 text-amber-800">New</Badge>
+                          </div>
+                          <span className="text-lg font-semibold">{custom.qty}</span>
+                          <span className="text-xs text-muted-foreground">₹{custom.rate}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeCustomSize(color, custom.id)}
+                          >
+                            <X className="h-3 w-3 text-destructive" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Custom Size Section */}
+                {!isAddingCustomSize ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-primary hover:bg-primary/10"
+                    onClick={() => setActiveCustomSizeColor(color)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Size
+                  </Button>
+                ) : (
+                  <div className="p-2 bg-muted/50 rounded border">
+                    <div className="flex flex-wrap gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Size</Label>
+                        <Input
+                          ref={customSizeInputRef}
+                          placeholder="e.g., 8"
+                          value={newSize}
+                          onChange={(e) => setNewSize(e.target.value)}
+                          className="w-20 h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Qty</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          placeholder="Qty"
+                          value={newQty}
+                          onChange={(e) => setNewQty(e.target.value)}
+                          className="w-16 h-8"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Rate</Label>
+                        <Input
+                          type="number"
+                          placeholder={`₹${colorVariants[0]?.sale_price || 0}`}
+                          value={newRate}
+                          onChange={(e) => setNewRate(e.target.value)}
+                          className="w-20 h-8"
+                        />
+                      </div>
+                      <Button size="sm" className="h-8" onClick={() => handleAddCustomSize(color)}>
+                        Add
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8" onClick={() => {
+                        setActiveCustomSizeColor(null);
+                        setNewSize("");
+                        setNewQty("");
+                        setNewRate("");
+                      }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Price Info (from first variant) */}
+        {variants.length > 0 && variants[0].sale_price && (
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Sale Price</Label>
+              <Input
+                type="number"
+                value={variants[0].sale_price || 0}
+                readOnly
+                className="bg-muted h-8"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">GST %</Label>
+              <Input
+                type="number"
+                value={product.gst_per || 0}
+                readOnly
+                className="bg-muted h-8"
+              />
             </div>
           </div>
         )}
 
-        {/* Size Grid */}
-        {(selectedColor || !hasMultipleColors) && (
-          <>
-            {hasMultipleColors && selectedColor && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="mb-2"
-                onClick={() => {
-                  setSelectedColor(null);
-                  setSizeQty({});
-                  setCustomSizes([]);
-                }}
-              >
-                ← Change Color
-              </Button>
-            )}
+        {/* Grand Total */}
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg mt-4">
+          <span className="font-medium">Total Quantity (All Colors):</span>
+          <span className="text-xl font-bold text-primary">
+            {grandTotalQty}
+          </span>
+        </div>
 
-            {/* Existing Variants Grid */}
-            {filteredVariants.length > 0 && (
-              <div className="flex gap-3 mb-4 flex-wrap">
-                {filteredVariants.map((v, index) => (
-                  <div key={v.id} className="flex flex-col items-center gap-1">
-                    <span className="text-sm font-medium">{v.size}</span>
-                    <input
-                      ref={index === 0 ? firstInputRef : undefined}
-                      type="number"
-                      min="0"
-                      className="w-16 text-center border rounded p-2 bg-background"
-                      value={sizeQty[v.id] || ""}
-                      onChange={(e) =>
-                        setSizeQty({ ...sizeQty, [v.id]: e.target.value })
-                      }
-                      placeholder="0"
-                    />
-                    {showStock && (
-                      <span className={`text-xs ${(v.stock_qty || 0) > 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        Stock: {v.stock_qty || 0}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Custom Sizes List */}
-            {customSizes.length > 0 && (
-              <div className="mb-4">
-                <Label className="mb-2 block text-sm font-medium">Custom Sizes (New)</Label>
-                <div className="flex gap-3 flex-wrap">
-                  {customSizes.map((custom) => (
-                    <div key={custom.id} className="flex flex-col items-center gap-1 bg-amber-50 dark:bg-amber-900/20 p-2 rounded border border-amber-200 dark:border-amber-800">
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm font-medium">{custom.size}</span>
-                        <Badge variant="secondary" className="text-xs bg-amber-200 text-amber-800">New</Badge>
-                      </div>
-                      <span className="text-lg font-semibold">{custom.qty}</span>
-                      <span className="text-xs text-muted-foreground">₹{custom.rate}</span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => removeCustomSize(custom.id)}
-                      >
-                        <X className="h-3 w-3 text-destructive" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Add Custom Size Section */}
-            {!showAddCustom ? (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mb-4 border-dashed border-primary text-primary hover:bg-primary/10"
-                onClick={() => setShowAddCustom(true)}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                Add New Size (Not in Stock)
-              </Button>
-            ) : (
-              <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
-                <Label className="mb-2 block text-sm font-medium">Add Custom Size</Label>
-                <div className="flex flex-wrap gap-2 items-end">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Size Name</Label>
-                    <Input
-                      ref={customSizeInputRef}
-                      placeholder="e.g., 8, XL, 42"
-                      value={newSize}
-                      onChange={(e) => setNewSize(e.target.value)}
-                      className="w-24"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Quantity</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      placeholder="Qty"
-                      value={newQty}
-                      onChange={(e) => setNewQty(e.target.value)}
-                      className="w-20"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Rate (Optional)</Label>
-                    <Input
-                      type="number"
-                      placeholder={`₹${filteredVariants[0]?.sale_price || 0}`}
-                      value={newRate}
-                      onChange={(e) => setNewRate(e.target.value)}
-                      className="w-24"
-                    />
-                  </div>
-                  <Button size="sm" onClick={handleAddCustomSize}>
-                    Add
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => {
-                    setShowAddCustom(false);
-                    setNewSize("");
-                    setNewQty("");
-                    setNewRate("");
-                  }}>
-                    Cancel
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  💡 Use this for sizes not currently in stock. The size will be marked for procurement.
-                </p>
-              </div>
-            )}
-
-            {/* Price Info */}
-            {filteredVariants.length > 0 && filteredVariants[0].sale_price && (
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="space-y-2">
-                  <Label>Sale Price</Label>
-                  <Input
-                    type="number"
-                    value={filteredVariants[0].sale_price || 0}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>GST %</Label>
-                  <Input
-                    type="number"
-                    value={product.gst_per || 0}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Total Quantity Summary */}
-            <div className="flex items-center justify-between p-3 bg-muted rounded-lg mb-4">
-              <span className="font-medium">Total Quantity:</span>
-              <span className="text-xl font-bold text-primary">
-                {totalQty}
-              </span>
-            </div>
-          </>
-        )}
-
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
-          {(selectedColor || !hasMultipleColors) && (
-            <Button onClick={handleConfirm}>
-              Confirm (Enter)
-            </Button>
-          )}
+          <Button onClick={handleConfirm}>
+            Confirm (Enter)
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
