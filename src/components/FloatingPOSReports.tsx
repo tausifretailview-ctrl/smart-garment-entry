@@ -300,11 +300,11 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
   const { currentOrganization } = useOrganization();
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch stock data based on search
-  const { data: stockData, isLoading } = useQuery({
-    queryKey: ["floating-stock-report", currentOrganization?.id, searchQuery],
+  // Fetch all products for dropdown suggestions (limit for performance)
+  const { data: allProducts, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ["floating-stock-products", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id || searchQuery.length < 2) return [];
+      if (!currentOrganization?.id) return [];
 
       const { data, error } = await supabase
         .from("product_variants")
@@ -320,19 +320,39 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
             product_name,
             brand,
             color,
-            category
+            category,
+            deleted_at
           )
         `)
         .eq("products.organization_id", currentOrganization.id)
-        .or(`barcode.ilike.%${searchQuery}%,products.product_name.ilike.%${searchQuery}%,products.brand.ilike.%${searchQuery}%`)
+        .is("products.deleted_at", null)
+        .is("deleted_at", null)
         .order("stock_qty", { ascending: false })
-        .limit(50);
+        .limit(500);
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!currentOrganization?.id && open && searchQuery.length >= 2,
+    enabled: !!currentOrganization?.id && open,
   });
+
+  // Client-side filtering for search (handles multi-term and cross-table filtering)
+  const stockData = searchQuery.length >= 1
+    ? (allProducts || []).filter((item: any) => {
+        const searchTerms = searchQuery.toLowerCase().split(/[\s-]+/).filter(Boolean);
+        const productName = (item.product?.product_name || '').toLowerCase();
+        const brand = (item.product?.brand || '').toLowerCase();
+        const color = (item.product?.color || '').toLowerCase();
+        const category = (item.product?.category || '').toLowerCase();
+        const barcode = (item.barcode || '').toLowerCase();
+        const size = (item.size || '').toLowerCase();
+        
+        const combinedText = `${productName} ${brand} ${color} ${category} ${barcode} ${size}`;
+        
+        // All search terms must match
+        return searchTerms.every(term => combinedText.includes(term));
+      }).slice(0, 50)
+    : [];
 
   // Total stock value
   const totalStockValue = stockData?.reduce((sum, item) => {
@@ -355,7 +375,7 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by product name, barcode, or brand..."
+            placeholder="Search by barcode, product name, brand, size..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
@@ -373,12 +393,12 @@ function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChan
           )}
         </div>
 
-        {searchQuery.length < 2 ? (
+        {isLoadingProducts ? (
+          <div className="text-center py-8">Loading products...</div>
+        ) : searchQuery.length < 1 ? (
           <div className="text-center py-8 text-muted-foreground">
-            Type at least 2 characters to search...
+            Start typing to search products...
           </div>
-        ) : isLoading ? (
-          <div className="text-center py-8">Loading...</div>
         ) : stockData && stockData.length > 0 ? (
           <>
             {/* Summary */}
