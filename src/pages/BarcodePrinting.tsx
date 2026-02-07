@@ -35,11 +35,30 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
+import { useBarcodeLabelSettings, SizeSortOrder } from "@/hooks/useBarcodeLabelSettings";
 import { BarTenderLabelDesigner } from "@/components/BarTenderLabelDesigner";
 import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
+
+// Utility function to sort items by size (for footwear/apparel workflows)
+const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
+  if (order === 'none') return items;
+  
+  return [...items].sort((a, b) => {
+    // Parse size as number, handling common formats like "35", "6.5", "S/M/L", etc.
+    const parseSize = (size: string): number => {
+      if (!size) return 0;
+      // Try to extract numeric portion
+      const match = size.match(/[\d.]+/);
+      return match ? parseFloat(match[0]) : 0;
+    };
+    
+    const sizeA = parseSize(a.size);
+    const sizeB = parseSize(b.size);
+    return order === 'descending' ? sizeB - sizeA : sizeA - sizeB;
+  });
+};
 
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
@@ -1012,6 +1031,7 @@ export default function BarcodePrinting() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
   const [quantityMode, setQuantityMode] = useState<QuantityMode>("manual");
+  const [sizeSortOrder, setSizeSortOrder] = useState<SizeSortOrder>("none");
   const [billNumber, setBillNumber] = useState("");
   const [recentBills, setRecentBills] = useState<RecentBill[]>([]);
   const [sheetType, setSheetType] = useState<SheetType>("novajet48");
@@ -1238,6 +1258,10 @@ export default function BarcodePrinting() {
       if (defaultFormat.customPresetName && defaultFormat.sheetType === "custom") {
         setSelectedPreset(defaultFormat.customPresetName);
       }
+      // Load size sort order preference
+      if (defaultFormat.sizeSortOrder) {
+        setSizeSortOrder(defaultFormat.sizeSortOrder);
+      }
     }
   }, [isLoadingSettings, dbLabelTemplates, dbMarginPresets, dbCustomPresets, dbDefaultFormat]);
 
@@ -1359,6 +1383,7 @@ export default function BarcodePrinting() {
         };
       });
       
+      // Apply size sorting based on user preference (note: sizeSortOrder from DB may not be loaded yet)
       setLabelItems(items);
       
       // Auto-enable purchase code visibility when items have purchase prices
@@ -1373,6 +1398,13 @@ export default function BarcodePrinting() {
       toast.success(`Loaded ${items.length} items from purchase bill`);
     }
   }, [location.state, purchaseCodeAlphabet]);
+
+  // Re-sort items when size sort order changes
+  useEffect(() => {
+    if (labelItems.length > 0 && sizeSortOrder !== 'none') {
+      setLabelItems(prev => sortItemsBySize(prev, sizeSortOrder));
+    }
+  }, [sizeSortOrder]);
 
   const genEAN8 = () => {
     const seven = Array.from({ length: 7 }, () => Math.floor(Math.random() * 10));
@@ -1807,7 +1839,9 @@ export default function BarcodePrinting() {
         return;
       }
 
-      setLabelItems(loadedItems);
+      // Apply size sorting based on user preference
+      const sortedItems = sortItemsBySize(loadedItems, sizeSortOrder);
+      setLabelItems(sortedItems);
       toast.success(`Loaded ${loadedItems.length} items from bill ${billData.supplier_invoice_no || billData.id}`);
     } catch (error: any) {
       console.error(error);
@@ -2283,6 +2317,7 @@ export default function BarcodePrinting() {
       bottomOffset,
       rightOffset,
       printScale,
+      sizeSortOrder,
       customPresetName: sheetType === "custom" && selectedPreset ? selectedPreset : undefined,
       customDimensions: sheetType === "custom" ? {
         width: customWidth,
@@ -3162,6 +3197,24 @@ export default function BarcodePrinting() {
               <Label htmlFor="byBill">Auto: By Bill No</Label>
             </div>
           </RadioGroup>
+        </div>
+
+        {/* Size Sort Order - useful for footwear/apparel */}
+        <div className="space-y-2">
+          <Label>Size Order</Label>
+          <Select value={sizeSortOrder} onValueChange={(v) => setSizeSortOrder(v as SizeSortOrder)}>
+            <SelectTrigger className="w-full bg-background">
+              <SelectValue placeholder="Select sort order" />
+            </SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="none">None (Original)</SelectItem>
+              <SelectItem value="ascending">Ascending (35→45)</SelectItem>
+              <SelectItem value="descending">Descending (45→35)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Footwear: Use descending for box stacking order
+          </p>
         </div>
 
         {quantityMode === "byBill" && (
