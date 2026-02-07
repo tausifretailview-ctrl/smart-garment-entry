@@ -31,6 +31,9 @@ export interface PRNTemplate {
   description?: string;
 }
 
+// Size sorting options for footwear/apparel workflows
+export type SizeSortOrder = 'none' | 'ascending' | 'descending';
+
 interface DefaultFormat {
   defaultTemplate?: string | null;
   sheetType?: string;
@@ -41,6 +44,7 @@ interface DefaultFormat {
   rightOffset?: number;
   printScale?: number;
   customPresetName?: string;
+  sizeSortOrder?: SizeSortOrder;
   customDimensions?: {
     width: number;
     height: number;
