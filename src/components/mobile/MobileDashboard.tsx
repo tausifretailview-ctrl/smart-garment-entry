@@ -1,16 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MobileDashboardCard } from "./MobileDashboardCard";
 import { MobileDashboardSummary } from "./MobileDashboardSummary";
 import { MobileQuickActions } from "./MobileQuickActions";
-import { TrendingUp, BarChart3, Package, AlertCircle, WifiOff } from "lucide-react";
+import { TrendingUp, BarChart3, Package, AlertCircle, WifiOff, RefreshCw, Info } from "lucide-react";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { useRef, useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Calendar } from "lucide-react";
 
 // Skeleton for lazy-loaded summary
@@ -37,6 +39,11 @@ export const MobileDashboard = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline, isSlowConnection } = useNetworkStatus();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Tier-based polling - reduces cloud usage based on subscription tier
+  const { getRefreshInterval, isManualRefreshOnly } = useTierBasedRefresh();
   
   // Lazy loading for summary section
   const [summaryVisible, setSummaryVisible] = useState(false);
@@ -67,11 +74,15 @@ export const MobileDashboard = () => {
     return () => observer.disconnect();
   }, []);
   
-  // Adjust polling based on network
-  const getPollingInterval = (baseInterval: number) => {
-    if (!isOnline) return false;
-    if (isSlowConnection) return baseInterval * 2;
-    return baseInterval;
+  // Manual refresh handler
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["mobile-today-sales"] });
+    await queryClient.invalidateQueries({ queryKey: ["mobile-month-sales"] });
+    await queryClient.invalidateQueries({ queryKey: ["mobile-stock-value"] });
+    await queryClient.invalidateQueries({ queryKey: ["mobile-receivables"] });
+    await queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-summary"] });
+    setTimeout(() => setIsRefreshing(false), 500);
   };
   
   // Greeting based on time
@@ -106,7 +117,7 @@ export const MobileDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000, // 1 minute
-    refetchInterval: getPollingInterval(60000),
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
     retry: 2,
   });
 
@@ -134,7 +145,7 @@ export const MobileDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 120000, // 2 minutes
-    refetchInterval: getPollingInterval(120000),
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
     retry: 2,
   });
 
@@ -195,7 +206,7 @@ export const MobileDashboard = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 120000, // 2 minutes
-    refetchInterval: getPollingInterval(120000),
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
     retry: 2,
   });
 
@@ -206,6 +217,25 @@ export const MobileDashboard = () => {
         <div className="bg-warning/20 border-b border-warning/30 px-4 py-2 flex items-center gap-2">
           <WifiOff className="h-4 w-4 text-warning" />
           <span className="text-xs text-warning font-medium">You're offline - showing cached data</span>
+        </div>
+      )}
+      
+      {/* Manual Refresh Banner for Free Tier */}
+      {isManualRefreshOnly && isOnline && (
+        <div className="bg-muted/50 border-b border-border px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Manual refresh mode</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="h-7 px-2"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </Button>
         </div>
       )}
       
