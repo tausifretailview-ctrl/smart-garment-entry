@@ -225,8 +225,17 @@ export const generateTSPLLabelFromTemplate = (
         let finalBarcodeX = barcodeX;
         
         // If field width is specified, center barcode within it
+        // Width is stored as percentage of label width (0-100), convert to dots
         if (barcodeConfig.width) {
-          const fieldWidthDots = mmToDots(barcodeConfig.width);
+          let fieldWidthDots = labelWidthDots;
+          if (barcodeConfig.width > labelConfig.width) {
+            // It's a percentage value (e.g., 100 = 100% of label width)
+            fieldWidthDots = mmToDots((barcodeConfig.width / 100) * labelConfig.width);
+          } else {
+            // It's already in mm
+            fieldWidthDots = mmToDots(barcodeConfig.width);
+          }
+          
           if (barcodeConfig.textAlign === 'center') {
             finalBarcodeX = barcodeX + Math.max(0, (fieldWidthDots - barcodeWidthDots) / 2);
           } else if (barcodeConfig.textAlign === 'right') {
@@ -270,7 +279,19 @@ export const generateTSPLLabelFromTemplate = (
     // Use ABSOLUTE x/y coordinates from the field config (convert mm to dots)
     const fieldX = mmToDots(clampedX);
     const fieldY = mmToDots(clampedY);
-    const fieldWidth = fieldConfig.width ? mmToDots(fieldConfig.width) : labelWidthDots;
+    
+    // Width is stored as percentage of label width (0-100), convert to dots
+    // If width > labelConfig.width, treat it as percentage
+    let fieldWidth = labelWidthDots;
+    if (fieldConfig.width) {
+      if (fieldConfig.width > labelConfig.width) {
+        // It's a percentage value (e.g., 100 = 100% of label width)
+        fieldWidth = mmToDots((fieldConfig.width / 100) * labelConfig.width);
+      } else {
+        // It's already in mm
+        fieldWidth = mmToDots(fieldConfig.width);
+      }
+    }
     
     // Auto-scale font size for smaller labels
     const scaledFontSize = getScaledFontSize(fieldConfig.fontSize, labelConfig.height);
