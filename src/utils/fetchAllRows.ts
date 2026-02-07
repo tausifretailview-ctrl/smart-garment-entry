@@ -294,6 +294,7 @@ export async function fetchAllSaleItems(saleIds: string[]) {
         .select("variant_id, quantity, line_total, gst_percent, product_id, product_name, sale_id, hsn_code")
         .in("sale_id", batchIds)
         .is("deleted_at", null)
+        .order("id")
         .range(offset, offset + pageSize - 1);
 
       if (error) {
@@ -334,6 +335,7 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
         .select("sku_id, bill_id")
         .in("sku_id", batchIds)
         .is("deleted_at", null)
+        .order("id")
         .range(offset, offset + pageSize - 1);
 
       if (error) {
