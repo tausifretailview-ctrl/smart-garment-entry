@@ -7,7 +7,7 @@ import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
-import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
@@ -187,13 +187,8 @@ const getDateRange = (type: DateRangeType) => {
   }
 };
 
-// Refresh intervals in milliseconds - optimized to reduce cloud usage
-const REFRESH_INTERVALS = {
-  FAST: 60000,    // 1 minute - sales, purchase
-  MEDIUM: 120000, // 2 minutes - stock, profit, receivables
-  SLOW: 300000,   // 5 minutes - rarely changing data
-  NONE: false,    // No auto-refresh - on-demand only (Phase 4)
-} as const;
+// Note: Refresh intervals are now tier-based via useTierBasedRefresh hook
+// Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
 
 // Mobile-specific dashboard wrapper - separate component to avoid hook order issues
 const MobileDashboardWrapper = () => {
@@ -215,9 +210,9 @@ const DesktopDashboard = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const queryClient = useQueryClient();
   
-  // Visibility-based polling - pauses all queries when tab is hidden
-  const fastRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.FAST);
-  const mediumRefetchInterval = useVisibilityRefetch(REFRESH_INTERVALS.MEDIUM);
+  // Tier-based polling - reduces cloud usage based on subscription tier
+  // Free: Manual only | Basic: 5min | Professional: 2min | Enterprise: 1min
+  const { getRefreshInterval, isManualRefreshOnly } = useTierBasedRefresh();
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -321,7 +316,7 @@ const DesktopDashboard = () => {
       return { total, count, soldQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
   });
 
   // Fetch total customers - NO auto-refresh (Phase 4: on-demand only)
@@ -377,7 +372,7 @@ const DesktopDashboard = () => {
       return allVariants.reduce((sum, item) => sum + (item.stock_qty || 0), 0);
     },
     enabled: !!currentOrganization,
-    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Fetch total products - NO auto-refresh (Phase 4: on-demand only)
@@ -431,7 +426,7 @@ const DesktopDashboard = () => {
       return { total, count, purchaseQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
   });
   
   const isLoading = salesFetching || purchaseFetching;
@@ -468,7 +463,7 @@ const DesktopDashboard = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
   });
 
   // Fetch purchase returns for selected period
@@ -503,7 +498,7 @@ const DesktopDashboard = () => {
       return { total, count, returnQty };
     },
     enabled: !!currentOrganization,
-    refetchInterval: fastRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
   });
 
   // Fetch total suppliers - NO auto-refresh (Phase 4: on-demand only)
@@ -545,7 +540,7 @@ const DesktopDashboard = () => {
       );
     },
     enabled: !!currentOrganization,
-    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Calculate Gross Profit using actual COGS (Cost of Goods Sold)
@@ -596,7 +591,7 @@ const DesktopDashboard = () => {
       return totalSalesRevenue - totalCOGS;
     },
     enabled: !!currentOrganization,
-    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Fetch cash collection
@@ -616,7 +611,7 @@ const DesktopDashboard = () => {
       return data?.reduce((sum, item) => sum + (item.cash_amount || item.paid_amount || 0), 0) || 0;
     },
     enabled: !!currentOrganization,
-    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Fetch total receivables (outstanding balance from all pending/partial payments)
@@ -641,7 +636,7 @@ const DesktopDashboard = () => {
       return { total, count };
     },
     enabled: !!currentOrganization,
-    refetchInterval: mediumRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // New Updates Panel Component - Maximized height to show all updates

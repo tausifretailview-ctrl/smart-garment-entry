@@ -7,10 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, RefreshCw, AlertCircle } from "lucide-react";
 import { format, startOfDay, endOfDay } from "date-fns";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
 export const MobileDashboardSummary = () => {
   const { currentOrganization } = useOrganization();
   const { isOnline } = useNetworkStatus();
+  const { getRefreshInterval } = useTierBasedRefresh();
   
   // Use ISO timestamps for proper UTC comparison
   const todayStart = startOfDay(new Date()).toISOString();
@@ -71,6 +73,7 @@ export const MobileDashboardSummary = () => {
     },
     enabled: !!currentOrganization && isOnline,
     staleTime: 60000, // 1 minute
+    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
     retry: 2,
   });
 

@@ -3,13 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
-import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
 export const StatsChartsSection = () => {
   const { currentOrganization } = useOrganization();
   
-  // Visibility-based polling - pauses when tab is hidden
-  const chartRefetchInterval = useVisibilityRefetch(120000); // 2 minutes
+  // Tier-based polling - reduces cloud usage based on subscription tier
+  const { getRefreshInterval } = useTierBasedRefresh();
 
   // Fetch last 7 days sales data
   const { data: salesData } = useQuery({
@@ -50,7 +50,7 @@ export const StatsChartsSection = () => {
     },
     enabled: !!currentOrganization,
     staleTime: 60000, // 1 minute stale time
-    refetchInterval: chartRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Fetch last 7 days purchase data
@@ -92,7 +92,7 @@ export const StatsChartsSection = () => {
     },
     enabled: !!currentOrganization,
     staleTime: 60000, // 1 minute stale time
-    refetchInterval: chartRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
   // Fetch top 5 products by stock value
