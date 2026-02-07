@@ -5,6 +5,8 @@ export interface TSPLLabelConfig {
   width: number; // in mm
   height: number; // in mm
   gap: number; // gap between labels in mm
+  dpi?: number; // printer DPI (default: 203, use 300 for TSC DA 310)
+  direction?: 0 | 1; // print direction (default: 1 for most TSC printers)
 }
 
 export interface TSPLTextItem {
@@ -183,14 +185,18 @@ export const generateTSPLLabelFromTemplate = (
 ): string => {
   const commands: string[] = [];
   
+  // Get DPI and direction from config (defaults: 203 DPI, DIRECTION 1)
+  const dpi = labelConfig.dpi || 203;
+  const direction = labelConfig.direction ?? 1; // Default to 1 (standard for most TSC printers)
+  
   // Label setup
   commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
   commands.push(generateGapCommand(labelConfig.gap));
-  commands.push('DIRECTION 0');
+  commands.push(`DIRECTION ${direction}`);
   commands.push('CLS'); // Clear buffer
   
-  const labelWidthDots = mmToDots(labelConfig.width);
-  const labelHeightDots = mmToDots(labelConfig.height);
+  const labelWidthDots = mmToDots(labelConfig.width, dpi);
+  const labelHeightDots = mmToDots(labelConfig.height, dpi);
   
   // Process each field using its ABSOLUTE x/y coordinates from the template
   for (const fieldKey of templateConfig.fieldOrder) {
@@ -202,8 +208,8 @@ export const generateTSPLLabelFromTemplate = (
         const clampedX = clampPosition(barcodeConfig.x ?? 0, labelConfig.width, 'barcode', 'x');
         const clampedY = clampPosition(barcodeConfig.y ?? 0, labelConfig.height, 'barcode', 'y');
         
-        const barcodeX = mmToDots(clampedX);
-        const barcodeY = mmToDots(clampedY);
+        const barcodeX = mmToDots(clampedX, dpi);
+        const barcodeY = mmToDots(clampedY, dpi);
         
         // Scale barcode height properly to match preview
         // Designer slider range is 15-60, we need to convert to mm then dots
@@ -214,7 +220,7 @@ export const generateTSPLLabelFromTemplate = (
         
         // For smaller labels, reduce minimum barcode height
         const minBarcodeHeight = labelConfig.height <= 20 ? 20 : labelConfig.height <= 25 ? 25 : 30;
-        const barcodeHeightDots = Math.max(minBarcodeHeight, Math.round(mmToDots(barcodeHeightMm)));
+        const barcodeHeightDots = Math.max(minBarcodeHeight, Math.round(mmToDots(barcodeHeightMm, dpi)));
         
         const barcodeNarrow = Math.max(1, Math.round(templateConfig.barcodeWidth || 1.5));
         
@@ -230,10 +236,10 @@ export const generateTSPLLabelFromTemplate = (
           let fieldWidthDots = labelWidthDots;
           if (barcodeConfig.width > labelConfig.width) {
             // It's a percentage value (e.g., 100 = 100% of label width)
-            fieldWidthDots = mmToDots((barcodeConfig.width / 100) * labelConfig.width);
+            fieldWidthDots = mmToDots((barcodeConfig.width / 100) * labelConfig.width, dpi);
           } else {
             // It's already in mm
-            fieldWidthDots = mmToDots(barcodeConfig.width);
+            fieldWidthDots = mmToDots(barcodeConfig.width, dpi);
           }
           
           if (barcodeConfig.textAlign === 'center') {
@@ -277,8 +283,8 @@ export const generateTSPLLabelFromTemplate = (
     }
     
     // Use ABSOLUTE x/y coordinates from the field config (convert mm to dots)
-    const fieldX = mmToDots(clampedX);
-    const fieldY = mmToDots(clampedY);
+    const fieldX = mmToDots(clampedX, dpi);
+    const fieldY = mmToDots(clampedY, dpi);
     
     // Width is stored as percentage of label width (0-100), convert to dots
     // If width > labelConfig.width, treat it as percentage
@@ -286,10 +292,10 @@ export const generateTSPLLabelFromTemplate = (
     if (fieldConfig.width) {
       if (fieldConfig.width > labelConfig.width) {
         // It's a percentage value (e.g., 100 = 100% of label width)
-        fieldWidth = mmToDots((fieldConfig.width / 100) * labelConfig.width);
+        fieldWidth = mmToDots((fieldConfig.width / 100) * labelConfig.width, dpi);
       } else {
         // It's already in mm
-        fieldWidth = mmToDots(fieldConfig.width);
+        fieldWidth = mmToDots(fieldConfig.width, dpi);
       }
     }
     

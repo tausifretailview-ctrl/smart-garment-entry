@@ -91,12 +91,15 @@ export const DirectPrintDialog = ({
   // Parse label size to get dimensions
   const getLabelConfig = (): TSPLLabelConfig => {
     // Handle custom_WxH format (e.g., "custom_50x38") - continuous rolls use GAP 0
+    // Custom sizes typically need 300 DPI (TSC DA 310) and DIRECTION 1
     const customMatch = labelSize.match(/custom[_]?(\d+)x(\d+)/i);
     if (customMatch) {
       return {
         width: parseInt(customMatch[1]),
         height: parseInt(customMatch[2]),
-        gap: 0,  // Custom sizes typically use continuous rolls
+        gap: 0,        // Continuous mode for custom rolls
+        dpi: 300,      // TSC DA 310 is 300 DPI
+        direction: 1,  // Standard orientation (fixes upside-down printing)
       };
     }
     
@@ -106,10 +109,12 @@ export const DirectPrintDialog = ({
       return {
         width: parseInt(match[1]),
         height: parseInt(match[2]),
-        gap: 2,  // Standard presets use gap mode
+        gap: 2,        // Standard presets use gap mode
+        dpi: 203,      // Standard 203 DPI printers
+        direction: 1,  // Standard orientation
       };
     }
-    return TSPL_PRESETS['50x25'];
+    return { ...TSPL_PRESETS['50x25'], direction: 1 };
   };
 
   const handleConnect = async () => {
