@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { StockReconciliation } from "@/components/StockReconciliation";
 import { PlatformWhatsAppSettings } from "@/components/PlatformWhatsAppSettings";
 import { PlatformWhatsAppLogs } from "@/components/PlatformWhatsAppLogs";
+import { CloudUsageWidget } from "@/components/dashboard/CloudUsageWidget";
 
 interface Organization {
   id: string;
@@ -876,6 +877,9 @@ export default function PlatformAdmin() {
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">
+            {/* Cloud Usage Widget */}
+            <CloudUsageWidget />
+
             {/* Audit Log Section */}
             <Card>
               <CardHeader>
