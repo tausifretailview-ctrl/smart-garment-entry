@@ -1,4 +1,4 @@
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 
@@ -9,14 +9,32 @@ const getStoredOrgSlug = (): string | null => {
     || null;
 };
 
+// Check if this is a Field Sales PWA context
+const isFieldSalesPWA = (): boolean => {
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('app') === 'fieldsales') {
+    sessionStorage.setItem('fieldSalesPWA', 'true');
+    return true;
+  }
+  return sessionStorage.getItem('fieldSalesPWA') === 'true';
+};
+
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const { orgSlug: urlOrgSlug } = useParams<{ orgSlug: string }>();
+  const location = useLocation();
+
+  // Preserve Field Sales PWA context if navigating to salesman routes
+  if (location.pathname.includes('/salesman')) {
+    sessionStorage.setItem('fieldSalesPWA', 'true');
+  }
 
   if (loading) {
+    // Show orange spinner for Field Sales PWA
+    const isFieldSales = isFieldSalesPWA();
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className={`h-8 w-8 animate-spin ${isFieldSales ? 'text-orange-500' : 'text-primary'}`} />
       </div>
     );
   }
