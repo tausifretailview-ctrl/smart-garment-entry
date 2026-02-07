@@ -12,6 +12,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppAPI";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +59,9 @@ export const WhatsAppAPISettings = () => {
   } = useWhatsAppAPI();
   
   const [sharedNumberWarning, setSharedNumberWarning] = useState<string | null>(null);
+  
+  // Tier-based polling - free tier uses manual refresh only
+  const { getRefreshInterval } = useTierBasedRefresh();
 
   const [formData, setFormData] = useState({
     phone_number_id: "",
@@ -162,11 +166,11 @@ export const WhatsAppAPISettings = () => {
     }
   }, [settings]);
 
-  // Fetch stats
+  // Fetch stats - tier-based polling
   const { data: stats } = useQuery({
     queryKey: ['whatsapp-stats'],
     queryFn: getMessageStats,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
   });
 
   const handleInputChange = (field: string, value: string | boolean | string[] | TemplateParam[] | SocialLinks) => {

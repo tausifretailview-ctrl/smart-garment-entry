@@ -7,15 +7,15 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { cn } from "@/lib/utils";
-import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useOrganization();
   const { hasSpecialPermission, loading: permLoading } = useUserPermissions();
   
-  // Visibility-based polling - pauses when tab is hidden
-  const whatsappRefetchInterval = useVisibilityRefetch(60000); // 1 minute
+  // Tier-based polling - free tier uses manual refresh only
+  const { getRefreshInterval } = useTierBasedRefresh();
 
   // Query unread message count
   const { data: unreadCount = 0 } = useQuery({
@@ -38,7 +38,7 @@ export const FloatingWhatsAppInbox = () => {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000, // 30 seconds stale time
-    refetchInterval: whatsappRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('medium'), // Tier-based: false for free tier
   });
 
   // Don't show if no permission or no org
