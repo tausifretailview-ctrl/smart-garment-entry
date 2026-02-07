@@ -1,84 +1,135 @@
 
+# Fix: Ella Noor 50×38 Direct Print Alignment Issue
 
-# Fix: KS Footwear GST Report Shows 0 CGST/SGST for Some Invoices
+## Problem Summary
 
-## Problem Identified
-
-The January GST report for KS Footwear organization shows **0 CGST and 0 SGST** for numerous invoices that actually have valid sale items with 5% GST.
-
-| Invoice Example | Expected GST | Shown in Report |
-|-----------------|--------------|-----------------|
-| INV/25-26/7 | CGST ~122, SGST ~122 | 0, 0 |
-| INV/25-26/9 | CGST ~20, SGST ~20 | 0, 0 |
-| INV/25-26/10 | CGST ~61, SGST ~61 | 0, 0 |
+| Issue | Current Behavior | Expected Behavior |
+|-------|-----------------|-------------------|
+| **Wrong dimensions sent** | Direct Print receives `"custom"` which can't be parsed, defaults to 50×25mm | Should use actual 50×38mm dimensions |
+| **Wrong gap setting** | Always sends `GAP 2 mm` (gap mode) | Ella Noor uses continuous rolls - needs `GAP 0 mm` |
+| **Printer red light** | Printer expects gaps it can't find | Continuous mode = GAP 0 |
 
 ## Root Cause
 
-The `fetchAllSaleItems()` function in `src/utils/fetchAllRows.ts` uses pagination with `.range()` but **does NOT include an ORDER BY clause**.
+The `DirectPrintDialog` component receives `labelSize={sheetType}` where `sheetType === "custom"` for Ella Noor. The parsing logic:
 
-**Current code (line 292-297):**
 ```typescript
-const { data } = await supabase
-  .from("sale_items")
-  .select("variant_id, quantity, line_total, gst_percent, ...")
-  .in("sale_id", batchIds)
-  .is("deleted_at", null)
-  .range(offset, offset + pageSize - 1);  // NO ORDER BY!
+const getLabelConfig = (): TSPLLabelConfig => {
+  const match = labelSize.match(/(\d+)x(\d+)/);  // Returns null for "custom"
+  if (match) {
+    return { width: parseInt(match[1]), height: parseInt(match[2]), gap: 2 };
+  }
+  return TSPL_PRESETS['50x25'];  // Fallback: WRONG SIZE!
+};
 ```
 
-**Why this causes the bug:**
-- PostgreSQL returns rows in **undefined order** without ORDER BY
-- When paginating with `.range()`, subsequent pages may return **different row orderings**
-- This causes some rows to be **duplicated** while others are **completely missed**
-- With 5,374 sale items across 6 pages of 1000 items each, many items are skipped
+This means Ella Noor's 50×38mm labels are being generated with 50×25mm TSPL commands, causing content to be compressed and misaligned.
+
+Additionally, the `gap: 2` is hardcoded, but continuous label rolls require `gap: 0`.
 
 ## Solution
 
-Add `.order("id")` to ensure consistent, deterministic pagination across all paginated queries in `fetchAllRows.ts`.
+### Part 1: Pass Custom Dimensions to DirectPrintDialog
+
+Modify `BarcodePrinting.tsx` to pass actual dimensions when using custom sheet type:
+
+**Before:**
+```typescript
+<DirectPrintDialog
+  labelSize={sheetType}  // "custom" - can't parse dimensions
+  ...
+/>
+```
+
+**After:**
+```typescript
+<DirectPrintDialog
+  labelSize={sheetType === "custom" ? `${customWidth}x${customHeight}` : sheetType}
+  ...
+/>
+```
+
+### Part 2: Handle Continuous Mode (GAP 0)
+
+For continuous label rolls (no gap/black mark), the TSPL generator should use `GAP 0 mm`.
+
+**Option A (Recommended)**: Detect from dimension pattern or add a setting
+
+For now, we'll use `GAP 0` for non-standard sizes (custom presets) since they're typically continuous rolls.
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/utils/fetchAllRows.ts` | Add `.order("id")` to all paginated queries that use `.range()` |
+| `src/pages/BarcodePrinting.tsx` | Pass formatted dimensions for custom sheet type |
+| `src/components/DirectPrintDialog.tsx` | Improve parsing to handle custom sizes and set GAP 0 for continuous mode |
 
-### Affected Functions (8 total)
+## Implementation Details
 
-1. **fetchAllSaleItems** - Line 292
-2. **fetchAllPurchaseItems** - Line 332 
-3. **fetchSaleReturnItemsByIds** - Similar pattern
-4. **fetchPurchaseReturnItemsByIds** - Similar pattern
-5. **fetchPurchaseItemsByBillIds** - Similar pattern
-6. **All other fetch functions using .in() with .range()**
+### 1. BarcodePrinting.tsx (line ~4253)
 
-### Code Fix Example
-
-**Before:**
+Change:
 ```typescript
-.in("sale_id", batchIds)
-.is("deleted_at", null)
-.range(offset, offset + pageSize - 1);
+labelSize={sheetType}
+```
+To:
+```typescript
+labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
 ```
 
-**After:**
+### 2. DirectPrintDialog.tsx (line ~92-102)
+
+Update the `getLabelConfig` function to:
+1. Handle `custom_50x38` style strings
+2. Set `gap: 0` for custom sizes (continuous mode)
+
 ```typescript
-.in("sale_id", batchIds)
-.is("deleted_at", null)
-.order("id")  // Ensures consistent pagination order
-.range(offset, offset + pageSize - 1);
+const getLabelConfig = (): TSPLLabelConfig => {
+  // Handle custom_WxH format (e.g., "custom_50x38")
+  const customMatch = labelSize.match(/custom[_]?(\d+)x(\d+)/i);
+  if (customMatch) {
+    return {
+      width: parseInt(customMatch[1]),
+      height: parseInt(customMatch[2]),
+      gap: 0,  // Custom sizes typically use continuous rolls
+    };
+  }
+  
+  // Handle standard thermal preset format (e.g., "thermal_50x30_1up")
+  const match = labelSize.match(/(\d+)x(\d+)/);
+  if (match) {
+    return {
+      width: parseInt(match[1]),
+      height: parseInt(match[2]),
+      gap: 2,  // Standard presets use gap mode
+    };
+  }
+  
+  return TSPL_PRESETS['50x25'];
+};
 ```
 
-## Impact
+## Expected Result
 
-- Fixes GST report accuracy for organizations with >1000 transaction items
-- Ensures all items are fetched exactly once during pagination
-- No performance impact (index on `id` column is already present)
-- Affects all organizations using GST reports, not just KS Footwear
+For Ella Noor with 50×38mm continuous labels:
 
-## Verification
+**Before (broken):**
+```
+SIZE 50 mm, 25 mm   ← Wrong height!
+GAP 2 mm, 0 mm      ← Wrong gap mode!
+```
 
-After the fix, the user should:
-1. Re-export the January GST report for KS Footwear
-2. Verify all 315 invoices show correct CGST and SGST values
-3. Confirm totals match: Expected ~₹35,018 each for CGST and SGST
+**After (correct):**
+```
+SIZE 50 mm, 38 mm   ← Correct dimensions
+GAP 0 mm, 0 mm      ← Continuous mode
+```
 
+## Testing Checklist
+
+- [ ] Direct Print dialog shows "50×38mm" for Ella Noor custom preset
+- [ ] TSPL commands show `SIZE 50 mm, 38 mm`
+- [ ] TSPL commands show `GAP 0 mm, 0 mm`
+- [ ] Printer no longer shows red light
+- [ ] Content alignment matches preview
+- [ ] Other organizations with gap-based labels still work correctly
