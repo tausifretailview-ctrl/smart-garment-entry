@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useOrganization } from "@/contexts/OrganizationContext";
+import OrganizationResetDialog from "./OrganizationResetDialog";
 
 const BackupSettings = () => {
+  const { organizationRole } = useOrganization();
   const { backupLogs, isLoadingLogs, isBackingUp, isDownloading, startBackup, downloadBackup, downloadBackupAsExcel, formatFileSize } = useBackup();
   
   const [clientId, setClientId] = useState("");
@@ -374,6 +377,39 @@ const BackupSettings = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Reset Organization Data - Admin Only */}
+      {organizationRole === "admin" && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Reset Organization Data
+            </CardTitle>
+            <CardDescription>
+              Permanently delete all trial/test data and start fresh. This action cannot be undone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-destructive/5 border border-destructive/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-medium text-destructive">Danger Zone</p>
+                  <p className="text-sm text-muted-foreground">
+                    This will delete all products, customers, suppliers, sales, purchases, stock movements, 
+                    and all other transaction data. Barcode and bill number sequences will be reset.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end">
+              <OrganizationResetDialog />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
