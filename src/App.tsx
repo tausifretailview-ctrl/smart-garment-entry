@@ -89,10 +89,19 @@ function getStoredOrgSlug(): string | null {
   return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
 }
 
-// Check if this is a Field Sales PWA launch
+// Check if this is a Field Sales PWA launch (check URL param or sessionStorage)
 function isFieldSalesPWA(): boolean {
   const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get('app') === 'fieldsales';
+  const urlHasFieldSales = urlParams.get('app') === 'fieldsales';
+  
+  // If URL has the param, persist it to sessionStorage for auth flow resilience
+  if (urlHasFieldSales) {
+    sessionStorage.setItem('fieldSalesPWA', 'true');
+    return true;
+  }
+  
+  // Check sessionStorage (survives redirects during auth flow)
+  return sessionStorage.getItem('fieldSalesPWA') === 'true';
 }
 
 // Component to redirect root to org-specific URL
