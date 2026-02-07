@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
+import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,9 +56,8 @@ const WhatsAppInbox = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Visibility-based polling - pauses when tab is hidden
-  const conversationsRefetchInterval = useVisibilityRefetch(60000); // 1 minute
-  const messagesRefetchInterval = useVisibilityRefetch(30000); // 30 seconds
+  // Tier-based polling - free tier uses manual refresh only
+  const { getRefreshInterval } = useTierBasedRefresh();
 
   // Check if using shared WhatsApp number
   const { data: whatsappSettings } = useQuery({
@@ -115,7 +114,7 @@ const WhatsAppInbox = () => {
     },
     enabled: !!currentOrganization?.id,
     staleTime: 30000, // 30 seconds stale time
-    refetchInterval: conversationsRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
   });
 
   // Fetch messages for selected conversation
@@ -135,7 +134,7 @@ const WhatsAppInbox = () => {
     },
     enabled: !!selectedConversation?.id,
     staleTime: 15000, // 15 seconds stale time
-    refetchInterval: messagesRefetchInterval, // Pauses when tab hidden
+    refetchInterval: getRefreshInterval('fast'), // Tier-based: false for free tier
   });
 
   // Send message mutation
