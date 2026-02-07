@@ -1,87 +1,99 @@
 
-# Fix: Ella Noor 50×38 Direct Print Alignment Issue
 
-## Problem Summary
+# Fix: Ella Noor TSC DA 310 Printer Label Alignment (50×38mm Direct Print)
 
-| Issue | Current Behavior | Expected Behavior |
-|-------|-----------------|-------------------|
-| **Wrong dimensions sent** | Direct Print receives `"custom"` which can't be parsed, defaults to 50×25mm | Should use actual 50×38mm dimensions |
-| **Wrong gap setting** | Always sends `GAP 2 mm` (gap mode) | Ella Noor uses continuous rolls - needs `GAP 0 mm` |
-| **Printer red light** | Printer expects gaps it can't find | Continuous mode = GAP 0 |
+## Problem Analysis
 
-## Root Cause
+From the uploaded image, the labels are printing **upside down** (rotated 180°). Looking at the printed output:
+- Text "ELLA NOOR", "KH-M0294-3", "10", "Rs. 3400" appears inverted
+- Content is in reverse orientation from what the preview shows
 
-The `DirectPrintDialog` component receives `labelSize={sheetType}` where `sheetType === "custom"` for Ella Noor. The parsing logic:
+## Root Causes Identified
 
-```typescript
-const getLabelConfig = (): TSPLLabelConfig => {
-  const match = labelSize.match(/(\d+)x(\d+)/);  // Returns null for "custom"
-  if (match) {
-    return { width: parseInt(match[1]), height: parseInt(match[2]), gap: 2 };
-  }
-  return TSPL_PRESETS['50x25'];  // Fallback: WRONG SIZE!
-};
+| Issue | Current Setting | Required for TSC DA 310 |
+|-------|-----------------|------------------------|
+| **Print Direction** | `DIRECTION 0` (head to feed) | `DIRECTION 1` (reverse orientation) |
+| **DPI Assumption** | 203 DPI (8 dots/mm) | 300 DPI (12 dots/mm) for DA 310 |
+| **Gap Mode** | Already fixed to `GAP 0` | Correct for continuous |
+
+### Why DIRECTION 1?
+
+Looking at the PRN sample templates in `prnTemplateParser.ts`, they all use `DIRECTION 1`:
+```
+SIZE 50 mm, 25 mm
+GAP 2 mm, 0 mm
+DIRECTION 1     ← All sample templates use DIRECTION 1
+CLS
 ```
 
-This means Ella Noor's 50×38mm labels are being generated with 50×25mm TSPL commands, causing content to be compressed and misaligned.
+But the TSPL generator at line 189 hardcodes `DIRECTION 0`:
+```typescript
+commands.push('DIRECTION 0');  ← This causes upside-down printing!
+```
 
-Additionally, the `gap: 2` is hardcoded, but continuous label rolls require `gap: 0`.
+### Why 300 DPI Matters?
+
+The TSC DA 310 is a 300 DPI printer. The current code uses 203 DPI (8 dots/mm), but should use 300 DPI (12 dots/mm):
+- **203 DPI**: 8 dots per mm (most common desktop printers)
+- **300 DPI**: 12 dots per mm (TSC DA 310, higher resolution)
+
+If we use wrong DPI, all positions and sizes will be scaled incorrectly.
 
 ## Solution
 
-### Part 1: Pass Custom Dimensions to DirectPrintDialog
+### Approach: Add DPI and Direction Configuration to TSPLLabelConfig
 
-Modify `BarcodePrinting.tsx` to pass actual dimensions when using custom sheet type:
-
-**Before:**
-```typescript
-<DirectPrintDialog
-  labelSize={sheetType}  // "custom" - can't parse dimensions
-  ...
-/>
-```
-
-**After:**
-```typescript
-<DirectPrintDialog
-  labelSize={sheetType === "custom" ? `${customWidth}x${customHeight}` : sheetType}
-  ...
-/>
-```
-
-### Part 2: Handle Continuous Mode (GAP 0)
-
-For continuous label rolls (no gap/black mark), the TSPL generator should use `GAP 0 mm`.
-
-**Option A (Recommended)**: Detect from dimension pattern or add a setting
-
-For now, we'll use `GAP 0` for non-standard sizes (custom presets) since they're typically continuous rolls.
+Extend the configuration to support:
+1. **DPI setting** - Default 203, but 300 for DA 310
+2. **Direction setting** - Default 1 (most common), with option for 0
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/BarcodePrinting.tsx` | Pass formatted dimensions for custom sheet type |
-| `src/components/DirectPrintDialog.tsx` | Improve parsing to handle custom sizes and set GAP 0 for continuous mode |
+| `src/utils/tsplGenerator.ts` | Add `dpi` and `direction` to TSPLLabelConfig interface; use them in generation |
+| `src/components/DirectPrintDialog.tsx` | Set `direction: 1` and `dpi: 300` for custom sizes (Ella Noor uses custom) |
 
-## Implementation Details
+### Technical Implementation
 
-### 1. BarcodePrinting.tsx (line ~4253)
+#### 1. Update TSPLLabelConfig Interface
 
-Change:
 ```typescript
-labelSize={sheetType}
+export interface TSPLLabelConfig {
+  width: number;    // in mm
+  height: number;   // in mm
+  gap: number;      // gap between labels in mm
+  dpi?: number;     // printer DPI (default: 203, use 300 for TSC DA 310)
+  direction?: 0 | 1; // print direction (default: 1)
+}
 ```
-To:
+
+#### 2. Update generateTSPLLabelFromTemplate Function
+
 ```typescript
-labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
+export const generateTSPLLabelFromTemplate = (
+  labelConfig: TSPLLabelConfig,
+  templateConfig: TSPLTemplateConfig,
+  data: LabelData,
+  copies: number = 1
+): string => {
+  const commands: string[] = [];
+  const dpi = labelConfig.dpi || 203;
+  const direction = labelConfig.direction ?? 1;  // Default to 1 (reverse)
+  
+  // Label setup
+  commands.push(generateSizeCommand(labelConfig.width, labelConfig.height));
+  commands.push(generateGapCommand(labelConfig.gap));
+  commands.push(`DIRECTION ${direction}`);  // Use configured direction
+  commands.push('CLS');
+  
+  // Use DPI for all dot calculations
+  const labelWidthDots = mmToDots(labelConfig.width, dpi);
+  const labelHeightDots = mmToDots(labelConfig.height, dpi);
+  // ... rest of function uses dpi parameter
 ```
 
-### 2. DirectPrintDialog.tsx (line ~92-102)
-
-Update the `getLabelConfig` function to:
-1. Handle `custom_50x38` style strings
-2. Set `gap: 0` for custom sizes (continuous mode)
+#### 3. Update DirectPrintDialog to Set 300 DPI for Custom Sizes
 
 ```typescript
 const getLabelConfig = (): TSPLLabelConfig => {
@@ -91,45 +103,66 @@ const getLabelConfig = (): TSPLLabelConfig => {
     return {
       width: parseInt(customMatch[1]),
       height: parseInt(customMatch[2]),
-      gap: 0,  // Custom sizes typically use continuous rolls
+      gap: 0,       // Continuous mode
+      dpi: 300,     // TSC DA 310 is 300 DPI
+      direction: 1, // Standard orientation
     };
   }
   
-  // Handle standard thermal preset format (e.g., "thermal_50x30_1up")
+  // Handle standard thermal preset format
   const match = labelSize.match(/(\d+)x(\d+)/);
   if (match) {
     return {
       width: parseInt(match[1]),
       height: parseInt(match[2]),
-      gap: 2,  // Standard presets use gap mode
+      gap: 2,
+      dpi: 203,     // Standard 203 DPI
+      direction: 1, // Standard orientation
     };
   }
-  
-  return TSPL_PRESETS['50x25'];
+  return { ...TSPL_PRESETS['50x25'], direction: 1 };
 };
+```
+
+#### 4. Update All mmToDots Calls
+
+Pass the `dpi` parameter to all `mmToDots()` calls in the generation functions:
+
+```typescript
+const labelWidthDots = mmToDots(labelConfig.width, dpi);
+const labelHeightDots = mmToDots(labelConfig.height, dpi);
+const barcodeX = mmToDots(clampedX, dpi);
+const barcodeY = mmToDots(clampedY, dpi);
+// etc.
 ```
 
 ## Expected Result
 
-For Ella Noor with 50×38mm continuous labels:
+### Before (Broken)
+```
+SIZE 50 mm, 38 mm
+GAP 0 mm, 0 mm
+DIRECTION 0          ← Wrong direction
+CLS
+TEXT 16,8,...        ← Wrong positions (203 DPI)
+```
 
-**Before (broken):**
+### After (Fixed)
 ```
-SIZE 50 mm, 25 mm   ← Wrong height!
-GAP 2 mm, 0 mm      ← Wrong gap mode!
-```
-
-**After (correct):**
-```
-SIZE 50 mm, 38 mm   ← Correct dimensions
-GAP 0 mm, 0 mm      ← Continuous mode
+SIZE 50 mm, 38 mm
+GAP 0 mm, 0 mm
+DIRECTION 1          ← Correct direction
+CLS
+TEXT 24,12,...       ← Correct positions (300 DPI: 12 dots/mm)
 ```
 
 ## Testing Checklist
 
-- [ ] Direct Print dialog shows "50×38mm" for Ella Noor custom preset
-- [ ] TSPL commands show `SIZE 50 mm, 38 mm`
-- [ ] TSPL commands show `GAP 0 mm, 0 mm`
-- [ ] Printer no longer shows red light
-- [ ] Content alignment matches preview
-- [ ] Other organizations with gap-based labels still work correctly
+After implementation:
+- [ ] Labels print right-side up (not inverted)
+- [ ] Text alignment matches preview
+- [ ] Barcode position matches preview
+- [ ] Font sizes appear correct (not too small or large)
+- [ ] No printer red light errors
+- [ ] Other organizations with 203 DPI printers still work
+
