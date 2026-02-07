@@ -1,247 +1,203 @@
 
+# Organization Data Reset Utility
 
-## Delete All Data for ELLA NOOR Organization (Fresh Start)
+## Overview
+Add a self-service "Reset Organization Data" feature to the Backup tab in Settings. This allows organization administrators to completely wipe all trial/test data and start fresh with reset sequences - without needing manual database intervention.
 
-### Overview
-Permanently delete all trial data for the ELLA NOOR organization and reset the barcode sequence to start fresh. This will **ONLY** affect ELLA NOOR - no other organizations will be touched.
+## Safety Features
 
-### Organization Details
-- **Name:** ELLA NOOR
-- **ID:** `3fdca631-1e0c-4417-9704-421f5129ff67`
-- **Created:** January 10, 2026
-- **Current Barcode:** 90001058 (will reset to 90001001)
+| Safety Measure | Description |
+|----------------|-------------|
+| **Admin-Only Access** | Only users with `organizationRole === "admin"` can see and use this feature |
+| **Multi-Step Confirmation** | Requires typing organization name to confirm |
+| **Organization-Scoped** | All deletions strictly filtered by current `organization_id` |
+| **Backup Reminder** | Prompts user to download backup before proceeding |
+| **Progress Feedback** | Shows real-time progress during reset operation |
 
-### Data to be Permanently Deleted
+## User Interface
 
-| Category | Table | Records |
-|----------|-------|---------|
-| **Products** | products | 59 (32 active + 27 deleted) |
-| | product_variants | 83 |
-| | size_groups | 3 |
-| **Customers** | customers | 15 (all in recycle bin) |
-| **Suppliers** | suppliers | 2 |
-| **Sales** | sales | 19 (all in recycle bin) |
-| | sale_items | 25 |
-| | sale_returns | 1 |
-| | sale_return_items | (linked) |
-| **Purchases** | purchase_bills | 3 (all in recycle bin) |
-| | purchase_returns | 1 |
-| | purchase_return_items | (linked) |
-| **Inventory** | stock_movements | 219 |
-| | batch_stock | 59 |
-| **Settings** | barcode_sequence | Reset to 90001001 |
-| | bill_number_sequence | Reset |
+The reset utility will be added as a new Card section in `BackupSettings.tsx` with:
 
-### Deletion Order (respects foreign keys)
+1. **Warning Banner** - Red/destructive styling with clear warning message
+2. **Data Summary** - Shows counts of records that will be deleted (customers, products, sales, etc.)
+3. **Confirmation Dialog** - Multi-step AlertDialog requiring:
+   - Checkbox to confirm backup was taken
+   - Type organization name to confirm
+4. **Progress Indicator** - Shows deletion progress with table names
 
-The delete must happen in specific order to avoid foreign key violations:
+## Technical Implementation
+
+### Files to Create/Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/components/OrganizationResetDialog.tsx` | **Create** | New dialog component with confirmation flow |
+| `src/components/BackupSettings.tsx` | **Modify** | Add Reset section with admin check |
+| `src/hooks/useOrganizationReset.tsx` | **Create** | Hook to handle reset logic and API calls |
+| `supabase/functions/reset-organization/index.ts` | **Create** | Edge function to execute secure server-side deletion |
+
+### Edge Function: `reset-organization`
+
+The reset operation will be performed via a secure edge function that:
+1. Validates the user is an admin of the organization
+2. Executes deletions in the correct order (child tables first)
+3. Resets barcode_sequence to starting value
+4. Clears bill_number_sequence
+5. Returns success/failure status
 
 ```text
-1. sale_items (depends on sales)
-2. sale_return_items (depends on sale_returns)
-3. purchase_return_items (depends on purchase_returns)
-4. quotation_items (depends on quotations)
-5. sale_order_items (depends on sale_orders)
-6. purchase_order_items (depends on purchase_orders)
-7. delivery_challan_items (depends on delivery_challans)
-8. stock_movements (depends on variants)
-9. batch_stock (depends on variants)
-10. sale_returns (depends on sales)
-11. purchase_returns (depends on purchase_bills)
-12. sales (depends on customers)
-13. purchase_bills (depends on suppliers)
-14. quotations
-15. sale_orders
-16. purchase_orders
-17. delivery_challans
-18. credit_notes
-19. customer_advances
-20. customer_brand_discounts
-21. customer_product_prices
-22. product_variants (depends on products)
-23. products
-24. customers
-25. suppliers
-26. size_groups
-27. barcode_sequence (RESET to 90001001)
-28. bill_number_sequence (DELETE)
+Deletion Order (respecting foreign keys):
+1.  sale_items
+2.  sale_return_items
+3.  purchase_return_items
+4.  purchase_items
+5.  quotation_items
+6.  sale_order_items
+7.  purchase_order_items
+8.  delivery_challan_items
+9.  voucher_items
+10. stock_movements
+11. batch_stock
+12. sale_returns
+13. purchase_returns
+14. sales
+15. purchase_bills
+16. quotations
+17. sale_orders
+18. purchase_orders
+19. delivery_challans
+20. credit_notes
+21. customer_advances
+22. customer_brand_discounts
+23. customer_product_prices
+24. customer_points_history
+25. gift_redemptions
+26. product_images
+27. product_variants
+28. products
+29. customers
+30. suppliers
+31. size_groups
+32. employees
+33. legacy_invoices
+34. drafts
+35. whatsapp_messages
+36. whatsapp_conversations
+37. whatsapp_logs
+38. sms_logs
+39. barcode_sequence (RESET to starting value)
+40. bill_number_sequence (DELETE)
 ```
 
-### SQL Migration Script
+### Component: OrganizationResetDialog
 
-```sql
--- ============================================
--- DELETE ALL DATA FOR ELLA NOOR ORGANIZATION
--- Organization ID: 3fdca631-1e0c-4417-9704-421f5129ff67
--- ============================================
--- This script ONLY affects ELLA NOOR organization
--- All other organizations remain untouched
-
-BEGIN;
-
--- 1. Delete sale items first (child records)
-DELETE FROM sale_items 
-WHERE sale_id IN (
-  SELECT id FROM sales 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 2. Delete sale return items
-DELETE FROM sale_return_items 
-WHERE sale_return_id IN (
-  SELECT id FROM sale_returns 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 3. Delete purchase return items
-DELETE FROM purchase_return_items 
-WHERE purchase_return_id IN (
-  SELECT id FROM purchase_returns 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 4. Delete quotation items
-DELETE FROM quotation_items 
-WHERE quotation_id IN (
-  SELECT id FROM quotations 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 5. Delete sale order items
-DELETE FROM sale_order_items 
-WHERE sale_order_id IN (
-  SELECT id FROM sale_orders 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 6. Delete purchase order items
-DELETE FROM purchase_order_items 
-WHERE purchase_order_id IN (
-  SELECT id FROM purchase_orders 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 7. Delete delivery challan items
-DELETE FROM delivery_challan_items 
-WHERE delivery_challan_id IN (
-  SELECT id FROM delivery_challans 
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'
-);
-
--- 8. Delete stock movements
-DELETE FROM stock_movements 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 9. Delete batch stock
-DELETE FROM batch_stock 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 10. Delete sale returns
-DELETE FROM sale_returns 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 11. Delete purchase returns
-DELETE FROM purchase_returns 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 12. Delete sales (including soft-deleted in recycle bin)
-DELETE FROM sales 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 13. Delete purchase bills (including soft-deleted)
-DELETE FROM purchase_bills 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 14. Delete quotations
-DELETE FROM quotations 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 15. Delete sale orders
-DELETE FROM sale_orders 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 16. Delete purchase orders
-DELETE FROM purchase_orders 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 17. Delete delivery challans
-DELETE FROM delivery_challans 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 18. Delete credit notes
-DELETE FROM credit_notes 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 19. Delete customer advances
-DELETE FROM customer_advances 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 20. Delete customer brand discounts
-DELETE FROM customer_brand_discounts 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 21. Delete customer product prices
-DELETE FROM customer_product_prices 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 22. Delete product variants
-DELETE FROM product_variants 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 23. Delete products (including soft-deleted)
-DELETE FROM products 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 24. Delete customers (including soft-deleted in recycle bin)
-DELETE FROM customers 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 25. Delete suppliers
-DELETE FROM suppliers 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 26. Delete size groups
-DELETE FROM size_groups 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 27. Reset barcode sequence to starting value (90001001)
-UPDATE barcode_sequence 
-SET next_barcode = 90001001, updated_at = NOW()
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
--- 28. Delete bill number sequences
-DELETE FROM bill_number_sequence 
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
-
-COMMIT;
+```text
++------------------------------------------+
+|  Reset Organization Data                 |
++------------------------------------------+
+|  WARNING: This action is irreversible!   |
+|                                          |
+|  This will permanently delete:           |
+|  - 59 Products & Variants                |
+|  - 15 Customers                          |
+|  - 19 Sales Invoices                     |
+|  - 3 Purchase Bills                      |
+|  - All stock movements                   |
+|  - Recycle bin contents                  |
+|                                          |
+|  Barcode sequence will reset to start.   |
+|  Bill numbers will start from 1.         |
+|                                          |
+|  [x] I have downloaded a backup          |
+|                                          |
+|  Type "ORGANIZATION NAME" to confirm:    |
+|  [                                    ]  |
+|                                          |
+|  [Cancel]              [Reset All Data]  |
++------------------------------------------+
 ```
 
-### Safety Measures
+### Hook: useOrganizationReset
 
-1. **Organization-Scoped:** Every DELETE statement includes `organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'` to ensure ONLY ELLA NOOR data is affected
-2. **Transaction Wrapped:** All operations are within BEGIN/COMMIT for atomicity
-3. **Foreign Key Order:** Deletion follows proper order to avoid constraint violations
+```typescript
+interface ResetProgress {
+  currentStep: string;
+  stepsCompleted: number;
+  totalSteps: number;
+}
 
-### Summary of Changes
+interface UseOrganizationReset {
+  // Fetch current data counts
+  dataCounts: Record<string, number> | null;
+  isLoadingCounts: boolean;
+  
+  // Reset operation
+  resetOrganization: () => Promise<void>;
+  isResetting: boolean;
+  progress: ResetProgress | null;
+  
+  // Get barcode starting value from org settings
+  barcodeStartValue: number;
+}
+```
 
-| Action | Description |
-|--------|-------------|
-| DELETE | All products, variants, and size groups |
-| DELETE | All customers (15 records) |
-| DELETE | All suppliers (2 records) |
-| DELETE | All sales and sale items (19 sales, 25 items) |
-| DELETE | All purchase bills |
-| DELETE | All returns (sale and purchase) |
-| DELETE | All stock movements (219 records) |
-| DELETE | All batch stock (59 records) |
-| DELETE | Recycle bin completely cleared |
-| RESET | Barcode sequence back to 90001001 |
-| RESET | Bill number sequences cleared |
+### BackupSettings Update
 
-### After Completion
-- ELLA NOOR will have a completely clean slate
-- Barcode series starts fresh from 90001001
-- All bill numbers start from 1
-- No data in recycle bin
-- Ready for new entries
+Add a new Card at the bottom of BackupSettings (only visible to admins):
 
+```tsx
+{organizationRole === "admin" && (
+  <Card className="border-destructive">
+    <CardHeader>
+      <CardTitle className="text-destructive flex items-center gap-2">
+        <Trash2 className="h-5 w-5" />
+        Reset Organization Data
+      </CardTitle>
+      <CardDescription>
+        Permanently delete all data and start fresh. This cannot be undone.
+      </CardDescription>
+    </CardHeader>
+    <CardContent>
+      <OrganizationResetDialog />
+    </CardContent>
+  </Card>
+)}
+```
+
+## Barcode Sequence Reset Logic
+
+The barcode starting value will be determined from:
+1. Organization settings (if configured)
+2. Default pattern based on organization ID digit (e.g., org 1 = 10001001, org 2 = 20001001)
+
+Current pattern observed:
+- Organization barcodes follow format: `{org_digit}0001001`
+- The reset will restore `next_barcode` to this starting value
+
+## Security Considerations
+
+1. **Edge Function Authentication**: Validates JWT token and checks `organization_members` role
+2. **Organization Isolation**: Every DELETE uses `WHERE organization_id = $1`
+3. **RLS Policies**: Existing RLS policies provide additional protection layer
+4. **Audit Trail**: Optionally log reset action to `backup_logs` table with type `reset`
+
+## Dependencies
+
+No new dependencies required. Uses existing:
+- `@radix-ui/react-alert-dialog` for confirmation dialog
+- `sonner` for toast notifications
+- `@tanstack/react-query` for data fetching
+
+## Testing Checklist
+
+- [ ] Only admins can see the reset section
+- [ ] Confirmation requires exact organization name match
+- [ ] Backup checkbox must be checked
+- [ ] Reset button disabled until all confirmations complete
+- [ ] Progress shows during deletion
+- [ ] All tables cleared for organization only
+- [ ] Other organizations unaffected
+- [ ] Barcode sequence reset correctly
+- [ ] Bill sequences cleared
+- [ ] Success/error toast shown
+- [ ] Redirect to dashboard after reset
