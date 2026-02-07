@@ -4250,7 +4250,7 @@ export default function BarcodePrinting() {
           style: item.style,
           quantity: item.qty,
         }))}
-        labelSize={sheetType}
+        labelSize={sheetType === "custom" ? `custom_${customWidth}x${customHeight}` : sheetType}
         labelConfig={labelConfig}
         prnTemplates={prnTemplates}
         onSavePRNTemplate={savePRNTemplate}

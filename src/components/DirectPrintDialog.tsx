@@ -90,12 +90,23 @@ export const DirectPrintDialog = ({
 
   // Parse label size to get dimensions
   const getLabelConfig = (): TSPLLabelConfig => {
+    // Handle custom_WxH format (e.g., "custom_50x38") - continuous rolls use GAP 0
+    const customMatch = labelSize.match(/custom[_]?(\d+)x(\d+)/i);
+    if (customMatch) {
+      return {
+        width: parseInt(customMatch[1]),
+        height: parseInt(customMatch[2]),
+        gap: 0,  // Custom sizes typically use continuous rolls
+      };
+    }
+    
+    // Handle standard thermal preset format (e.g., "thermal_50x30_1up")
     const match = labelSize.match(/(\d+)x(\d+)/);
     if (match) {
       return {
         width: parseInt(match[1]),
         height: parseInt(match[2]),
-        gap: 2,
+        gap: 2,  // Standard presets use gap mode
       };
     }
     return TSPL_PRESETS['50x25'];
