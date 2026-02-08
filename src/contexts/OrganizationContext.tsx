@@ -80,7 +80,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
             slug,
             subscription_tier,
             enabled_features,
-            settings
+            settings,
+            organization_type
           )
         `)
         .eq("user_id", user.id);
