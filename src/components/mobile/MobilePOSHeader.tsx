@@ -54,6 +54,7 @@ interface MobilePOSHeaderProps {
   onMenuClick?: () => void;
   selectedProductType: string;
   onProductTypeChange: (type: string) => void;
+  hasMoreCustomers?: boolean;
 }
 
 export const MobilePOSHeader = ({
@@ -76,6 +77,7 @@ export const MobilePOSHeader = ({
   onMenuClick,
   selectedProductType,
   onProductTypeChange,
+  hasMoreCustomers,
 }: MobilePOSHeaderProps) => {
   const getStatusIcon = () => {
     if (!isOnline) return <WifiOff className="h-4 w-4 text-amber-500" />;
@@ -169,7 +171,7 @@ export const MobilePOSHeader = ({
               />
               <CommandList className="max-h-60">
                 <CommandEmpty>No customer found.</CommandEmpty>
-                <CommandGroup>
+                <CommandGroup heading={hasMoreCustomers ? `Showing ${customers?.length || 0} - refine search` : undefined}>
                   {/* Walk-in option */}
                   <CommandItem
                     onSelect={() => {

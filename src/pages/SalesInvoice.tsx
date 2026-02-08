@@ -342,6 +342,7 @@ export default function SalesInvoice() {
     isLoading: isCustomersLoading,
     isError: isCustomersError,
     refetch: refetchCustomers,
+    hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerSearchInput);
   
   const { getCustomerBalance } = useCustomerBalances();
@@ -1971,7 +1972,7 @@ Thank you for choosing us!`;
                           </div>
                         ) : (
                           <>
-                            <CommandGroup heading={`Found ${filteredCustomers.length} customers`}>
+                            <CommandGroup heading={`Found ${filteredCustomers.length} customers${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                               {filteredCustomers.map((customer: any) => {
                                 const balance = getCustomerBalance(customer);
                                 return (
