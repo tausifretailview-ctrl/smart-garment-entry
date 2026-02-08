@@ -86,7 +86,8 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       // Order and limit results
       const { data, error } = await query
         .order("customer_name")
-        .limit(50); // Return top 50 matches
+        .order("id") // Secondary sort for deterministic pagination
+        .limit(100); // Return top 100 matches
       
       if (error) {
         console.error("Customer fetch error:", error);
@@ -107,6 +108,9 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
   const filteredCustomers = useMemo(() => {
     return customers;
   }, [customers]);
+  
+  // Indicate if there might be more results beyond the limit
+  const hasMore = customers.length >= 100;
 
   return {
     customers,
@@ -117,6 +121,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
     error,
     refetch,
     totalCount: customers.length,
+    hasMore,
   };
 };
 

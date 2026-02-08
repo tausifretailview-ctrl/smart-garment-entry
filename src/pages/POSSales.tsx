@@ -727,6 +727,7 @@ export default function POSSales() {
     isLoading: isCustomersLoading,
     isError: isCustomersError,
     refetch: refetchCustomers,
+    hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerName);
   
   const { getCustomerBalance } = useCustomerBalances();
@@ -2287,6 +2288,7 @@ export default function POSSales() {
           setShowMobilePaymentSheet={setShowMobilePaymentSheet}
           selectedProductType={selectedProductType}
           onProductTypeChange={setSelectedProductType}
+          hasMoreCustomers={hasMoreCustomers}
         />
 
         {/* Dialogs needed for mobile too */}
@@ -2774,7 +2776,7 @@ export default function POSSales() {
                   ) : (
                     <>
                       <CommandEmpty>No customers found.</CommandEmpty>
-                      <CommandGroup heading={`Customers (${customers?.length || 0})`}>
+                      <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
                           const balance = getCustomerBalance(customer);
                           return (

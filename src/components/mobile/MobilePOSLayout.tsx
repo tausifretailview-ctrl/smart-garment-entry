@@ -50,6 +50,7 @@ interface MobilePOSLayoutProps {
   setOpenCustomerSearch: (open: boolean) => void;
   onCustomerSelect: (customer: any) => void;
   onAddCustomer: () => void;
+  hasMoreCustomers?: boolean;
   
   // Search
   searchInput: string;
@@ -89,6 +90,7 @@ export const MobilePOSLayout = ({
   setOpenCustomerSearch,
   onCustomerSelect,
   onAddCustomer,
+  hasMoreCustomers,
   searchInput,
   onSearchInputChange,
   onBarcodeSubmit,
@@ -138,6 +140,7 @@ export const MobilePOSLayout = ({
         setOpenCustomerSearch={setOpenCustomerSearch}
         selectedProductType={selectedProductType}
         onProductTypeChange={onProductTypeChange}
+        hasMoreCustomers={hasMoreCustomers}
       />
 
       {/* Cart Items - Scrollable area with bottom padding for payment bar */}
