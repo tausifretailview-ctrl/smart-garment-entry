@@ -1441,7 +1441,7 @@ const POSDashboard = () => {
                             <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex flex-col">
                                 <span>{sale.sale_number}</span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-foreground/70">
                                   {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>
                               </div>
