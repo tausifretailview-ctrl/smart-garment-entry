@@ -93,6 +93,7 @@ const DEFAULT_POS_COLUMNS = {
   status: true,
   refund: true,
   refundStatus: true,
+  creditNoteAmt: true,
   creditNoteStatus: true,
   whatsapp: true,
   copyLink: true,
@@ -1321,6 +1322,14 @@ const POSDashboard = () => {
                         />
                       </div>
                       <div className="flex items-center justify-between">
+                        <Label htmlFor="col-creditNoteAmt" className="text-sm">C/Note Amt</Label>
+                        <Checkbox
+                          id="col-creditNoteAmt"
+                          checked={columnSettings.creditNoteAmt}
+                          onCheckedChange={(checked) => updateColumnSetting('creditNoteAmt', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
                         <Label htmlFor="col-creditNoteStatus" className="text-sm">C/Note Status</Label>
                         <Checkbox
                           id="col-creditNoteStatus"
@@ -1406,7 +1415,7 @@ const POSDashboard = () => {
                       <TableHead>Balance</TableHead>
                       {columnSettings.refund && <TableHead>Refund Amt</TableHead>}
                       {columnSettings.refundStatus && <TableHead>Refund Status</TableHead>}
-                      <TableHead>C/Note Amt</TableHead>
+                      {columnSettings.creditNoteAmt && <TableHead>C/Note Amt</TableHead>}
                       {columnSettings.creditNoteStatus && <TableHead>C/Note Status</TableHead>}
                       {columnSettings.status && <TableHead>Pay Status</TableHead>}
                       <TableHead className="text-right">Actions</TableHead>
@@ -1415,7 +1424,7 @@ const POSDashboard = () => {
                   <TableBody>
                     {paginatedSales.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + 16} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + (columnSettings.refundStatus ? 1 : 0) + (columnSettings.creditNoteAmt ? 1 : 0) + (columnSettings.creditNoteStatus ? 1 : 0) + 15} className="text-center text-muted-foreground py-8">
                           No sales found
                         </TableCell>
                       </TableRow>
@@ -1516,15 +1525,17 @@ const POSDashboard = () => {
                                 )}
                               </TableCell>
                             )}
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {sale.credit_note_id ? (
-                                <span className="font-semibold text-violet-600">
-                                  ₹{Math.round(sale.credit_note_amount || 0).toLocaleString('en-IN')}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground">-</span>
-                              )}
-                            </TableCell>
+                            {columnSettings.creditNoteAmt && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                {sale.credit_note_id ? (
+                                  <span className="font-semibold text-violet-600">
+                                    ₹{Math.round(sale.credit_note_amount || 0).toLocaleString('en-IN')}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             {columnSettings.creditNoteStatus && (
                               <TableCell onClick={() => toggleExpanded(sale.id)}>
                                 {sale.credit_note_id ? (
