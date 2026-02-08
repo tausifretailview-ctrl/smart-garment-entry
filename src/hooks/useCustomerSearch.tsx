@@ -60,7 +60,8 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
       let query = supabase
         .from("customers")
         .select("*")
-        .eq("organization_id", currentOrganization.id);
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
       
       // If search term exists, filter on server side
       if (term) {
