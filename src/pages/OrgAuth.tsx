@@ -222,11 +222,31 @@ export default function OrgAuth() {
         return;
       }
 
+      // Check if user has field sales access - if so, redirect to salesman dashboard
+      const { data: fieldSalesEmployee } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("organization_id", organization.id)
+        .eq("user_id", authData.user.id)
+        .eq("field_sales_access", true)
+        .is("deleted_at", null)
+        .maybeSingle();
+
       // Store in both localStorage and sessionStorage for PWA resilience
       localStorage.setItem("selectedOrgSlug", organization.slug);
       sessionStorage.setItem("selectedOrgSlug", organization.slug);
-      toast.success(`Welcome to ${organization.name}!`);
-      navigate(`/${organization.slug}`);
+
+      if (fieldSalesEmployee) {
+        // Set Field Sales PWA context flag for persistent routing
+        sessionStorage.setItem('fieldSalesPWA', 'true');
+        toast.success(`Welcome to Field Sales, ${organization.name}!`);
+        navigate(`/${organization.slug}/salesman`);
+      } else {
+        // Clear any stale Field Sales context
+        sessionStorage.removeItem('fieldSalesPWA');
+        toast.success(`Welcome to ${organization.name}!`);
+        navigate(`/${organization.slug}`);
+      }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
     } finally {
