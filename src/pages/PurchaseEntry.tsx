@@ -150,6 +150,7 @@ const PurchaseEntry = () => {
   // Inline search state for table row
   const [inlineSearchQuery, setInlineSearchQuery] = useState("");
   const [inlineSearchResults, setInlineSearchResults] = useState<ProductVariant[]>([]);
+  const [inlineDisplayLimit, setInlineDisplayLimit] = useState(100);
   const [showInlineSearch, setShowInlineSearch] = useState(false);
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   
@@ -574,7 +575,7 @@ const PurchaseEntry = () => {
         variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
       }
 
-      const { data, error } = await variantsQuery.limit(50);
+      const { data, error } = await variantsQuery.limit(100);
 
       if (error) throw error;
 
@@ -2652,7 +2653,23 @@ const PurchaseEntry = () => {
                           >
                             {inlineSearchResults.length > 0 ? (
                               <>
-                                {inlineSearchResults.map((result, idx) => (
+                                {inlineSearchResults.length > inlineDisplayLimit && (
+                                  <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                                    <span>Showing {inlineDisplayLimit} of {inlineSearchResults.length} results</span>
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="h-auto p-0 text-primary"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setInlineDisplayLimit(prev => prev + 100);
+                                      }}
+                                    >
+                                      Load More
+                                    </Button>
+                                  </div>
+                                )}
+                                {inlineSearchResults.slice(0, inlineDisplayLimit).map((result, idx) => (
                                   <button
                                     key={result.id + idx}
                                     onClick={() => handleInlineProductSelect(result)}

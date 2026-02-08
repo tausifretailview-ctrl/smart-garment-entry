@@ -98,6 +98,7 @@ export default function PurchaseOrderEntry() {
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>("");
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
   const [openSupplierDialog, setOpenSupplierDialog] = useState(false);
@@ -438,7 +439,8 @@ export default function PurchaseOrderEntry() {
         query, 
         { productName: 'productName', barcode: 'barcode', style: 'style' }
       );
-      setSearchResults(sortedResults.slice(0, 50));
+      setSearchResults(sortedResults.slice(0, 100));
+      setProductDisplayLimit(100);
     } catch (error) {
       console.error("Product search error:", error);
     }
@@ -770,9 +772,25 @@ export default function PurchaseOrderEntry() {
                 <Command>
                   <CommandList>
                     <CommandEmpty>No products found</CommandEmpty>
+                    {searchResults.length > productDisplayLimit && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                        <span>Showing {productDisplayLimit} of {searchResults.length} results</span>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setProductDisplayLimit(prev => prev + 100);
+                          }}
+                        >
+                          Load More
+                        </Button>
+                      </div>
+                    )}
                     <CommandGroup>
                       <ScrollArea className="h-[300px]">
-                        {searchResults.map((result) => (
+                        {searchResults.slice(0, productDisplayLimit).map((result) => (
                           <CommandItem
                             key={result.variantId}
                             onSelect={() => handleProductSelect(result)}

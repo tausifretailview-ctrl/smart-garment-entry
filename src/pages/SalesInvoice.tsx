@@ -142,6 +142,7 @@ export default function SalesInvoice() {
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
@@ -684,7 +685,7 @@ export default function SalesInvoice() {
           variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
         }
 
-        const { data, error } = await variantsQuery.limit(50);
+        const { data, error } = await variantsQuery.limit(100);
 
         if (error) throw error;
 
@@ -2186,8 +2187,25 @@ Thank you for choosing us!`;
                         Start typing to search products...
                       </div>
                     ) : (
-                      <CommandGroup>
-                        {productSearchResults.map(({ product, variant }) => (
+                      <>
+                        {productSearchResults.length > productDisplayLimit && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                            <span>Showing {productDisplayLimit} of {productSearchResults.length} results</span>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 text-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProductDisplayLimit(prev => prev + 100);
+                              }}
+                            >
+                              Load More
+                            </Button>
+                          </div>
+                        )}
+                        <CommandGroup>
+                          {productSearchResults.slice(0, productDisplayLimit).map(({ product, variant }) => (
                           <CommandItem
                             key={variant.id}
                             value={variant.id}
@@ -2227,8 +2245,9 @@ Thank you for choosing us!`;
                               </div>
                             </div>
                           </CommandItem>
-                        ))}
-                      </CommandGroup>
+                          ))}
+                        </CommandGroup>
+                      </>
                     )}
                   </CommandList>
                 </Command>

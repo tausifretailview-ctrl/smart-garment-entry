@@ -37,6 +37,7 @@ export function StockAnalysisSearch({
   const [results, setResults] = useState<ProductResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [selectedProduct, setSelectedProduct] = useState<ProductResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +94,7 @@ export function StockAnalysisSearch({
         .is("deleted_at", null)
         .is("products.deleted_at", null)
         .order("stock_qty", { ascending: false })
-        .limit(500); // Get more results for client-side filtering
+        .limit(1000); // Get more results for client-side filtering
 
       if (error) throw error;
 
@@ -114,7 +115,7 @@ export function StockAnalysisSearch({
             color.includes(termLower)
           );
         })
-        .slice(0, 50) // Limit to 50 after filtering
+        // Don't slice here - store all results for dynamic loading
         .map((item: any) => ({
           id: item.id,
           product_name: item.products?.product_name || "",
@@ -128,6 +129,7 @@ export function StockAnalysisSearch({
       setResults(formatted);
       setShowDropdown(formatted.length > 0);
       setSelectedIndex(-1);
+      setDisplayLimit(100); // Reset display limit on new search
       updatePosition();
     } catch (error) {
       console.error("Search error:", error);
@@ -314,7 +316,21 @@ export function StockAnalysisSearch({
         overflowY: "auto",
       }}
     >
-      {results.map((product, index) => (
+      {results.length > displayLimit && (
+        <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between sticky top-0">
+          <span>Showing {displayLimit} of {results.length} results</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setDisplayLimit(prev => prev + 100);
+            }}
+            className="text-primary font-medium hover:underline text-sm"
+          >
+            Load More
+          </button>
+        </div>
+      )}
+      {results.slice(0, displayLimit).map((product, index) => (
         <div
           key={product.id}
           className={cn(
