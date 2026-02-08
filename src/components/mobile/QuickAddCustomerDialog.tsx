@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, UserPlus } from "lucide-react";
+import { createOrGetCustomer } from "@/utils/customerUtils";
 
 interface QuickAddCustomerDialogProps {
   open: boolean;
@@ -69,8 +69,6 @@ export const QuickAddCustomerDialog = ({
     setIsLoading(true);
 
     try {
-      const { createOrGetCustomer } = await import("@/utils/customerUtils");
-      
       const result = await createOrGetCustomer({
         customer_name: customerName.trim(),
         phone: phone.trim(),
