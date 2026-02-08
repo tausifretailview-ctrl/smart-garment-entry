@@ -1442,7 +1442,7 @@ const POSDashboard = () => {
                               <div className="flex flex-col">
                                 <span>{sale.sale_number}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {sale.sale_date ? format(new Date(sale.sale_date), "HH:mm") : ''}
+                                  {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>
                               </div>
                             </TableCell>
