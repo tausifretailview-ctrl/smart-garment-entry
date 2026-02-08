@@ -29,17 +29,37 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
     throw new Error("Valid phone number is required");
   }
   
-  // Fetch all customers in the organization
-  const { data: existingCustomers, error: checkError } = await supabase
+  // Server-side search for existing customer by normalized phone
+  // Search for exact match first (most common case)
+  const { data: exactMatch, error: exactError } = await supabase
     .from("customers")
     .select("*")
     .eq("organization_id", params.organization_id)
-    .is("deleted_at", null);
+    .eq("phone", normalizedPhone)
+    .is("deleted_at", null)
+    .maybeSingle();
   
-  if (checkError) throw checkError;
+  if (exactError) throw exactError;
   
-  // Find duplicate by normalized phone
-  const existing = existingCustomers?.find(c => 
+  if (exactMatch) {
+    return { customer: exactMatch, isExisting: true };
+  }
+  
+  // Also search for variations (with/without country code) using ilike
+  // This handles cases like searching for "9819082836" when "919819082836" exists
+  const lastDigits = normalizedPhone.slice(-10); // Get last 10 digits
+  const { data: fuzzyMatches, error: fuzzyError } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("organization_id", params.organization_id)
+    .ilike("phone", `%${lastDigits}`)
+    .is("deleted_at", null)
+    .limit(5);
+  
+  if (fuzzyError) throw fuzzyError;
+  
+  // Check if any fuzzy match has the same normalized phone
+  const existing = fuzzyMatches?.find(c => 
     normalizePhoneNumber(c.phone) === normalizedPhone
   );
   
@@ -81,13 +101,29 @@ export async function findCustomerByNormalizedPhone(
   
   if (!normalizedPhone) return null;
   
-  const { data: customers, error } = await supabase
+  // Server-side search for exact match first
+  const { data: exactMatch, error: exactError } = await supabase
     .from("customers")
     .select("*")
     .eq("organization_id", organizationId)
-    .is("deleted_at", null);
+    .eq("phone", normalizedPhone)
+    .is("deleted_at", null)
+    .maybeSingle();
   
-  if (error) throw error;
+  if (exactError) throw exactError;
+  if (exactMatch) return exactMatch;
   
-  return customers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone) || null;
+  // Fuzzy match for phone variations
+  const lastDigits = normalizedPhone.slice(-10);
+  const { data: fuzzyMatches, error: fuzzyError } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("organization_id", organizationId)
+    .ilike("phone", `%${lastDigits}`)
+    .is("deleted_at", null)
+    .limit(5);
+  
+  if (fuzzyError) throw fuzzyError;
+  
+  return fuzzyMatches?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone) || null;
 }
