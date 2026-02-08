@@ -53,6 +53,7 @@ import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/componen
 
 interface ColumnSettings {
   [key: string]: boolean;
+  phone: boolean;
   status: boolean;
   delivery: boolean;
   whatsapp: boolean;
@@ -64,6 +65,7 @@ interface ColumnSettings {
 }
 
 const defaultColumnSettings: ColumnSettings = {
+  phone: false,  // Hidden by default
   status: true,
   delivery: true,
   whatsapp: true,
@@ -1547,6 +1549,14 @@ export default function SalesInvoiceDashboard() {
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
                         <Checkbox
+                          id="col-phone"
+                          checked={columnSettings.phone}
+                          onCheckedChange={(checked) => updateColumnSetting('phone', !!checked)}
+                        />
+                        <Label htmlFor="col-phone" className="text-sm">Phone Number</Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox
                           id="col-status"
                           checked={columnSettings.status}
                           onCheckedChange={(checked) => updateColumnSetting('status', !!checked)}
@@ -1628,7 +1638,7 @@ export default function SalesInvoiceDashboard() {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Invoice No</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Phone</TableHead>
+                      {columnSettings.phone && <TableHead>Phone</TableHead>}
                       <TableHead>Date</TableHead>
                       <TableHead className="text-center">Qty</TableHead>
                       <TableHead className="text-right">Discount</TableHead>
@@ -1668,13 +1678,18 @@ export default function SalesInvoiceDashboard() {
                               )}
                             </TableCell>
                             <TableCell className="font-medium" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              <div className="flex items-center gap-1.5">
-                                {invoice.sale_number}
-                                {invoice.payment_status === 'completed' && (
-                                  <span title="Invoice is locked (Fully Paid)">
-                                    <Lock className="h-3.5 w-3.5 text-green-600" />
-                                  </span>
-                                )}
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-1.5">
+                                  {invoice.sale_number}
+                                  {invoice.payment_status === 'completed' && (
+                                    <span title="Invoice is locked (Fully Paid)">
+                                      <Lock className="h-3.5 w-3.5 text-green-600" />
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {invoice.sale_date ? format(new Date(invoice.sale_date), 'HH:mm') : ''}
+                                </span>
                               </div>
                             </TableCell>
                             <TableCell 
@@ -1690,9 +1705,11 @@ export default function SalesInvoiceDashboard() {
                             >
                               {invoice.customer_name?.toUpperCase()}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                              {invoice.customer_phone || '-'}
-                            </TableCell>
+                            {columnSettings.phone && (
+                              <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
+                                {invoice.customer_phone || '-'}
+                              </TableCell>
+                            )}
                             <TableCell onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
                               {invoice.sale_date ? format(new Date(invoice.sale_date), 'dd/MM/yyyy') : '-'}
                             </TableCell>

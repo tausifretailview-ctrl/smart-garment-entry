@@ -89,6 +89,7 @@ interface Sale {
 
 // Default columns - defined OUTSIDE component to prevent re-render loops
 const DEFAULT_POS_COLUMNS = {
+  phone: false,  // Hidden by default
   status: true,
   refund: true,
   refundStatus: true,
@@ -1288,6 +1289,14 @@ const POSDashboard = () => {
                     <h4 className="font-medium text-sm">Show/Hide Columns</h4>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
+                        <Label htmlFor="col-phone" className="text-sm">Phone Number</Label>
+                        <Checkbox
+                          id="col-phone"
+                          checked={columnSettings.phone}
+                          onCheckedChange={(checked) => updateColumnSetting('phone', !!checked)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
                         <Label htmlFor="col-status" className="text-sm">Status</Label>
                         <Checkbox
                           id="col-status"
@@ -1386,7 +1395,7 @@ const POSDashboard = () => {
                       <TableHead className="w-[50px]"></TableHead>
                       <TableHead>Sale Number</TableHead>
                       <TableHead>Customer</TableHead>
-                      <TableHead>Phone</TableHead>
+                      {columnSettings.phone && <TableHead>Phone</TableHead>}
                       <TableHead>Date</TableHead>
                       <TableHead>Qty</TableHead>
                       <TableHead>Amount</TableHead>
@@ -1430,7 +1439,12 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
-                              {sale.sale_number}
+                              <div className="flex flex-col">
+                                <span>{sale.sale_number}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {sale.sale_date ? format(new Date(sale.sale_date), "HH:mm") : ''}
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell 
                               className="cursor-pointer text-blue-600 hover:underline"
@@ -1445,9 +1459,11 @@ const POSDashboard = () => {
                             >
                               {sale.customer_name?.toUpperCase()}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
-                              {sale.customer_phone || '-'}
-                            </TableCell>
+                            {columnSettings.phone && (
+                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                                {sale.customer_phone || '-'}
+                              </TableCell>
+                            )}
                             <TableCell onClick={() => toggleExpanded(sale.id)}>
                               {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>
