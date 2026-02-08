@@ -386,6 +386,8 @@ export default function SalesInvoice() {
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
+          .order('product_name')
+          .order('id')
           .range(offset, offset + PAGE_SIZE - 1);
         
         if (error) throw error;

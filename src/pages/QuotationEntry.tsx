@@ -332,6 +332,8 @@ export default function QuotationEntry() {
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
+          .order('product_name')
+          .order('id')
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -719,7 +721,7 @@ export default function QuotationEntry() {
           variantsQuery = variantsQuery.ilike("barcode", `%${query}%`);
         }
 
-        const { data } = await variantsQuery.limit(50);
+        const { data } = await variantsQuery.limit(100);
 
         const results = (data || []).map((v: any) => ({
           id: v.id,
@@ -1116,7 +1118,7 @@ export default function QuotationEntry() {
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
                   <CommandGroup>
-                    {filteredProducts.slice(0, 50).map(product => (
+                    {filteredProducts.slice(0, 100).map(product => (
                       product.product_variants?.map((variant: any) => (
                         <CommandItem
                           key={variant.id}
