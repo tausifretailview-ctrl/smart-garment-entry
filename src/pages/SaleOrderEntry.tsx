@@ -117,6 +117,7 @@ export default function SaleOrderEntry() {
   );
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
+  const [displayLimit, setDisplayLimit] = useState(100);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerDialog, setOpenCustomerDialog] = useState(false);
@@ -1168,6 +1169,17 @@ export default function SaleOrderEntry() {
     });
   })();
 
+  // Count total matching variants (not just products)
+  const totalMatchingVariants = filteredProducts.reduce(
+    (count, product) => count + (product.product_variants?.length || 0),
+    0
+  );
+
+  // Reset display limit when search changes
+  useEffect(() => {
+    setDisplayLimit(100);
+  }, [searchInput]);
+
   return (
     <div className="p-4 space-y-4">
       <BackToDashboard />
@@ -1316,42 +1328,66 @@ export default function SaleOrderEntry() {
                 <CommandInput placeholder="Search by name, barcode, brand, color, style..." value={searchInput} onValueChange={setSearchInput} />
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
+                  {totalMatchingVariants > displayLimit && (
+                    <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                      <span>Showing {displayLimit} of {totalMatchingVariants} results</span>
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-primary"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDisplayLimit(prev => prev + 100);
+                        }}
+                      >
+                        Load More
+                      </Button>
+                    </div>
+                  )}
                   <CommandGroup>
-                    {filteredProducts.slice(0, 100).map(product => (
-                      product.product_variants?.map((variant: any) => (
-                        <CommandItem
-                          key={variant.id}
-                          onSelect={() => addProductToOrder(product, variant)}
-                          className="cursor-pointer py-2"
-                        >
-                          <div className="flex flex-col w-full gap-1">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium">{product.product_name}</span>
-                              <span className="font-semibold text-primary">₹{variant.sale_price}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs text-muted-foreground">
-                              <div className="flex gap-2 flex-wrap">
-                                {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
-                                {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
-                                {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
-                                {(variant.color || product.color) && (
-                                  <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
-                                )}
-                                <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                    {(() => {
+                      let variantCount = 0;
+                      return filteredProducts.map(product => 
+                        product.product_variants?.map((variant: any) => {
+                          if (variantCount >= displayLimit) return null;
+                          variantCount++;
+                          return (
+                            <CommandItem
+                              key={variant.id}
+                              onSelect={() => addProductToOrder(product, variant)}
+                              className="cursor-pointer py-2"
+                            >
+                              <div className="flex flex-col w-full gap-1">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-medium">{product.product_name}</span>
+                                  <span className="font-semibold text-primary">₹{variant.sale_price}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-xs text-muted-foreground">
+                                  <div className="flex gap-2 flex-wrap">
+                                    {product.brand && <span className="bg-muted px-1.5 py-0.5 rounded">{product.brand}</span>}
+                                    {product.category && <span className="bg-muted px-1.5 py-0.5 rounded">{product.category}</span>}
+                                    {product.style && <span className="bg-muted px-1.5 py-0.5 rounded">{product.style}</span>}
+                                    {(variant.color || product.color) && (
+                                      <span className="bg-muted px-1.5 py-0.5 rounded">{variant.color || product.color}</span>
+                                    )}
+                                    <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Size: {variant.size}</span>
+                                  </div>
+                                  <div className="flex gap-2 items-center">
+                                    {variant.mrp && variant.mrp !== variant.sale_price && (
+                                      <span className="line-through">MRP: ₹{variant.mrp}</span>
+                                    )}
+                                    <Badge variant={variant.stock_qty > 5 ? "default" : variant.stock_qty > 0 ? "secondary" : "destructive"} className="text-xs">
+                                      Stock: {variant.stock_qty}
+                                    </Badge>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="flex gap-2 items-center">
-                                {variant.mrp && variant.mrp !== variant.sale_price && (
-                                  <span className="line-through">MRP: ₹{variant.mrp}</span>
-                                )}
-                                <Badge variant={variant.stock_qty > 5 ? "default" : variant.stock_qty > 0 ? "secondary" : "destructive"} className="text-xs">
-                                  Stock: {variant.stock_qty}
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        </CommandItem>
-                      ))
-                    ))}
+                            </CommandItem>
+                          );
+                        })
+                      );
+                    })()}
                   </CommandGroup>
                 </CommandList>
               </Command>
