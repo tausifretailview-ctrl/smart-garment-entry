@@ -1688,7 +1688,7 @@ export default function SalesInvoiceDashboard() {
                                   )}
                                 </div>
                                 <span className="text-xs text-muted-foreground">
-                                  {invoice.sale_date ? format(new Date(invoice.sale_date), 'HH:mm') : ''}
+                                  {invoice.sale_date ? format(new Date(invoice.sale_date), 'hh:mm a') : ''}
                                 </span>
                               </div>
                             </TableCell>
