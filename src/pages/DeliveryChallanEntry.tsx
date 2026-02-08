@@ -104,6 +104,7 @@ export default function DeliveryChallanEntry() {
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [productSearchResults, setProductSearchResults] = useState<any[]>([]);
+  const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [isSearching, setIsSearching] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
@@ -298,7 +299,8 @@ export default function DeliveryChallanEntry() {
         product.style?.toLowerCase().includes(searchLower) ||
         product.brand?.toLowerCase().includes(searchLower);
     });
-    setProductSearchResults(results.slice(0, 20));
+    setProductSearchResults(results.slice(0, 100));
+    setProductDisplayLimit(100);
     setIsSearching(false);
   }, [searchInput, productsData]);
 
@@ -852,8 +854,25 @@ export default function DeliveryChallanEntry() {
                   <CommandList>
                     {isSearching ? <CommandEmpty>Searching...</CommandEmpty> : 
                      productSearchResults.length === 0 ? <CommandEmpty>No products found.</CommandEmpty> : (
-                      <CommandGroup>
-                        {productSearchResults.slice(0, 50).map((product: any) => (
+                      <>
+                        {productSearchResults.length > productDisplayLimit && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                            <span>Showing {productDisplayLimit} of {productSearchResults.length} results</span>
+                            <Button
+                              variant="link"
+                              size="sm"
+                              className="h-auto p-0 text-primary"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setProductDisplayLimit(prev => prev + 100);
+                              }}
+                            >
+                              Load More
+                            </Button>
+                          </div>
+                        )}
+                        <CommandGroup>
+                          {productSearchResults.slice(0, productDisplayLimit).map((product: any) => (
                           <CommandItem key={product.id} onSelect={() => handleProductSelect(product)}>
                             <div className="flex justify-between w-full">
                               <div>
@@ -867,7 +886,8 @@ export default function DeliveryChallanEntry() {
                             </div>
                           </CommandItem>
                         ))}
-                      </CommandGroup>
+                        </CommandGroup>
+                      </>
                     )}
                   </CommandList>
                 </Command>

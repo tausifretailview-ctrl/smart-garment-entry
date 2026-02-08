@@ -63,6 +63,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [productsLoading, setProductsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
+  const [productDisplayLimit, setProductDisplayLimit] = useState(100);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -163,7 +164,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         }
       });
 
-      setProducts(Array.from(allProducts.values()).slice(0, 50));
+      setProducts(Array.from(allProducts.values()).slice(0, 100));
+      setProductDisplayLimit(100); // Reset on new search
     } catch (error) {
       console.error("Error searching products:", error);
     } finally {
@@ -492,8 +494,23 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                   ) : products.length === 0 ? (
                     <CommandEmpty className="text-xs py-4">No products found.</CommandEmpty>
                   ) : (
-                    <CommandGroup>
-                      {products.map((product) => {
+                    <>
+                      {products.length > productDisplayLimit && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
+                          <span>Showing {productDisplayLimit} of {products.length} results</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setProductDisplayLimit(prev => prev + 100);
+                            }}
+                            className="text-primary font-medium hover:underline text-sm"
+                          >
+                            Load More
+                          </button>
+                        </div>
+                      )}
+                      <CommandGroup>
+                        {products.slice(0, productDisplayLimit).map((product) => {
                         const isSelected = selectedProducts.some(p => p.id === product.id);
                         return (
                           <CommandItem
@@ -546,7 +563,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                           </CommandItem>
                         );
                       })}
-                    </CommandGroup>
+                      </CommandGroup>
+                    </>
                   )}
                 </CommandList>
               </Command>
