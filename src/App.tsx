@@ -66,6 +66,7 @@ import TallyExport from "./pages/TallyExport";
 import SalesAnalyticsDashboard from "./pages/SalesAnalyticsDashboard";
 import AccountingReports from "./pages/AccountingReports";
 import NetProfitAnalysis from "./pages/NetProfitAnalysis";
+import HourlySalesAnalysis from "./pages/HourlySalesAnalysis";
 import RecycleBin from "./pages/RecycleBin";
 import StockAdjustment from "./pages/StockAdjustment";
 import StockAnalysis from "./pages/StockAnalysis";
@@ -790,6 +791,18 @@ const App = () => {
                         <FullScreenLayout>
                           <NetProfitAnalysis />
                         </FullScreenLayout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="hourly-sales-analysis"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <HourlySalesAnalysis />
+                        </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
