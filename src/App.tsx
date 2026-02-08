@@ -84,6 +84,12 @@ import WhatsAppLogs from "./pages/WhatsAppLogs";
 import WhatsAppInbox from "./pages/WhatsAppInbox";
 import MobileMoreMenu from "./pages/mobile/MobileMoreMenu";
 import MobileReportsHub from "./pages/mobile/MobileReportsHub";
+// School Module imports
+import StudentMaster from "./pages/school/StudentMaster";
+import StudentEntry from "./pages/school/StudentEntry";
+import AcademicYearSetup from "./pages/school/AcademicYearSetup";
+import ClassSectionSetup from "./pages/school/ClassSectionSetup";
+import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 // Helpers for redirecting when org slug is missing in URL (PWA resilience)
 function getStoredOrgSlug(): string | null {
   return localStorage.getItem("selectedOrgSlug") || sessionStorage.getItem("selectedOrgSlug") || null;
@@ -397,6 +403,68 @@ const App = () => {
                       <Layout>
                         <Profile />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* School Module Routes */}
+                <Route
+                  path="students"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentMaster />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="student-entry"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentEntry />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="student-entry/:id"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <StudentEntry />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="academic-years"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <AcademicYearSetup />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="classes"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <ClassSectionSetup />
+                        </Layout>
+                      </SchoolFeatureGate>
                     </ProtectedRoute>
                   }
                 />

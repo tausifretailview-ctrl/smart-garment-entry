@@ -26,11 +26,16 @@ import {
   MessageSquare,
   Inbox,
   ClipboardList,
+  GraduationCap,
+  BookOpen,
+  Calendar,
+  CreditCard,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   Sidebar,
   SidebarContent,
@@ -52,6 +57,9 @@ export function AppSidebar() {
   const location = useLocation();
   const { canAccessSettings, canAccessPurchases, isPlatformAdmin, isAdmin } = useUserRoles();
   const { hasMenuAccess, hasMainMenuAccess, isAdmin: isAdminPermissions, loading: permissionsLoading } = useUserPermissions();
+  const { currentOrganization } = useOrganization();
+  
+  const isSchool = currentOrganization?.organization_type === "school";
 
   // Check if path matches accounting for org-scoped URLs
   // URL format: /:orgSlug/path or /path
@@ -87,6 +95,7 @@ export function AppSidebar() {
   const reportsPaths = ["/stock-report", "/stock-analysis", "/sales-report", "/purchase-report", "/product-tracking", "/daily-cashier-report", "/item-wise-sales", "/item-wise-stock", "/price-history", "/gst-reports", "/gst-register", "/tally-export", "/sales-analytics", "/accounting-reports"];
   const accountsPaths = ["/accounts", "/payments-dashboard"];
   const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
+  const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes"];
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0" style={{ width: '280px' }}>
@@ -125,6 +134,81 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
+          </SidebarGroup>
+        )}
+
+        {/* School Module - Only for school organizations */}
+        {isSchool && (
+          <SidebarGroup>
+            <Collapsible defaultOpen={isGroupActive(schoolPaths)} className="group/collapsible">
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold dark:text-white">School</span>}
+                  </div>
+                  {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuSub>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/students")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/students" className="flex items-center gap-3 group">
+                              <GraduationCap className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Students</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/teachers")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/teachers" className="flex items-center gap-3 group">
+                              <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Teachers</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/classes")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/classes" className="flex items-center gap-3 group">
+                              <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Classes</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/academic-years")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/academic-years" className="flex items-center gap-3 group">
+                              <Calendar className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Academic Years</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/fee-heads")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/fee-heads" className="flex items-center gap-3 group">
+                              <CreditCard className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Fee Heads</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/fee-collection")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/fee-collection" className="flex items-center gap-3 group">
+                              <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Fee Collection</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      </SidebarMenuSub>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
           </SidebarGroup>
         )}
 

@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      academic_years: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          id: string
+          is_current: boolean | null
+          organization_id: string
+          start_date: string
+          updated_at: string | null
+          year_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          id?: string
+          is_current?: boolean | null
+          organization_id: string
+          start_date: string
+          updated_at?: string | null
+          year_name: string
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          id?: string
+          is_current?: boolean | null
+          organization_id?: string
+          start_date?: string
+          updated_at?: string | null
+          year_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academic_years_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_ledgers: {
         Row: {
           account_name: string
@@ -1211,6 +1252,186 @@ export type Database = {
           },
         ]
       }
+      fee_heads: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          head_name: string
+          id: string
+          is_active: boolean | null
+          is_refundable: boolean | null
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          head_name: string
+          id?: string
+          is_active?: boolean | null
+          is_refundable?: boolean | null
+          organization_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          head_name?: string
+          id?: string
+          is_active?: boolean | null
+          is_refundable?: boolean | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_heads_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fee_schedules: {
+        Row: {
+          academic_year_id: string
+          class_id: string | null
+          created_at: string | null
+          due_date: string
+          fee_head_id: string | null
+          id: string
+          organization_id: string
+          period_end: string | null
+          period_name: string | null
+          period_start: string | null
+        }
+        Insert: {
+          academic_year_id: string
+          class_id?: string | null
+          created_at?: string | null
+          due_date: string
+          fee_head_id?: string | null
+          id?: string
+          organization_id: string
+          period_end?: string | null
+          period_name?: string | null
+          period_start?: string | null
+        }
+        Update: {
+          academic_year_id?: string
+          class_id?: string | null
+          created_at?: string | null
+          due_date?: string
+          fee_head_id?: string | null
+          id?: string
+          organization_id?: string
+          period_end?: string | null
+          period_name?: string | null
+          period_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_schedules_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_schedules_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "school_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_schedules_fee_head_id_fkey"
+            columns: ["fee_head_id"]
+            isOneToOne: false
+            referencedRelation: "fee_heads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fee_structures: {
+        Row: {
+          academic_year_id: string
+          amount: number
+          class_id: string
+          created_at: string | null
+          due_day: number | null
+          fee_head_id: string
+          frequency: string
+          id: string
+          late_fee_after_days: number | null
+          late_fee_amount: number | null
+          organization_id: string
+        }
+        Insert: {
+          academic_year_id: string
+          amount: number
+          class_id: string
+          created_at?: string | null
+          due_day?: number | null
+          fee_head_id: string
+          frequency?: string
+          id?: string
+          late_fee_after_days?: number | null
+          late_fee_amount?: number | null
+          organization_id: string
+        }
+        Update: {
+          academic_year_id?: string
+          amount?: number
+          class_id?: string
+          created_at?: string | null
+          due_day?: number | null
+          fee_head_id?: string
+          frequency?: string
+          id?: string
+          late_fee_after_days?: number | null
+          late_fee_amount?: number | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fee_structures_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structures_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "school_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structures_fee_head_id_fkey"
+            columns: ["fee_head_id"]
+            isOneToOne: false
+            referencedRelation: "fee_heads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fee_structures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gift_redemptions: {
         Row: {
           customer_id: string
@@ -1533,6 +1754,7 @@ export type Database = {
           id: string
           name: string
           organization_number: number | null
+          organization_type: string
           settings: Json
           slug: string
           subscription_tier: Database["public"]["Enums"]["subscription_tier"]
@@ -1544,6 +1766,7 @@ export type Database = {
           id?: string
           name: string
           organization_number?: number | null
+          organization_type?: string
           settings?: Json
           slug: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
@@ -1555,6 +1778,7 @@ export type Database = {
           id?: string
           name?: string
           organization_number?: number | null
+          organization_type?: string
           settings?: Json
           slug?: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
@@ -3247,6 +3471,44 @@ export type Database = {
           },
         ]
       }
+      school_classes: {
+        Row: {
+          class_name: string
+          created_at: string | null
+          display_order: number | null
+          id: string
+          is_active: boolean | null
+          organization_id: string
+          section: string | null
+        }
+        Insert: {
+          class_name: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          organization_id: string
+          section?: string | null
+        }
+        Update: {
+          class_name?: string
+          created_at?: string | null
+          display_order?: number | null
+          id?: string
+          is_active?: boolean | null
+          organization_id?: string
+          section?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "school_classes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settings: {
         Row: {
           address: string | null
@@ -3527,6 +3789,240 @@ export type Database = {
           },
         ]
       }
+      student_fees: {
+        Row: {
+          academic_year_id: string
+          amount: number
+          created_at: string | null
+          discount: number | null
+          discount_reason: string | null
+          due_date: string | null
+          fee_head_id: string
+          fee_structure_id: string | null
+          id: string
+          late_fee: number | null
+          notes: string | null
+          organization_id: string
+          paid_amount: number | null
+          paid_date: string | null
+          payment_id: string | null
+          payment_method: string | null
+          payment_receipt_id: string | null
+          period_month: number | null
+          period_year: number | null
+          sale_id: string | null
+          status: string | null
+          student_id: string
+          transaction_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          academic_year_id: string
+          amount: number
+          created_at?: string | null
+          discount?: number | null
+          discount_reason?: string | null
+          due_date?: string | null
+          fee_head_id: string
+          fee_structure_id?: string | null
+          id?: string
+          late_fee?: number | null
+          notes?: string | null
+          organization_id: string
+          paid_amount?: number | null
+          paid_date?: string | null
+          payment_id?: string | null
+          payment_method?: string | null
+          payment_receipt_id?: string | null
+          period_month?: number | null
+          period_year?: number | null
+          sale_id?: string | null
+          status?: string | null
+          student_id: string
+          transaction_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          academic_year_id?: string
+          amount?: number
+          created_at?: string | null
+          discount?: number | null
+          discount_reason?: string | null
+          due_date?: string | null
+          fee_head_id?: string
+          fee_structure_id?: string | null
+          id?: string
+          late_fee?: number | null
+          notes?: string | null
+          organization_id?: string
+          paid_amount?: number | null
+          paid_date?: string | null
+          payment_id?: string | null
+          payment_method?: string | null
+          payment_receipt_id?: string | null
+          period_month?: number | null
+          period_year?: number | null
+          sale_id?: string | null
+          status?: string | null
+          student_id?: string
+          transaction_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_fees_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_fee_head_id_fkey"
+            columns: ["fee_head_id"]
+            isOneToOne: false
+            referencedRelation: "fee_heads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_fee_structure_id_fkey"
+            columns: ["fee_structure_id"]
+            isOneToOne: false
+            referencedRelation: "fee_structures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_fees_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      students: {
+        Row: {
+          academic_year_id: string | null
+          address: string | null
+          admission_date: string | null
+          admission_number: string
+          class_id: string | null
+          created_at: string | null
+          customer_id: string | null
+          date_of_birth: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          emergency_contact: string | null
+          gender: string | null
+          id: string
+          notes: string | null
+          organization_id: string
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
+          parent_relation: string | null
+          photo_url: string | null
+          status: string | null
+          student_name: string
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          academic_year_id?: string | null
+          address?: string | null
+          admission_date?: string | null
+          admission_number: string
+          class_id?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          emergency_contact?: string | null
+          gender?: string | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          parent_relation?: string | null
+          photo_url?: string | null
+          status?: string | null
+          student_name: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          academic_year_id?: string | null
+          address?: string | null
+          admission_date?: string | null
+          admission_number?: string
+          class_id?: string | null
+          created_at?: string | null
+          customer_id?: string | null
+          date_of_birth?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          emergency_contact?: string | null
+          gender?: string | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          parent_relation?: string | null
+          photo_url?: string | null
+          status?: string | null
+          student_name?: string
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_academic_year_id_fkey"
+            columns: ["academic_year_id"]
+            isOneToOne: false
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "school_classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "students_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           address: string | null
@@ -3579,6 +4075,78 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "suppliers_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teachers: {
+        Row: {
+          can_view_fees: boolean | null
+          can_view_students: boolean | null
+          created_at: string | null
+          date_of_joining: string | null
+          deleted_at: string | null
+          email: string | null
+          employee_id: string | null
+          id: string
+          organization_id: string
+          phone: string | null
+          qualification: string | null
+          status: string | null
+          subjects: string[] | null
+          teacher_code: string
+          teacher_name: string
+          user_id: string | null
+        }
+        Insert: {
+          can_view_fees?: boolean | null
+          can_view_students?: boolean | null
+          created_at?: string | null
+          date_of_joining?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          employee_id?: string | null
+          id?: string
+          organization_id: string
+          phone?: string | null
+          qualification?: string | null
+          status?: string | null
+          subjects?: string[] | null
+          teacher_code: string
+          teacher_name: string
+          user_id?: string | null
+        }
+        Update: {
+          can_view_fees?: boolean | null
+          can_view_students?: boolean | null
+          created_at?: string | null
+          date_of_joining?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          employee_id?: string | null
+          id?: string
+          organization_id?: string
+          phone?: string | null
+          qualification?: string | null
+          status?: string | null
+          subjects?: string[] | null
+          teacher_code?: string
+          teacher_name?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teachers_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teachers_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

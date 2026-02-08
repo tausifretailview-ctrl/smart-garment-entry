@@ -9,6 +9,7 @@ interface Organization {
   subscription_tier: "free" | "basic" | "professional" | "enterprise";
   enabled_features: string[];
   settings: Record<string, any>;
+  organization_type: "business" | "school";
 }
 
 interface OrganizationMember {
