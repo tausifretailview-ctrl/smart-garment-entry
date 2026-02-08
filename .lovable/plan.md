@@ -1,120 +1,33 @@
 
-# Add "Showing X of Y" Indicator Across All Product/Customer Search Areas
+# Add Time Display & Phone Column Toggle for POS/Sales Dashboards
 
-## Current State
+## Overview
 
-The "Showing X of Y" indicator with "Load More" was just added to QuotationEntry and SaleOrderEntry. However, multiple other pages and components have similar search dropdowns with hard limits that could benefit from the same enhancement.
-
----
-
-## Files Requiring Updates
-
-### High Priority (Entry Forms with Product Search)
-
-| Component | Current Limit | Location |
-|-----------|---------------|----------|
-| **SalesInvoice.tsx** | `.limit(50)` | Line 687 |
-| **PurchaseEntry.tsx** | No limit (needs one) | Search function |
-| **DeliveryChallanEntry.tsx** | `.slice(0, 50)` | Line 856 |
-| **PurchaseOrderEntry.tsx** | `.slice(0, 50)` | Line 441 |
-
-### Medium Priority (Dialogs and Reports)
-
-| Component | Current Limit | Location |
-|-----------|---------------|----------|
-| **SizeStockDialog.tsx** | `.slice(0, 50)` | Line 166 |
-| **StockAnalysisSearch.tsx** | `.slice(0, 50)` | Line 117 |
-
-### Lower Priority (Customer Search)
-
-| Component | Current Limit | Location |
-|-----------|---------------|----------|
-| **Accounts.tsx** | `.slice(0, 50)` | Line 1573 |
-| **AddAdvanceBookingDialog.tsx** | `.slice(0, 50)` | Line 182 |
-
-### Not Applicable
-
-| Component | Reason |
-|-----------|--------|
-| **POSSales.tsx** | Uses pre-loaded client-side data without dropdown limits |
-| **StockReport.tsx** | Shows all paginated results in table format |
-| **ItemWiseSalesReport.tsx** | Shows all filtered results in table |
+This plan implements two user-requested enhancements:
+1. **Show exact time** after the invoice number (e.g., "POS/25-26/8 | 14:32")
+2. **Make Phone column hideable** via the Show/Hide Columns settings (hidden by default)
 
 ---
 
-## Implementation Plan
+## Changes Summary
 
-### Phase 1: Sales & Purchase Entry Forms
+### 1. Display Time After Invoice Number
 
-**1. SalesInvoice.tsx**
-- Increase server limit from 50 to 100
-- Add `displayLimit` state
-- Add "Showing X of Y" indicator with "Load More"
-- Reset limit on search change
+Currently, the Date column shows only the date (`dd/MM/yyyy`). The user wants to see the exact time the invoice was created **next to the invoice number** for quick reference.
 
-**2. PurchaseEntry.tsx**  
-- Add `.limit(100)` to variants query
-- Add `displayLimit` state
-- Add indicator UI to search results dropdown
-
-**3. DeliveryChallanEntry.tsx**
-- Change `.slice(0, 50)` to dynamic `displayLimit`
-- Add indicator with Load More
-
-**4. PurchaseOrderEntry.tsx**
-- Change `.slice(0, 50)` to dynamic `displayLimit`
-- Add indicator with Load More
-
-### Phase 2: Dialogs
-
-**5. SizeStockDialog.tsx**
-- Increase limit from 50 to 100
-- Add indicator when results exceed limit
-
-**6. StockAnalysisSearch.tsx**
-- Increase limit from 50 to 100
-- Add indicator when results exceed limit
-
-### Phase 3: Customer Search (Optional)
-
-**7. Accounts.tsx & AddAdvanceBookingDialog.tsx**
-- Customer lists typically smaller, but can add indicator if needed
-
----
-
-## Technical Implementation Pattern
-
-For each component, apply this pattern:
-
-```typescript
-// 1. Add state
-const [displayLimit, setDisplayLimit] = useState(100);
-
-// 2. Calculate total matching results
-const totalResults = allResults.length;
-
-// 3. Reset on search change
-useEffect(() => {
-  setDisplayLimit(100);
-}, [searchInput]);
-
-// 4. Add indicator UI before results list
-{totalResults > displayLimit && (
-  <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-    <span>Showing {displayLimit} of {totalResults} results</span>
-    <Button
-      variant="link"
-      size="sm"
-      onClick={() => setDisplayLimit(prev => prev + 100)}
-    >
-      Load More
-    </Button>
-  </div>
-)}
-
-// 5. Update slice logic
-{results.slice(0, displayLimit).map(...)}
+**What you'll see:**
 ```
+Before: POS/25-26/8
+After:  POS/25-26/8 • 14:32
+```
+
+The time will be displayed in a smaller, muted font to keep the invoice number prominent.
+
+### 2. Phone Column Toggle (Hidden by Default)
+
+The Phone column takes up space and is often empty (shows `-`). Adding it to the Show/Hide Columns settings lets you:
+- Hide it by default to save space
+- Enable it when needed via the column settings popover
 
 ---
 
@@ -122,31 +35,108 @@ useEffect(() => {
 
 | File | Changes |
 |------|---------|
-| `src/pages/SalesInvoice.tsx` | Add limit to 100, add displayLimit state, add indicator |
-| `src/pages/PurchaseEntry.tsx` | Add `.limit(100)`, add displayLimit state, add indicator |
-| `src/pages/DeliveryChallanEntry.tsx` | Dynamic limit, add indicator |
-| `src/pages/PurchaseOrderEntry.tsx` | Dynamic limit, add indicator |
-| `src/components/SizeStockDialog.tsx` | Increase to 100, add indicator |
-| `src/components/StockAnalysisSearch.tsx` | Increase to 100, add indicator |
+| `src/pages/POSDashboard.tsx` | Add `phone` to column defaults (false), add toggle in settings popover, conditionally render Phone column, add time display to Sale Number |
+| `src/pages/SalesInvoiceDashboard.tsx` | Add `phone` to column defaults (false), add toggle in settings popover, conditionally render Phone column, add time display to Invoice Number |
 
 ---
 
-## Impact Assessment
+## Technical Details
 
-- **Cloud Usage**: Minimal impact - search queries are on-demand with debouncing
-- **Performance**: 100 items remain fast on mobile; indicator prevents scroll lag
-- **UX**: Users now see when results are truncated and can load more if needed
+### Updated Default Column Settings
+
+**POSDashboard.tsx:**
+```typescript
+const DEFAULT_POS_COLUMNS = {
+  phone: false,  // NEW - hidden by default
+  status: true,
+  refund: true,
+  refundStatus: true,
+  creditNoteStatus: true,
+  whatsapp: true,
+  copyLink: true,
+  preview: true,
+  print: true,
+  modify: true,
+};
+```
+
+**SalesInvoiceDashboard.tsx:**
+```typescript
+const defaultColumnSettings: ColumnSettings = {
+  phone: false,  // NEW - hidden by default
+  status: true,
+  delivery: true,
+  whatsapp: true,
+  copyLink: true,
+  print: true,
+  download: true,
+  modify: true,
+  delete: true,
+};
+```
+
+### Time Display Pattern
+
+The invoice number cell will include a time indicator:
+```tsx
+<TableCell className="font-medium">
+  <div className="flex flex-col">
+    <span>{sale.sale_number}</span>
+    <span className="text-xs text-muted-foreground">
+      {format(new Date(sale.sale_date), "HH:mm")}
+    </span>
+  </div>
+</TableCell>
+```
+
+### Phone Column Visibility
+
+**Table Header:**
+```tsx
+{columnSettings.phone && <TableHead>Phone</TableHead>}
+```
+
+**Table Cell:**
+```tsx
+{columnSettings.phone && (
+  <TableCell>{sale.customer_phone || '-'}</TableCell>
+)}
+```
+
+### Settings Popover Addition
+
+Add phone toggle at the top of the Show/Hide Columns list:
+```tsx
+<div className="flex items-center justify-between">
+  <Label htmlFor="col-phone" className="text-sm">Phone Number</Label>
+  <Checkbox
+    id="col-phone"
+    checked={columnSettings.phone}
+    onCheckedChange={(checked) => updateColumnSetting('phone', !!checked)}
+  />
+</div>
+```
 
 ---
 
-## Status: ✅ COMPLETED
+## Visual Result
 
-All high and medium priority components have been updated with the "Showing X of Y" indicator:
-- ✅ SalesInvoice.tsx - Added displayLimit state, indicator, and Load More
-- ✅ PurchaseEntry.tsx - Added displayLimit state, indicator, and Load More
-- ✅ DeliveryChallanEntry.tsx - Added displayLimit state, indicator, and Load More
-- ✅ PurchaseOrderEntry.tsx - Added displayLimit state, indicator, and Load More
-- ✅ SizeStockDialog.tsx - Added displayLimit state, indicator, and Load More
-- ✅ StockAnalysisSearch.tsx - Added displayLimit state, indicator, and Load More
-- ✅ QuotationEntry.tsx - Previously completed
-- ✅ SaleOrderEntry.tsx - Previously completed
+**After Implementation:**
+
+| □ | ▸ | Sale Number | Customer | Date | Qty | Amount | ... |
+|---|---|-------------|----------|------|-----|--------|-----|
+| □ | > | POS/25-26/8 | CASH SALES | 30/01/2026 | 1 | ₹170 | ... |
+|   |   | *14:32* |  |  |  |  |  |
+
+- Invoice number shows with time below it
+- Phone column is hidden by default
+- Users can enable Phone via the settings popover (⚙️ icon)
+
+---
+
+## Benefits
+
+- **Time visibility**: Easily identify when invoices were created, useful for same-day auditing
+- **Cleaner tables**: Phone column hidden by default removes visual clutter
+- **User control**: Phone column can be enabled any time via Show/Hide Columns
+- **Persistent settings**: Column preferences are saved per organization
