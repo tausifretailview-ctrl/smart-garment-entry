@@ -346,6 +346,8 @@ export default function SaleOrderEntry() {
           .eq('organization_id', currentOrganization.id)
           .eq('status', 'active')
           .is('deleted_at', null)
+          .order('product_name')
+          .order('id')
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -1315,7 +1317,7 @@ export default function SaleOrderEntry() {
                 <CommandList className="max-h-[400px]">
                   <CommandEmpty>No products found</CommandEmpty>
                   <CommandGroup>
-                    {filteredProducts.slice(0, 50).map(product => (
+                    {filteredProducts.slice(0, 100).map(product => (
                       product.product_variants?.map((variant: any) => (
                         <CommandItem
                           key={variant.id}
