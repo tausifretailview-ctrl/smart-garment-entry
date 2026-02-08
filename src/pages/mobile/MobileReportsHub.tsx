@@ -61,6 +61,7 @@ export default function MobileReportsHub() {
         { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", desc: "Cash summary for day" },
         { icon: ShoppingBag, label: "Item-wise Sales", path: "/item-wise-sales", desc: "Sales by product" },
         { icon: Users, label: "Customer Sales", path: "/sales-report-by-customer", desc: "Sales by customer" },
+        { icon: TrendingUp, label: "Hourly Analysis", path: "/hourly-sales-analysis", desc: "Peak hours & trends" },
       ]
     },
     {
