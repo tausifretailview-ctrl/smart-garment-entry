@@ -1398,7 +1398,7 @@ export default function SaleOrderEntry() {
         {/* Line Items Table with Stock Difference */}
         <div className="border rounded-md overflow-hidden relative">
           <Table>
-            <TableHeader className="sticky top-0 z-10 bg-muted">
+            <TableHeader>
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead>Product</TableHead>
