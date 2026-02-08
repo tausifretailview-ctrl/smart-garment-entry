@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Building2, Users, Plus, Shield, Edit, UserX, Link2, Settings, Database, FileText, Activity, Download } from "lucide-react";
@@ -29,6 +30,7 @@ interface Organization {
   enabled_features: string[];
   created_at: string;
   organization_number: number;
+  organization_type?: "business" | "school";
 }
 
 interface User {
@@ -245,6 +247,7 @@ export default function PlatformAdmin() {
   
   const [orgName, setOrgName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [orgType, setOrgType] = useState<"business" | "school">("business");
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   
   const [userEmail, setUserEmail] = useState("");
@@ -304,6 +307,7 @@ export default function PlatformAdmin() {
         p_name: orgName,
         p_enabled_features: selectedFeatures,
         p_admin_email: adminEmail || null,
+        p_organization_type: orgType,
       });
 
       if (error) throw error;
@@ -314,6 +318,7 @@ export default function PlatformAdmin() {
       setCreateOrgOpen(false);
       setOrgName("");
       setAdminEmail("");
+      setOrgType("business");
       setSelectedFeatures([]);
       queryClient.invalidateQueries({ queryKey: ["platform-organizations"] });
     },
@@ -635,6 +640,23 @@ export default function PlatformAdmin() {
                       />
                     </div>
                     <div className="space-y-2">
+                      <Label>Organization Type *</Label>
+                      <RadioGroup 
+                        value={orgType} 
+                        onValueChange={(value) => setOrgType(value as "business" | "school")}
+                        className="flex gap-4"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="business" id="type-business" />
+                          <Label htmlFor="type-business" className="cursor-pointer font-normal">Business ERP</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="school" id="type-school" />
+                          <Label htmlFor="type-school" className="cursor-pointer font-normal">School ERP</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                    <div className="space-y-2">
                       <Label>Enabled Features</Label>
                       <div className="space-y-2">
                         {AVAILABLE_FEATURES.map((feature) => (
@@ -679,10 +701,15 @@ export default function PlatformAdmin() {
                           </Badge>
                           <span>{org.name}</span>
                         </div>
-                        <Badge variant="secondary">{org.subscription_tier}</Badge>
+                        <div className="flex items-center gap-1">
+                          <Badge variant={org.organization_type === "school" ? "default" : "secondary"}>
+                            {org.organization_type === "school" ? "🎓 School" : "Business"}
+                          </Badge>
+                        </div>
                       </CardTitle>
-                      <CardDescription>
-                        Created {new Date(org.created_at).toLocaleDateString()}
+                      <CardDescription className="flex items-center justify-between">
+                        <span>Created {new Date(org.created_at).toLocaleDateString()}</span>
+                        <Badge variant="outline" className="text-xs">{org.subscription_tier}</Badge>
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">

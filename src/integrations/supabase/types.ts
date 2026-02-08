@@ -5017,14 +5017,24 @@ export type Database = {
         }
         Returns: Json
       }
-      platform_create_organization: {
-        Args: {
-          p_admin_email?: string
-          p_enabled_features?: string[]
-          p_name: string
-        }
-        Returns: Json
-      }
+      platform_create_organization:
+        | {
+            Args: {
+              p_admin_email?: string
+              p_enabled_features?: string[]
+              p_name: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_admin_email?: string
+              p_enabled_features?: string[]
+              p_name: string
+              p_organization_type?: string
+            }
+            Returns: Json
+          }
       record_login_attempt: {
         Args: {
           p_attempt_type: string
