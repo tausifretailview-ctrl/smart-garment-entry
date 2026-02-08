@@ -53,6 +53,7 @@ import PaymentsDashboard from "./pages/PaymentsDashboard";
 import UserRights from "./pages/UserRights";
 import Auth from "./pages/Auth";
 import OrgAuth from "./pages/OrgAuth";
+import FieldSalesAuth from "./pages/FieldSalesAuth";
 import NotFound from "./pages/NotFound";
 import PlatformAdmin from "./pages/PlatformAdmin";
 import PublicInvoiceView from "./pages/PublicInvoiceView";
@@ -212,6 +213,9 @@ const App = () => {
 
               {/* Redirect root to org-specific URL */}
               <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
+
+              {/* Field Sales dedicated login route - public, no auth required */}
+              <Route path="/:orgSlug/field-sales" element={<FieldSalesAuth />} />
 
               {/* Organization-scoped routes */}
               <Route path="/:orgSlug" element={<OrgLayout />}>
