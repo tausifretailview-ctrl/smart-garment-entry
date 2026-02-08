@@ -214,11 +214,10 @@ const App = () => {
               {/* Redirect root to org-specific URL */}
               <Route path="/" element={<ProtectedRoute><RootRedirect /></ProtectedRoute>} />
 
-              {/* Field Sales dedicated login route - public, no auth required */}
-              <Route path="/:orgSlug/field-sales" element={<FieldSalesAuth />} />
-
               {/* Organization-scoped routes */}
               <Route path="/:orgSlug" element={<OrgLayout />}>
+                {/* Field Sales dedicated login - public, no auth required */}
+                <Route path="field-sales" element={<FieldSalesAuth />} />
                 {/* Public invoice view - org-scoped (no auth required) */}
                 <Route path="invoice/view/:saleId" element={<PublicInvoiceView />} />
                 {/* Dashboard - index route */}
