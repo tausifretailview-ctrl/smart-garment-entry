@@ -1,132 +1,96 @@
 
-# Add Organization Type Selection to "Create New Organization" Dialog
+# Fix Missing Products in Quotation/Sales Entry Pages
 
-## Overview
+## Problem Summary
 
-When creating a new organization in the Platform Admin dashboard, you need the ability to select whether it's a **Business** (default ERP) or **School** (School ERP module). Currently, this option is missing from the creation dialog.
+When searching for products like "LWR ARM" in Quotation Entry, not all matching products are displayed. Investigation reveals **two issues**:
+
+1. **UI Display Limit**: The product search dropdown limits displayed results to 50 items (`.slice(0, 50)`), hiding additional matches
+2. **Non-Deterministic Pagination**: Product fetching queries use `.range()` pagination without `.order()` clause, causing inconsistent results when datasets exceed 1000 rows
+
+These issues affect multiple entry pages:
+- QuotationEntry.tsx
+- SaleOrderEntry.tsx  
+- SalesInvoice.tsx
 
 ---
 
 ## What Will Be Changed
 
-### 1. Update Database Function
+### 1. Add Deterministic Sorting to Pagination Queries
 
-Modify the `platform_create_organization` RPC function to accept a new `p_organization_type` parameter:
+Add `.order("product_name").order("id")` to all product fetching queries that use `.range()` pagination:
 
-```sql
-CREATE OR REPLACE FUNCTION public.platform_create_organization(
-  p_name text,
-  p_enabled_features text[] DEFAULT ARRAY[]::text[],
-  p_admin_email text DEFAULT NULL::text,
-  p_organization_type text DEFAULT 'business'  -- NEW PARAMETER
-)
+**QuotationEntry.tsx (lines 329-335):**
+```typescript
+const { data, error } = await supabase
+  .from('products')
+  .select(`*, product_variants (*)`)
+  .eq('organization_id', currentOrganization.id)
+  .eq('status', 'active')
+  .is('deleted_at', null)
+  .order('product_name')  // Primary sort
+  .order('id')            // Secondary sort for deterministic pagination
+  .range(offset, offset + PAGE_SIZE - 1);
 ```
 
-### 2. Update the "Create New Organization" Dialog
+**Same fix applied to:**
+- SaleOrderEntry.tsx (lines 343-349)
+- SalesInvoice.tsx (lines 379-389)
 
-Add a radio group or select dropdown before the "Enabled Features" section:
+### 2. Increase Search Results Display Limit
 
-```text
-+----------------------------------+
-| Create New Organization          |
-| -------------------------------- |
-| Organization Name *              |
-| [                             ]  |
-|                                  |
-| Admin Email (optional)           |
-| [                             ]  |
-|                                  |
-| Organization Type *              |  <-- NEW
-| ○ Business ERP (default)         |  <-- NEW
-| ○ School ERP                     |  <-- NEW
-|                                  |
-| Enabled Features                 |
-| [ ] Advanced Reports             |
-| ...                              |
-+----------------------------------+
+Change `.slice(0, 50)` to `.slice(0, 100)` in dropdown displays to show more matching products:
+
+| File | Line | Change |
+|------|------|--------|
+| QuotationEntry.tsx | 1119 | `slice(0, 50)` → `slice(0, 100)` |
+| SaleOrderEntry.tsx | 1318 | `slice(0, 50)` → `slice(0, 100)` |
+
+### 3. Increase Inline Search Limit (QuotationEntry)
+
+Change `.limit(50)` to `.limit(100)` for the inline search query:
+
+**QuotationEntry.tsx (line 722):**
+```typescript
+const { data } = await variantsQuery.limit(100);  // Was limit(50)
 ```
-
-### 3. Update the Organization Card Display
-
-Show a badge indicating whether the organization is "Business" or "School" type in the organization cards list.
 
 ---
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `supabase/migrations/xxx_add_org_type_to_create.sql` | Update RPC function with `p_organization_type` parameter |
-| `src/pages/PlatformAdmin.tsx` | Add state for organization type, add radio group UI, update mutation call |
+| File | Changes |
+|------|---------|
+| `src/pages/QuotationEntry.tsx` | Add `.order()` to products query, increase slice limit to 100, increase inline search limit to 100 |
+| `src/pages/SaleOrderEntry.tsx` | Add `.order()` to products query, increase slice limit to 100 |
+| `src/pages/SalesInvoice.tsx` | Add `.order()` to products query |
 
 ---
 
-## Implementation Details
+## Technical Details
 
-### Frontend Changes (PlatformAdmin.tsx)
+### Why `.order()` is Required for Pagination
 
-1. **Add new state variable:**
-```typescript
-const [orgType, setOrgType] = useState<"business" | "school">("business");
-```
+Supabase/PostgreSQL does not guarantee row order without explicit `ORDER BY`. When paginating with `.range()`:
+- Page 1 fetches rows 0-999
+- Page 2 fetches rows 1000-1999
 
-2. **Add Organization Type selector in dialog:**
-```tsx
-<div className="space-y-2">
-  <Label>Organization Type *</Label>
-  <RadioGroup value={orgType} onValueChange={setOrgType}>
-    <div className="flex items-center space-x-2">
-      <RadioGroupItem value="business" id="type-business" />
-      <Label htmlFor="type-business">Business ERP</Label>
-    </div>
-    <div className="flex items-center space-x-2">
-      <RadioGroupItem value="school" id="type-school" />
-      <Label htmlFor="type-school">School ERP</Label>
-    </div>
-  </RadioGroup>
-</div>
-```
+Without ordering, the database may return rows in different order between calls, causing:
+- Rows to be skipped (appear on neither page)
+- Rows to be duplicated (appear on both pages)
 
-3. **Update mutation to pass type:**
-```typescript
-const { data, error } = await supabase.rpc("platform_create_organization", {
-  p_name: orgName,
-  p_enabled_features: selectedFeatures,
-  p_admin_email: adminEmail || null,
-  p_organization_type: orgType,  // NEW
-});
-```
+Adding `.order("id")` ensures deterministic, repeatable results across all pagination pages.
 
-4. **Show type badge on org cards:**
-```tsx
-<Badge variant={org.organization_type === "school" ? "default" : "secondary"}>
-  {org.organization_type === "school" ? "🎓 School" : "Business"}
-</Badge>
-```
+### Why 100 Results vs 50
 
-### Database Changes
-
-Update the RPC function to insert the organization type:
-
-```sql
-INSERT INTO public.organizations (
-  name, slug, subscription_tier, 
-  enabled_features, settings, 
-  organization_number, organization_type  -- ADD THIS
-)
-VALUES (
-  p_name, v_slug, 'professional', 
-  array_to_json(p_enabled_features)::jsonb, '{}'::jsonb, 
-  v_next_org_number, p_organization_type  -- ADD THIS
-)
-```
+For organizations with many similar products (like 45 "LWR ARM" variants), limiting to 50 results can hide relevant items when combined with other partial matches. Increasing to 100 provides better coverage while maintaining reasonable UI performance.
 
 ---
 
 ## Result
 
-After this change:
-- Platform admins can select "Business ERP" or "School ERP" when creating organizations
-- School organizations will automatically show the School module sidebar items
-- Business organizations continue to work as before
-- The organization cards will display a badge indicating the type
+After this fix:
+- All 45 "LWR ARM" products will appear when searching "LWR ARM"
+- Product lists will be consistent across page loads (no random missing products)
+- Same fix applied proactively to SaleOrderEntry and SalesInvoice for consistency
