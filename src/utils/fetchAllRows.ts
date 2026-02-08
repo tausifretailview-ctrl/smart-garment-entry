@@ -17,6 +17,7 @@ export async function fetchAllCustomers(organizationId: string) {
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("customer_name")
+      .order("id") // Secondary order for deterministic pagination
       .range(offset, offset + pageSize - 1);
 
     if (error) {
