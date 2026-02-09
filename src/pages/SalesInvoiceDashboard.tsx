@@ -711,6 +711,10 @@ export default function SalesInvoiceDashboard() {
     
     // Wait for invoice to render
     setTimeout(async () => {
+      // On mobile, rendering may take longer
+      if (!printRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       if (printRef.current) {
         try {
           const canvas = await html2canvas(printRef.current, {
@@ -2401,8 +2405,8 @@ export default function SalesInvoiceDashboard() {
         {invoiceToPrint && (
           <div style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
+            top: '-9999px',
+            left: '-9999px',
             width: billFormat === 'a4' ? '210mm' : 
                    billFormat === 'thermal' ? '80mm' : 
                    billFormat === 'a5-horizontal' ? '210mm' : '148mm',
@@ -2412,10 +2416,9 @@ export default function SalesInvoiceDashboard() {
             maxHeight: billFormat === 'thermal' ? 'none' : 
                        billFormat === 'a4' ? '297mm' : 
                        billFormat === 'a5-horizontal' ? '148mm' : '210mm',
-            opacity: 0,
             pointerEvents: 'none',
             zIndex: -9999,
-            overflow: 'hidden'
+            overflow: 'visible'
           }}>
             <InvoiceWrapper
               ref={printRef}
