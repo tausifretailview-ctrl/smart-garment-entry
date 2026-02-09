@@ -1,176 +1,118 @@
 
-# Plan: Customer Balance & Advance Import from Excel
+# Fix Plan: Purchase Bill Excel Import - Duplicate Variant Error
 
-## Overview
-Add a feature to import customer outstanding balances and advance payments from an Excel file with two sheets (Bal for outstanding, Adv for advances) for the ELLA NOOR organization.
+## Problem Identified
 
-## Excel File Structure Analyzed
+The Excel import is showing "28 errors" because all rows fail with **duplicate key constraint violations** on `product_variants_active_product_color_size_idx`. 
 
-**Sheet "Bal" - Outstanding Balances:**
-| Column | Purpose |
-|--------|---------|
-| Party Name | Customer name |
-| Contact No. | Phone number (e.g., +91-9391317936) |
-| Closing | Outstanding balance (positive number) |
+### Root Cause Analysis
 
-**Sheet "Adv" - Advance Payments:**
-| Column | Purpose |
-|--------|---------|
-| Party Name | Customer name |
-| Contact No. | Phone number |
-| Closing | Advance amount (negative in source, will convert to positive) |
+Looking at the database logs and the import logic:
 
----
+1. **Unique Constraint**: The database has a unique index on `(product_id, color, size)` for active variants
+2. **Variant Lookup Bug**: The current import logic looks up variants by `productId|size` (line 2081) but doesn't check if the variant already exists including color
+3. **Result**: When importing, if a variant already exists but the lookup key doesn't match exactly, the code tries to INSERT a new variant, which violates the unique constraint
 
-## Implementation Steps
+### Your Excel File Structure
 
-### 1. Create Balance/Advance Import Dialog Component
+| Product Name | Size | Purchase PKR | Purchasr Price | Sale Price |
+|-------------|------|--------------|----------------|------------|
+| GA-M015 | BDS | 4,200 | 1,693 | 3,000 |
+| KH-M0277 | 12 | 4,700 | 1,863 | 3,200 |
+| ... | ... | ... | ... | ... |
 
-Create `src/components/CustomerBalanceImportDialog.tsx`:
-- Parse Excel file with multi-sheet support
-- Read "Bal" sheet for outstanding balances
-- Read "Adv" sheet for advance payments
-- Preview data before import
-- Match customers by normalized phone number
-- Show match statistics (found/not found)
-
-### 2. Import Logic
-
-**For Outstanding Balances (Bal sheet):**
-- Match customers by phone number (normalize both Excel and database phones)
-- Update `customers.opening_balance` field with the "Closing" value
-- Track success/skip/error counts
-
-**For Advance Payments (Adv sheet):**
-- Match customers by phone number
-- Create entries in `customer_advances` table
-- Convert negative closing to positive amount
-- Set status to "active", used_amount to 0
-- Generate advance numbers using existing RPC function
-
-### 3. Add Import Button to Customer Master
-
-Update `src/pages/CustomerMaster.tsx`:
-- Add "Import Balances" button next to existing Excel Import button
-- Open the new import dialog
+The import is correctly mapping columns, but failing during variant creation/lookup.
 
 ---
 
-## Matching Strategy
+## Solution
 
-```text
-Excel: +91-9391317936  →  normalizePhoneNumber()  →  9391317936
-DB:    9391317936      →  Direct match
-```
+### 1. Fix Variant Lookup to Include Color
 
-- Uses existing `normalizePhoneNumber()` utility
-- Strips country codes, dashes, spaces
-- Extracts last 10 digits for comparison
+The variant lookup key should include color to properly match existing variants:
 
----
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `src/components/CustomerBalanceImportDialog.tsx` | **Create** - New dialog component |
-| `src/pages/CustomerMaster.tsx` | **Modify** - Add import button |
-| `src/utils/excelImportUtils.ts` | **Modify** - Add balance import field definitions |
-
----
-
-## User Interface Preview
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│  Import Customer Balances & Advances                    │
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────────┐│
-│  │  📁 Upload Excel File                               ││
-│  │  (Must contain sheets named "Bal" and "Adv")        ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  📊 Sheet: Bal (Outstanding)          ✓ 137 customers   │
-│     - Matched: 130                                      │
-│     - Not found: 7                                      │
-│                                                         │
-│  📊 Sheet: Adv (Advances)             ✓ 402 customers   │
-│     - Matched: 385                                      │
-│     - Not found: 17                                     │
-│                                                         │
-│  Preview:                                               │
-│  ┌────────────────┬─────────────┬───────────┬─────────┐│
-│  │ Customer       │ Phone       │ Amount    │ Status  ││
-│  ├────────────────┼─────────────┼───────────┼─────────┤│
-│  │ Aaisha Parekh  │ 9391317936  │ ₹500      │ ✓ Found ││
-│  │ Aa Production  │ 9833714507  │ ₹19,500   │ ✓ Found ││
-│  └────────────────┴─────────────┴───────────┴─────────┘│
-│                                                         │
-│  [Cancel]                            [Import Balances]  │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## Technical Details
-
-### Customer Balance Update Logic
 ```typescript
-// For each row in "Bal" sheet
-const normalizedPhone = normalizePhoneNumber(row.phone);
-const customer = customers.find(c => 
-  normalizePhoneNumber(c.phone) === normalizedPhone
-);
+// Current (broken):
+const variantKey = `${productId}|${size?.toLowerCase()}`;
 
-if (customer) {
-  await supabase
-    .from('customers')
-    .update({ opening_balance: closingBalance })
-    .eq('id', customer.id);
-}
+// Fixed:
+const variantKey = `${productId}|${color?.toLowerCase() || ''}|${size?.toLowerCase()}`;
 ```
 
-### Advance Creation Logic
+### 2. Use UPSERT Instead of INSERT for Variants
+
+When creating a new variant, use `onConflict` to handle duplicates gracefully:
+
 ```typescript
-// For each row in "Adv" sheet  
-const advanceAmount = Math.abs(closingBalance); // Convert negative to positive
+const { data: newVariant, error: variantError } = await supabase
+  .from('product_variants')
+  .upsert({
+    organization_id: currentOrganization.id,
+    product_id: productId,
+    size: size,
+    color: color || null,
+    barcode: barcode,
+    pur_price: parseLocalizedNumber(row.pur_price),
+    sale_price: parseLocalizedNumber(row.sale_price),
+    stock_qty: 0,
+    active: true,
+  }, {
+    onConflict: 'product_id,color,size',  // Match the unique index
+    ignoreDuplicates: false,  // Update if exists
+  })
+  .select('id')
+  .single();
+```
 
-const advanceNumber = await supabase.rpc(
-  'generate_advance_number',
-  { p_organization_id: organizationId }
-);
+### 3. Pre-fetch Variants Including Color in Key
 
-await supabase
-  .from('customer_advances')
-  .insert({
-    organization_id: organizationId,
-    customer_id: customer.id,
-    advance_number: advanceNumber,
-    amount: advanceAmount,
-    used_amount: 0,
-    advance_date: format(new Date(), 'yyyy-MM-dd'),
-    payment_method: 'Excel Import',
-    description: 'Imported from Excel',
-    status: 'active'
-  });
+Update the variant pre-fetch to build keys that include color:
+
+```typescript
+// Pre-fetch existing variants with color
+const { data: existingVariants } = await supabase
+  .from('product_variants')
+  .select('id, product_id, size, barcode, color')
+  .eq('organization_id', currentOrganization.id)
+  .in('product_id', productIds.length > 0 ? productIds : ['']);
+
+// Build variant map including color
+(existingVariants || []).forEach(v => {
+  const key = `${v.product_id}|${(v.color || '').toLowerCase()}|${v.size?.toLowerCase()}`;
+  variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
+});
 ```
 
 ---
 
-## Safety Features
+## Files to Modify
 
-1. **Preview before import** - Show matched/unmatched customers before processing
-2. **Batch processing** - Process 50 records at a time to avoid timeouts
-3. **Progress tracking** - Show real-time progress bar during import
-4. **Error handling** - Skip failed records, continue with rest
-5. **Duplicate prevention** - Check if advance already exists for customer before creating
-6. **Confirmation dialog** - Require explicit confirmation before updating balances
+| File | Changes |
+|------|---------|
+| `src/pages/PurchaseEntry.tsx` | Fix variant lookup key to include color; use upsert for variant creation |
 
 ---
 
-## Post-Import Verification
+## Code Changes Summary
 
-After import, query results will show:
-- Number of customers with updated `opening_balance`
-- Number of new `customer_advances` records created
-- List of unmatched phone numbers for manual review
+1. **Line ~2024-2034**: Update variant pre-fetch to include `color` in the select and build keys with color
+2. **Line ~2080-2082**: Update variant lookup key to include color
+3. **Line ~2101-2114**: Change variant INSERT to UPSERT with conflict handling on `product_id,color,size`
+
+---
+
+## Impact
+
+- **Low risk**: Only affects Excel import for purchase bills
+- **Backwards compatible**: Existing imports that worked will continue to work
+- **Fixes the issue**: Products with existing variants will be found correctly; new variants will be created only when truly new
+
+---
+
+## Testing After Fix
+
+1. Re-import the Maliha_CRTN51.xlsx file
+2. Expected result: All 28 items should import successfully
+3. The system will either:
+   - Find existing variants and add line items (no duplicate errors)
+   - Create new variants only for truly new product/color/size combinations
