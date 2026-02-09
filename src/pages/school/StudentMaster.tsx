@@ -23,14 +23,17 @@ import {
   Phone,
   Mail,
   Edit,
-  Eye 
+  Eye,
+  FileSpreadsheet
 } from "lucide-react";
 import { format } from "date-fns";
+import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
 
 const StudentMaster = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const [searchTerm, setSearchTerm] = useState("");
+  const [showExcelImport, setShowExcelImport] = useState(false);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ["students", currentOrganization?.id, searchTerm],
@@ -100,10 +103,20 @@ const StudentMaster = () => {
             Manage student records and admissions
           </p>
         </div>
-        <Button onClick={() => orgNavigate("/student-entry")} className="gap-2">
-          <UserPlus className="h-4 w-4" />
-          Add Student
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowExcelImport(true)} 
+            className="gap-2"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            Import Excel
+          </Button>
+          <Button onClick={() => orgNavigate("/student-entry")} className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Add Student
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -254,6 +267,12 @@ const StudentMaster = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Excel Import Dialog */}
+      <StudentExcelImportDialog 
+        open={showExcelImport} 
+        onOpenChange={setShowExcelImport} 
+      />
     </div>
   );
 };
