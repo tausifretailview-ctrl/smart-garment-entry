@@ -1985,6 +1985,16 @@ const PurchaseEntry = () => {
       !isSummaryOrEmptyRow(row)
     );
 
+    // Show clear error if no valid rows found after filtering
+    if (validRows.length === 0) {
+      toast({
+        title: "No valid rows found",
+        description: "Please check that required columns (Product Name, Size, Quantity, Purchase Price) are mapped correctly.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const BATCH_SIZE = 20;
     const newLineItems: LineItem[] = [];
     let successCount = 0;
