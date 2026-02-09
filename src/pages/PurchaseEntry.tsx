@@ -2051,9 +2051,9 @@ const PurchaseEntry = () => {
                 style: row.style?.toString().trim() || null,
                 color: row.color?.toString().trim() || null,
                 hsn_code: row.hsn_code?.toString().trim() || null,
-                gst_per: Number(row.gst_per) || 0,
-                default_pur_price: Number(row.pur_price) || 0,
-                default_sale_price: Number(row.sale_price) || 0,
+                gst_per: parseLocalizedNumber(row.gst_per),
+                default_pur_price: parseLocalizedNumber(row.pur_price),
+                default_sale_price: parseLocalizedNumber(row.sale_price),
                 status: 'active',
               })
               .select('id')
@@ -2095,8 +2095,8 @@ const PurchaseEntry = () => {
                 product_id: productId,
                 size: size,
                 barcode: barcode,
-                pur_price: Number(row.pur_price) || 0,
-                sale_price: Number(row.sale_price) || 0,
+                pur_price: parseLocalizedNumber(row.pur_price),
+                sale_price: parseLocalizedNumber(row.sale_price),
                 stock_qty: 0,
                 active: true,
               })
