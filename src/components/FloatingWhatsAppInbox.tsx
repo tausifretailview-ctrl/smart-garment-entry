@@ -1,7 +1,7 @@
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
 export const FloatingWhatsAppInbox = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentOrganization } = useOrganization();
   const { hasSpecialPermission, loading: permLoading } = useUserPermissions();
   
@@ -41,8 +42,17 @@ export const FloatingWhatsAppInbox = () => {
     refetchInterval: getRefreshInterval('medium'), // Tier-based: false for free tier
   });
 
-  // Don't show if no permission or no org
-  if (permLoading || !hasSpecialPermission("whatsapp_api") || !currentOrganization) {
+  // Only show on dashboard (root path after org slug)
+  const isDashboard = (() => {
+    const path = location.pathname;
+    if (!currentOrganization?.slug) return false;
+    const orgPrefix = `/${currentOrganization.slug}`;
+    // Dashboard is either /:orgSlug or /:orgSlug/
+    return path === orgPrefix || path === `${orgPrefix}/`;
+  })();
+
+  // Don't show if no permission, no org, or not on dashboard
+  if (permLoading || !hasSpecialPermission("whatsapp_api") || !currentOrganization || !isDashboard) {
     return null;
   }
 
