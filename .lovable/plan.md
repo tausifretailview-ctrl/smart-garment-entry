@@ -1,98 +1,122 @@
 
-# Fix Plan: Purchase Bill Excel Import - Localized Number Parsing
 
-## Problem Summary
-The purchase bill Excel import is failing to correctly save purchase prices to the database for the **ELLA NOOR** organization. While the imported line items display correct totals in the UI, the underlying **product variants** are created with `pur_price = 0`.
+# Fix Plan: Purchase Bill Excel Import - Column Name Matching
 
-**Root Cause:** When creating new products and product variants during Excel import, the code uses JavaScript's `Number()` function instead of `parseLocalizedNumber()`. This means comma-formatted prices like `27,139` are parsed as `NaN` and default to `0`.
+## Problem Identified
+The import is failing silently because the Excel file has non-standard column names that don't match the expected field aliases:
 
-Currently, 493 out of 787 product variants in the organization have `pur_price = 0` due to this bug.
+**Your Excel columns:**
+| Column Name | Expected to Map to | Current Status |
+|------------|-------------------|----------------|
+| Purchasr Price | `pur_price` (Purchase Price) | Not matching (typo - missing "e") |
+| Purchase PKR | (unmapped) | Could be original cost |
+| Quantity | `qty` | Should match |
+| Sale Price | `sale_price` | Should match |
+| Product Name | `product_name` | Should match |
+| Size | `size` | Should match |
+
+The **"Purchasr Price"** typo breaks automatic field detection, and since `pur_price` is a required field, the validation fails with 0 valid rows.
 
 ---
 
-## Solution Overview
+## Solution
 
-### 1. Fix the Excel Import Logic
+### 1. Expand Field Aliases for Purchase Price
 
-Replace all `Number()` calls for price fields with `parseLocalizedNumber()` in `PurchaseEntry.tsx`:
+Add more forgiving aliases to handle common typos and variations:
 
-**Product creation** (around line 2054-2056):
 ```typescript
-// Before
-gst_per: Number(row.gst_per) || 0,
-default_pur_price: Number(row.pur_price) || 0,
-default_sale_price: Number(row.sale_price) || 0,
-
-// After
-gst_per: parseLocalizedNumber(row.gst_per),
-default_pur_price: parseLocalizedNumber(row.pur_price),
-default_sale_price: parseLocalizedNumber(row.sale_price),
+// In src/utils/excelImportUtils.ts - fieldAliases
+pur_price: [
+  'purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 
+  'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate',
+  // NEW: Handle typos and currency-based names
+  'purchasrprice',  // Typo without 'e'
+  'purchasepkr',    // Currency-based (PKR)
+  'purchasingprice',
+  'buyprice',
+  'purchasprice',   // Another common typo
+],
 ```
 
-**Variant creation** (around line 2098-2099):
-```typescript
-// Before
-pur_price: Number(row.pur_price) || 0,
-sale_price: Number(row.sale_price) || 0,
+### 2. Improve Fuzzy Matching Logic
 
-// After
-pur_price: parseLocalizedNumber(row.pur_price),
-sale_price: parseLocalizedNumber(row.sale_price),
+Enhance the fuzzy matching to handle partial word matches better:
+
+```typescript
+// Enhanced fuzzy matching in fuzzyMatchField function
+const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
+  const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '');
+  
+  // Direct match
+  if (aliases.includes(normalizedHeader)) return true;
+  
+  // Partial containment check
+  for (const alias of aliases) {
+    if (normalizedHeader.includes(alias) || alias.includes(normalizedHeader)) {
+      return true;
+    }
+  }
+  
+  // Word-based matching with partial prefix matching (NEW)
+  const words = header.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3);
+  for (const word of words) {
+    for (const alias of aliases) {
+      // Existing: full word containment
+      if (alias.includes(word) || word.includes(alias)) {
+        return true;
+      }
+      // NEW: Prefix matching (first 5 chars) for typo tolerance
+      if (word.length >= 5 && alias.length >= 5) {
+        const wordPrefix = word.substring(0, 5);
+        const aliasPrefix = alias.substring(0, 5);
+        if (wordPrefix === aliasPrefix) {
+          return true;
+        }
+      }
+    }
+  }
+  
+  return false;
+};
+```
+
+### 3. Add Better Error Messaging
+
+When no valid rows are found, show clearer guidance:
+
+```typescript
+// In handleExcelImport - after filtering valid rows
+if (validRows.length === 0) {
+  toast.error("No valid rows found. Please check that required columns (Product Name, Size, Quantity, Purchase Price) are mapped correctly.");
+  return;
+}
 ```
 
 ---
 
-### 2. Data Correction for ELLA NOOR
+## Files to Modify
 
-After fixing the code, a SQL update is needed to correct the 493 variants with wrong prices:
-
-**Option A: Re-import the Excel file** (Recommended)
-- The fixed import logic will now correctly parse the prices
-- Existing variants will be matched by product+size combination and used (not recreated)
-- Line items will have correct prices, and the bill can be saved
-
-**Option B: Direct SQL update** 
-- Query the original Excel data source to update variant prices manually
-- This requires knowing the correct prices for each variant
+| File | Changes |
+|------|---------|
+| `src/utils/excelImportUtils.ts` | Expand `pur_price` aliases; improve fuzzy matching with prefix comparison |
+| `src/pages/PurchaseEntry.tsx` | Add clear error message when 0 valid rows found |
 
 ---
 
-## Technical Details
+## Testing After Fix
 
-### Files to Modify:
-- `src/pages/PurchaseEntry.tsx` - Fix product and variant creation to use `parseLocalizedNumber()`
-
-### Affected Lines in PurchaseEntry.tsx:
-
-| Line | Current Code | Fix |
-|------|-------------|-----|
-| ~2054 | `gst_per: Number(row.gst_per) \|\| 0` | `parseLocalizedNumber(row.gst_per)` |
-| ~2055 | `default_pur_price: Number(row.pur_price) \|\| 0` | `parseLocalizedNumber(row.pur_price)` |
-| ~2056 | `default_sale_price: Number(row.sale_price) \|\| 0` | `parseLocalizedNumber(row.sale_price)` |
-| ~2098 | `pur_price: Number(row.pur_price) \|\| 0` | `parseLocalizedNumber(row.pur_price)` |
-| ~2099 | `sale_price: Number(row.sale_price) \|\| 0` | `parseLocalizedNumber(row.sale_price)` |
-
-### Why `parseLocalizedNumber()` Works:
-The utility function correctly handles:
-- Comma-separated thousands (e.g., `27,139` → `27139`)
-- European decimal format (e.g., `1.234,56` → `1234.56`)
-- Currency symbols (e.g., `₹27,139` → `27139`)
-- Already numeric values (passes through)
-
----
-
-## Recommended Next Steps
-
-1. **Approve this plan** to fix the code
-2. **Re-import the Excel file** in ELLA NOOR organization
-3. The new import will:
-   - Match existing products/variants (won't create duplicates)
-   - Create line items with correct prices
-   - Allow saving the purchase bill with accurate totals
+1. Re-try importing the **Maliha_CRTN51.xlsx** file
+2. The system should now:
+   - Auto-detect "Purchasr Price" → Purchase Price
+   - Auto-detect "Quantity" → Quantity
+   - Auto-detect "Sale Price" → Sale Price
+   - Show proper success/error counts
 
 ---
 
 ## Impact
-- **Low risk** - only affects price parsing during import
-- **No breaking changes** - existing functionality preserved
-- **Fixes forward** - all future imports will work correctly
+- **Low risk** - only affects field alias matching
+- **Backwards compatible** - existing imports continue to work
+- **Fixes forward** - handles common typos in Excel column names
+
