@@ -554,7 +554,12 @@ const CustomerMaster = () => {
       <BackToDashboard />
       
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-foreground">Customer Master</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-foreground">Customer Master</h1>
+          <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
+            Total: {customers.length.toLocaleString()} customers
+          </span>
+        </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowLegacyImport(true)}>
             <History className="h-4 w-4 mr-2" />
