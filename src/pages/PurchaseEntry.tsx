@@ -26,7 +26,7 @@ import { cn, sortSearchResults } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { purchaseBillFields, purchaseBillSampleData, parseExcelDate } from "@/utils/excelImportUtils";
+import { purchaseBillFields, purchaseBillSampleData, parseExcelDate, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validatePurchaseBill } from "@/lib/validations";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { ProductEntryDialog } from "@/components/ProductEntryDialog";
@@ -2111,8 +2111,8 @@ const PurchaseEntry = () => {
             variantMap.set(variantKey, { id: skuId, barcode });
           }
 
-          const qty = Number(row.qty) || 0;
-          const purPrice = Number(row.pur_price) || 0;
+          const qty = parseLocalizedNumber(row.qty) || 0;
+          const purPrice = parseLocalizedNumber(row.pur_price) || 0;
           const lineTotal = qty * purPrice;
 
           newLineItems.push({
@@ -2123,8 +2123,8 @@ const PurchaseEntry = () => {
             size: size,
             qty: qty,
             pur_price: purPrice,
-            sale_price: Number(row.sale_price) || 0,
-            gst_per: Number(row.gst_per) || 0,
+            sale_price: parseLocalizedNumber(row.sale_price) || 0,
+            gst_per: parseLocalizedNumber(row.gst_per) || 0,
             hsn_code: row.hsn_code?.toString().trim() || '',
             barcode: barcode,
             discount_percent: 0,
