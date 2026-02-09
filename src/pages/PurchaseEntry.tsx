@@ -2019,17 +2019,18 @@ const PurchaseEntry = () => {
       productMap.set(key, p.id);
     });
 
-    // Pre-fetch existing variants
+    // Pre-fetch existing variants (including color for proper matching)
     const productIds = Array.from(productMap.values());
     const { data: existingVariants } = await supabase
       .from('product_variants')
-      .select('id, product_id, size, barcode')
+      .select('id, product_id, size, barcode, color')
       .eq('organization_id', currentOrganization.id)
       .in('product_id', productIds.length > 0 ? productIds : ['']);
 
     const variantMap = new Map<string, { id: string; barcode: string }>();
     (existingVariants || []).forEach(v => {
-      const key = `${v.product_id}|${v.size?.toLowerCase()}`;
+      // Include color in key to match unique index (product_id, color, size)
+      const key = `${v.product_id}|${(v.color || '').toLowerCase()}|${(v.size || '').toLowerCase()}`;
       variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
     });
 
@@ -2077,8 +2078,10 @@ const PurchaseEntry = () => {
             productMap.set(productKey, productId);
           }
 
-          const size = row.size?.toString().trim();
-          const variantKey = `${productId}|${size?.toLowerCase()}`;
+          const size = row.size?.toString().trim() || '';
+          const color = row.color?.toString().trim() || '';
+          // Include color in variant key to match unique index (product_id, color, size)
+          const variantKey = `${productId}|${color.toLowerCase()}|${size.toLowerCase()}`;
           let variantInfo = variantMap.get(variantKey);
           let skuId: string;
           let barcode: string;
@@ -2097,18 +2100,22 @@ const PurchaseEntry = () => {
               barcode = barcodeData || '';
             }
 
-            // Create variant
+            // Create variant with color - use upsert to handle any remaining edge cases
             const { data: newVariant, error: variantError } = await supabase
               .from('product_variants')
-              .insert({
+              .upsert({
                 organization_id: currentOrganization.id,
                 product_id: productId,
-                size: size,
+                size: size || null,
+                color: color || null,
                 barcode: barcode,
                 pur_price: parseLocalizedNumber(row.pur_price),
                 sale_price: parseLocalizedNumber(row.sale_price),
                 stock_qty: 0,
                 active: true,
+              }, {
+                onConflict: 'product_id,color,size',
+                ignoreDuplicates: false,
               })
               .select('id')
               .single();
