@@ -30,12 +30,14 @@ import {
   BookOpen,
   Calendar,
   CreditCard,
+  Bot,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useChat } from "@/contexts/ChatContext";
 import {
   Sidebar,
   SidebarContent,
@@ -845,7 +847,39 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroup>
         )}
+
+        {/* AI Assistant - Check permission */}
+        <AIAssistantMenuItem open={open} />
       </SidebarContent>
     </Sidebar>
+  );
+}
+
+// Separate component to use the useChat hook (needs ChatProvider)
+function AIAssistantMenuItem({ open }: { open: boolean }) {
+  const { setIsOpen } = useChat();
+  const { hasSpecialPermission, loading } = useUserPermissions();
+  
+  // Don't show if user doesn't have permission
+  if (loading || !hasSpecialPermission("ai_chatbot")) {
+    return null;
+  }
+
+  return (
+    <SidebarGroup>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton 
+            onClick={() => setIsOpen(true)} 
+            className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] cursor-pointer"
+          >
+            <div className="flex items-center gap-3 group">
+              <Bot className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+              {open && <span className="font-medium dark:text-white">AI Assistant</span>}
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </SidebarGroup>
   );
 }
