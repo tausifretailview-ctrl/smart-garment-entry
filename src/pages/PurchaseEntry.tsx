@@ -2413,7 +2413,7 @@ const PurchaseEntry = () => {
           <CardContent>
             <div className="border rounded-lg overflow-hidden">
               <Table>
-                <TableHeader className="sticky top-0 z-10 bg-muted">
+                <TableHeader className="sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
@@ -2434,7 +2434,7 @@ const PurchaseEntry = () => {
                     <TableHead className="w-24">SUB TOTAL</TableHead>
                     <TableHead className="w-20">DISC %</TableHead>
                     <TableHead className="w-24">TOTAL</TableHead>
-                    <TableHead className="w-12 sticky right-0 bg-muted"></TableHead>
+                    <TableHead className="w-12 sticky right-0 bg-sidebar"></TableHead>
                   </TableRow>
                 </TableHeader>
               </Table>
