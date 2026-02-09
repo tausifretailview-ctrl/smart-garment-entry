@@ -25,6 +25,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, XCircle, AlertCircle } from "luc
 import { useToast } from "@/hooks/use-toast";
 import { normalizePhoneNumber } from "@/utils/excelImportUtils";
 import { format } from "date-fns";
+import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import * as XLSX from "xlsx";
 
 interface CustomerBalanceImportDialogProps {
@@ -97,14 +98,9 @@ export function CustomerBalanceImportDialog({
         return;
       }
 
-      // Fetch all customers for matching
-      const { data: customers, error } = await supabase
-        .from("customers")
-        .select("id, customer_name, phone")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null);
-
-      if (error) throw error;
+      // Fetch ALL customers for matching (bypasses 1000 row limit via pagination)
+      const customers = await fetchAllCustomers(currentOrganization.id);
+      console.log(`Loaded ${customers.length} customers for matching`);
 
       // Create a lookup map by normalized phone
       const customerMap = new Map<string, { id: string; name: string }>();
