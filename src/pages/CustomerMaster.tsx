@@ -226,6 +226,46 @@ const CustomerMaster = () => {
     enabled: !!currentOrganization?.id,
   });
 
+  // Fetch advance balances for all customers
+  const { data: advanceBalances = {} } = useQuery({
+    queryKey: ["customer-advances-summary", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+      
+      const balanceMap: Record<string, number> = {};
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("customer_advances")
+          .select("customer_id, amount, used_amount")
+          .eq("organization_id", currentOrganization.id)
+          .in("status", ["active", "partially_used"])
+          .range(offset, offset + PAGE_SIZE - 1);
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          data.forEach(adv => {
+            const available = (adv.amount || 0) - (adv.used_amount || 0);
+            if (available > 0) {
+              balanceMap[adv.customer_id] = (balanceMap[adv.customer_id] || 0) + available;
+            }
+          });
+          offset += PAGE_SIZE;
+          hasMore = data.length === PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      return balanceMap;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
   const createCustomer = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
@@ -720,6 +760,7 @@ const CustomerMaster = () => {
               <TableHead>Email</TableHead>
               <TableHead>GST Number</TableHead>
               <TableHead className="text-right">Opening Bal.</TableHead>
+              <TableHead className="text-right">Advance</TableHead>
               <TableHead className="text-right">Discount %</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -727,11 +768,11 @@ const CustomerMaster = () => {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">Loading...</TableCell>
+                <TableCell colSpan={10} className="text-center">Loading...</TableCell>
               </TableRow>
             ) : filteredCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">No customers found</TableCell>
+                <TableCell colSpan={10} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
               paginatedCustomers.map((customer, index) => (
@@ -764,6 +805,11 @@ const CustomerMaster = () => {
                   <TableCell>{customer.gst_number || "-"}</TableCell>
                   <TableCell className="text-right">
                     {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString()}` : "-"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {advanceBalances[customer.id] ? (
+                      <span className="text-purple-600 font-medium">₹{Math.round(advanceBalances[customer.id]).toLocaleString()}</span>
+                    ) : "-"}
                   </TableCell>
                   <TableCell className="text-right">
                     {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
