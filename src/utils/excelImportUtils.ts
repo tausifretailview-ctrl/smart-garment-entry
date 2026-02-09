@@ -489,12 +489,12 @@ export const validateMappedData = (
       }
     });
 
-    // Validate number fields
+    // Validate number fields using parseLocalizedNumber for proper parsing of comma-formatted values
     numberFields.forEach(field => {
       if (mappedFieldKeys.includes(field.key)) {
         const value = row[field.key];
         if (value !== undefined && value !== '' && value !== null) {
-          const numValue = Number(value);
+          const numValue = parseLocalizedNumber(value);
           if (isNaN(numValue)) {
             rowErrors.push({
               row: rowNumber,
