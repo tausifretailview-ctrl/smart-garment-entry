@@ -147,7 +147,8 @@ export default function PublicInvoiceView() {
             mobile={settings?.mobile_number || ""}
             email={settings?.email_id || ""}
             gstNumber={settings?.gst_number || ""}
-            logoUrl=""
+            logoUrl={(settings?.sale_settings as any)?.invoiceLogo || ""}
+            logoPlacement="left"
             invoiceNumber={sale.sale_number}
             invoiceDate={new Date(sale.sale_date)}
             customerName={sale.customer_name}
