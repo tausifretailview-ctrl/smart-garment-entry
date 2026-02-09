@@ -40,7 +40,8 @@ export default function PublicInvoiceView() {
         .from('sales')
         .select(`*, sale_items (*)`)
         .eq('id', saleId)
-        .single();
+        .is('deleted_at', null) // Exclude soft-deleted invoices
+        .maybeSingle(); // Use maybeSingle to avoid error when not found
       
       if (error) throw error;
       return data;
