@@ -1,122 +1,176 @@
 
+# Plan: Customer Balance & Advance Import from Excel
 
-# Fix Plan: Purchase Bill Excel Import - Column Name Matching
+## Overview
+Add a feature to import customer outstanding balances and advance payments from an Excel file with two sheets (Bal for outstanding, Adv for advances) for the ELLA NOOR organization.
 
-## Problem Identified
-The import is failing silently because the Excel file has non-standard column names that don't match the expected field aliases:
+## Excel File Structure Analyzed
 
-**Your Excel columns:**
-| Column Name | Expected to Map to | Current Status |
-|------------|-------------------|----------------|
-| Purchasr Price | `pur_price` (Purchase Price) | Not matching (typo - missing "e") |
-| Purchase PKR | (unmapped) | Could be original cost |
-| Quantity | `qty` | Should match |
-| Sale Price | `sale_price` | Should match |
-| Product Name | `product_name` | Should match |
-| Size | `size` | Should match |
+**Sheet "Bal" - Outstanding Balances:**
+| Column | Purpose |
+|--------|---------|
+| Party Name | Customer name |
+| Contact No. | Phone number (e.g., +91-9391317936) |
+| Closing | Outstanding balance (positive number) |
 
-The **"Purchasr Price"** typo breaks automatic field detection, and since `pur_price` is a required field, the validation fails with 0 valid rows.
+**Sheet "Adv" - Advance Payments:**
+| Column | Purpose |
+|--------|---------|
+| Party Name | Customer name |
+| Contact No. | Phone number |
+| Closing | Advance amount (negative in source, will convert to positive) |
 
 ---
 
-## Solution
+## Implementation Steps
 
-### 1. Expand Field Aliases for Purchase Price
+### 1. Create Balance/Advance Import Dialog Component
 
-Add more forgiving aliases to handle common typos and variations:
+Create `src/components/CustomerBalanceImportDialog.tsx`:
+- Parse Excel file with multi-sheet support
+- Read "Bal" sheet for outstanding balances
+- Read "Adv" sheet for advance payments
+- Preview data before import
+- Match customers by normalized phone number
+- Show match statistics (found/not found)
 
-```typescript
-// In src/utils/excelImportUtils.ts - fieldAliases
-pur_price: [
-  'purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 
-  'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate',
-  // NEW: Handle typos and currency-based names
-  'purchasrprice',  // Typo without 'e'
-  'purchasepkr',    // Currency-based (PKR)
-  'purchasingprice',
-  'buyprice',
-  'purchasprice',   // Another common typo
-],
+### 2. Import Logic
+
+**For Outstanding Balances (Bal sheet):**
+- Match customers by phone number (normalize both Excel and database phones)
+- Update `customers.opening_balance` field with the "Closing" value
+- Track success/skip/error counts
+
+**For Advance Payments (Adv sheet):**
+- Match customers by phone number
+- Create entries in `customer_advances` table
+- Convert negative closing to positive amount
+- Set status to "active", used_amount to 0
+- Generate advance numbers using existing RPC function
+
+### 3. Add Import Button to Customer Master
+
+Update `src/pages/CustomerMaster.tsx`:
+- Add "Import Balances" button next to existing Excel Import button
+- Open the new import dialog
+
+---
+
+## Matching Strategy
+
+```text
+Excel: +91-9391317936  →  normalizePhoneNumber()  →  9391317936
+DB:    9391317936      →  Direct match
 ```
 
-### 2. Improve Fuzzy Matching Logic
+- Uses existing `normalizePhoneNumber()` utility
+- Strips country codes, dashes, spaces
+- Extracts last 10 digits for comparison
 
-Enhance the fuzzy matching to handle partial word matches better:
+---
 
-```typescript
-// Enhanced fuzzy matching in fuzzyMatchField function
-const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
-  const normalizedHeader = header.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '');
-  
-  // Direct match
-  if (aliases.includes(normalizedHeader)) return true;
-  
-  // Partial containment check
-  for (const alias of aliases) {
-    if (normalizedHeader.includes(alias) || alias.includes(normalizedHeader)) {
-      return true;
-    }
-  }
-  
-  // Word-based matching with partial prefix matching (NEW)
-  const words = header.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3);
-  for (const word of words) {
-    for (const alias of aliases) {
-      // Existing: full word containment
-      if (alias.includes(word) || word.includes(alias)) {
-        return true;
-      }
-      // NEW: Prefix matching (first 5 chars) for typo tolerance
-      if (word.length >= 5 && alias.length >= 5) {
-        const wordPrefix = word.substring(0, 5);
-        const aliasPrefix = alias.substring(0, 5);
-        if (wordPrefix === aliasPrefix) {
-          return true;
-        }
-      }
-    }
-  }
-  
-  return false;
-};
+## Files to Create/Modify
+
+| File | Action |
+|------|--------|
+| `src/components/CustomerBalanceImportDialog.tsx` | **Create** - New dialog component |
+| `src/pages/CustomerMaster.tsx` | **Modify** - Add import button |
+| `src/utils/excelImportUtils.ts` | **Modify** - Add balance import field definitions |
+
+---
+
+## User Interface Preview
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  Import Customer Balances & Advances                    │
+├─────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────┐│
+│  │  📁 Upload Excel File                               ││
+│  │  (Must contain sheets named "Bal" and "Adv")        ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                         │
+│  📊 Sheet: Bal (Outstanding)          ✓ 137 customers   │
+│     - Matched: 130                                      │
+│     - Not found: 7                                      │
+│                                                         │
+│  📊 Sheet: Adv (Advances)             ✓ 402 customers   │
+│     - Matched: 385                                      │
+│     - Not found: 17                                     │
+│                                                         │
+│  Preview:                                               │
+│  ┌────────────────┬─────────────┬───────────┬─────────┐│
+│  │ Customer       │ Phone       │ Amount    │ Status  ││
+│  ├────────────────┼─────────────┼───────────┼─────────┤│
+│  │ Aaisha Parekh  │ 9391317936  │ ₹500      │ ✓ Found ││
+│  │ Aa Production  │ 9833714507  │ ₹19,500   │ ✓ Found ││
+│  └────────────────┴─────────────┴───────────┴─────────┘│
+│                                                         │
+│  [Cancel]                            [Import Balances]  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-### 3. Add Better Error Messaging
+---
 
-When no valid rows are found, show clearer guidance:
+## Technical Details
 
+### Customer Balance Update Logic
 ```typescript
-// In handleExcelImport - after filtering valid rows
-if (validRows.length === 0) {
-  toast.error("No valid rows found. Please check that required columns (Product Name, Size, Quantity, Purchase Price) are mapped correctly.");
-  return;
+// For each row in "Bal" sheet
+const normalizedPhone = normalizePhoneNumber(row.phone);
+const customer = customers.find(c => 
+  normalizePhoneNumber(c.phone) === normalizedPhone
+);
+
+if (customer) {
+  await supabase
+    .from('customers')
+    .update({ opening_balance: closingBalance })
+    .eq('id', customer.id);
 }
 ```
 
+### Advance Creation Logic
+```typescript
+// For each row in "Adv" sheet  
+const advanceAmount = Math.abs(closingBalance); // Convert negative to positive
+
+const advanceNumber = await supabase.rpc(
+  'generate_advance_number',
+  { p_organization_id: organizationId }
+);
+
+await supabase
+  .from('customer_advances')
+  .insert({
+    organization_id: organizationId,
+    customer_id: customer.id,
+    advance_number: advanceNumber,
+    amount: advanceAmount,
+    used_amount: 0,
+    advance_date: format(new Date(), 'yyyy-MM-dd'),
+    payment_method: 'Excel Import',
+    description: 'Imported from Excel',
+    status: 'active'
+  });
+```
+
 ---
 
-## Files to Modify
+## Safety Features
 
-| File | Changes |
-|------|---------|
-| `src/utils/excelImportUtils.ts` | Expand `pur_price` aliases; improve fuzzy matching with prefix comparison |
-| `src/pages/PurchaseEntry.tsx` | Add clear error message when 0 valid rows found |
-
----
-
-## Testing After Fix
-
-1. Re-try importing the **Maliha_CRTN51.xlsx** file
-2. The system should now:
-   - Auto-detect "Purchasr Price" → Purchase Price
-   - Auto-detect "Quantity" → Quantity
-   - Auto-detect "Sale Price" → Sale Price
-   - Show proper success/error counts
+1. **Preview before import** - Show matched/unmatched customers before processing
+2. **Batch processing** - Process 50 records at a time to avoid timeouts
+3. **Progress tracking** - Show real-time progress bar during import
+4. **Error handling** - Skip failed records, continue with rest
+5. **Duplicate prevention** - Check if advance already exists for customer before creating
+6. **Confirmation dialog** - Require explicit confirmation before updating balances
 
 ---
 
-## Impact
-- **Low risk** - only affects field alias matching
-- **Backwards compatible** - existing imports continue to work
-- **Fixes forward** - handles common typos in Excel column names
+## Post-Import Verification
 
+After import, query results will show:
+- Number of customers with updated `opening_balance`
+- Number of new `customer_advances` records created
+- List of unmatched phone numbers for manual review
