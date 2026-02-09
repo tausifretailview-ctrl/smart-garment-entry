@@ -246,7 +246,7 @@ const fieldAliases: Record<string, string[]> = {
   uom: ['uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'units'],
   size: ['size', 'sz', 'productsize', 'itemsize', 'dimension'],
   barcode: ['barcode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'code', 'skucode'],
-  pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate'],
+  pur_price: ['purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'rate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
   sale_price: ['saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
   mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice', 'price'],
   qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty'],
@@ -287,6 +287,14 @@ const fuzzyMatchField = (header: string, aliases: string[]): boolean => {
     for (const alias of aliases) {
       if (alias.includes(word) || word.includes(alias)) {
         return true;
+      }
+      // Prefix matching (first 5 chars) for typo tolerance
+      if (word.length >= 5 && alias.length >= 5) {
+        const wordPrefix = word.substring(0, 5);
+        const aliasPrefix = alias.substring(0, 5);
+        if (wordPrefix === aliasPrefix) {
+          return true;
+        }
       }
     }
   }
