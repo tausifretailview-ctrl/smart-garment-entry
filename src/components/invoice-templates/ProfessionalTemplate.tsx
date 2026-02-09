@@ -359,7 +359,7 @@ export const ProfessionalTemplate: React.FC<ProfessionalTemplateProps> = ({
         color: 'white'
       }}>
         <div style={{ fontSize: fontSizes.headerTitle, fontWeight: 'bold', letterSpacing: '2px' }}>
-          TAX INVOICE
+          BILL OF SUPPLY
         </div>
       </div>
 
