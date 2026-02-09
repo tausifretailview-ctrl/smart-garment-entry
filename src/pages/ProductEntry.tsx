@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2, Lock } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
-import { productEntryFields, productEntrySampleData } from "@/utils/excelImportUtils";
+import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
 import { validateProduct } from "@/lib/validations";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
@@ -1255,9 +1255,9 @@ const ProductEntry = () => {
                 style: firstRow.style?.toString().trim() || null,
                 color: firstRow.color?.toString().trim() || null,
                 hsn_code: firstRow.hsn_code?.toString().trim() || null,
-                gst_per: Number(firstRow.gst_per) || 18,
-                default_pur_price: Number(firstRow.default_pur_price) || 0,
-                default_sale_price: Number(firstRow.default_sale_price) || 0,
+                gst_per: parseLocalizedNumber(firstRow.gst_per) || 18,
+                default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
+                default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
                 status: 'active',
               })
               .select('id')
@@ -1304,16 +1304,16 @@ const ProductEntry = () => {
               barcode = barcodeData || '';
             }
 
-            const openingQty = Number(row.opening_qty) || 0;
+            const openingQty = parseLocalizedNumber(row.opening_qty) || 0;
 
             variantsToInsert.push({
               organization_id: currentOrganization.id,
               product_id: productId,
               size: size,
               barcode: barcode,
-              pur_price: Number(row.default_pur_price) || 0,
-              sale_price: Number(row.default_sale_price) || 0,
-              mrp: row.mrp ? Number(row.mrp) : null,
+              pur_price: parseLocalizedNumber(row.default_pur_price) || 0,
+              sale_price: parseLocalizedNumber(row.default_sale_price) || 0,
+              mrp: row.mrp ? parseLocalizedNumber(row.mrp) : null,
               stock_qty: openingQty,
               opening_qty: openingQty,
               active: true,

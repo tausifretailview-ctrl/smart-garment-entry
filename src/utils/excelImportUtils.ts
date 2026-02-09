@@ -1,5 +1,50 @@
 import * as XLSX from 'xlsx';
 
+/**
+ * Parse localized number format - handles both US (1,234.56) and European (1.234,56) formats
+ * Auto-detects format based on separator positions
+ */
+export const parseLocalizedNumber = (
+  value: string | number | null | undefined,
+  useCommaDecimal?: boolean
+): number => {
+  if (value === null || value === undefined || value === '') return 0;
+  
+  // If it's already a number, return it
+  if (typeof value === 'number') {
+    return isNaN(value) ? 0 : value;
+  }
+
+  let str = String(value).trim();
+
+  // Remove currency symbols (dollar, euro, pound, rupee, etc.) and whitespace
+  str = str.replace(/[¤$\u20AC£¥₹\s]/g, '');
+  
+  // If empty after cleanup, return 0
+  if (!str) return 0;
+
+  // Auto-detect format if not specified
+  const lastComma = str.lastIndexOf(',');
+  const lastDot = str.lastIndexOf('.');
+  
+  // Determine if comma is decimal separator
+  // If comma comes after dot, comma is likely the decimal separator (European format)
+  // If dot comes after comma, dot is likely the decimal separator (US format)
+  const isCommaDecimal = useCommaDecimal ?? (lastComma > lastDot);
+
+  if (isCommaDecimal) {
+    // Comma as decimal: 1.234,56 -> 1234.56
+    str = str.replace(/\./g, ''); // Remove thousand separators (dots)
+    str = str.replace(',', '.'); // Convert decimal separator to dot
+  } else {
+    // Dot as decimal: 1,234.56 -> 1234.56
+    str = str.replace(/,/g, ''); // Remove thousand separators (commas)
+  }
+
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 // Normalize phone number: strip non-digits, remove Indian country code prefixes, return last 10 digits
 export const normalizePhoneNumber = (phone: string | number | null | undefined): string => {
   if (!phone) return '';
