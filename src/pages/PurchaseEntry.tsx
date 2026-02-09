@@ -2001,11 +2001,12 @@ const PurchaseEntry = () => {
     let errorCount = 0;
     let skippedCount = mappedData.length - validRows.length;
 
-    // Pre-fetch existing products to reduce DB calls
+    // Pre-fetch existing products (filter out deleted)
     const { data: existingProducts } = await supabase
       .from('products')
       .select('id, product_name, brand, category, color, style')
-      .eq('organization_id', currentOrganization.id);
+      .eq('organization_id', currentOrganization.id)
+      .is('deleted_at', null);
 
     const productMap = new Map<string, string>();
     (existingProducts || []).forEach(p => {
@@ -2019,20 +2020,40 @@ const PurchaseEntry = () => {
       productMap.set(key, p.id);
     });
 
-    // Pre-fetch existing variants (including color for proper matching)
-    const productIds = Array.from(productMap.values());
-    const { data: existingVariants } = await supabase
-      .from('product_variants')
-      .select('id, product_id, size, barcode, color')
-      .eq('organization_id', currentOrganization.id)
-      .in('product_id', productIds.length > 0 ? productIds : ['']);
+    // Collect product IDs that appear in the Excel data
+    const excelProductKeys = new Set<string>();
+    for (const row of validRows) {
+      const productKey = [
+        row.product_name?.toString().trim() || '',
+        row.brand?.toString().trim() || '',
+        row.category?.toString().trim() || '',
+        row.color?.toString().trim() || '',
+        row.style?.toString().trim() || '',
+      ].join('|').toLowerCase();
+      excelProductKeys.add(productKey);
+    }
+    const relevantProductIds = Array.from(excelProductKeys)
+      .map(k => productMap.get(k))
+      .filter(Boolean) as string[];
 
+    // Pre-fetch variants only for products in the Excel (batched to avoid URL length issues)
     const variantMap = new Map<string, { id: string; barcode: string }>();
-    (existingVariants || []).forEach(v => {
-      // Include color in key to match unique index (product_id, color, size)
-      const key = `${v.product_id}|${(v.color || '').toLowerCase()}|${(v.size || '').toLowerCase()}`;
-      variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
-    });
+    if (relevantProductIds.length > 0) {
+      const VARIANT_BATCH = 50;
+      for (let b = 0; b < relevantProductIds.length; b += VARIANT_BATCH) {
+        const batch = relevantProductIds.slice(b, b + VARIANT_BATCH);
+        const { data: batchVariants } = await supabase
+          .from('product_variants')
+          .select('id, product_id, size, barcode, color')
+          .eq('organization_id', currentOrganization.id)
+          .is('deleted_at', null)
+          .in('product_id', batch);
+        (batchVariants || []).forEach(v => {
+          const key = `${v.product_id}|${(v.color || '').toLowerCase()}|${(v.size || '').toLowerCase()}`;
+          variantMap.set(key, { id: v.id, barcode: v.barcode || '' });
+        });
+      }
+    }
 
     // Process in batches
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
@@ -2100,31 +2121,48 @@ const PurchaseEntry = () => {
               barcode = barcodeData || '';
             }
 
-            // Create variant with color - use upsert to handle any remaining edge cases
-            const { data: newVariant, error: variantError } = await supabase
+            // Check-then-insert pattern (expression-based index can't use ON CONFLICT)
+            const colorFilter = color ? `color.eq.${color}` : 'color.is.null';
+            const { data: existingVariant } = await supabase
               .from('product_variants')
-              .upsert({
-                organization_id: currentOrganization.id,
-                product_id: productId,
-                size: size || null,
-                color: color || null,
-                barcode: barcode,
-                pur_price: parseLocalizedNumber(row.pur_price),
-                sale_price: parseLocalizedNumber(row.sale_price),
-                stock_qty: 0,
-                active: true,
-              }, {
-                onConflict: 'product_id,color,size',
-                ignoreDuplicates: false,
-              })
               .select('id')
-              .single();
+              .eq('product_id', productId)
+              .eq('size', size || '')
+              .or(colorFilter)
+              .is('deleted_at', null)
+              .eq('organization_id', currentOrganization.id)
+              .maybeSingle();
 
-            if (variantError) {
+            let newVariantId: string | null = null;
+            let variantError: any = null;
+
+            if (existingVariant) {
+              newVariantId = existingVariant.id;
+            } else {
+              const { data: inserted, error: insertErr } = await supabase
+                .from('product_variants')
+                .insert({
+                  organization_id: currentOrganization.id,
+                  product_id: productId,
+                  size: size || '',
+                  color: color || null,
+                  barcode: barcode,
+                  pur_price: parseLocalizedNumber(row.pur_price),
+                  sale_price: parseLocalizedNumber(row.sale_price),
+                  stock_qty: 0,
+                  active: true,
+                })
+                .select('id')
+                .single();
+              newVariantId = inserted?.id || null;
+              variantError = insertErr;
+            }
+
+            if (variantError || !newVariantId) {
               errorCount++;
               continue;
             }
-            skuId = newVariant.id;
+            skuId = newVariantId;
             variantMap.set(variantKey, { id: skuId, barcode });
           }
 
