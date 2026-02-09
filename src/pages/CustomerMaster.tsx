@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -35,6 +35,7 @@ import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDialog";
 import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
 import { BrandDiscountDialog } from "@/components/BrandDiscountDialog";
+import { CustomerBalanceImportDialog } from "@/components/CustomerBalanceImportDialog";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -72,6 +73,7 @@ const CustomerMaster = () => {
   const { invalidateCustomers } = useDashboardInvalidation();
   const [showExcelImport, setShowExcelImport] = useState(false);
   const [showLegacyImport, setShowLegacyImport] = useState(false);
+  const [showBalanceImport, setShowBalanceImport] = useState(false);
   const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [showCustomerHistory, setShowCustomerHistory] = useState(false);
@@ -573,6 +575,10 @@ const CustomerMaster = () => {
             <Link2 className="h-4 w-4 mr-2" />
             Re-link Legacy
           </Button>
+          <Button variant="outline" onClick={() => setShowBalanceImport(true)}>
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            Import Balances
+          </Button>
           <Button variant="outline" onClick={() => setShowExcelImport(true)}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Import Customers
@@ -873,6 +879,12 @@ const CustomerMaster = () => {
         open={showBrandDiscountDialog}
         onOpenChange={setShowBrandDiscountDialog}
         customer={selectedCustomerForBrandDiscount}
+      />
+
+      {/* Customer Balance Import Dialog */}
+      <CustomerBalanceImportDialog
+        open={showBalanceImport}
+        onOpenChange={setShowBalanceImport}
       />
 
       {/* Desktop Context Menus */}
