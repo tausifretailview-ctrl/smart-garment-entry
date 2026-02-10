@@ -26,6 +26,7 @@ interface BarTenderLabelDesignerProps {
   labelHeight: number;
   columns?: number;
   savedTemplates?: LabelTemplate[];
+  selectedTemplateName?: string | null;
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
 }
@@ -244,6 +245,7 @@ export function BarTenderLabelDesigner({
   labelHeight,
   columns = 1,
   savedTemplates = [],
+  selectedTemplateName,
   onSaveTemplate,
   onDeleteTemplate,
 }: BarTenderLabelDesignerProps) {
@@ -674,10 +676,13 @@ export function BarTenderLabelDesigner({
         </div>
         
         {savedTemplates.length > 0 ? (
-          <Select onValueChange={(value) => {
-            const template = savedTemplates.find(t => t.name === value);
-            if (template) handleLoadTemplate(template);
-          }}>
+          <Select 
+            value={selectedTemplateName || undefined}
+            onValueChange={(value) => {
+              const template = savedTemplates.find(t => t.name === value);
+              if (template) handleLoadTemplate(template);
+            }}
+          >
             <SelectTrigger className="w-48 h-8">
               <SelectValue placeholder="Load a template..." />
             </SelectTrigger>
