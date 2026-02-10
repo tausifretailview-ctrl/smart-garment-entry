@@ -378,12 +378,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
 
   const handleAutoGenerateBarcodes = async () => {
     try {
-      const updatedVariants = await Promise.all(
-        variants.map(async (v) => ({
-          ...v,
-          barcode: v.barcode || await generateSequentialBarcode(),
-        }))
-      );
+      // Generate barcodes sequentially to avoid duplicate sequence numbers
+      const updatedVariants = [...variants];
+      for (let i = 0; i < updatedVariants.length; i++) {
+        if (!updatedVariants[i].barcode) {
+          updatedVariants[i] = {
+            ...updatedVariants[i],
+            barcode: await generateSequentialBarcode(),
+          };
+        }
+      }
       setVariants(updatedVariants);
     } catch (error) {
       toast({
