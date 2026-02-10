@@ -1,104 +1,85 @@
 
 
-# Fix: Mobile Button Clickability Issues on Dashboard Pages
+# Fix: Barcode Labels Overflowing at Default Print Scale (100%)
 
 ## Problem
 
-On mobile devices, action buttons (Download, Print, WhatsApp, Edit, Delete, etc.) in dashboard tables are not responding to taps reliably. The same buttons work perfectly on desktop. This affects the Sales Invoice Dashboard and similar pages.
+The custom "48" label preset (48mm wide, 4 columns, 2mm gap) creates a total content width of 198mm. When printing with the browser's "Default" margins (~12.7mm per side), the available print area is only ~185mm. This causes labels to overflow off the page at 100% scale.
 
-## Root Causes
+The user currently has to manually set the browser print dialog scale to 150% (or change margins to "None") each time they print -- this should work automatically.
 
-1. **Touch targets too small**: Action buttons use `size="icon"` (32x32px) which is below the 44x44px minimum recommended for mobile touch targets. Multiple tiny buttons are packed side-by-side, making accurate tapping nearly impossible on phones.
+## Root Cause
 
-2. **Table horizontal overflow**: The dashboard table has 10+ columns. On mobile, users must scroll horizontally to reach the Actions column. The scroll container can intercept touch events meant for buttons.
-
-3. **Overlapping fixed elements**: The MobileBottomNav (z-50, fixed bottom), MobileFAB (z-50, fixed bottom-20 right-4), and FloatingTotalQty (z-40, fixed bottom-32) can visually and functionally overlap with buttons near the bottom of scrollable content.
-
-4. **Missing `touch-manipulation`**: Action buttons lack the `touch-manipulation` CSS which eliminates the 300ms tap delay on mobile browsers.
+The `@page` CSS rule sets `margin: 3mm 0 0 0`, but browsers like Chrome ignore this when the user selects "Default" margins in the print dialog. The print content assumes full A4 width (210mm) is available, but default margins reduce it significantly.
 
 ## Solution
 
-### Approach: Mobile-Specific Action Layout
+Auto-calculate a "fit-to-page" scale factor based on the actual content width vs the available A4 printable area (accounting for typical default margins). This will be applied automatically in the `@media print` CSS transform, so labels always fit at the browser's default 100% scale without manual adjustment.
 
-On mobile (screen width below 1024px), replace the inline row of tiny icon buttons with a mobile-friendly action pattern:
+### How It Works
 
-- Show only 2-3 primary action icons inline (Print, Download, Edit)
-- Add a "more actions" dropdown (three-dot menu) for secondary actions (WhatsApp, Delete, Copy Link, etc.)
-- Increase touch targets to minimum 44x44px on mobile
-- Add `touch-manipulation` class to all action buttons
-
-### Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/pages/SalesInvoiceDashboard.tsx` | Refactor action buttons area with mobile-responsive layout |
-| `src/index.css` | (No changes needed - touch-manipulation already defined) |
-
-### Technical Details
-
-**1. Mobile action cell in SalesInvoiceDashboard.tsx (lines 1764-1901)**
-
-Replace the current flat row of 8+ icon buttons with:
-
-```
-Desktop (lg+): Keep current layout unchanged
-Mobile (<lg): Show condensed action bar:
-  - [Print] [Download] [More...]
-  - "More" opens a DropdownMenu with remaining actions
+```text
+Content width = (cols x labelWidth) + ((cols-1) x gap) + leftOffset + rightOffset
+A4 printable width = 210mm - 26mm (default margins) = 184mm
+Auto-scale = min(1, printableWidth / contentWidth)
+Final scale = printScale / 100 * autoScale
 ```
 
-Key changes:
-- Wrap action buttons in a responsive container
-- On mobile, show primary actions (Print, Download) as 44px touch targets
-- Group secondary actions (WhatsApp, Edit, Delete, Payment, etc.) into a DropdownMenu triggered by a three-dot icon
-- Add `touch-manipulation` class and `min-h-[44px] min-w-[44px]` sizing for mobile buttons
-- Use `onClick` with `e.stopPropagation()` to prevent row expansion when tapping actions
+For the user's "48" preset:
+- Content width = (4 x 48) + (3 x 2) + 0 + 0 = 198mm
+- Auto-scale = 184 / 198 = 0.929
+- At printScale=100: final transform = scale(0.929) -- labels fit perfectly
 
-**2. Button sizing for mobile**
+Similarly for height, the same calculation ensures rows don't overflow vertically.
 
-```tsx
-// Mobile-friendly button wrapper
-<Button 
-  variant="ghost" 
-  size="icon"
-  className="touch-manipulation lg:h-8 lg:w-8 h-11 w-11"
-  onClick={(e) => { e.stopPropagation(); handleDownloadPDF(invoice); }}
->
+## Technical Changes
+
+### File: `src/pages/BarcodePrinting.tsx`
+
+**1. Add auto-fit scale calculation (near line 2827)**
+
+Add a helper that computes the scale factor needed to fit labels within the A4 default-margin printable area (approximately 184mm x 270mm):
+
+```typescript
+const getAutoFitScale = () => {
+  const dims = sheetType === "custom"
+    ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+    : { cols: sheetPresets[sheetType].cols, ... };
+
+  const contentWidth = (dims.cols * dims.width) + ((dims.cols - 1) * dims.gap) + leftOffset + rightOffset;
+  const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.gap) + topOffset + bottomOffset;
+
+  const printableWidth = 184;  // A4 210mm - ~26mm default margins
+  const printableHeight = 270; // A4 297mm - ~27mm default margins
+
+  const scaleX = contentWidth > printableWidth ? printableWidth / contentWidth : 1;
+  const scaleY = contentHeight > printableHeight ? printableHeight / contentHeight : 1;
+
+  return Math.min(scaleX, scaleY);
+};
 ```
 
-**3. DropdownMenu for overflow actions on mobile**
+**2. Update print CSS transform (line 4369)**
 
-```tsx
-// Visible only on mobile
-<div className="lg:hidden">
-  <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <Button variant="ghost" size="icon" className="h-11 w-11 touch-manipulation">
-        <MoreHorizontal className="h-5 w-5" />
-      </Button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" className="bg-popover z-50">
-      <DropdownMenuItem onClick={() => handleWhatsAppShare(invoice)}>
-        Share on WhatsApp
-      </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => navigate(...)}>
-        Edit Invoice
-      </DropdownMenuItem>
-      {/* ... other actions */}
-    </DropdownMenuContent>
-  </DropdownMenu>
-</div>
-
-// Desktop buttons remain as-is (hidden on mobile)
-<div className="hidden lg:flex gap-1">
-  {/* existing icon buttons */}
-</div>
+Change from:
+```css
+transform: scale(${printScale / 100});
 ```
 
-### Expected Result
+To:
+```css
+transform: scale(${(printScale / 100) * getAutoFitScale()});
+```
 
-- On mobile: 2-3 large, easy-to-tap action buttons + a "more" menu for secondary actions
-- On desktop: No visual change -- all icon buttons remain inline as before
-- All buttons respond instantly to taps (no 300ms delay)
-- No overlap with bottom navigation or FAB
+This ensures labels auto-fit within default browser margins. The user's "Print Scale %" setting still works as an additional multiplier (100% = auto-fit, 120% = 20% larger than auto-fit, etc.).
 
+**3. Update the scale hint text (near line 3545)**
+
+Change the helper text from "100% = normal, 150% = larger" to "100% = auto-fit to page" so users understand the new behavior.
+
+## Expected Result
+
+- At Print Scale 100% with browser "Default" margins: labels fit perfectly on the page, no overflow
+- The user no longer needs to manually change the browser print dialog scale
+- Desktop view: No visual change
+- The Print Scale slider still works as a relative multiplier for fine-tuning
