@@ -31,8 +31,8 @@ export interface PRNTemplate {
   description?: string;
 }
 
-// Size sorting options for footwear/apparel workflows
-export type SizeSortOrder = 'none' | 'ascending' | 'descending';
+// Sorting options for label print order
+export type SizeSortOrder = 'none' | 'ascending' | 'descending' | 'barcode_asc' | 'barcode_desc';
 
 interface DefaultFormat {
   defaultTemplate?: string | null;
