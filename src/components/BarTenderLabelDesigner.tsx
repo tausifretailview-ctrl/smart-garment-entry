@@ -29,9 +29,10 @@ interface BarTenderLabelDesignerProps {
   selectedTemplateName?: string | null;
   onSaveTemplate?: (template: LabelTemplate) => Promise<boolean>;
   onDeleteTemplate?: (templateName: string) => Promise<boolean>;
+  customFieldLabels?: Partial<Record<FieldKey, string>>;
 }
 
-const fieldLabels: Record<FieldKey, string> = {
+const defaultFieldLabels: Record<FieldKey, string> = {
   brand: 'Brand Name',
   businessName: 'Business Name',
   productName: 'Product Name',
@@ -208,9 +209,10 @@ interface FieldListItemProps {
   isSelected: boolean;
   onSelect: () => void;
   onToggle: (show: boolean) => void;
+  fieldLabels: Record<FieldKey, string>;
 }
 
-function FieldListItem({ fieldKey, field, isSelected, onSelect, onToggle }: FieldListItemProps) {
+function FieldListItem({ fieldKey, field, isSelected, onSelect, onToggle, fieldLabels }: FieldListItemProps) {
   return (
     <div
       className={`flex items-center gap-2 p-2 rounded border transition-all cursor-pointer ${
@@ -248,7 +250,9 @@ export function BarTenderLabelDesigner({
   selectedTemplateName,
   onSaveTemplate,
   onDeleteTemplate,
+  customFieldLabels,
 }: BarTenderLabelDesignerProps) {
+  const fieldLabels: Record<FieldKey, string> = { ...defaultFieldLabels, ...customFieldLabels };
   const [selectedField, setSelectedField] = useState<FieldKey | null>(null);
   const [zoom, setZoom] = useState(150);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -747,6 +751,7 @@ export function BarTenderLabelDesigner({
                 isSelected={selectedField === fieldKey}
                 onSelect={() => setSelectedField(fieldKey)}
                 onToggle={(show) => handleFieldToggle(fieldKey, show)}
+                fieldLabels={fieldLabels}
               />
             );
           })}

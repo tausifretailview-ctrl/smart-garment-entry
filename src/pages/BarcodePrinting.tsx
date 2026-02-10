@@ -681,9 +681,10 @@ interface SortableFieldItemProps {
   fieldKey: keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>;
   labelConfig: LabelDesignConfig;
   setLabelConfig: React.Dispatch<React.SetStateAction<LabelDesignConfig>>;
+  fieldLabels: Record<string, string>;
 }
 
-function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFieldItemProps) {
+function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels }: SortableFieldItemProps) {
   const {
     attributes,
     listeners,
@@ -697,23 +698,6 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig }: SortableFi
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-  };
-
-   const fieldLabels: Record<keyof Omit<LabelDesignConfig, 'fieldOrder' | 'barcodeHeight' | 'barcodeWidth' | 'customTextValue'>, string> = {
-    brand: 'Brand Name',
-    businessName: 'Business Name',
-    productName: 'Product Name',
-    color: 'Color',
-    style: 'Style',
-    size: 'Size',
-    price: 'Sale Price',
-    mrp: 'MRP',
-    customText: 'Custom Text',
-    barcode: 'Barcode Image',
-    barcodeText: 'Barcode Number',
-    billNumber: 'Bill Number',
-    supplierCode: 'Supplier Code',
-    purchaseCode: 'Purchase Code',
   };
 
   const field = labelConfig[fieldKey] as LabelFieldConfig;
@@ -1117,6 +1101,9 @@ export default function BarcodePrinting() {
     saveDefaultFormat: saveDefaultToDb,
   } = useBarcodeLabelSettings();
   
+  // Custom field labels from organization settings
+  const [customFieldLabels, setCustomFieldLabels] = useState<Partial<Record<FieldKey, string>>>({});
+
   // Label design customization state
   const [labelConfig, setLabelConfig] = useState<LabelDesignConfig>({
     brand: { show: true, fontSize: 8, bold: true, x: 0, y: 0, width: 100 },
@@ -1288,7 +1275,7 @@ export default function BarcodePrinting() {
       try {
         const { data, error } = await supabase
           .from("settings")
-          .select("business_name, purchase_settings")
+          .select("business_name, purchase_settings, product_settings")
           .eq("organization_id", currentOrganization.id)
           .maybeSingle();
 
@@ -1296,6 +1283,26 @@ export default function BarcodePrinting() {
         
         if (data?.business_name) {
           setBusinessName(data.business_name);
+        }
+
+        // Apply custom field labels from product settings
+        if (data?.product_settings && typeof data.product_settings === 'object') {
+          const ps = data.product_settings as any;
+          if (ps.fields) {
+            const labels: Partial<Record<FieldKey, string>> = {};
+            const fieldMapping: Record<string, FieldKey> = {
+              brand: 'brand',
+              style: 'style',
+              color: 'color',
+            };
+            Object.entries(ps.fields).forEach(([key, val]: [string, any]) => {
+              const designerKey = fieldMapping[key];
+              if (designerKey && val?.label) {
+                labels[designerKey] = val.label;
+              }
+            });
+            setCustomFieldLabels(labels);
+          }
         }
         
         // Fetch purchase code settings
@@ -4001,6 +4008,7 @@ export default function BarcodePrinting() {
                   selectedTemplateName={selectedLabelTemplate}
                   onSaveTemplate={saveTemplateToDb}
                   onDeleteTemplate={deleteTemplateFromDb}
+                  customFieldLabels={customFieldLabels}
                 />
               </div>
             )}
