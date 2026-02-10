@@ -32,6 +32,7 @@ interface BarTenderLabelDesignerProps {
 
 const fieldLabels: Record<FieldKey, string> = {
   brand: 'Brand Name',
+  businessName: 'Business Name',
   productName: 'Product Name',
   color: 'Color',
   style: 'Style',
@@ -440,6 +441,7 @@ export function BarTenderLabelDesigner({
     if (sampleItem) {
       switch (fieldKey) {
         case 'brand': return sampleItem.brand || businessName || 'Brand';
+        case 'businessName': return businessName || 'Business Name';
         case 'productName': return sampleItem.product_name;
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
@@ -456,6 +458,7 @@ export function BarTenderLabelDesigner({
     }
     switch (fieldKey) {
       case 'brand': return businessName || 'BRAND';
+      case 'businessName': return businessName || 'BUSINESS NAME';
       case 'productName': return 'Product Name';
       case 'color': return 'Blue';
       case 'style': return 'ST-001';

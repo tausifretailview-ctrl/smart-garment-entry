@@ -1859,6 +1859,7 @@ const PurchaseEntry = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: softwareBillNo || "",
+        bill_date: format(billDate, "yyyy-MM-dd"),
         supplier_code: supplierCode,
       }));
 
@@ -2983,6 +2984,7 @@ const PurchaseEntry = () => {
                         barcode: item.barcode,
                         qty: item.qty,
                         bill_number: softwareBillNo || "",
+                        bill_date: format(billDate, "yyyy-MM-dd"),
                         supplier_code: "",
                       }));
 
@@ -3033,6 +3035,7 @@ const PurchaseEntry = () => {
                           barcode: item.barcode,
                           qty: item.qty,
                           bill_number: softwareBillNo || "",
+                          bill_date: format(billDate, "yyyy-MM-dd"),
                           supplier_code: "",
                         }));
 

@@ -18,6 +18,7 @@ export interface LabelFieldConfig {
 
 export interface LabelDesignConfig {
   brand: LabelFieldConfig;
+  businessName: LabelFieldConfig;
   productName: LabelFieldConfig;
   color: LabelFieldConfig;
   style: LabelFieldConfig;
@@ -48,6 +49,7 @@ export interface LabelItem {
   mrp?: number;
   pur_price?: number;
   purchase_code?: string;
+  bill_date?: string;
   barcode: string;
   bill_number: string;
   qty?: number;
