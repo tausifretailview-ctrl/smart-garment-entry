@@ -63,7 +63,7 @@ const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] 
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
-    'businessName', 'brand', 'productName', 'color', 'style', 'size', 'price', 'mrp',
+    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp',
     'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'
   ];
   
@@ -74,6 +74,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     brand: config.brand || { show: true, fontSize: 9, bold: true },
     businessName: config.businessName || { show: false, fontSize: 8, bold: true },
     productName: config.productName || { show: true, fontSize: 9, bold: true },
+    category: config.category || { show: false, fontSize: 8, bold: false },
     color: config.color || { show: false, fontSize: 8, bold: false },
     style: config.style || { show: false, fontSize: 8, bold: false },
     size: config.size || { show: true, fontSize: 9, bold: false },
@@ -300,6 +301,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       brand: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       productName: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 8, width: 50 },
       style: { show: true, fontSize: 8, bold: false, textAlign: 'left', x: 0, y: 8, width: 50 },
       size: { show: true, fontSize: 10, bold: true, textAlign: 'right', x: 25, y: 8, width: 50 },
@@ -311,7 +313,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
       supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 50 },
       purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 25, y: 27, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      fieldOrder: ['businessName', 'brand', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 25,
       barcodeWidth: 1.5,
     }
@@ -322,6 +324,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       productName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       style: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       size: { show: true, fontSize: 10, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
@@ -333,7 +336,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
       supplierCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 24, width: 100 },
       purchaseCode: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
-      fieldOrder: ['businessName', 'brand', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
+      fieldOrder: ['businessName', 'brand', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'productName', 'category', 'style', 'color', 'billNumber', 'supplierCode', 'purchaseCode'],
       barcodeHeight: 28,
       barcodeWidth: 1.6,
     }
@@ -344,6 +347,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       brand: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       businessName: { show: false, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 0, width: 100 },
       productName: { show: true, fontSize: 8, bold: true, textAlign: 'center', x: 0, y: 4, width: 100 },
+      category: { show: false, fontSize: 8, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       color: { show: false, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       style: { show: true, fontSize: 7, bold: false, textAlign: 'center', x: 0, y: 8, width: 100 },
       size: { show: true, fontSize: 9, bold: true, textAlign: 'center', x: 0, y: 8, width: 50 },
@@ -355,7 +359,7 @@ const builtInLabelTemplates: LabelTemplate[] = [
       billNumber: { show: false, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 27, width: 100 },
       supplierCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 0, y: 24, width: 50 },
       purchaseCode: { show: true, fontSize: 6, bold: false, textAlign: 'center', x: 25, y: 24, width: 50 },
-      fieldOrder: ['businessName', 'brand', 'productName', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
+      fieldOrder: ['businessName', 'brand', 'productName', 'category', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'color', 'billNumber'],
       barcodeHeight: 22,
       barcodeWidth: 1.4,
     }
@@ -424,6 +428,8 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
           return businessName || 'Business Name';
         case 'productName':
           return sampleItem.product_name;
+        case 'category':
+          return sampleItem.category || '';
         case 'color':
           return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style':
@@ -452,6 +458,8 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
         return businessName || 'Business Name';
       case 'productName':
         return 'Sample Product';
+      case 'category':
+        return 'Category';
       case 'color':
         return 'Color: Blue';
       case 'style':
@@ -559,6 +567,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         case 'brand': return sampleItem.brand || businessName || 'Brand';
         case 'businessName': return businessName || 'Business Name';
         case 'productName': return sampleItem.product_name;
+        case 'category': return sampleItem.category || '';
         case 'color': return sampleItem.color ? `Color: ${sampleItem.color}` : '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
@@ -576,6 +585,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
       case 'brand': return businessName || 'Brand';
       case 'businessName': return businessName || 'Business Name';
       case 'productName': return 'Sample Product';
+      case 'category': return 'Category';
       case 'color': return 'Color: Blue';
       case 'style': return 'Style: Classic';
       case 'price': return '₹999';
@@ -1109,6 +1119,7 @@ export default function BarcodePrinting() {
     brand: { show: true, fontSize: 8, bold: true, x: 0, y: 0, width: 100 },
     businessName: { show: false, fontSize: 8, bold: true, x: 0, y: 0, width: 100 },
     productName: { show: true, fontSize: 8, bold: true, x: 0, y: 4, width: 100 },
+    category: { show: false, fontSize: 8, bold: false, x: 0, y: 8, width: 100 },
     color: { show: false, fontSize: 7, bold: false, x: 25, y: 8, width: 50 },
     style: { show: false, fontSize: 7, bold: false, x: 0, y: 8, width: 50 },
     size: { show: true, fontSize: 8, bold: false, x: 0, y: 8, width: 50 },
@@ -1120,7 +1131,7 @@ export default function BarcodePrinting() {
     billNumber: { show: false, fontSize: 6, bold: false, x: 0, y: 31, width: 100 },
     supplierCode: { show: true, fontSize: 7, bold: false, x: 0, y: 28, width: 50 },
     purchaseCode: { show: false, fontSize: 7, bold: false, x: 25, y: 28, width: 50 },
-    fieldOrder: ['businessName', 'brand', 'productName', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
+    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -1294,6 +1305,7 @@ export default function BarcodePrinting() {
               brand: 'brand',
               style: 'style',
               color: 'color',
+              category: 'category',
             };
             Object.entries(ps.fields).forEach(([key, val]: [string, any]) => {
               const designerKey = fieldMapping[key];
@@ -2112,6 +2124,7 @@ export default function BarcodePrinting() {
           brand: preset.labelConfig.brand || { show: true, fontSize: 9, bold: true },
           businessName: preset.labelConfig.businessName || { show: false, fontSize: 8, bold: true },
           productName: preset.labelConfig.productName || { show: true, fontSize: 9, bold: true },
+          category: preset.labelConfig.category || { show: false, fontSize: 8, bold: false },
           color: preset.labelConfig.color || { show: false, fontSize: 8, bold: false },
           style: preset.labelConfig.style || { show: false, fontSize: 8, bold: false },
           size: preset.labelConfig.size || { show: true, fontSize: 9, bold: false },
@@ -2123,7 +2136,7 @@ export default function BarcodePrinting() {
           billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
           supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
           purchaseCode: preset.labelConfig.purchaseCode || { show: false, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
+          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
           customTextValue: preset.labelConfig.customTextValue || '',
         };
         setLabelConfig(mergedConfig);
@@ -2398,6 +2411,8 @@ export default function BarcodePrinting() {
           return businessName || '';
         case 'productName':
           return item.product_name;
+        case 'category':
+          return item.category || '';
         case 'color': 
           return item.color || '';
         case 'style': 

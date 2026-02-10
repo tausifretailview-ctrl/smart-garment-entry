@@ -20,6 +20,7 @@ export interface LabelDesignConfig {
   brand: LabelFieldConfig;
   businessName: LabelFieldConfig;
   productName: LabelFieldConfig;
+  category: LabelFieldConfig;
   color: LabelFieldConfig;
   style: LabelFieldConfig;
   size: LabelFieldConfig;
