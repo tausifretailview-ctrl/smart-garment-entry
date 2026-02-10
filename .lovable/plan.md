@@ -1,69 +1,47 @@
 
 
-# Fix: Organization Reset Not Deleting Data
+# Fix: Remove Animated Counter "Stopwatch" Effect from Dashboard Cards
 
 ## Problem
 
-The reset shows "success" but no data is actually deleted. The root cause is that 9 child/item tables (`sale_items`, `sale_return_items`, `purchase_items`, `purchase_return_items`, `quotation_items`, `sale_order_items`, `purchase_order_items`, `delivery_challan_items`, `voucher_items`) do **not** have an `organization_id` column. The edge function skips these tables, then fails to delete parent tables (`sales`, `purchase_bills`, etc.) because child rows still reference them via foreign keys. Since the function catches errors silently and still returns `success: true`, the UI shows a success message.
+Each of the 18 dashboard metric cards uses a `useAnimatedCounter` hook with a 2000ms `requestAnimationFrame` animation. This means every time a value updates, the card runs ~120 frames of animation (60fps x 2 seconds), calling `setState` on every frame. With 18 cards, that is potentially **2,160 state updates** per data refresh cycle. While this does not directly cause extra database reads, the constant re-rendering can cascade into child component re-renders and contributes to poor performance on lower-end devices.
 
 ## Solution
 
-Update the `reset-organization` edge function to handle item tables by deleting through their parent relationship. For example, delete `sale_items` WHERE `sale_id` IN (SELECT `id` FROM `sales` WHERE `organization_id` = X).
+Remove the animated counter from dashboard cards entirely. Display values instantly -- this eliminates the "stopwatch counting" effect, reduces CPU usage, and keeps the dashboard lightweight.
 
-## Technical Details
+## Technical Changes
 
-### File to modify
-- `supabase/functions/reset-organization/index.ts`
+### 1. `src/pages/Index.tsx` -- DashboardCard component (~line 90)
 
-### Changes
+- Remove the `useAnimatedCounter` import
+- Remove the `useAnimatedCounter` call inside `DashboardCard`
+- Format the value directly using the existing `formatCurrency` or `toLocaleString` functions
+- Display the formatted value immediately without animation
 
-1. **Replace the flat table list with a structured configuration** that maps each item table to its parent table and foreign key column:
-
-```text
-Item Table               -> Parent Table       -> FK Column
-sale_items               -> sales              -> sale_id
-sale_return_items        -> sale_returns        -> sale_return_id
-purchase_items           -> purchase_bills      -> purchase_bill_id
-purchase_return_items    -> purchase_returns    -> purchase_return_id
-quotation_items          -> quotations          -> quotation_id
-sale_order_items         -> sale_orders         -> sale_order_id
-purchase_order_items     -> purchase_orders     -> purchase_order_id
-delivery_challan_items   -> delivery_challans   -> delivery_challan_id
-voucher_items            -> (needs investigation) -> voucher_id or similar
+Before:
+```tsx
+const { displayValue } = useAnimatedCounter(value, {
+  duration: 2000,
+  formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
+});
+// ... renders displayValue
 ```
 
-2. **Delete item tables using raw SQL** via `adminClient.rpc` or direct SQL, since the Supabase JS client cannot do subquery-based deletes. The function will run:
-
-```sql
-DELETE FROM sale_items 
-WHERE sale_id IN (SELECT id FROM sales WHERE organization_id = $1)
+After:
+```tsx
+const displayValue = isCurrency ? formatCurrency(value) : value.toLocaleString("en-IN");
+// ... renders displayValue directly
 ```
 
-3. **After item tables are cleared**, proceed with the existing logic to delete parent tables using `.eq("organization_id", orgId)`.
+### 2. `src/hooks/useAnimatedCounter.tsx`
 
-4. **Improve error handling**: If critical parent table deletions fail, mark the result as `success: false` instead of returning success with errors array.
+No deletion needed -- the hook may be used elsewhere in the future. But the dashboard will no longer import it.
 
-### Deletion sequence
+### Result
 
-```text
-Phase 1 - Item tables (via parent join):
-  sale_items, sale_return_items, purchase_items, purchase_return_items,
-  quotation_items, sale_order_items, purchase_order_items,
-  delivery_challan_items, voucher_items
+- Zero `requestAnimationFrame` loops on the dashboard
+- Instant value display instead of 2-second counting animation
+- Significantly reduced CPU and rendering overhead
+- No visual regression -- values appear immediately which is actually better UX for a business dashboard
 
-Phase 2 - Tables with organization_id (direct delete):
-  stock_movements, batch_stock, delivery_tracking,
-  sale_returns, purchase_returns, sales, purchase_bills,
-  quotations, sale_orders, purchase_orders, delivery_challans,
-  credit_notes, customer_advances, customer_brand_discounts,
-  customer_product_prices, customer_points_history, gift_redemptions,
-  product_images, product_variants, products, customers, suppliers,
-  size_groups, employees, legacy_invoices, drafts,
-  whatsapp_messages, whatsapp_conversations, whatsapp_logs, sms_logs
-
-Phase 3 - Sequence resets:
-  barcode_sequence (update), bill_number_sequence (delete)
-```
-
-### No frontend changes needed
-The hook and dialog already work correctly. Only the edge function logic needs updating.
