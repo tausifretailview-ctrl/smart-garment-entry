@@ -1,122 +1,76 @@
 
 
-# Fix: Duplicate Barcode Generation in AL NISA Organization
+# Fix: Auto Generate Barcodes Assigns Same Barcode to All Variants
 
 ## Problem
 
-When auto-generating barcodes for new products in the AL NISA organization, the system generates barcode numbers that already exist in other products (e.g., barcode `14000101` already assigned to product "LEHGA"). This causes a "Duplicate Barcode Error" when trying to save.
+The "Auto Generate Barcodes" button only generates barcodes for variants with **empty** barcode fields. If a previous (buggy) generation already filled all variants with the same barcode (e.g., `14000107`), clicking the button again does nothing -- all variants keep the duplicate value, triggering the "Duplicate barcodes found in variants" validation error.
 
-## Root Cause
-
-The `generate_next_barcode` database function simply increments a counter in the `barcode_sequence` table. It never verifies whether the generated barcode already exists in the `product_variants` table. If the sequence gets out of sync (e.g., due to manual barcode entry, data imports, or formula changes during migrations), it can produce barcodes that conflict with existing records.
-
-Additionally, for AL NISA (organization_number = 14), the current formula produces 9-digit barcodes (starting at 140,001,001), but existing barcodes are 8-digit (14,000,101 range), indicating a previous formula was used. The sequence needs to account for all existing barcodes regardless of how they were generated.
+The database function was already fixed to return unique sequential barcodes. The issue is purely in the frontend logic.
 
 ## Solution
 
-Two changes are needed:
+Update `handleAutoGenerateBarcodes` in **both** `ProductEntryDialog.tsx` and `ProductEntry.tsx` to detect duplicate barcodes and force-regenerate them. Specifically:
 
-### 1. Fix the database function to skip existing barcodes
-
-Update `generate_next_barcode` to check if the generated barcode already exists in `product_variants` and keep incrementing until a unique one is found. This makes it collision-proof regardless of how barcodes were originally created.
-
-### 2. Fix the AL NISA sequence to start past existing barcodes
-
-Run a one-time data fix to advance the AL NISA sequence counter past all existing barcodes, preventing future collisions.
+1. Before generating, check if any barcodes are duplicated among variants.
+2. If duplicates exist, clear those duplicate barcodes so they get regenerated with unique values.
+3. This way, clicking "Auto Generate Barcodes" again will fix the issue automatically.
 
 ## Technical Details
 
-### Database Migration
+### Files to modify
 
-Update the `generate_next_barcode` function:
+**1. `src/components/ProductEntryDialog.tsx`** (line ~379)
+**2. `src/pages/ProductEntry.tsx`** (line ~660)
 
-```sql
-CREATE OR REPLACE FUNCTION public.generate_next_barcode(p_organization_id uuid)
-RETURNS text
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  v_org_number INTEGER;
-  v_next_barcode BIGINT;
-  v_starting_barcode BIGINT;
-  v_max_attempts INTEGER := 1000;
-  v_attempt INTEGER := 0;
-BEGIN
-  SELECT organization_number INTO v_org_number
-  FROM public.organizations
-  WHERE id = p_organization_id;
+Same change in both files:
 
-  IF v_org_number IS NULL THEN
-    RAISE EXCEPTION 'Organization number not set for organization %', p_organization_id;
-  END IF;
-
-  v_starting_barcode := (v_org_number * 10000000) + 1001;
-
-  -- Get and increment the sequence
-  INSERT INTO public.barcode_sequence (organization_id, next_barcode)
-  VALUES (p_organization_id, v_starting_barcode + 1)
-  ON CONFLICT (organization_id)
-  DO UPDATE SET
-    next_barcode = barcode_sequence.next_barcode + 1,
-    updated_at = now()
-  RETURNING next_barcode - 1 INTO v_next_barcode;
-
-  -- Check if this barcode already exists, keep incrementing if so
-  WHILE EXISTS (
-    SELECT 1 FROM product_variants
-    WHERE barcode = LPAD(v_next_barcode::TEXT, 8, '0')
-    AND organization_id = p_organization_id
-  ) AND v_attempt < v_max_attempts LOOP
-    UPDATE barcode_sequence
-    SET next_barcode = next_barcode + 1, updated_at = now()
-    WHERE organization_id = p_organization_id
-    RETURNING next_barcode - 1 INTO v_next_barcode;
-    v_attempt := v_attempt + 1;
-  END LOOP;
-
-  RETURN LPAD(v_next_barcode::TEXT, 8, '0');
-END;
-$$;
+```typescript
+const handleAutoGenerateBarcodes = async () => {
+  try {
+    const updatedVariants = [...variants];
+    
+    // Detect duplicate barcodes and clear them so they get regenerated
+    const barcodeCounts = new Map<string, number>();
+    for (const v of updatedVariants) {
+      if (v.barcode) {
+        barcodeCounts.set(v.barcode, (barcodeCounts.get(v.barcode) || 0) + 1);
+      }
+    }
+    for (let i = 0; i < updatedVariants.length; i++) {
+      if (updatedVariants[i].barcode && barcodeCounts.get(updatedVariants[i].barcode)! > 1) {
+        updatedVariants[i] = { ...updatedVariants[i], barcode: "" };
+      }
+    }
+    
+    // Generate barcodes sequentially for empty/cleared slots
+    for (let i = 0; i < updatedVariants.length; i++) {
+      if (!updatedVariants[i].barcode) {
+        updatedVariants[i] = {
+          ...updatedVariants[i],
+          barcode: await generateSequentialBarcode(),
+        };
+      }
+    }
+    setVariants(updatedVariants);
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: "Failed to generate barcodes",
+      variant: "destructive",
+    });
+  }
+};
 ```
 
-Also include a data fix to sync the AL NISA sequence:
+### What this does
 
-```sql
--- Advance AL NISA sequence past all existing barcodes
-UPDATE barcode_sequence
-SET next_barcode = GREATEST(
-  next_barcode,
-  (SELECT COALESCE(MAX(barcode::bigint), 0) + 1
-   FROM product_variants
-   WHERE organization_id = '70e4d691-2604-4ae9-9127-27f8e9535585'
-   AND barcode ~ '^\d+$')
-)
-WHERE organization_id = '70e4d691-2604-4ae9-9127-27f8e9535585';
-```
+- Counts how many times each barcode appears in the variant list
+- Any barcode appearing more than once is cleared (set to empty string)
+- Then the existing sequential generation fills in the cleared slots with fresh unique barcodes from the database function
+- Variants with unique, valid barcodes are left untouched
 
-### Also fix the duplicate barcode `14000101`
+### No other changes needed
 
-Clean up the existing duplicate so the user can proceed:
-
-```sql
--- Remove the duplicate barcode from the newer record (product "DM")
-UPDATE product_variants
-SET barcode = NULL
-WHERE organization_id = '70e4d691-2604-4ae9-9127-27f8e9535585'
-AND barcode = '14000101'
-AND product_id = (SELECT id FROM products WHERE product_name = 'DM'
-  AND organization_id = '70e4d691-2604-4ae9-9127-27f8e9535585' LIMIT 1);
-```
-
-### No frontend code changes needed
-
-The fix is entirely in the database function. The existing sequential generation code in `ProductEntry.tsx` and `ProductEntryDialog.tsx` will work correctly once the RPC returns unique barcodes.
-
-## Expected Result
-
-- Auto-generated barcodes will always be unique, even if the sequence was previously out of sync
-- The existing duplicate barcode conflict for AL NISA is resolved
-- All other organizations are also protected from future barcode collisions
+The database function fix (collision-proof WHILE loop) is already deployed and working correctly. This frontend change ensures that leftover duplicate barcodes from the old function get cleaned up when the user clicks "Auto Generate" again.
 
