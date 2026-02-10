@@ -2289,6 +2289,10 @@ export default function POSSales() {
           selectedProductType={selectedProductType}
           onProductTypeChange={setSelectedProductType}
           hasMoreCustomers={hasMoreCustomers}
+          flatDiscountValue={flatDiscountValue}
+          flatDiscountMode={flatDiscountMode}
+          onFlatDiscountValueChange={setFlatDiscountValue}
+          onFlatDiscountModeChange={setFlatDiscountMode}
         />
 
         {/* Dialogs needed for mobile too */}

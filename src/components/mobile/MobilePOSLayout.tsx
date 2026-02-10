@@ -71,6 +71,12 @@ interface MobilePOSLayoutProps {
   // Product type filter
   selectedProductType: string;
   onProductTypeChange: (type: string) => void;
+
+  // Flat discount
+  flatDiscountValue: number;
+  flatDiscountMode: 'percent' | 'amount';
+  onFlatDiscountValueChange: (value: number) => void;
+  onFlatDiscountModeChange: (mode: 'percent' | 'amount') => void;
 }
 
 export const MobilePOSLayout = ({
@@ -103,6 +109,10 @@ export const MobilePOSLayout = ({
   setShowMobilePaymentSheet,
   selectedProductType,
   onProductTypeChange,
+  flatDiscountValue,
+  flatDiscountMode,
+  onFlatDiscountValueChange,
+  onFlatDiscountModeChange,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -174,12 +184,17 @@ export const MobilePOSLayout = ({
       <MobilePOSBottomBar
         quantity={totals.quantity}
         finalAmount={finalAmount}
+        subtotal={totals.subtotal}
         hasItems={items.length > 0}
         isSaving={isSaving}
         onCashPayment={() => onPaymentAndPrint('cash')}
         onUPIPayment={() => onPaymentAndPrint('upi')}
         onCardPayment={() => onPaymentAndPrint('card')}
         onMoreOptions={() => setShowMobilePaymentSheet(true)}
+        flatDiscountValue={flatDiscountValue}
+        flatDiscountMode={flatDiscountMode}
+        onFlatDiscountValueChange={onFlatDiscountValueChange}
+        onFlatDiscountModeChange={onFlatDiscountModeChange}
       />
 
       {/* Payment Sheet (More Options) */}
