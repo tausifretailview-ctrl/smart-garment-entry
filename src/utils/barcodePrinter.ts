@@ -103,7 +103,7 @@ const sheetPresets: Record<string, { cols: number; rows?: number; width: string;
 
 // Check if config has absolute positioning (x/y defined)
 const hasAbsolutePositioning = (config: LabelConfig): boolean => {
-  const fields = ['brand', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'];
+  const fields = ['brand', 'businessName', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode'];
   return fields.some(fieldKey => {
     const field = config[fieldKey as keyof LabelConfig] as LabelFieldConfig | undefined;
     return field && (field.x !== undefined || field.y !== undefined);
@@ -124,6 +124,7 @@ const getAbsolutePositionedLabelHTML = (
 
   const fieldMap: Record<string, { content: string; key: string }> = {
     brand: { content: item.brand || '', key: 'brand' },
+    businessName: { content: '', key: 'businessName' },
     productName: { content: item.product_name || '', key: 'productName' },
     color: { content: item.color || '', key: 'color' },
     style: { content: item.style || '', key: 'style' },

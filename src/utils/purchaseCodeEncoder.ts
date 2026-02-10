@@ -2,29 +2,28 @@
  * Encodes a purchase price into an alphabetic code using a custom alphabet mapping.
  * Each digit (0-9) is mapped to a letter in the provided alphabet.
  * 
+ * Format: MMCODEYR (e.g., 02UNSS25 for month=02, code=UNSS, year=25)
+ * If no date is provided, uses current date.
+ * 
  * @param price - The purchase price to encode
  * @param alphabet - A 10-character string mapping digits 0-9 to letters (default: "ABCDEFGHIK")
- * @returns The encoded alphabetic code (e.g., 100 -> "BAA" with default alphabet)
- * 
- * @example
- * encodePurchasePrice(100, "ABCDEFGHIK") // Returns "BAA"
- * encodePurchasePrice(250, "ABCDEFGHIK") // Returns "CFA"
- * encodePurchasePrice(1999, "ZYXWVUTSRQ") // Returns "ZQQQQ"
+ * @param billDate - Optional bill date string (ISO format) for month/year prefix/suffix
+ * @returns The encoded alphabetic code (e.g., "02UNSS25")
  */
-export const encodePurchasePrice = (price: number, alphabet?: string): string => {
+export const encodePurchasePrice = (price: number, alphabet?: string, billDate?: string): string => {
   // Default alphabet if not provided (0=A, 1=B, 2=C, ..., 9=K)
   const codeAlphabet = alphabet || "ABCDEFGHIK";
   
   // Validate alphabet length
   if (codeAlphabet.length !== 10) {
     console.warn("Invalid alphabet length (must be 10 characters), using default");
-    return encodePurchasePrice(price, "ABCDEFGHIK");
+    return encodePurchasePrice(price, "ABCDEFGHIK", billDate);
   }
   
   // Validate alphabet contains only letters
   if (!/^[A-Z]{10}$/i.test(codeAlphabet)) {
     console.warn("Invalid alphabet (must contain only letters A-Z), using default");
-    return encodePurchasePrice(price, "ABCDEFGHIK");
+    return encodePurchasePrice(price, "ABCDEFGHIK", billDate);
   }
   
   // Get integer part only (ignore decimals)
@@ -39,8 +38,13 @@ export const encodePurchasePrice = (price: number, alphabet?: string): string =>
     return codeAlphabet.toUpperCase()[index];
   }).join('');
   
-  // Add "001" prefix to make the code harder to estimate
-  return `001${encodedCode}`;
+  // Use bill date or current date for month/year
+  const date = billDate ? new Date(billDate) : new Date();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  
+  // Format: MMCODEYR (e.g., 02UNSS25)
+  return `${month}${encodedCode}${year}`;
 };
 
 /**
