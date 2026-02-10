@@ -5,7 +5,7 @@ import { fetchAllSaleItems } from "@/utils/fetchAllRows";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
-import { useAnimatedCounter } from "@/hooks/useAnimatedCounter";
+
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -87,10 +87,7 @@ const AnimatedMetricCard = ({
   tooltip?: string;
   isCurrency?: boolean;
 }) => {
-  const { displayValue } = useAnimatedCounter(value, {
-    duration: 2000,
-    formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
-  });
+  const displayValue = isCurrency ? formatCurrency(value) : value.toLocaleString("en-IN");
 
   // Map accent colors to semantic status classes for dark mode compatibility
   const getAccentClasses = (color: string) => {
