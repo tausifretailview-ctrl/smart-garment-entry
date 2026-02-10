@@ -47,6 +47,12 @@ export const MobileBottomNav = () => {
   const location = useLocation();
   const { orgNavigate, getOrgPath } = useOrgNavigation();
 
+  // Hide bottom nav on POS sales screen - it has its own payment bottom bar
+  const posSalesPath = getOrgPath("/pos-sales");
+  if (location.pathname === posSalesPath || location.pathname.startsWith(posSalesPath + "/")) {
+    return null;
+  }
+
   const isActive = (item: NavItem) => {
     const currentPath = location.pathname;
     const orgPath = getOrgPath(item.path);
