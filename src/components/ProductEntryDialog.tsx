@@ -378,8 +378,22 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
 
   const handleAutoGenerateBarcodes = async () => {
     try {
-      // Generate barcodes sequentially to avoid duplicate sequence numbers
       const updatedVariants = [...variants];
+      
+      // Detect duplicate barcodes and clear them so they get regenerated
+      const barcodeCounts = new Map<string, number>();
+      for (const v of updatedVariants) {
+        if (v.barcode) {
+          barcodeCounts.set(v.barcode, (barcodeCounts.get(v.barcode) || 0) + 1);
+        }
+      }
+      for (let i = 0; i < updatedVariants.length; i++) {
+        if (updatedVariants[i].barcode && barcodeCounts.get(updatedVariants[i].barcode)! > 1) {
+          updatedVariants[i] = { ...updatedVariants[i], barcode: "" };
+        }
+      }
+      
+      // Generate barcodes sequentially for empty/cleared slots
       for (let i = 0; i < updatedVariants.length; i++) {
         if (!updatedVariants[i].barcode) {
           updatedVariants[i] = {
