@@ -1,93 +1,69 @@
 
 
-# Fix: LPAD Truncation Causing Duplicate Barcodes for Organizations with Number >= 10
+# Fix: Organization Reset Not Deleting Data
 
-## Root Cause
+## Problem
 
-The `generate_next_barcode` database function uses `LPAD(v_next_barcode::TEXT, 8, '0')` to format the barcode. PostgreSQL's LPAD **truncates** strings longer than the specified length.
-
-For AL NISA (organization_number = 14):
-- Starting barcode = 14 x 10,000,000 + 1001 = **140,001,001** (9 digits)
-- LPAD to 8 chars truncates the last digit:
-
-```text
-140001130 -> '14000113'
-140001131 -> '14000113'  (SAME!)
-140001132 -> '14000113'  (SAME!)
-...
-140001140 -> '14000114'
-140001141 -> '14000114'  (SAME!)
-```
-
-This is why S, M, L all show `14000113` and XL, 2XL both show `14000114` -- they were assigned different sequence numbers but LPAD truncated them to the same 8-character string.
-
-Organizations with number 1-9 have 8-digit barcodes and are unaffected. Only orgs with number >= 10 hit this bug.
+The reset shows "success" but no data is actually deleted. The root cause is that 9 child/item tables (`sale_items`, `sale_return_items`, `purchase_items`, `purchase_return_items`, `quotation_items`, `sale_order_items`, `purchase_order_items`, `delivery_challan_items`, `voucher_items`) do **not** have an `organization_id` column. The edge function skips these tables, then fails to delete parent tables (`sales`, `purchase_bills`, etc.) because child rows still reference them via foreign keys. Since the function catches errors silently and still returns `success: true`, the UI shows a success message.
 
 ## Solution
 
-Update the database function to use a larger LPAD length that accommodates all organization numbers. Changing from `LPAD(..., 8, '0')` to `LPAD(..., 10, '0')` ensures barcodes up to org_number 99 work correctly, while still padding smaller org numbers with leading zeros.
+Update the `reset-organization` edge function to handle item tables by deleting through their parent relationship. For example, delete `sale_items` WHERE `sale_id` IN (SELECT `id` FROM `sales` WHERE `organization_id` = X).
 
 ## Technical Details
 
-### Database migration (single change)
+### File to modify
+- `supabase/functions/reset-organization/index.ts`
 
-Replace the `generate_next_barcode` function, changing both LPAD calls from length 8 to length 10:
+### Changes
 
-```sql
-CREATE OR REPLACE FUNCTION public.generate_next_barcode(p_organization_id UUID)
-RETURNS TEXT
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_org_number INTEGER;
-  v_next_barcode BIGINT;
-  v_starting_barcode BIGINT;
-  v_max_attempts INTEGER := 1000;
-  v_attempt INTEGER := 0;
-BEGIN
-  SELECT organization_number INTO v_org_number
-  FROM public.organizations
-  WHERE id = p_organization_id;
+1. **Replace the flat table list with a structured configuration** that maps each item table to its parent table and foreign key column:
 
-  IF v_org_number IS NULL THEN
-    RAISE EXCEPTION 'Organization number not set for organization %', p_organization_id;
-  END IF;
-
-  v_starting_barcode := (v_org_number * 10000000) + 1001;
-
-  INSERT INTO public.barcode_sequence (organization_id, next_barcode)
-  VALUES (p_organization_id, v_starting_barcode + 1)
-  ON CONFLICT (organization_id)
-  DO UPDATE SET
-    next_barcode = barcode_sequence.next_barcode + 1,
-    updated_at = now()
-  RETURNING next_barcode - 1 INTO v_next_barcode;
-
-  WHILE EXISTS (
-    SELECT 1 FROM product_variants
-    WHERE barcode = LPAD(v_next_barcode::TEXT, 10, '0')
-    AND organization_id = p_organization_id
-  ) AND v_attempt < v_max_attempts LOOP
-    UPDATE barcode_sequence
-    SET next_barcode = next_barcode + 1, updated_at = now()
-    WHERE organization_id = p_organization_id
-    RETURNING next_barcode - 1 INTO v_next_barcode;
-    v_attempt := v_attempt + 1;
-  END LOOP;
-
-  RETURN LPAD(v_next_barcode::TEXT, 10, '0');
-END;
-$$;
+```text
+Item Table               -> Parent Table       -> FK Column
+sale_items               -> sales              -> sale_id
+sale_return_items        -> sale_returns        -> sale_return_id
+purchase_items           -> purchase_bills      -> purchase_bill_id
+purchase_return_items    -> purchase_returns    -> purchase_return_id
+quotation_items          -> quotations          -> quotation_id
+sale_order_items         -> sale_orders         -> sale_order_id
+purchase_order_items     -> purchase_orders     -> purchase_order_id
+delivery_challan_items   -> delivery_challans   -> delivery_challan_id
+voucher_items            -> (needs investigation) -> voucher_id or similar
 ```
 
-### What changes
-- LPAD length: 8 -> 10 (in both the WHILE loop check and the final RETURN)
-- Barcodes will now be 10 digits (e.g., `0140001130` for org 14)
-- Orgs with number 1-9 get leading zeros (e.g., `0050001001`)
-- No frontend changes needed -- the frontend already accepts whatever string the RPC returns
+2. **Delete item tables using raw SQL** via `adminClient.rpc` or direct SQL, since the Supabase JS client cannot do subquery-based deletes. The function will run:
 
-### Impact
-- New barcodes will be 10 digits instead of 8
-- Existing 8-digit barcodes in the database remain valid and unchanged
-- The duplicate detection logic in the frontend (already deployed) will clear old duplicates on next "Auto Generate" click
+```sql
+DELETE FROM sale_items 
+WHERE sale_id IN (SELECT id FROM sales WHERE organization_id = $1)
+```
+
+3. **After item tables are cleared**, proceed with the existing logic to delete parent tables using `.eq("organization_id", orgId)`.
+
+4. **Improve error handling**: If critical parent table deletions fail, mark the result as `success: false` instead of returning success with errors array.
+
+### Deletion sequence
+
+```text
+Phase 1 - Item tables (via parent join):
+  sale_items, sale_return_items, purchase_items, purchase_return_items,
+  quotation_items, sale_order_items, purchase_order_items,
+  delivery_challan_items, voucher_items
+
+Phase 2 - Tables with organization_id (direct delete):
+  stock_movements, batch_stock, delivery_tracking,
+  sale_returns, purchase_returns, sales, purchase_bills,
+  quotations, sale_orders, purchase_orders, delivery_challans,
+  credit_notes, customer_advances, customer_brand_discounts,
+  customer_product_prices, customer_points_history, gift_redemptions,
+  product_images, product_variants, products, customers, suppliers,
+  size_groups, employees, legacy_invoices, drafts,
+  whatsapp_messages, whatsapp_conversations, whatsapp_logs, sms_logs
+
+Phase 3 - Sequence resets:
+  barcode_sequence (update), bill_number_sequence (delete)
+```
+
+### No frontend changes needed
+The hook and dialog already work correctly. Only the edge function logic needs updating.
