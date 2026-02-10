@@ -1,76 +1,93 @@
 
 
-# Fix: Auto Generate Barcodes Assigns Same Barcode to All Variants
+# Fix: LPAD Truncation Causing Duplicate Barcodes for Organizations with Number >= 10
 
-## Problem
+## Root Cause
 
-The "Auto Generate Barcodes" button only generates barcodes for variants with **empty** barcode fields. If a previous (buggy) generation already filled all variants with the same barcode (e.g., `14000107`), clicking the button again does nothing -- all variants keep the duplicate value, triggering the "Duplicate barcodes found in variants" validation error.
+The `generate_next_barcode` database function uses `LPAD(v_next_barcode::TEXT, 8, '0')` to format the barcode. PostgreSQL's LPAD **truncates** strings longer than the specified length.
 
-The database function was already fixed to return unique sequential barcodes. The issue is purely in the frontend logic.
+For AL NISA (organization_number = 14):
+- Starting barcode = 14 x 10,000,000 + 1001 = **140,001,001** (9 digits)
+- LPAD to 8 chars truncates the last digit:
+
+```text
+140001130 -> '14000113'
+140001131 -> '14000113'  (SAME!)
+140001132 -> '14000113'  (SAME!)
+...
+140001140 -> '14000114'
+140001141 -> '14000114'  (SAME!)
+```
+
+This is why S, M, L all show `14000113` and XL, 2XL both show `14000114` -- they were assigned different sequence numbers but LPAD truncated them to the same 8-character string.
+
+Organizations with number 1-9 have 8-digit barcodes and are unaffected. Only orgs with number >= 10 hit this bug.
 
 ## Solution
 
-Update `handleAutoGenerateBarcodes` in **both** `ProductEntryDialog.tsx` and `ProductEntry.tsx` to detect duplicate barcodes and force-regenerate them. Specifically:
-
-1. Before generating, check if any barcodes are duplicated among variants.
-2. If duplicates exist, clear those duplicate barcodes so they get regenerated with unique values.
-3. This way, clicking "Auto Generate Barcodes" again will fix the issue automatically.
+Update the database function to use a larger LPAD length that accommodates all organization numbers. Changing from `LPAD(..., 8, '0')` to `LPAD(..., 10, '0')` ensures barcodes up to org_number 99 work correctly, while still padding smaller org numbers with leading zeros.
 
 ## Technical Details
 
-### Files to modify
+### Database migration (single change)
 
-**1. `src/components/ProductEntryDialog.tsx`** (line ~379)
-**2. `src/pages/ProductEntry.tsx`** (line ~660)
+Replace the `generate_next_barcode` function, changing both LPAD calls from length 8 to length 10:
 
-Same change in both files:
+```sql
+CREATE OR REPLACE FUNCTION public.generate_next_barcode(p_organization_id UUID)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_org_number INTEGER;
+  v_next_barcode BIGINT;
+  v_starting_barcode BIGINT;
+  v_max_attempts INTEGER := 1000;
+  v_attempt INTEGER := 0;
+BEGIN
+  SELECT organization_number INTO v_org_number
+  FROM public.organizations
+  WHERE id = p_organization_id;
 
-```typescript
-const handleAutoGenerateBarcodes = async () => {
-  try {
-    const updatedVariants = [...variants];
-    
-    // Detect duplicate barcodes and clear them so they get regenerated
-    const barcodeCounts = new Map<string, number>();
-    for (const v of updatedVariants) {
-      if (v.barcode) {
-        barcodeCounts.set(v.barcode, (barcodeCounts.get(v.barcode) || 0) + 1);
-      }
-    }
-    for (let i = 0; i < updatedVariants.length; i++) {
-      if (updatedVariants[i].barcode && barcodeCounts.get(updatedVariants[i].barcode)! > 1) {
-        updatedVariants[i] = { ...updatedVariants[i], barcode: "" };
-      }
-    }
-    
-    // Generate barcodes sequentially for empty/cleared slots
-    for (let i = 0; i < updatedVariants.length; i++) {
-      if (!updatedVariants[i].barcode) {
-        updatedVariants[i] = {
-          ...updatedVariants[i],
-          barcode: await generateSequentialBarcode(),
-        };
-      }
-    }
-    setVariants(updatedVariants);
-  } catch (error) {
-    toast({
-      title: "Error",
-      description: "Failed to generate barcodes",
-      variant: "destructive",
-    });
-  }
-};
+  IF v_org_number IS NULL THEN
+    RAISE EXCEPTION 'Organization number not set for organization %', p_organization_id;
+  END IF;
+
+  v_starting_barcode := (v_org_number * 10000000) + 1001;
+
+  INSERT INTO public.barcode_sequence (organization_id, next_barcode)
+  VALUES (p_organization_id, v_starting_barcode + 1)
+  ON CONFLICT (organization_id)
+  DO UPDATE SET
+    next_barcode = barcode_sequence.next_barcode + 1,
+    updated_at = now()
+  RETURNING next_barcode - 1 INTO v_next_barcode;
+
+  WHILE EXISTS (
+    SELECT 1 FROM product_variants
+    WHERE barcode = LPAD(v_next_barcode::TEXT, 10, '0')
+    AND organization_id = p_organization_id
+  ) AND v_attempt < v_max_attempts LOOP
+    UPDATE barcode_sequence
+    SET next_barcode = next_barcode + 1, updated_at = now()
+    WHERE organization_id = p_organization_id
+    RETURNING next_barcode - 1 INTO v_next_barcode;
+    v_attempt := v_attempt + 1;
+  END LOOP;
+
+  RETURN LPAD(v_next_barcode::TEXT, 10, '0');
+END;
+$$;
 ```
 
-### What this does
+### What changes
+- LPAD length: 8 -> 10 (in both the WHILE loop check and the final RETURN)
+- Barcodes will now be 10 digits (e.g., `0140001130` for org 14)
+- Orgs with number 1-9 get leading zeros (e.g., `0050001001`)
+- No frontend changes needed -- the frontend already accepts whatever string the RPC returns
 
-- Counts how many times each barcode appears in the variant list
-- Any barcode appearing more than once is cleared (set to empty string)
-- Then the existing sequential generation fills in the cleared slots with fresh unique barcodes from the database function
-- Variants with unique, valid barcodes are left untouched
-
-### No other changes needed
-
-The database function fix (collision-proof WHILE loop) is already deployed and working correctly. This frontend change ensures that leftover duplicate barcodes from the old function get cleaned up when the user clicks "Auto Generate" again.
-
+### Impact
+- New barcodes will be 10 digits instead of 8
+- Existing 8-digit barcodes in the database remain valid and unchanged
+- The duplicate detection logic in the frontend (already deployed) will clear old duplicates on next "Auto Generate" click
