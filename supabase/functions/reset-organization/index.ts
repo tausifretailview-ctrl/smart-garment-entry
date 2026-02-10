@@ -6,17 +6,22 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Tables to delete in order (child tables first to respect FK constraints)
-const DELETION_ORDER = [
-  "sale_items",
-  "sale_return_items",
-  "purchase_return_items",
-  "purchase_items",
-  "quotation_items",
-  "sale_order_items",
-  "purchase_order_items",
-  "delivery_challan_items",
-  "voucher_items",
+// Phase 1: Child/item tables that don't have organization_id
+// Delete via parent table join using the DB helper function
+const CHILD_TABLES = [
+  { child: "sale_items", fk: "sale_id", parent: "sales" },
+  { child: "sale_return_items", fk: "sale_return_id", parent: "sale_returns" },
+  { child: "purchase_items", fk: "purchase_bill_id", parent: "purchase_bills" },
+  { child: "purchase_return_items", fk: "purchase_return_id", parent: "purchase_returns" },
+  { child: "quotation_items", fk: "quotation_id", parent: "quotations" },
+  { child: "sale_order_items", fk: "sale_order_id", parent: "sale_orders" },
+  { child: "purchase_order_items", fk: "purchase_order_id", parent: "purchase_orders" },
+  { child: "delivery_challan_items", fk: "challan_id", parent: "delivery_challans" },
+  { child: "voucher_items", fk: "voucher_id", parent: "account_ledgers" }, // orphaned, will likely delete 0
+];
+
+// Phase 2: Tables with organization_id (child-first order)
+const ORG_TABLES = [
   "stock_movements",
   "batch_stock",
   "delivery_tracking",
@@ -50,13 +55,11 @@ const DELETION_ORDER = [
 ];
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Get auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -65,12 +68,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create Supabase client with service role for deletions
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // First verify the user with their token
+    // Verify user
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -83,7 +85,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Parse request body
     const { organizationId, barcodeStartValue } = await req.json();
 
     if (!organizationId) {
@@ -93,36 +94,48 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify user is admin of this organization
-    const { data: membership, error: membershipError } = await userClient
+    // Verify admin role
+    const { data: membership } = await userClient
       .from("organization_members")
       .select("role")
       .eq("organization_id", organizationId)
       .eq("user_id", user.id)
       .single();
 
-    if (membershipError || !membership) {
-      return new Response(
-        JSON.stringify({ error: "User is not a member of this organization" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (membership.role !== "admin") {
+    if (!membership || membership.role !== "admin") {
       return new Response(
         JSON.stringify({ error: "Only administrators can reset organization data" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Use service role client for deletions (bypasses RLS)
     const adminClient = createClient(supabaseUrl, supabaseServiceKey);
-
     const deletedCounts: Record<string, number> = {};
     const errors: string[] = [];
 
-    // Delete data from each table in order
-    for (const tableName of DELETION_ORDER) {
+    // Phase 1: Delete child/item tables via RPC helper
+    for (const { child, fk, parent } of CHILD_TABLES) {
+      try {
+        const { data, error } = await adminClient.rpc("delete_child_rows_for_org", {
+          p_child_table: child,
+          p_fk_column: fk,
+          p_parent_table: parent,
+          p_organization_id: organizationId,
+        });
+        if (error) {
+          console.error(`Phase 1 error for ${child}:`, error.message);
+          errors.push(`${child}: ${error.message}`);
+        } else {
+          deletedCounts[child] = data || 0;
+        }
+      } catch (err: any) {
+        console.error(`Phase 1 exception for ${child}:`, err.message);
+        errors.push(`${child}: ${err.message}`);
+      }
+    }
+
+    // Phase 2: Delete tables with organization_id directly
+    for (const tableName of ORG_TABLES) {
       try {
         const { data, error } = await adminClient
           .from(tableName)
@@ -131,11 +144,11 @@ Deno.serve(async (req) => {
           .select("id");
 
         if (error) {
-          // Some tables might not have organization_id, skip them
           if (error.code === "42703") {
-            console.log(`Table ${tableName} does not have organization_id column, skipping`);
+            console.log(`Table ${tableName} missing organization_id, skipping`);
             continue;
           }
+          console.error(`Phase 2 error for ${tableName}:`, error.message);
           errors.push(`${tableName}: ${error.message}`);
         } else {
           deletedCounts[tableName] = data?.length || 0;
@@ -145,7 +158,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Reset barcode_sequence
+    // Phase 3: Reset sequences
     const startValue = barcodeStartValue || 90001001;
     const { error: barcodeError } = await adminClient
       .from("barcode_sequence")
@@ -158,7 +171,6 @@ Deno.serve(async (req) => {
       deletedCounts["barcode_sequence"] = 1;
     }
 
-    // Delete bill_number_sequence entries
     const { data: billSeqData, error: billSeqError } = await adminClient
       .from("bill_number_sequence")
       .delete()
@@ -171,7 +183,7 @@ Deno.serve(async (req) => {
       deletedCounts["bill_number_sequence"] = billSeqData?.length || 0;
     }
 
-    // Log the reset action to backup_logs
+    // Log the reset
     await adminClient.from("backup_logs").insert({
       organization_id: organizationId,
       backup_type: "reset",
@@ -182,17 +194,18 @@ Deno.serve(async (req) => {
       error_message: errors.length > 0 ? errors.join("; ") : null,
     });
 
+    // If critical parent tables had errors, report failure
+    const criticalTables = ["sales", "purchase_bills", "products", "customers"];
+    const criticalErrors = errors.filter(e => criticalTables.some(t => e.startsWith(t + ":")));
+
     return new Response(
       JSON.stringify({
-        success: true,
+        success: criticalErrors.length === 0,
         deletedCounts,
         errors: errors.length > 0 ? errors : undefined,
         barcodeResetTo: startValue,
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, "Content-Type": "application/json" } 
-      }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("Reset organization error:", error);
