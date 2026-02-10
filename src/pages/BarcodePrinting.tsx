@@ -41,15 +41,24 @@ import { DirectPrintDialog } from "@/components/DirectPrintDialog";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
 
-// Utility function to sort items by size (for footwear/apparel workflows)
+// Utility function to sort items by size, barcode, or keep original order (Sr No)
 const sortItemsBySize = (items: LabelItem[], order: SizeSortOrder): LabelItem[] => {
   if (order === 'none') return items;
   
+  // Barcode-based sorting
+  if (order === 'barcode_asc' || order === 'barcode_desc') {
+    return [...items].sort((a, b) => {
+      const barcodeA = a.barcode || '';
+      const barcodeB = b.barcode || '';
+      const cmp = barcodeA.localeCompare(barcodeB, undefined, { numeric: true });
+      return order === 'barcode_desc' ? -cmp : cmp;
+    });
+  }
+  
+  // Size-based sorting
   return [...items].sort((a, b) => {
-    // Parse size as number, handling common formats like "35", "6.5", "S/M/L", etc.
     const parseSize = (size: string): number => {
       if (!size) return 0;
-      // Try to extract numeric portion
       const match = size.match(/[\d.]+/);
       return match ? parseFloat(match[0]) : 0;
     };
@@ -3263,21 +3272,23 @@ export default function BarcodePrinting() {
           </RadioGroup>
         </div>
 
-        {/* Size Sort Order - useful for footwear/apparel */}
+        {/* Label Print Sort Order */}
         <div className="space-y-2">
-          <Label>Size Order</Label>
+          <Label>Print Order</Label>
           <Select value={sizeSortOrder} onValueChange={(v) => setSizeSortOrder(v as SizeSortOrder)}>
             <SelectTrigger className="w-full bg-background">
               <SelectValue placeholder="Select sort order" />
             </SelectTrigger>
             <SelectContent className="bg-background">
-              <SelectItem value="none">None (Original)</SelectItem>
-              <SelectItem value="ascending">Ascending (35→45)</SelectItem>
-              <SelectItem value="descending">Descending (45→35)</SelectItem>
+              <SelectItem value="none">Sr No (Original Entry)</SelectItem>
+              <SelectItem value="ascending">Size: Ascending (35→45)</SelectItem>
+              <SelectItem value="descending">Size: Descending (45→35)</SelectItem>
+              <SelectItem value="barcode_asc">Barcode: Ascending</SelectItem>
+              <SelectItem value="barcode_desc">Barcode: Descending</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Footwear: Use descending for box stacking order
+            Sr No = purchase entry order | Barcode = sort by barcode number
           </p>
         </div>
 
