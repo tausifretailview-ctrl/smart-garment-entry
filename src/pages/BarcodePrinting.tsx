@@ -2555,6 +2555,30 @@ export default function BarcodePrinting() {
     setIsPreviewDialogOpen(true);
   };
 
+  // Auto-fit scale: shrink content to fit within A4 default-margin printable area
+  const getAutoFitScale = () => {
+    const dims = sheetType === "custom"
+      ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
+      : {
+          cols: sheetPresets[sheetType].cols,
+          rows: (sheetPresets[sheetType] as any).rows || 10,
+          width: parseInt(sheetPresets[sheetType].width),
+          height: parseInt(sheetPresets[sheetType].height),
+          gap: parseInt(sheetPresets[sheetType].gap)
+        };
+
+    const contentWidth = (dims.cols * dims.width) + ((dims.cols - 1) * dims.gap) + leftOffset + rightOffset;
+    const contentHeight = (dims.rows * dims.height) + ((dims.rows - 1) * dims.gap) + topOffset + bottomOffset;
+
+    const printableWidth = 184;  // A4 210mm - ~26mm default margins
+    const printableHeight = 270; // A4 297mm - ~27mm default margins
+
+    const scaleX = contentWidth > printableWidth ? printableWidth / contentWidth : 1;
+    const scaleY = contentHeight > printableHeight ? printableHeight / contentHeight : 1;
+
+    return Math.min(scaleX, scaleY);
+  };
+
   const generatePreview = (targetElementId: string) => {
     const printArea = document.getElementById(targetElementId);
     if (!printArea) return;
@@ -2824,7 +2848,7 @@ export default function BarcodePrinting() {
       const totalLabels = labelItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       
       // Get dimensions based on sheet type and apply scale
-      const scaleFactor = printScale / 100;
+      const scaleFactor = (printScale / 100) * getAutoFitScale();
       const baseDimensions = sheetType === "custom"
         ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
         : {
@@ -3543,7 +3567,7 @@ export default function BarcodePrinting() {
                     onChange={(e) => setPrintScale(Math.max(50, Math.min(200, parseInt(e.target.value) || 100)))}
                     placeholder="e.g., 100"
                   />
-                  <p className="text-xs text-muted-foreground">100% = normal, 150% = larger</p>
+                  <p className="text-xs text-muted-foreground">100% = auto-fit to page</p>
                 </div>
               </div>
               
@@ -4366,7 +4390,7 @@ export default function BarcodePrinting() {
             left: 0; 
             top: 0;
             display: block !important;
-            transform: scale(${printScale / 100});
+            transform: scale(${(printScale / 100) * getAutoFitScale()});
             transform-origin: top left;
           }
           
