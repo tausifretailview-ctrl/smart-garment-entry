@@ -36,6 +36,7 @@ const defaultFieldLabels: Record<FieldKey, string> = {
   brand: 'Brand Name',
   businessName: 'Business Name',
   productName: 'Product Name',
+  category: 'Category',
   color: 'Color',
   style: 'Style',
   size: 'Size',
@@ -449,6 +450,7 @@ export function BarTenderLabelDesigner({
         case 'brand': return sampleItem.brand || businessName || 'Brand';
         case 'businessName': return businessName || 'Business Name';
         case 'productName': return sampleItem.product_name;
+        case 'category': return sampleItem.category || '';
         case 'color': return sampleItem.color || '';
         case 'style': return sampleItem.style || '';
         case 'price': return `₹${sampleItem.sale_price}`;
@@ -466,6 +468,7 @@ export function BarTenderLabelDesigner({
       case 'brand': return businessName || 'BRAND';
       case 'businessName': return businessName || 'BUSINESS NAME';
       case 'productName': return 'Product Name';
+      case 'category': return 'Category';
       case 'color': return 'Blue';
       case 'style': return 'ST-001';
       case 'price': return '₹999';
