@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { ReportSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import { LoadingButton } from "@/components/ui/loading-button";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, MessageCircle, Link2, Settings2, Package, IndianRupee, Send, FileText, TrendingUp, CheckCircle2, Clock, CalendarIcon, Download, Percent, Zap, FileDown, Lock, X, Plus, RefreshCw, Copy, Ban, Eye, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from "date-fns";
@@ -1762,116 +1763,52 @@ export default function SalesInvoiceDashboard() {
                               </TableCell>
                             )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex justify-end gap-2">
-                                {/* E-Invoice Button - Only show if enabled and customer has GSTIN */}
+                              {/* Desktop: all buttons inline */}
+                              <div className="hidden lg:flex justify-end gap-2">
                                 {isEInvoiceEnabled && invoice.customers?.gst_number && (
                                   <>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      onClick={() => handleGenerateEInvoice(invoice)}
-                                      title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"}
-                                      disabled={isGeneratingEInvoice === invoice.id}
-                                      className={invoice.irn ? "text-green-600" : "text-orange-600"}
-                                    >
-                                      {isGeneratingEInvoice === invoice.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : invoice.irn ? (
-                                        <CheckCircle2 className="h-4 w-4" />
-                                      ) : (
-                                        <Zap className="h-4 w-4" />
-                                      )}
+                                    <Button variant="ghost" size="icon" onClick={() => handleGenerateEInvoice(invoice)} title={invoice.irn ? `IRN: ${invoice.irn.substring(0, 20)}...` : "Generate E-Invoice"} disabled={isGeneratingEInvoice === invoice.id} className={invoice.irn ? "text-green-600" : "text-orange-600"}>
+                                      {isGeneratingEInvoice === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : invoice.irn ? <CheckCircle2 className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
                                     </Button>
-                                    {/* Download E-Invoice PDF - Only show if IRN exists */}
                                     {invoice.irn && (
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon"
-                                        onClick={() => handleDownloadEInvoicePDF(invoice)}
-                                        title="Download E-Invoice PDF"
-                                        disabled={isDownloadingEInvoice === invoice.id}
-                                        className="text-teal-600"
-                                      >
-                                        {isDownloadingEInvoice === invoice.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <FileDown className="h-4 w-4" />
-                                        )}
+                                      <Button variant="ghost" size="icon" onClick={() => handleDownloadEInvoicePDF(invoice)} title="Download E-Invoice PDF" disabled={isDownloadingEInvoice === invoice.id} className="text-teal-600">
+                                        {isDownloadingEInvoice === invoice.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
                                       </Button>
                                     )}
                                   </>
                                 )}
                                 {invoice.payment_status !== 'completed' && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => openPaymentDialog(invoice)}
-                                    title="Record Payment"
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => openPaymentDialog(invoice)} title="Record Payment">
                                     <IndianRupee className="h-4 w-4 text-purple-600" />
                                   </Button>
                                 )}
                                 {columnSettings.copyLink && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handleCopyLink(invoice)}
-                                    title="Copy Invoice Link"
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handleCopyLink(invoice)} title="Copy Invoice Link">
                                     <Link2 className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
                                 {columnSettings.whatsapp && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handleWhatsAppShare(invoice)}
-                                    title="Share on WhatsApp"
-                                    disabled={!invoice.customer_phone}
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(invoice)} title="Share on WhatsApp" disabled={!invoice.customer_phone}>
                                     <MessageCircle className="h-4 w-4 text-green-600" />
                                   </Button>
                                 )}
-                                {/* Resend WhatsApp API - Only show when WhatsApp API is enabled */}
                                 {whatsAppAPISettings?.is_active && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handleResendWhatsAppAPI(invoice)}
-                                    title="Resend via WhatsApp API"
-                                    disabled={!invoice.customer_phone || isSendingWhatsAppAPI}
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handleResendWhatsAppAPI(invoice)} title="Resend via WhatsApp API" disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
                                     <Send className="h-4 w-4 text-teal-600" />
                                   </Button>
                                 )}
                                 {invoice.payment_status !== 'completed' && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handlePaymentReminder(invoice)}
-                                    title="Send Payment Reminder"
-                                    disabled={!invoice.customer_phone}
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handlePaymentReminder(invoice)} title="Send Payment Reminder" disabled={!invoice.customer_phone}>
                                     <MessageCircle className="h-4 w-4 text-orange-600" />
                                   </Button>
                                 )}
                                 {columnSettings.print && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handlePrintInvoice(invoice)}
-                                    title="Print Invoice"
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handlePrintInvoice(invoice)} title="Print Invoice">
                                     <Printer className="h-4 w-4" />
                                   </Button>
                                 )}
                                 {columnSettings.download && (
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    onClick={() => handleDownloadPDF(invoice)}
-                                    title="Download PDF"
-                                  >
+                                  <Button variant="ghost" size="icon" onClick={() => handleDownloadPDF(invoice)} title="Download PDF">
                                     <Download className="h-4 w-4 text-blue-600" />
                                   </Button>
                                 )}
@@ -1897,6 +1834,90 @@ export default function SalesInvoiceDashboard() {
                                     </Button>
                                   )
                                 )}
+                              </div>
+
+                              {/* Mobile: primary actions + more menu */}
+                              <div className="flex lg:hidden justify-end items-center gap-1">
+                                {columnSettings.print && (
+                                  <Button variant="ghost" size="icon" className="h-11 w-11 touch-manipulation" onClick={(e) => { e.stopPropagation(); handlePrintInvoice(invoice); }} title="Print">
+                                    <Printer className="h-5 w-5" />
+                                  </Button>
+                                )}
+                                {columnSettings.download && (
+                                  <Button variant="ghost" size="icon" className="h-11 w-11 touch-manipulation" onClick={(e) => { e.stopPropagation(); handleDownloadPDF(invoice); }} title="Download">
+                                    <Download className="h-5 w-5 text-blue-600" />
+                                  </Button>
+                                )}
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-11 w-11 touch-manipulation">
+                                      <MoreHorizontal className="h-5 w-5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="bg-popover z-[60] min-w-[200px]">
+                                    {invoice.payment_status !== 'completed' && (
+                                      <DropdownMenuItem onClick={() => openPaymentDialog(invoice)}>
+                                        <IndianRupee className="h-4 w-4 mr-2 text-purple-600" /> Record Payment
+                                      </DropdownMenuItem>
+                                    )}
+                                    {columnSettings.whatsapp && (
+                                      <DropdownMenuItem onClick={() => handleWhatsAppShare(invoice)} disabled={!invoice.customer_phone}>
+                                        <MessageCircle className="h-4 w-4 mr-2 text-green-600" /> Share on WhatsApp
+                                      </DropdownMenuItem>
+                                    )}
+                                    {whatsAppAPISettings?.is_active && (
+                                      <DropdownMenuItem onClick={() => handleResendWhatsAppAPI(invoice)} disabled={!invoice.customer_phone || isSendingWhatsAppAPI}>
+                                        <Send className="h-4 w-4 mr-2 text-teal-600" /> Resend WhatsApp API
+                                      </DropdownMenuItem>
+                                    )}
+                                    {invoice.payment_status !== 'completed' && (
+                                      <DropdownMenuItem onClick={() => handlePaymentReminder(invoice)} disabled={!invoice.customer_phone}>
+                                        <MessageCircle className="h-4 w-4 mr-2 text-orange-600" /> Payment Reminder
+                                      </DropdownMenuItem>
+                                    )}
+                                    {columnSettings.copyLink && (
+                                      <DropdownMenuItem onClick={() => handleCopyLink(invoice)}>
+                                        <Link2 className="h-4 w-4 mr-2 text-blue-600" /> Copy Invoice Link
+                                      </DropdownMenuItem>
+                                    )}
+                                    {isEInvoiceEnabled && invoice.customers?.gst_number && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => handleGenerateEInvoice(invoice)} disabled={isGeneratingEInvoice === invoice.id}>
+                                          <Zap className="h-4 w-4 mr-2" /> {invoice.irn ? "E-Invoice Generated" : "Generate E-Invoice"}
+                                        </DropdownMenuItem>
+                                        {invoice.irn && (
+                                          <DropdownMenuItem onClick={() => handleDownloadEInvoicePDF(invoice)} disabled={isDownloadingEInvoice === invoice.id}>
+                                            <FileDown className="h-4 w-4 mr-2 text-teal-600" /> Download E-Invoice
+                                          </DropdownMenuItem>
+                                        )}
+                                      </>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    {columnSettings.modify && (
+                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
+                                        <DropdownMenuItem disabled>
+                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Edit (Locked)
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onClick={() => navigate('/sales-invoice', { state: { invoiceData: invoice } })}>
+                                          <Edit className="h-4 w-4 mr-2" /> Edit Invoice
+                                        </DropdownMenuItem>
+                                      )
+                                    )}
+                                    {columnSettings.delete && (
+                                      invoice.payment_status === 'completed' && !hasSpecialPermission('edit_paid_invoices') ? (
+                                        <DropdownMenuItem disabled>
+                                          <Lock className="h-4 w-4 mr-2 text-muted-foreground" /> Delete (Locked)
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem onClick={() => setInvoiceToDelete(invoice)} className="text-destructive">
+                                          <Trash2 className="h-4 w-4 mr-2" /> Delete Invoice
+                                        </DropdownMenuItem>
+                                      )
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
                             </TableCell>
                           </TableRow>
