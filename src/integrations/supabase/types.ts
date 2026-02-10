@@ -4875,6 +4875,15 @@ export type Database = {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
       }
+      delete_child_rows_for_org: {
+        Args: {
+          p_child_table: string
+          p_fk_column: string
+          p_organization_id: string
+          p_parent_table: string
+        }
+        Returns: number
+      }
       detect_stock_discrepancies: {
         Args: { p_organization_id?: string }
         Returns: {
