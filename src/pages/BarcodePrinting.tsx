@@ -4479,10 +4479,6 @@ export default function BarcodePrinting() {
           }
           
           .label-cell {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
             page-break-inside: avoid;
             break-inside: avoid;
           }
