@@ -1,47 +1,32 @@
 
 
-# Fix: Remove Animated Counter "Stopwatch" Effect from Dashboard Cards
+# Add Advance Amount and Credit Note Pending Cards to Customer History Dialog
 
-## Problem
+## What Changes
 
-Each of the 18 dashboard metric cards uses a `useAnimatedCounter` hook with a 2000ms `requestAnimationFrame` animation. This means every time a value updates, the card runs ~120 frames of animation (60fps x 2 seconds), calling `setState` on every frame. With 18 cards, that is potentially **2,160 state updates** per data refresh cycle. While this does not directly cause extra database reads, the constant re-rendering can cascade into child component re-renders and contributes to poor performance on lower-end devices.
+Add two new summary cards to the Customer History Dialog showing:
+1. **Advance Balance** -- unused advance amount available for the customer
+2. **CR Note Pending** -- unused credit note balance pending for the customer
 
-## Solution
+## Technical Details
 
-Remove the animated counter from dashboard cards entirely. Display values instantly -- this eliminates the "stopwatch counting" effect, reduces CPU usage, and keeps the dashboard lightweight.
+### File: `src/components/CustomerHistoryDialog.tsx`
 
-## Technical Changes
+1. **Import hooks**: Add `useCustomerAdvanceBalance` from `useCustomerAdvances` and add a query for credit note pending balance.
 
-### 1. `src/pages/Index.tsx` -- DashboardCard component (~line 90)
+2. **Add data fetching**:
+   - Use `useCustomerAdvanceBalance(customerId, organizationId)` to get the available advance amount
+   - Compute credit note pending from the already-fetched `creditNotes` data: sum of `(credit_amount - used_amount)` for active/partially_used notes
 
-- Remove the `useAnimatedCounter` import
-- Remove the `useAnimatedCounter` call inside `DashboardCard`
-- Format the value directly using the existing `formatCurrency` or `toLocaleString` functions
-- Display the formatted value immediately without animation
+3. **Update summary cards grid**: Change from `grid-cols-4` to `grid-cols-6` (or `grid-cols-3 grid-cols-6` responsive) and add two new cards after "Total Paid":
 
-Before:
-```tsx
-const { displayValue } = useAnimatedCounter(value, {
-  duration: 2000,
-  formatter: isCurrency ? formatCurrency : (v) => v.toLocaleString("en-IN"),
-});
-// ... renders displayValue
-```
+   - **Advance** card (orange border) showing unused advance balance
+   - **CR Pending** card (pink/rose border) showing unused credit note balance
 
-After:
-```tsx
-const displayValue = isCurrency ? formatCurrency(value) : value.toLocaleString("en-IN");
-// ... renders displayValue directly
-```
+4. The layout will be:
+   ```
+   Opening Balance | Total Sales | Total Paid | Advance | CR Pending | Current Balance
+   ```
 
-### 2. `src/hooks/useAnimatedCounter.tsx`
-
-No deletion needed -- the hook may be used elsewhere in the future. But the dashboard will no longer import it.
-
-### Result
-
-- Zero `requestAnimationFrame` loops on the dashboard
-- Instant value display instead of 2-second counting animation
-- Significantly reduced CPU and rendering overhead
-- No visual regression -- values appear immediately which is actually better UX for a business dashboard
+All values will be fetched from existing hooks/data -- no database changes needed.
 
