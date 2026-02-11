@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, MessageCircle, Printer, Receipt } from "lucide-react";
+import { Loader2, MessageCircle, Printer, Receipt, Search } from "lucide-react";
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useReactToPrint } from "react-to-print";
@@ -50,7 +50,7 @@ const PAYMENT_METHODS = [
   { value: "Bank Transfer", label: "Bank Transfer" },
 ];
 
-export function FeeCollectionDialog({ open, onOpenChange, student }: FeeCollectionDialogProps) {
+export function FeeCollectionDialog({ open, onOpenChange, student: initialStudent }: FeeCollectionDialogProps) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const [paymentMethod, setPaymentMethod] = useState("Cash");
@@ -60,6 +60,27 @@ export function FeeCollectionDialog({ open, onOpenChange, student }: FeeCollecti
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { sendWhatsApp } = useWhatsAppSend();
+  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(initialStudent);
+
+  const student = initialStudent || selectedStudent;
+
+  // Search students when no initial student provided
+  const { data: searchResults } = useQuery({
+    queryKey: ["student-search-fee", currentOrganization?.id, studentSearch],
+    queryFn: async () => {
+      if (!studentSearch || studentSearch.length < 2) return [];
+      const { data } = await supabase
+        .from("students")
+        .select("*, school_classes:class_id (class_name), school_sections:section_id (section_name)")
+        .eq("organization_id", currentOrganization!.id)
+        .is("deleted_at", null)
+        .or(`student_name.ilike.%${studentSearch}%,admission_number.ilike.%${studentSearch}%,phone.ilike.%${studentSearch}%`)
+        .limit(10);
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && !initialStudent && open && studentSearch.length >= 2,
+  });
 
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
@@ -272,108 +293,148 @@ export function FeeCollectionDialog({ open, onOpenChange, student }: FeeCollecti
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setSelectedStudent(null); setStudentSearch(""); } onOpenChange(v); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Collect Fee — {student?.student_name} ({student?.admission_number})
+            {student ? `Collect Fee — ${student.student_name} (${student.admission_number})` : "Add Fee Collection"}
           </DialogTitle>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : feeItems.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No fee structure defined for this student's class. Set up fee structures first.</p>
-        ) : (
-          <div className="space-y-4">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10"></TableHead>
-                  <TableHead>Fee Head</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right w-32">Paying</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {feeItems.map((item, idx) => (
-                  <TableRow key={item.fee_head_id} className={item.balance === 0 ? "opacity-50" : ""}>
-                    <TableCell>
-                      <Checkbox
-                        checked={item.selected}
-                        disabled={item.balance === 0}
-                        onCheckedChange={() => toggleItem(idx)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium">{item.head_name}</TableCell>
-                    <TableCell className="text-right">₹{item.structure_amount.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right text-green-600">₹{item.already_paid.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right font-semibold">
-                      {item.balance > 0 ? (
-                        <span className="text-destructive">₹{item.balance.toLocaleString("en-IN")}</span>
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">Paid</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {item.balance > 0 && (
-                        <Input
-                          type="number"
-                          min="0"
-                          max={item.balance}
-                          value={item.paying || ""}
-                          onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
-                          className="w-28 text-right"
-                          disabled={!item.selected}
-                        />
-                      )}
-                    </TableCell>
-                  </TableRow>
+        {/* Student search when no student pre-selected */}
+        {!student && (
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search student by name, admission no, or phone..."
+                value={studentSearch}
+                onChange={(e) => setStudentSearch(e.target.value)}
+                className="pl-9"
+                autoFocus
+              />
+            </div>
+            {searchResults && searchResults.length > 0 && (
+              <div className="border rounded-md max-h-60 overflow-y-auto">
+                {searchResults.map((s: any) => (
+                  <div
+                    key={s.id}
+                    className="flex items-center justify-between px-3 py-2 hover:bg-accent/10 cursor-pointer border-b last:border-b-0"
+                    onClick={() => { setSelectedStudent(s); setStudentSearch(""); }}
+                  >
+                    <div>
+                      <p className="font-medium text-sm">{s.student_name}</p>
+                      <p className="text-xs text-muted-foreground">{s.admission_number} • {s.school_classes?.class_name || "-"}</p>
+                    </div>
+                    <Button size="sm" variant="outline">Select</Button>
+                  </div>
                 ))}
-              </TableBody>
-            </Table>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold mb-1 block">Payment Method</label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map(m => (
-                      <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
-              <div>
-                <label className="text-xs font-semibold mb-1 block">Transaction ID (optional)</label>
-                <Input
-                  value={transactionId}
-                  onChange={e => setTransactionId(e.target.value)}
-                  placeholder="e.g. UPI ref number"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div className="text-lg font-bold">
-                Total: ₹{totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-              </div>
-              <Button
-                onClick={() => collectMutation.mutate()}
-                disabled={collectMutation.isPending || totalPaying <= 0}
-              >
-                {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
-                Collect ₹{totalPaying.toLocaleString("en-IN")}
-              </Button>
-            </div>
+            )}
+            {studentSearch.length >= 2 && searchResults?.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No students found</p>
+            )}
           </div>
+        )}
+
+        {student && (
+          <>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : feeItems.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">No fee structure defined for this student's class. Set up fee structures first.</p>
+            ) : (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead>Fee Head</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Paid</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                      <TableHead className="text-right w-32">Paying</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {feeItems.map((item, idx) => (
+                      <TableRow key={item.fee_head_id} className={item.balance === 0 ? "opacity-50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={item.selected}
+                            disabled={item.balance === 0}
+                            onCheckedChange={() => toggleItem(idx)}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{item.head_name}</TableCell>
+                        <TableCell className="text-right">₹{item.structure_amount.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right text-green-600">₹{item.already_paid.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {item.balance > 0 ? (
+                            <span className="text-destructive">₹{item.balance.toLocaleString("en-IN")}</span>
+                          ) : (
+                            <Badge variant="secondary" className="text-xs">Paid</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.balance > 0 && (
+                            <Input
+                              type="number"
+                              min="0"
+                              max={item.balance}
+                              value={item.paying || ""}
+                              onChange={e => updatePaying(idx, parseFloat(e.target.value) || 0)}
+                              className="w-28 text-right"
+                              disabled={!item.selected}
+                            />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-semibold mb-1 block">Payment Method</label>
+                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map(m => (
+                          <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold mb-1 block">Transaction ID (optional)</label>
+                    <Input
+                      value={transactionId}
+                      onChange={e => setTransactionId(e.target.value)}
+                      placeholder="e.g. UPI ref number"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-lg font-bold">
+                    Total: ₹{totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </div>
+                  <Button
+                    onClick={() => collectMutation.mutate()}
+                    disabled={collectMutation.isPending || totalPaying <= 0}
+                  >
+                    {collectMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}
+                    Collect ₹{totalPaying.toLocaleString("en-IN")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>
