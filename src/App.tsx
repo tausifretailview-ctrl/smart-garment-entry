@@ -93,6 +93,7 @@ import AcademicYearSetup from "./pages/school/AcademicYearSetup";
 import ClassSectionSetup from "./pages/school/ClassSectionSetup";
 import FeeHeadsSetup from "./pages/school/FeeHeadsSetup";
 import FeeCollection from "./pages/school/FeeCollection";
+import FeeStructureSetup from "./pages/school/FeeStructureSetup";
 import TeacherMaster from "./pages/school/TeacherMaster";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 // Helpers for redirecting when org slug is missing in URL (PWA resilience)
@@ -482,6 +483,18 @@ const App = () => {
                       <SchoolFeatureGate>
                         <Layout>
                           <FeeHeadsSetup />
+                        </Layout>
+                      </SchoolFeatureGate>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="fee-structures"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolFeatureGate>
+                        <Layout>
+                          <FeeStructureSetup />
                         </Layout>
                       </SchoolFeatureGate>
                     </ProtectedRoute>

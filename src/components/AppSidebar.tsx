@@ -198,6 +198,14 @@ export function AppSidebar() {
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                         <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/fee-structures")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
+                            <NavLink to="/fee-structures" className="flex items-center gap-3 group">
+                              <BookOpen className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                              <span className="dark:text-white">Fee Structures</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                        <SidebarMenuSubItem>
                           <SidebarMenuSubButton asChild isActive={isActive("/fee-collection")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                             <NavLink to="/fee-collection" className="flex items-center gap-3 group">
                               <DollarSign className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
