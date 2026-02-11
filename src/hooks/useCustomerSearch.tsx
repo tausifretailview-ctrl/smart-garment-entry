@@ -126,7 +126,7 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
 };
 
 /**
- * Hook to get customer balances for dropdown display
+ * Hook to get customer balances and advance amounts for dropdown display
  * Includes both sales.paid_amount and voucher_entries payments for accurate balance
  */
 export const useCustomerBalances = () => {
@@ -158,12 +158,9 @@ export const useCustomerBalances = () => {
       if (vouchersError) throw vouchersError;
 
       // Create maps for voucher payments
-      // 1. Opening balance payments (reference_type = 'customer', reference_id = customer_id)
       const openingBalancePayments: Record<string, number> = {};
-      // 2. Invoice payments (reference_type = 'customer' but reference_id = sale_id)
       const invoiceVoucherPayments: Record<string, number> = {};
       
-      // Build sale_id -> customer_id map
       const saleToCustomerMap: Record<string, string> = {};
       sales?.forEach(sale => {
         if (sale.customer_id) {
@@ -174,13 +171,10 @@ export const useCustomerBalances = () => {
       vouchers?.forEach(v => {
         if (!v.reference_id) return;
         
-        // Check if reference_id is a sale_id (invoice payment)
         const customerId = saleToCustomerMap[v.reference_id];
         if (customerId) {
-          // This is an invoice payment
           invoiceVoucherPayments[v.reference_id] = (invoiceVoucherPayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
         } else if (v.reference_type === 'customer') {
-          // This is an opening balance payment (reference_id = customer_id)
           openingBalancePayments[v.reference_id] = (openingBalancePayments[v.reference_id] || 0) + (Number(v.total_amount) || 0);
         }
       });
@@ -194,14 +188,8 @@ export const useCustomerBalances = () => {
         }
         balanceMap[sale.customer_id].totalSales += sale.net_amount || 0;
         
-        // Use paid_amount from sales (includes at-sale payments)
-        // Add voucher payments for this specific invoice to avoid double counting
         const salePaidAmount = sale.paid_amount || 0;
         const invoiceVoucherAmount = invoiceVoucherPayments[sale.id] || 0;
-        
-        // paid_amount should already include voucher payments after our fix,
-        // but for old data, we need to add voucher payments that weren't tracked in paid_amount
-        // Use the max of paid_amount or sum (to handle both old and new data)
         balanceMap[sale.customer_id].totalPaid += Math.max(salePaidAmount, invoiceVoucherAmount);
       });
 
@@ -216,7 +204,35 @@ export const useCustomerBalances = () => {
       return balanceMap;
     },
     enabled: !!currentOrganization?.id,
-    staleTime: 30 * 1000, // Reduced stale time for more accurate balances
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+
+  // Fetch advance balances for all customers
+  const { data: advanceBalances = {} } = useQuery({
+    queryKey: ["customer-advances-search", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return {};
+      
+      const { data, error } = await supabase
+        .from("customer_advances")
+        .select("customer_id, amount, used_amount")
+        .eq("organization_id", currentOrganization.id)
+        .in("status", ["active", "partially_used"]);
+      
+      if (error) throw error;
+      
+      const map: Record<string, number> = {};
+      data?.forEach(adv => {
+        const available = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
+        if (available > 0) {
+          map[adv.customer_id] = (map[adv.customer_id] || 0) + available;
+        }
+      });
+      return map;
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30 * 1000,
     refetchOnWindowFocus: true,
   });
 
@@ -226,8 +242,13 @@ export const useCustomerBalances = () => {
     return openingBalance + salesData.totalSales - salesData.totalPaid;
   }, [customerBalances]);
 
+  const getCustomerAdvance = useCallback((customerId: string) => {
+    return advanceBalances[customerId] || 0;
+  }, [advanceBalances]);
+
   return {
     customerBalances,
     getCustomerBalance,
+    getCustomerAdvance,
   };
 };

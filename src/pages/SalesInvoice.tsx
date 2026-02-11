@@ -345,7 +345,7 @@ export default function SalesInvoice() {
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerSearchInput);
   
-  const { getCustomerBalance } = useCustomerBalances();
+  const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
 
   // Fetch settings
   const { data: settingsData } = useQuery({
@@ -1975,6 +1975,7 @@ Thank you for choosing us!`;
                             <CommandGroup heading={`Found ${filteredCustomers.length} customers${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                               {filteredCustomers.map((customer: any) => {
                                 const balance = getCustomerBalance(customer);
+                                const advanceAmt = getCustomerAdvance(customer.id);
                                 return (
                                   <CommandItem
                                     key={customer.id}
@@ -1990,15 +1991,22 @@ Thank you for choosing us!`;
                                     <div className="flex flex-col gap-1 w-full">
                                       <div className="flex items-center justify-between">
                                         <span className="font-medium">{customer.customer_name}</span>
-                                        {balance !== 0 && (
-                                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                            balance > 0 
-                                              ? 'bg-destructive/10 text-destructive' 
-                                              : 'bg-green-500/10 text-green-600'
-                                          }`}>
-                                            ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                          </span>
-                                        )}
+                                        <div className="flex items-center gap-1.5">
+                                          {advanceAmt > 0 && (
+                                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
+                                              ₹{advanceAmt.toLocaleString('en-IN')} Adv
+                                            </span>
+                                          )}
+                                          {balance !== 0 && (
+                                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                              balance > 0 
+                                                ? 'bg-destructive/10 text-destructive' 
+                                                : 'bg-green-500/10 text-green-600'
+                                            }`}>
+                                              ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
                                       <span className="text-sm text-muted-foreground">
                                         {customer.phone && `Phone: ${customer.phone}`}
