@@ -145,7 +145,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
     return value;
   };
 
-  const displayItems: (InvoiceItem | null)[] = [...items].slice(0, FIXED_ROWS);
+  const displayItems: (InvoiceItem | null)[] = [...items];
   while (displayItems.length < FIXED_ROWS) displayItems.push(null);
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
@@ -157,15 +157,21 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
-  const fs = isA4 ? "11px" : "10px";
-  const headerFs = isA4 ? "20px" : "16px";
+  const fsBody = isA4 ? "12px" : "10px";
+  const fsHeader = isA4 ? "11px" : "9px";
+  const fsHeading = isA4 ? "12px" : "10px";
+  const fsTotals = isA4 ? "13px" : "11px";
+  const fsGrand = isA4 ? "14px" : "12px";
+  const headerFs = isA4 ? "18px" : "16px";
+  const titleFs = isA4 ? "14px" : "11px";
 
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
     padding: "3px 6px",
-    fontSize: fs,
+    fontSize: fsBody,
     verticalAlign: "middle",
+    lineHeight: "1.4",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
   const cellC: React.CSSProperties = { ...cellBase, textAlign: "center" };
@@ -179,7 +185,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         height: pageH,
         padding: pad,
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: fs,
+        fontSize: fsBody,
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -194,15 +200,15 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           <div style={{ fontSize: headerFs, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
             {businessName}
           </div>
-          <div style={{ fontSize: isA4 ? "9px" : "8px", marginTop: "2px", textTransform: "uppercase", lineHeight: 1.4 }}>
+          <div style={{ fontSize: fsHeader, marginTop: "2px", textTransform: "uppercase", lineHeight: 1.4 }}>
             {address}
           </div>
-          <div style={{ fontSize: isA4 ? "9px" : "8px", lineHeight: 1.4 }}>
+          <div style={{ fontSize: fsHeader, lineHeight: 1.4 }}>
             {mobile && `Mob: ${mobile}`}
             {email && ` | ${email}`}
           </div>
           {gstNumber && (
-            <div style={{ fontSize: isA4 ? "9px" : "8px", fontWeight: "bold" }}>GSTIN: {gstNumber}</div>
+            <div style={{ fontSize: fsHeader, fontWeight: "bold" }}>GSTIN: {gstNumber}</div>
           )}
           {logoUrl && (
             <img
@@ -225,7 +231,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           style={{
             textAlign: "center",
             fontWeight: "bold",
-            fontSize: isA4 ? "13px" : "11px",
+            fontSize: titleFs,
             borderBottom: B,
             padding: "3px 0",
           }}
@@ -238,7 +244,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           style={{
             display: "flex",
             borderBottom: B,
-            fontSize: isA4 ? "10px" : "9px",
+            fontSize: fsHeader,
             lineHeight: 1.5,
           }}
         >
@@ -279,20 +285,20 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           </colgroup>
           <thead>
             <tr>
-              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Sr.</th>
-              <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Description</th>
-              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Barcode</th>
-              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Qty</th>
-              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Rate</th>
-              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fs, borderRight: "none", backgroundColor: "#f5f5f5" }}>Amount</th>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Sr.</th>
+              <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Description</th>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Barcode</th>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Qty</th>
+              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, backgroundColor: "#f5f5f5" }}>Rate</th>
+              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fsHeading, borderRight: "none", backgroundColor: "#f5f5f5" }}>Amount</th>
             </tr>
           </thead>
           <tbody>
             {displayItems.map((item, idx) => (
               <tr key={idx}>
-                <td style={{ ...cellC, minHeight: "28px", height: "28px" }}>{item ? idx + 1 : "\u00A0"}</td>
+                <td style={{ ...cellC, minHeight: "32px", height: "32px" }}>{item ? idx + 1 : "\u00A0"}</td>
                 <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
-                <td style={{ ...cellC, fontSize: "9px" }}>{item?.barcode || "\u00A0"}</td>
+                <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
                 <td style={{ ...cellR }}>{item ? item.qty : "\u00A0"}</td>
                 <td style={{ ...cellR }}>{item ? fmt(item.rate) : "\u00A0"}</td>
                 <td style={{ ...cellR, borderRight: "none" }}>{item ? fmt(item.total) : "\u00A0"}</td>
@@ -301,12 +307,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
 
             {/* ===== TOTALS ROW ===== */}
             <tr style={{ borderTop: B2 }}>
-              <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2 }}>
+              <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>
                 Total Qty: {totalQty}
               </td>
-              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2 }}>{totalQty}</td>
-              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2 }}>Sub Total</td>
-              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2 }}>₹{fmt(subtotal)}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>{totalQty}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>Sub Total</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "35px" }}>₹{fmt(subtotal)}</td>
             </tr>
 
           </tbody>
@@ -319,7 +325,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             display: "grid",
             gridTemplateColumns: "70% 30%",
             borderTop: B2,
-            fontSize: fs,
+            fontSize: fsBody,
           }}
         >
           {/* Left Column: Terms, Notes, QR, E&OE, Receiver Signature */}
@@ -328,7 +334,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               {termsConditions.length > 0 && (
                 <div>
                   <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
-                  <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "9px" : "8px", lineHeight: 1.5 }}>
+                  <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "10px" : "8px", lineHeight: 1.5 }}>
                     {termsConditions.map((t, i) => (
                       <li key={i}>{t}</li>
                     ))}
@@ -336,7 +342,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 </div>
               )}
               {notes && (
-                <div style={{ marginTop: "4px", fontSize: isA4 ? "9px" : "8px" }}>
+                <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>
                   <strong>Note:</strong> {notes}
                 </div>
               )}
@@ -345,7 +351,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                   <img src={qrCodeUrl} alt="QR" style={{ width: "60px", height: "60px" }} />
                 </div>
               )}
-              <div style={{ marginTop: "4px", fontSize: isA4 ? "9px" : "8px" }}>E. & O.E.</div>
+              <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
             </div>
             <div style={{ marginTop: "12px", paddingTop: "20px" }}>
               <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
@@ -355,7 +361,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           </div>
 
           {/* Right Column: Summary Rows + Authorized Signatory */}
-          <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", flexDirection: "column", fontSize: fsTotals }}>
             {discount > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px" }}>
                 <span>Discount</span>
@@ -368,7 +374,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 <span>- ₹{fmt(saleReturnAdjust)}</span>
               </div>
             )}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand, backgroundColor: "#f5f5f5" }}>
               <span>Grand Total</span>
               <span>₹{fmt(billTotal)}</span>
             </div>
@@ -387,7 +393,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               </div>
             )}
             {totalDue > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: isA4 ? "13px" : "12px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: fsGrand }}>
                 <span>TOTAL DUE</span>
                 <span>₹{fmt(totalDue)}</span>
               </div>
