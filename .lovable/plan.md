@@ -1,43 +1,57 @@
 
-
-# Fix: Label Print Alignment for Custom 50x38 1-UP Labels
+# Fix: RetailTemplate Footer Layout
 
 ## Problem
-The barcode printing system always uses A4 page settings (`@page { size: A4 }`) and auto-fit scaling designed for A4 sheets, even when printing on thermal printers with small 1-up labels like 50x38mm. This causes:
-- Content getting cut off at the top of the first label
-- Misalignment between consecutive labels
-- Incorrect scaling applied to thermal labels
+The current footer uses `rowSpan` on the left column within the items table, causing uneven stretching and misalignment between the terms/signature area and the totals summary.
 
-## Root Cause
-Three areas in `src/pages/BarcodePrinting.tsx` are hardcoded to A4:
+## Solution
+Replace the `rowSpan`-based footer (lines 324-421) with a **separate grid-based footer section** outside the items table. The header and items table remain untouched.
 
-1. **`@page` CSS rule** (line 4433): Always sets `size: A4`, but for 1-up custom/thermal labels it should be the label size (e.g., `50mm 38mm`)
-2. **`getAutoFitScale()`** (line 2608): Calculates scaling to fit content into A4 printable area (184mm x 270mm), which shrinks single thermal labels incorrectly
-3. **Print page-break calculations** (line 2777): Uses `297mm` (A4 height) to determine rows per page, which is wrong for 1-up thermal labels where each label = 1 page
+## Changes (single file: `RetailTemplate.tsx`)
 
-## Fix Plan
+### 1. End the items table after the "Total Qty / Sub Total" row (line 322)
+Close `</tbody></table>` right after the totals row at line 322. Remove everything from line 324 to line 421 (the rowSpan footer block).
 
-### 1. Detect thermal/1-up mode
-Add a helper to check if the current sheet type is a thermal 1-up or custom 1-up configuration:
+### 2. Add a new grid-based footer div after the table
+
 ```
-const isThermal1Up = sheetType.includes("thermal") || 
-  (sheetType === "custom" && customCols === 1 && customRows === 1);
+<div style="display: grid; grid-template-columns: 70% 30%; border-top: 1px solid #000;">
 ```
 
-### 2. Dynamic `@page` size (line 4433)
-Change the `@page` CSS from hardcoded A4 to dynamic:
-- For thermal/1-up: `@page { size: ${labelWidth}mm ${labelHeight}mm; margin: 0; }`
-- For A4 sheets: keep existing `@page { size: A4; margin: 3mm 0 0 0; }`
+**Left Column (70%):**
+- Terms and Conditions (if any)
+- Notes (if any)
+- QR code (if any)
+- "E. & O.E." text
+- Bottom area with "Receiver's Signature" (left) and empty space
 
-### 3. Skip auto-fit scaling for thermal (line 2608)
-Update `getAutoFitScale()` to return `1.0` for thermal/1-up labels, since no A4 fitting is needed.
+**Right Column (30%):**
+- Structured rows, each 30px height, 1px black borders:
+  - Discount (if > 0)
+  - S/R Adjust (if > 0)
+  - **Grand Total** (bold, double top border, slightly larger font, light gray background)
+  - Received
+  - Balance
+  - Prev. Balance (if > 0)
+  - **TOTAL DUE** (if > 0, bold, larger font)
+- Authorized Signatory at bottom right
 
-### 4. Fix page-break logic for thermal (line 2777)
-For thermal 1-up labels, set `labelsPerPage = 1` instead of calculating based on A4 height (297mm). Each label should be its own "page" when printing on thermal rolls.
+### 3. Layout details
+- Each summary row: `display: flex; justify-content: space-between; height: 30px; align-items: center; border-bottom: 1px solid #000; padding: 0 8px`
+- Grand Total row gets `border-top: 2px solid #000`
+- Left column has `border-right: 1px solid #000` to separate from right
+- Signature area at bottom uses flex with space-between for left/right signatures
+- Add `page-break-inside: avoid` to the footer div for print
 
-### 5. Fix PDF export for thermal (line 2934)
-When exporting to PDF with thermal/1-up labels, use the label dimensions as the PDF page format instead of A4.
+### 4. Print CSS
+Add to existing `@media print` block:
+```css
+.retail-footer { page-break-inside: avoid; }
+```
 
-## Files Changed
-- `src/pages/BarcodePrinting.tsx` (all changes in this single file)
-
+## What stays the same
+- Header section (company name, address, logo)
+- Bill Of Supply title
+- Bill To / Invoice Info section
+- Items table with column widths and alignment
+- Total Qty / Sub Total row
