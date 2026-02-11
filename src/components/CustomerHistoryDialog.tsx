@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, IndianRupee, ShoppingCart, CreditCard, RotateCcw, FileText, Receipt, ChevronDown, ChevronRight, History } from "lucide-react";
 import { format } from "date-fns";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
+import { useCustomerAdvanceBalance } from "@/hooks/useCustomerAdvances";
 
 interface SaleItem {
   id: string;
@@ -45,6 +46,12 @@ export function CustomerHistoryDialog({
 
   // Get customer balance
   const { balance, openingBalance, totalSales, totalPaid, isLoading: balanceLoading } = useCustomerBalance(
+    customerId,
+    organizationId
+  );
+
+  // Get advance balance
+  const { data: advanceBalance = 0 } = useCustomerAdvanceBalance(
     customerId,
     organizationId
   );
@@ -212,35 +219,57 @@ export function CustomerHistoryDialog({
         </DialogHeader>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-3 py-3">
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Opening Balance</p>
-              <p className="text-lg font-bold text-blue-600">₹{openingBalance.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Total Sales</p>
-              <p className="text-lg font-bold text-green-600">₹{totalSales.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Total Paid</p>
-              <p className="text-lg font-bold text-purple-600">₹{totalPaid.toFixed(2)}</p>
-            </CardContent>
-          </Card>
-          <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground">Current Balance</p>
-              <p className={`text-lg font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                ₹{Math.abs(balance).toFixed(2)}
-                {balance < 0 && ' CR'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {(() => {
+          const crPending = (creditNotes || []).reduce((sum, cn) => {
+            if (cn.status === 'active' || cn.status === 'partially_used') {
+              return sum + Math.max(0, (cn.credit_amount || 0) - (cn.used_amount || 0));
+            }
+            return sum;
+          }, 0);
+          return (
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 py-3">
+              <Card className="border-l-4 border-l-blue-500">
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">Opening Bal</p>
+                  <p className="text-sm font-bold text-blue-600">₹{openingBalance.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-green-500">
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">Total Sales</p>
+                  <p className="text-sm font-bold text-green-600">₹{totalSales.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-purple-500">
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">Total Paid</p>
+                  <p className="text-sm font-bold text-purple-600">₹{totalPaid.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-orange-500">
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">Advance</p>
+                  <p className="text-sm font-bold text-orange-600">₹{advanceBalance.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-pink-500">
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">CR Pending</p>
+                  <p className="text-sm font-bold text-pink-600">₹{crPending.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
+                <CardContent className="p-2">
+                  <p className="text-[10px] text-muted-foreground">Current Bal</p>
+                  <p className={`text-sm font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    ₹{Math.abs(balance).toFixed(2)}
+                    {balance < 0 && ' CR'}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })()}
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 overflow-hidden flex flex-col">
