@@ -126,12 +126,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const discountPercent = returnData.discount_percent || 0;
     const amountBeforeTax = returnData.gross_amount - discountAmount;
     
-    // Get terms from settings or use defaults
-    const terms = saleSettings?.terms_list?.length ? saleSettings.terms_list : [
-      "SUBJECT TO LOCAL JURISDICTION.",
-      "GOODS HAVE BEEN SOLD & DESPATCHED AT THE ENTIRE RISK OF THE PURCHASER.",
-      "COMPLAINTS,IF ANY REGARDING THIS INVOICE MUST BE INFORMED IN WRITING WITHIN 48 HOURS"
-    ];
+    
     
     // Get bank details from settings
     const bankDetails = saleSettings?.bank_details;
@@ -355,13 +350,6 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                 </div>
               )}
 
-              {/* Terms & Conditions from Settings */}
-              <div className="pr-border-t p-1">
-                <p className="text-sm font-bold mb-1">TERMS & CONDITIONS :-</p>
-                {terms.map((term, index) => (
-                  <p key={index} className="text-sm">{index + 1}) {term}</p>
-                ))}
-              </div>
             </div>
 
             {/* Amount Summary */}
