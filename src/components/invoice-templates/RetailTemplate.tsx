@@ -168,10 +168,13 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: "3px 6px",
+    padding: "6px 8px",
     fontSize: fsBody,
     verticalAlign: "middle",
     lineHeight: "1.4",
+    height: "32px",
+    maxHeight: "32px",
+    overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
   const cellC: React.CSSProperties = { ...cellBase, textAlign: "center" };
@@ -295,12 +298,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           </thead>
           <tbody>
             {displayItems.map((item, idx) => (
-              <tr key={idx}>
-                <td style={{ ...cellC, minHeight: "32px", height: "32px" }}>{item ? idx + 1 : "\u00A0"}</td>
+              <tr key={idx} style={{ height: "32px" }}>
+                <td style={cellC}>{item ? idx + 1 : "\u00A0"}</td>
                 <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
                 <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
-                <td style={{ ...cellR }}>{item ? item.qty : "\u00A0"}</td>
-                <td style={{ ...cellR }}>{item ? fmt(item.rate) : "\u00A0"}</td>
+                <td style={cellC}>{item ? item.qty : "\u00A0"}</td>
+                <td style={cellR}>{item ? fmt(item.rate) : "\u00A0"}</td>
                 <td style={{ ...cellR, borderRight: "none" }}>{item ? fmt(item.total) : "\u00A0"}</td>
               </tr>
             ))}
