@@ -2604,8 +2604,20 @@ export default function BarcodePrinting() {
     setIsPreviewDialogOpen(true);
   };
 
+  // Detect if we're printing thermal/1-up labels (not A4 sheets)
+  const isThermal1Up = (): boolean => {
+    if (sheetType === "custom") {
+      return customCols === 1 && customRows === 1;
+    }
+    const preset = sheetPresets[sheetType] as any;
+    return preset?.thermal === true || sheetType.includes("thermal");
+  };
+
   // Auto-fit scale: shrink content to fit within A4 default-margin printable area
+  // For thermal/1-up labels, no scaling is needed — return 1.0
   const getAutoFitScale = () => {
+    if (isThermal1Up()) return 1;
+
     const dims = sheetType === "custom"
       ? { cols: customCols, rows: customRows, width: customWidth, height: customHeight, gap: customGap }
       : {
@@ -2774,9 +2786,14 @@ export default function BarcodePrinting() {
       }
     } else {
       // Print mode: Create separate grids per page for proper page breaks
-      const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
-      const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
-      const labelsPerPage = dimensions.cols * Math.max(1, rowsPerPage);
+      // For thermal/1-up: each label is its own page; for A4: calculate rows per page
+      const labelsPerPage = isThermal1Up()
+        ? dimensions.cols  // 1 row per page for thermal (cols=1 for 1-up, cols=2 for 2-up)
+        : (() => {
+            const availableHeight = 297 - topOffset - bottomOffset - 5; // A4 height with margins
+            const rowsPerPage = Math.floor(availableHeight / (dimensions.height + dimensions.gap));
+            return dimensions.cols * Math.max(1, rowsPerPage);
+          })();
       const numPrintPages = allLabels.length > 0 ? Math.ceil(allLabels.length / labelsPerPage) : 0;
       
       // Check if using absolute positioning for cell styling
@@ -2917,9 +2934,14 @@ export default function BarcodePrinting() {
       };
       
       // Calculate how many rows fit on one page - use BASE dimensions (unscaled) for accurate page calculation
-      const availableHeight = 297 - topOffset - bottomOffset - 10; // A4 height with margins
-      const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
-      const labelsPerPage = baseDimensions.cols * Math.max(1, rowsPerPage);
+      // For thermal/1-up: each label is its own page; for A4: calculate rows per page
+      const labelsPerPage = isThermal1Up()
+        ? baseDimensions.cols
+        : (() => {
+            const availableHeight = 297 - topOffset - bottomOffset - 10;
+            const rowsPerPage = Math.floor(availableHeight / (baseDimensions.height + baseDimensions.gap));
+            return baseDimensions.cols * Math.max(1, rowsPerPage);
+          })();
       
       // Calculate number of pages needed based on actual labels only
       const numPages = totalLabels > 0 ? Math.ceil(totalLabels / labelsPerPage) : 0;
@@ -2930,11 +2952,14 @@ export default function BarcodePrinting() {
         return;
       }
       
-      // Create PDF
+      // Create PDF - use label dimensions for thermal, A4 for sheets
+      const pdfFormat = isThermal1Up()
+        ? [baseDimensions.width, baseDimensions.height] as [number, number]
+        : "a4" as const;
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: "a4",
+        format: pdfFormat,
       });
 
       // Create temporary container for rendering each page
@@ -2943,7 +2968,7 @@ export default function BarcodePrinting() {
       tempContainer.style.position = "absolute";
       tempContainer.style.left = "-9999px";
       tempContainer.style.top = "0";
-      tempContainer.style.width = "210mm";
+      tempContainer.style.width = isThermal1Up() ? `${baseDimensions.width}mm` : "210mm";
       document.body.appendChild(tempContainer);
 
       // Generate all labels as an array
@@ -4431,8 +4456,10 @@ export default function BarcodePrinting() {
         }
 
         @page { 
-          size: A4; 
-          margin: 3mm 0 0 0;
+          size: ${isThermal1Up() 
+            ? `${sheetType === "custom" ? customWidth : parseInt(sheetPresets[sheetType].width)}mm ${sheetType === "custom" ? customHeight : parseInt(sheetPresets[sheetType].height)}mm` 
+            : 'A4'}; 
+          margin: ${isThermal1Up() ? '0' : '3mm 0 0 0'};
         }
         
         @media print {
