@@ -177,12 +177,20 @@ const FeeStructureSetup = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <BookOpen className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Fee Structure Setup</h1>
-          <p className="text-muted-foreground">Define fee amounts per class for each academic year</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <BookOpen className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Fee Structure Setup</h1>
+            <p className="text-muted-foreground">Define fee amounts per class for each academic year</p>
+          </div>
         </div>
+        {selectedYear && selectedClass && feeRows.some(r => r.amount > 0) && (
+          <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Save Fee Structure
+          </Button>
+        )}
       </div>
 
       {/* Filters */}

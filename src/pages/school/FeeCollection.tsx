@@ -185,12 +185,17 @@ const FeeCollection = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-3">
-        <Receipt className="h-8 w-8 text-primary" />
-        <div>
-          <h1 className="text-2xl font-bold">Fee Collection</h1>
-          <p className="text-muted-foreground">Collect and manage student fee payments</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Receipt className="h-8 w-8 text-primary" />
+          <div>
+            <h1 className="text-2xl font-bold">Fee Collection</h1>
+            <p className="text-muted-foreground">Collect and manage student fee payments</p>
+          </div>
         </div>
+        <Button onClick={() => { setSelectedStudent(null); setDialogOpen(true); }}>
+          <Receipt className="h-4 w-4 mr-2" /> Add Fee Collection
+        </Button>
       </div>
 
       {/* Summary Cards */}
