@@ -99,6 +99,9 @@ interface RetailTemplateProps {
   showProductStyle?: boolean;
 }
 
+const B = "1px solid #000";
+const B2 = "2px solid #000";
+
 export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   businessName,
   address,
@@ -132,8 +135,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const isA4 = format === "a4";
   const FIXED_ROWS = 8;
 
-  // Format amount helper
-  const formatAmount = (amount: number) => {
+  const fmt = (amount: number) => {
     const value = amountWithDecimal ? amount.toFixed(2) : Math.round(amount).toString();
     if (amountWithGrouping) {
       const parts = value.split(".");
@@ -143,282 +145,294 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
     return value;
   };
 
-  // Enforce exactly 8 rows
   const displayItems: (InvoiceItem | null)[] = [...items].slice(0, FIXED_ROWS);
-  while (displayItems.length < FIXED_ROWS) {
-    displayItems.push(null);
-  }
+  while (displayItems.length < FIXED_ROWS) displayItems.push(null);
 
-  // Calculate total quantity
-  const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
-
-  // Calculate balance calculations
+  const totalQty = items.reduce((s, i) => s + i.qty, 0);
   const billTotal = grandTotal;
   const receivedToday = paidAmount;
   const currentBalance = billTotal - receivedToday;
   const totalDue = currentBalance + previousBalance;
 
-  // Get dimensions based on format
-  const getContainerStyle = (): React.CSSProperties => {
-    if (isA4) {
-      return {
-        width: "210mm",
-        minHeight: "297mm",
-        padding: "8mm",
-      };
-    }
-    // A5 vertical - strict fixed dimensions
-    return {
-      width: "148mm",
-      height: "210mm",
-      padding: "5mm",
-    };
+  // Count summary rows for rowSpan
+  const summaryRows =
+    1 + // subtotal
+    (discount > 0 ? 1 : 0) +
+    (saleReturnAdjust > 0 ? 1 : 0) +
+    1 + // grand total
+    1 + // received
+    1 + // balance
+    (previousBalance > 0 ? 1 : 0) +
+    (totalDue > 0 ? 1 : 0) +
+    1; // signature
+
+  const pageW = isA4 ? "210mm" : "148mm";
+  const pageH = isA4 ? "297mm" : "210mm";
+  const pad = isA4 ? "10mm" : "5mm";
+  const fs = isA4 ? "11px" : "10px";
+  const headerFs = isA4 ? "20px" : "16px";
+
+  const cellBase: React.CSSProperties = {
+    borderLeft: B,
+    borderBottom: B,
+    padding: "3px 6px",
+    fontSize: fs,
+    verticalAlign: "middle",
   };
+  const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
+  const cellC: React.CSSProperties = { ...cellBase, textAlign: "center" };
+  const cellL: React.CSSProperties = { ...cellBase, textAlign: "left" };
 
   return (
     <div
       className="retail-invoice-template bg-white text-black"
       style={{
-        ...getContainerStyle(),
-        fontFamily: "Arial, sans-serif",
-        fontSize: "12px",
+        width: pageW,
+        height: pageH,
+        padding: pad,
+        fontFamily: "Arial, Helvetica, sans-serif",
+        fontSize: fs,
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        border: "2px solid #000",
         position: "relative",
       }}
     >
-      {/* Header Section */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          borderBottom: "2px solid #000",
-          paddingBottom: "6px",
-          marginBottom: "0",
-        }}
-      >
-        <div style={{ flex: 1, textAlign: "center", paddingRight: logoUrl ? "0" : "0" }}>
-          <div style={{ fontSize: "28px", fontWeight: "bold", textTransform: "uppercase" }}>
+      {/* Outer border */}
+      <div style={{ border: B2, flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+        {/* ===== HEADER ===== */}
+        <div style={{ borderBottom: B2, padding: "6px 8px 4px", position: "relative", textAlign: "center" }}>
+          <div style={{ fontSize: headerFs, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px" }}>
             {businessName}
           </div>
-          <div style={{ fontSize: isA4 ? "10px" : "9px", marginTop: "2px", textTransform: "uppercase" }}>{address}</div>
-          <div style={{ fontSize: isA4 ? "10px" : "9px" }}>
+          <div style={{ fontSize: isA4 ? "9px" : "8px", marginTop: "2px", textTransform: "uppercase", lineHeight: 1.4 }}>
+            {address}
+          </div>
+          <div style={{ fontSize: isA4 ? "9px" : "8px", lineHeight: 1.4 }}>
             {mobile && `Mob: ${mobile}`}
             {email && ` | ${email}`}
           </div>
-          {gstNumber && <div style={{ fontSize: isA4 ? "10px" : "9px", fontWeight: "bold" }}>GSTIN: {gstNumber}</div>}
-        </div>
-        {logoUrl && (
-          <img
-            src={logoUrl}
-            alt="Logo"
-            style={{
-              height: "85px",
-              maxWidth: "120px",
-              objectFit: "contain",
-              position: "absolute",
-              right: "8mm",
-              top: "8mm",
-            }}
-          />
-        )}
-      </div>
-
-      {/* Bill Of Supply Title */}
-      <div
-        style={{
-          textAlign: "center",
-          fontWeight: "bold",
-          fontSize: isA4 ? "16px" : "14px",
-          borderBottom: "1px solid #000",
-          borderTop: "1px solid #000",
-          padding: "4px 0",
-          marginBottom: "6px",
-        }}
-      >
-        Bill Of Supply
-      </div>
-
-      {/* Customer & Invoice Details */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          borderBottom: "1px solid #000",
-          paddingBottom: "6px",
-          marginBottom: "6px",
-          fontSize: isA4 ? "11px" : "10px",
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: "bold" }}>BILL TO:</div>
-          <div>{customerName || "Walk-in Customer"}</div>
-          {customerAddress && <div>{customerAddress}</div>}
-          {customerMobile && <div>Ph: {customerMobile}</div>}
-          {customerGSTIN && <div>GSTIN: {customerGSTIN}</div>}
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div>
-            <strong>Invoice No:</strong> {invoiceNumber}
-          </div>
-          <div>
-            <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
-            {invoiceTime && ` ${invoiceTime}`}
-          </div>
-          {salesman && (
-            <div>
-              <strong>Salesman:</strong> {salesman}
-            </div>
+          {gstNumber && (
+            <div style={{ fontSize: isA4 ? "9px" : "8px", fontWeight: "bold" }}>GSTIN: {gstNumber}</div>
           )}
-          {paymentMethod && (
-            <div>
-              <strong>Payment:</strong> {paymentMethod}
-            </div>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{
+                height: isA4 ? "60px" : "50px",
+                maxWidth: "90px",
+                objectFit: "contain",
+                position: "absolute",
+                right: "8px",
+                top: "6px",
+              }}
+            />
           )}
         </div>
-      </div>
 
-      {/* Items Table with continuous column lines to footer */}
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          tableLayout: "fixed",
-          flex: 1,
-        }}
-      >
-        <thead>
-          <tr style={{ backgroundColor: "#f0f0f0" }}>
-            <th style={{ border: "1px solid #000", padding: "4px", width: "40px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Sr.</th>
-            <th style={{ border: "1px solid #000", padding: "4px", textAlign: "left", fontSize: "12px", fontWeight: "bold" }}>Description</th>
-            <th style={{ border: "1px solid #000", padding: "4px", width: "90px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Barcode</th>
-            <th style={{ border: "1px solid #000", padding: "4px", width: "50px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Qty</th>
-            <th style={{ border: "1px solid #000", padding: "4px", width: "80px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Rate</th>
-            <th style={{ border: "1px solid #000", padding: "4px", width: "90px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {displayItems.map((item, index) => (
-            <tr key={index}>
-              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? index + 1 : ""}</td>
-              <td style={{ border: "1px solid #000", padding: "4px", height: isA4 ? "28px" : "24px", fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || ""}</td>
-              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "10px" }}>{item?.barcode || ""}</td>
-              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? item.qty : ""}</td>
-              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? formatAmount(item.rate) : ""}</td>
-              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? formatAmount(item.total) : ""}</td>
+        {/* ===== BILL OF SUPPLY ===== */}
+        <div
+          style={{
+            textAlign: "center",
+            fontWeight: "bold",
+            fontSize: isA4 ? "13px" : "11px",
+            borderBottom: B,
+            padding: "3px 0",
+          }}
+        >
+          Bill Of Supply
+        </div>
+
+        {/* ===== BILL TO + INVOICE INFO ===== */}
+        <div
+          style={{
+            display: "flex",
+            borderBottom: B,
+            fontSize: isA4 ? "10px" : "9px",
+            lineHeight: 1.5,
+          }}
+        >
+          <div style={{ flex: 1, padding: "4px 8px", borderRight: B }}>
+            <div style={{ fontWeight: "bold" }}>BILL TO:</div>
+            <div>{customerName || "Walk-in Customer"}</div>
+            {customerAddress && <div>{customerAddress}</div>}
+            {customerMobile && <div>Ph: {customerMobile}</div>}
+            {customerGSTIN && <div>GSTIN: {customerGSTIN}</div>}
+          </div>
+          <div style={{ width: "40%", padding: "4px 8px" }}>
+            <div><strong>Invoice No:</strong> {invoiceNumber}</div>
+            <div>
+              <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
+              {invoiceTime && ` ${invoiceTime}`}
+            </div>
+            {salesman && <div><strong>Salesman:</strong> {salesman}</div>}
+            {paymentMethod && <div><strong>Payment:</strong> {paymentMethod}</div>}
+          </div>
+        </div>
+
+        {/* ===== ITEMS TABLE ===== */}
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: "fixed",
+            flex: 1,
+          }}
+        >
+          <colgroup>
+            <col style={{ width: "5%" }} />
+            <col style={{ width: "35%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "20%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Sr.</th>
+              <th style={{ ...cellL, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Description</th>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Barcode</th>
+              <th style={{ ...cellC, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Qty</th>
+              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fs, backgroundColor: "#f5f5f5" }}>Rate</th>
+              <th style={{ ...cellR, borderTop: "none", fontWeight: "bold", fontSize: fs, borderRight: "none", backgroundColor: "#f5f5f5" }}>Amount</th>
             </tr>
-          ))}
-          {/* Totals row */}
-          <tr style={{ borderTop: "2px solid #000" }}>
-            <td colSpan={3} style={{ border: "1px solid #000", padding: "4px", fontSize: "12px", fontWeight: "bold" }}>
-              Total Qty: {totalQty}
-            </td>
-            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>{totalQty}</td>
-            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Sub Total</td>
-            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>₹{formatAmount(subtotal)}</td>
-          </tr>
-          {/* Footer summary rows - E.&O.E on left, amounts on right */}
-          <tr>
-            <td colSpan={4} rowSpan={
-              1 + (discount > 0 ? 1 : 0) + (saleReturnAdjust > 0 ? 1 : 0) + 1 + 1 + 1 + (previousBalance > 0 ? 1 : 0) + (totalDue > 0 ? 1 : 0)
-            } style={{ border: "1px solid #000", padding: "6px", verticalAlign: "top", fontSize: "10px" }}>
-              {termsConditions.length > 0 && (
-                <div>
-                  <strong>Terms & Conditions:</strong>
-                  <ul style={{ margin: "2px 0 0 12px", padding: 0 }}>
-                    {termsConditions.map((term, i) => (
-                      <li key={i}>{term}</li>
-                    ))}
-                  </ul>
-                </div>
+          </thead>
+          <tbody>
+            {displayItems.map((item, idx) => (
+              <tr key={idx}>
+                <td style={{ ...cellC, minHeight: "28px", height: "28px" }}>{item ? idx + 1 : "\u00A0"}</td>
+                <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
+                <td style={{ ...cellC, fontSize: "9px" }}>{item?.barcode || "\u00A0"}</td>
+                <td style={{ ...cellR }}>{item ? item.qty : "\u00A0"}</td>
+                <td style={{ ...cellR }}>{item ? fmt(item.rate) : "\u00A0"}</td>
+                <td style={{ ...cellR, borderRight: "none" }}>{item ? fmt(item.total) : "\u00A0"}</td>
+              </tr>
+            ))}
+
+            {/* ===== TOTALS ROW ===== */}
+            <tr style={{ borderTop: B2 }}>
+              <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2 }}>
+                Total Qty: {totalQty}
+              </td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2 }}>{totalQty}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2 }}>Sub Total</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2 }}>₹{fmt(subtotal)}</td>
+            </tr>
+
+            {/* ===== FOOTER: Left=Terms, Right=Summary ===== */}
+            {/* First summary row with rowSpan on left */}
+            <tr>
+              <td
+                colSpan={4}
+                rowSpan={summaryRows}
+                style={{
+                  borderLeft: B,
+                  borderBottom: B,
+                  padding: "6px 8px",
+                  verticalAlign: "top",
+                  fontSize: isA4 ? "9px" : "8px",
+                  lineHeight: 1.5,
+                }}
+              >
+                {termsConditions.length > 0 && (
+                  <div>
+                    <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
+                    <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc" }}>
+                      {termsConditions.map((t, i) => (
+                        <li key={i}>{t}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {notes && (
+                  <div style={{ marginTop: "4px" }}>
+                    <strong>Note:</strong> {notes}
+                  </div>
+                )}
+                <div style={{ marginTop: "6px" }}>E. & O.E.</div>
+                {qrCodeUrl && (
+                  <div style={{ marginTop: "4px" }}>
+                    <img src={qrCodeUrl} alt="QR" style={{ width: "60px", height: "60px" }} />
+                  </div>
+                )}
+              </td>
+              {/* Subtotal already shown above, start with discount or grand total */}
+              {discount > 0 ? (
+                <>
+                  <td style={{ ...cellR, fontSize: fs }}>Discount</td>
+                  <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>- ₹{fmt(discount)}</td>
+                </>
+              ) : saleReturnAdjust > 0 ? (
+                <>
+                  <td style={{ ...cellR, fontSize: fs, color: "#b45309" }}>S/R Adjust</td>
+                  <td style={{ ...cellR, borderRight: "none", fontSize: fs, color: "#b45309" }}>- ₹{fmt(saleReturnAdjust)}</td>
+                </>
+              ) : (
+                <>
+                  <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderBottom: B2 }}>Grand Total</td>
+                  <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderRight: "none", borderBottom: B2 }}>₹{fmt(billTotal)}</td>
+                </>
               )}
-              {qrCodeUrl && (
-                <div style={{ marginTop: "4px" }}>
-                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "70px", height: "70px" }} />
-                </div>
-              )}
-              {notes && (
-                <div style={{ marginTop: "4px" }}>
-                  <strong>Note:</strong> <span>{notes}</span>
-                </div>
-              )}
-              <div style={{ marginTop: "6px" }}>E. & O.E.</div>
-            </td>
-            {discount > 0 ? (
-              <>
-                <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Discount</td>
-                <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>- ₹{formatAmount(discount)}</td>
-              </>
-            ) : saleReturnAdjust > 0 ? (
-              <>
-                <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", color: "#d97706" }}>S/R Adjust</td>
-                <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", color: "#d97706" }}>- ₹{formatAmount(saleReturnAdjust)}</td>
-              </>
-            ) : (
-              <>
-                <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold", backgroundColor: "#f0f0f0" }}>Grand Total</td>
-                <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold", backgroundColor: "#f0f0f0" }}>₹{formatAmount(billTotal)}</td>
-              </>
+            </tr>
+
+            {discount > 0 && saleReturnAdjust > 0 && (
+              <tr>
+                <td style={{ ...cellR, fontSize: fs, color: "#b45309" }}>S/R Adjust</td>
+                <td style={{ ...cellR, borderRight: "none", fontSize: fs, color: "#b45309" }}>- ₹{fmt(saleReturnAdjust)}</td>
+              </tr>
             )}
-          </tr>
-          {discount > 0 && saleReturnAdjust > 0 && (
+
+            {(discount > 0 || saleReturnAdjust > 0) && (
+              <tr>
+                <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderBottom: B2 }}>Grand Total</td>
+                <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderRight: "none", borderBottom: B2 }}>₹{fmt(billTotal)}</td>
+              </tr>
+            )}
+
             <tr>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", color: "#d97706" }}>S/R Adjust</td>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", color: "#d97706" }}>- ₹{formatAmount(saleReturnAdjust)}</td>
+              <td style={{ ...cellR, fontSize: fs }}>Received</td>
+              <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(receivedToday)}</td>
             </tr>
-          )}
-          {(discount > 0 || saleReturnAdjust > 0) && (
             <tr>
-              <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold", backgroundColor: "#f0f0f0" }}>Grand Total</td>
-              <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold", backgroundColor: "#f0f0f0" }}>₹{formatAmount(billTotal)}</td>
+              <td style={{ ...cellR, fontSize: fs }}>Balance</td>
+              <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(currentBalance)}</td>
             </tr>
-          )}
-          <tr>
-            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Received</td>
-            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(receivedToday)}</td>
-          </tr>
-          <tr>
-            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Balance</td>
-            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(currentBalance)}</td>
-          </tr>
-          {previousBalance > 0 && (
+            {previousBalance > 0 && (
+              <tr>
+                <td style={{ ...cellR, fontSize: fs }}>Prev. Balance</td>
+                <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(previousBalance)}</td>
+              </tr>
+            )}
+            {totalDue > 0 && (
+              <tr>
+                <td style={{ ...cellR, fontWeight: "bold", fontSize: fs }}>TOTAL DUE</td>
+                <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", fontSize: fs }}>₹{fmt(totalDue)}</td>
+              </tr>
+            )}
+            {/* Signature */}
             <tr>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Prev. Balance</td>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(previousBalance)}</td>
+              <td colSpan={2} style={{ borderLeft: B, borderBottom: "none", padding: "4px 6px", textAlign: "right", verticalAlign: "bottom", paddingTop: "24px", fontSize: "9px", borderRight: "none" }}>
+                <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "80px", textAlign: "center" }}>
+                  Authorized Signatory
+                </div>
+              </td>
             </tr>
-          )}
-          {totalDue > 0 && (
-            <tr>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", fontWeight: "bold" }}>TOTAL DUE</td>
-              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", fontWeight: "bold" }}>₹{formatAmount(totalDue)}</td>
-            </tr>
-          )}
-          {/* Signature row */}
-          <tr>
-            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "9px", paddingTop: "20px" }}>
-              <div style={{ borderTop: "1px solid #000", display: "inline-block", paddingTop: "2px" }}>Authorized Signatory</div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
 
       {/* Print Styles */}
       <style>{`
         @media print {
           body { margin: 0; padding: 0; background: #fff; }
-          @page { 
-            size: ${isA4 ? "A4 portrait" : "A5 portrait"}; 
-            margin: 0; 
-          }
+          @page { size: ${isA4 ? "A4 portrait" : "A5 portrait"}; margin: 0; }
           .retail-invoice-template {
-            width: ${isA4 ? "210mm" : "148mm"} !important;
-            height: ${isA4 ? "297mm" : "210mm"} !important;
-            padding: ${isA4 ? "8mm" : "5mm"} !important;
+            width: ${pageW} !important;
+            height: ${pageH} !important;
+            padding: ${pad} !important;
             page-break-after: always;
-            border: 2px solid #000 !important;
           }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
