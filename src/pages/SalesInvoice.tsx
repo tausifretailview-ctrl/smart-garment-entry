@@ -1706,17 +1706,54 @@ Thank you for choosing us!`;
         stopAutoSave();
         updateCurrentData(null);
 
-        // Store invoice data and show print dialog
-        setSavedInvoiceData({
+        // Store invoice data for print dialog BEFORE clearing the form
+        const invoiceDataForPrint = {
           invoiceNumber: saleNumber,
           filledItems,
           netAmount,
           customer: selectedCustomer,
-        });
-        setShowPrintDialog(true);
+        };
 
-        // Reset form after user closes print dialog (will be handled in dialog onClose)
-        // Don't reset immediately to allow printing
+        // Reset form immediately for new invoice readiness
+        setLineItems(
+          Array(5).fill(null).map((_, i) => ({
+            id: `row-${i}`,
+            productId: '',
+            variantId: '',
+            productName: '',
+            size: '',
+            barcode: '',
+            color: '',
+            quantity: 0,
+            box: '',
+            mrp: 0,
+            salePrice: 0,
+            discountPercent: 0,
+            discountAmount: 0,
+            gstPercent: 0,
+            lineTotal: 0,
+            hsnCode: '',
+          }))
+        );
+        setSelectedCustomerId("");
+        setSelectedCustomer(null);
+        setInvoiceDate(new Date());
+        setDueDate(new Date());
+        setPaymentTerm("");
+        setTermsConditions("");
+        setNotes("");
+        setShippingAddress("");
+        setShippingInstructions("");
+        setSalesman("");
+        setFlatDiscountPercent(0);
+        setFlatDiscountRupees(0);
+        setRoundOff(0);
+        setEditingInvoiceId(null);
+        setOriginalItemsForEdit([]);
+
+        // Now show print dialog with saved data
+        setSavedInvoiceData(invoiceDataForPrint);
+        setShowPrintDialog(true);
       }
     } catch (error: any) {
       console.error('Error saving invoice:', error);
@@ -1738,6 +1775,9 @@ Thank you for choosing us!`;
         title: "Success",
         description: "Invoice printed successfully",
       });
+      // Clear saved data after printing so form is fully ready for new invoice
+      setSavedInvoiceData(null);
+      setShowPrintDialog(false);
     },
   });
 
@@ -1753,48 +1793,13 @@ Thank you for choosing us!`;
   const handleClosePrintDialog = () => {
     setShowPrintDialog(false);
     
-    // Reset form if it was a new invoice
-    if (!editingInvoiceId) {
-      setLineItems(
-        Array(5).fill(null).map((_, i) => ({
-          id: `row-${i}`,
-          productId: '',
-          variantId: '',
-          productName: '',
-          size: '',
-          barcode: '',
-          color: '',
-          quantity: 0,
-          box: '',
-          mrp: 0,
-          salePrice: 0,
-          discountPercent: 0,
-          discountAmount: 0,
-          gstPercent: 0,
-          lineTotal: 0,
-          hsnCode: '',
-        }))
-      );
-      setSelectedCustomerId("");
-      setSelectedCustomer(null);
-      setInvoiceDate(new Date());
-      setDueDate(new Date());
-      setPaymentTerm("");
-      setTermsConditions("");
-      setNotes("");
-      setShippingAddress("");
-      setShippingInstructions("");
-      setSalesman("");
-      setFlatDiscountPercent(0);
-      setFlatDiscountRupees(0);
-      setRoundOff(0);
-    } else {
-      // Navigate back to dashboard if editing
+    // If editing, navigate back to dashboard
+    if (editingInvoiceId) {
+      setEditingInvoiceId(null);
+      setOriginalItemsForEdit([]);
       navigate('/sales-invoice-dashboard');
     }
     
-    setEditingInvoiceId(null);
-    setOriginalItemsForEdit([]);
     setSavedInvoiceData(null);
   };
 
