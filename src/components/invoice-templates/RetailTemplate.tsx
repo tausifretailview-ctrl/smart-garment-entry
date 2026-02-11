@@ -281,295 +281,120 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         </div>
       </div>
 
-      {/* Items Table - Fixed 8 rows */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            tableLayout: "fixed",
-          }}
-        >
-          <thead>
-            <tr style={{ backgroundColor: "#f0f0f0" }}>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  width: "40px",
-                  textAlign: "center",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Sr.
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  textAlign: "left",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Description
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  width: "90px",
-                  textAlign: "center",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Barcode
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  width: "50px",
-                  textAlign: "center",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Qty
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  width: "80px",
-                  textAlign: "right",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Rate
-              </th>
-              <th
-                style={{
-                  border: "1px solid #000",
-                  padding: "4px",
-                  width: "90px",
-                  textAlign: "right",
-                  fontSize: "12px",
-                  fontWeight: "bold",
-                }}
-              >
-                Amount
-              </th>
+      {/* Items Table with continuous column lines to footer */}
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          tableLayout: "fixed",
+          flex: 1,
+        }}
+      >
+        <thead>
+          <tr style={{ backgroundColor: "#f0f0f0" }}>
+            <th style={{ border: "1px solid #000", padding: "4px", width: "40px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Sr.</th>
+            <th style={{ border: "1px solid #000", padding: "4px", textAlign: "left", fontSize: "12px", fontWeight: "bold" }}>Description</th>
+            <th style={{ border: "1px solid #000", padding: "4px", width: "90px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Barcode</th>
+            <th style={{ border: "1px solid #000", padding: "4px", width: "50px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>Qty</th>
+            <th style={{ border: "1px solid #000", padding: "4px", width: "80px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Rate</th>
+            <th style={{ border: "1px solid #000", padding: "4px", width: "90px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {displayItems.map((item, index) => (
+            <tr key={index}>
+              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? index + 1 : ""}</td>
+              <td style={{ border: "1px solid #000", padding: "4px", height: isA4 ? "28px" : "24px", fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || ""}</td>
+              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "10px" }}>{item?.barcode || ""}</td>
+              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? item.qty : ""}</td>
+              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? formatAmount(item.rate) : ""}</td>
+              <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", height: isA4 ? "28px" : "24px", fontSize: "12px" }}>{item ? formatAmount(item.total) : ""}</td>
             </tr>
-          </thead>
-          <tbody>
-            {displayItems.map((item, index) => (
-              <tr key={index}>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "center",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "12px",
-                  }}
-                >
-                  {item ? index + 1 : ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "12px",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {item?.particulars || ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "center",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "10px",
-                  }}
-                >
-                  {item?.barcode || ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "center",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "12px",
-                  }}
-                >
-                  {item ? item.qty : ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "right",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "12px",
-                  }}
-                >
-                  {item ? formatAmount(item.rate) : ""}
-                </td>
-                <td
-                  style={{
-                    border: "1px solid #000",
-                    padding: "4px",
-                    textAlign: "right",
-                    height: isA4 ? "28px" : "24px",
-                    fontSize: "12px",
-                  }}
-                >
-                  {item ? formatAmount(item.total) : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          {/* Totals row inside the table for continuous column lines */}
+          <tr style={{ borderTop: "2px solid #000" }}>
+            <td colSpan={3} style={{ border: "1px solid #000", padding: "4px", fontSize: "12px", fontWeight: "bold" }}>
+              Total Qty: {totalQty}
+            </td>
+            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "center", fontSize: "12px", fontWeight: "bold" }}>{totalQty}</td>
+            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>Sub Total</td>
+            <td style={{ border: "1px solid #000", padding: "4px", textAlign: "right", fontSize: "12px", fontWeight: "bold" }}>₹{formatAmount(subtotal)}</td>
+          </tr>
+          {discount > 0 && (
+            <tr>
+              <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "12px" }}>Discount</td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "12px" }}>- ₹{formatAmount(discount)}</td>
+            </tr>
+          )}
+          {saleReturnAdjust > 0 && (
+            <tr>
+              <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "12px", color: "#d97706" }}>S/R Adjust</td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "12px", color: "#d97706" }}>- ₹{formatAmount(saleReturnAdjust)}</td>
+            </tr>
+          )}
+          <tr style={{ backgroundColor: "#f0f0f0" }}>
+            <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+            <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold" }}>Grand Total</td>
+            <td style={{ border: "2px solid #000", padding: "6px 4px", textAlign: "right", fontSize: "14px", fontWeight: "bold" }}>₹{formatAmount(billTotal)}</td>
+          </tr>
+          {/* Payment details rows */}
+          <tr>
+            <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Received</td>
+            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(receivedToday)}</td>
+          </tr>
+          <tr>
+            <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Balance</td>
+            <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(currentBalance)}</td>
+          </tr>
+          {previousBalance > 0 && (
+            <tr>
+              <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>Prev. Balance</td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px" }}>₹{formatAmount(previousBalance)}</td>
+            </tr>
+          )}
+          {totalDue > 0 && (
+            <tr>
+              <td colSpan={4} style={{ border: "1px solid #000", padding: "2px 4px" }}></td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", fontWeight: "bold", borderTop: "1px solid #000" }}>TOTAL DUE</td>
+              <td style={{ border: "1px solid #000", padding: "2px 4px", textAlign: "right", fontSize: "11px", fontWeight: "bold", borderTop: "1px solid #000" }}>₹{formatAmount(totalDue)}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
 
-      {/* Footer Section - Fixed at bottom */}
+      {/* Footer: Terms, Notes, QR & Signature */}
       <div style={{ marginTop: "auto" }}>
-        {/* Totals Row */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            borderTop: "1px solid #000",
-            paddingTop: "6px",
-            marginTop: "6px",
-          }}
-        >
-          {/* Terms, QR & Notes */}
-          <div style={{ flex: 1, fontSize: "11px" }}>
-            {termsConditions.length > 0 && (
-              <div>
-                <strong>Terms & Conditions:</strong>
-                <ul style={{ margin: "2px 0 0 12px", padding: 0, fontSize: "11px" }}>
-                  {termsConditions.slice(0, 3).map((term, i) => (
-                    <li key={i}>{term}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {qrCodeUrl && (
-              <div style={{ marginTop: "4px" }}>
-                <img src={qrCodeUrl} alt="UPI QR" style={{ width: "100px", height: "100px" }} />
-              </div>
-            )}
-            {notes && (
-              <div style={{ marginTop: "6px", padding: "4px", border: "1px solid #ccc", borderRadius: "2px", backgroundColor: "#fafafa" }}>
-                <strong style={{ fontSize: "10px" }}>Note:</strong>
-                <div style={{ fontSize: "10px", marginTop: "2px", whiteSpace: "pre-wrap" }}>{notes}</div>
-              </div>
-            )}
+        {/* Terms & Conditions from settings */}
+        {termsConditions.length > 0 && (
+          <div style={{ borderTop: "1px solid #000", padding: "4px", fontSize: "10px" }}>
+            <strong>Terms & Conditions:</strong>
+            <ul style={{ margin: "2px 0 0 12px", padding: 0 }}>
+              {termsConditions.map((term, i) => (
+                <li key={i}>{term}</li>
+              ))}
+            </ul>
           </div>
-
-          {/* Amount Summary - Enhanced with all balance details */}
-          <div
-            style={{
-              width: "200px",
-              fontSize: "12px",
-              border: "1px solid #000",
-              padding: "4px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span>Total Qty:</span>
-              <span>{totalQty}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span>Sub Total:</span>
-              <span>₹{formatAmount(subtotal)}</span>
-            </div>
-            {discount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-                <span>Discount:</span>
-                <span>- ₹{formatAmount(discount)}</span>
-              </div>
-            )}
-            {saleReturnAdjust > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", color: "#d97706" }}>
-                <span>S/R Adjust:</span>
-                <span>- ₹{formatAmount(saleReturnAdjust)}</span>
-              </div>
-            )}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "6px 4px",
-                fontWeight: "bold",
-                fontSize: "14px",
-                border: "2px solid #000",
-                backgroundColor: "#f0f0f0",
-                marginTop: "2px",
-              }}
-            >
-              <span>Bill Total:</span>
-              <span>₹{formatAmount(billTotal)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0", marginTop: "4px" }}>
-              <span>Received (Today):</span>
-              <span>₹{formatAmount(receivedToday)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span>Current Balance:</span>
-              <span>₹{formatAmount(currentBalance)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-              <span>Previous Balance:</span>
-              <span>₹{formatAmount(previousBalance)}</span>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                padding: "3px 4px",
-                fontWeight: "bold",
-                borderTop: "1px solid #000",
-                marginTop: "4px",
-              }}
-            >
-              <span>TOTAL DUE:</span>
-              <span>₹{formatAmount(totalDue)}</span>
-            </div>
+        )}
+        {qrCodeUrl && (
+          <div style={{ padding: "4px" }}>
+            <img src={qrCodeUrl} alt="UPI QR" style={{ width: "80px", height: "80px" }} />
           </div>
-        </div>
-
-        {/* Signature Section */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            marginTop: "12px",
-            paddingTop: "6px",
-            borderTop: "1px solid #000",
-          }}
-        >
-          <div
-            style={{
-              fontSize: isA4 ? "10px" : "9px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ borderTop: "1px solid #000", width: "100px", marginTop: "20px", paddingTop: "2px" }}>
-              Authorized Signatory
-            </div>
+        )}
+        {notes && (
+          <div style={{ padding: "4px", fontSize: "10px", borderTop: "1px solid #000" }}>
+            <strong>Note:</strong> {notes}
+          </div>
+        )}
+        {/* Signature */}
+        <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #000", padding: "4px" }}>
+          <div style={{ fontSize: "9px" }}>E. & O.E.</div>
+          <div style={{ fontSize: "9px", textAlign: "center" }}>
+            <div style={{ marginTop: "20px", borderTop: "1px solid #000", width: "100px", paddingTop: "2px" }}>Authorized Signatory</div>
           </div>
         </div>
       </div>
