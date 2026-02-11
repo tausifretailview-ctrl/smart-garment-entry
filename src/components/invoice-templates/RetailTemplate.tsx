@@ -186,6 +186,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         display: "flex",
         flexDirection: "column",
         border: "2px solid #000",
+        position: "relative",
       }}
     >
       {/* Header Section */}
@@ -196,14 +197,14 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           alignItems: "flex-start",
           borderBottom: "2px solid #000",
           paddingBottom: "6px",
-          marginBottom: "6px",
+          marginBottom: "0",
         }}
       >
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, textAlign: "center", paddingRight: logoUrl ? "0" : "0" }}>
           <div style={{ fontSize: "28px", fontWeight: "bold", textTransform: "uppercase" }}>
             {businessName}
           </div>
-          <div style={{ fontSize: isA4 ? "10px" : "9px", marginTop: "2px" }}>{address}</div>
+          <div style={{ fontSize: isA4 ? "10px" : "9px", marginTop: "2px", textTransform: "uppercase" }}>{address}</div>
           <div style={{ fontSize: isA4 ? "10px" : "9px" }}>
             {mobile && `Mob: ${mobile}`}
             {email && ` | ${email}`}
@@ -218,6 +219,9 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               height: "85px",
               maxWidth: "120px",
               objectFit: "contain",
+              position: "absolute",
+              right: "8mm",
+              top: "8mm",
             }}
           />
         )}
@@ -230,7 +234,8 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           fontWeight: "bold",
           fontSize: isA4 ? "16px" : "14px",
           borderBottom: "1px solid #000",
-          paddingBottom: "4px",
+          borderTop: "1px solid #000",
+          padding: "4px 0",
           marginBottom: "6px",
         }}
       >
