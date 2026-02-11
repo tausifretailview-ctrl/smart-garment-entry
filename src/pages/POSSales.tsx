@@ -730,7 +730,7 @@ export default function POSSales() {
     hasMore: hasMoreCustomers,
   } = useCustomerSearch(customerName);
   
-  const { getCustomerBalance } = useCustomerBalances();
+  const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances();
 
   // Fetch credit balance when customer changes
   useEffect(() => {
@@ -2783,6 +2783,7 @@ export default function POSSales() {
                       <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
                           const balance = getCustomerBalance(customer);
+                          const advanceAmt = getCustomerAdvance(customer.id);
                           return (
                             <CommandItem
                               key={customer.id}
@@ -2791,10 +2792,6 @@ export default function POSSales() {
                                 setCustomerId(customer.id);
                                 setCustomerName(customer.customer_name);
                                 setCustomerPhone(customer.phone || "");
-                                // Mutually exclusive discount logic:
-                                // If customer has master discount AND no brand discounts, apply master discount
-                                // If customer has brand discounts, those will be applied per-item instead
-                                // Note: hasBrandDiscounts will update when customerId changes
                                 setOpenCustomerSearch(false);
                               }}
                               className="cursor-pointer"
@@ -2803,15 +2800,22 @@ export default function POSSales() {
                               <div className="flex flex-col flex-1">
                                 <div className="flex items-center justify-between">
                                   <span className="font-medium">{customer.customer_name}</span>
-                                  {balance !== 0 && (
-                                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                                      balance > 0 
-                                        ? 'bg-destructive/10 text-destructive' 
-                                        : 'bg-green-500/10 text-green-600'
-                                    }`}>
-                                      ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-1.5">
+                                    {advanceAmt > 0 && (
+                                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600">
+                                        ₹{advanceAmt.toLocaleString('en-IN')} Adv
+                                      </span>
+                                    )}
+                                    {balance !== 0 && (
+                                      <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                        balance > 0 
+                                          ? 'bg-destructive/10 text-destructive' 
+                                          : 'bg-green-500/10 text-green-600'
+                                      }`}>
+                                        ₹{Math.abs(balance).toLocaleString('en-IN')} {balance > 0 ? 'Due' : 'Cr'}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <span className="text-sm text-muted-foreground">
                                   {customer.phone && `Phone: ${customer.phone}`}
