@@ -39,17 +39,24 @@ export function AddAdvanceBookingDialog({
 
   const { createAdvance } = useCustomerAdvances(organizationId);
 
-  // Fetch all customers
+  // Server-side search for customers
   const { data: customers } = useQuery({
-    queryKey: ["customers-for-advance", organizationId],
+    queryKey: ["customers-for-advance", organizationId, customerSearchTerm],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("customers")
         .select("id, customer_name, phone")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
-        .order("customer_name");
+        .order("customer_name")
+        .limit(50);
 
+      if (customerSearchTerm.trim()) {
+        const term = `%${customerSearchTerm.trim()}%`;
+        query = query.or(`customer_name.ilike.${term},phone.ilike.${term}`);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -171,16 +178,7 @@ export function AddAdvanceBookingDialog({
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
                       {customers
-                        ?.filter((customer) => {
-                          if (!customerSearchTerm) return true;
-                          const term = customerSearchTerm.toLowerCase();
-                          return (
-                            customer.customer_name.toLowerCase().includes(term) ||
-                            (customer.phone?.toLowerCase().includes(term))
-                          );
-                        })
-                        .slice(0, 50)
-                        .map((customer) => (
+                        ?.map((customer) => (
                           <CommandItem
                             key={customer.id}
                             value={customer.id}
