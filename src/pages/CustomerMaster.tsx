@@ -207,6 +207,7 @@ const CustomerMaster = () => {
           .from("customers")
           .select("*")
           .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
           .order("created_at", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
         
@@ -514,7 +515,8 @@ const CustomerMaster = () => {
     const { data: existingCustomers } = await supabase
       .from("customers")
       .select("phone")
-      .eq("organization_id", currentOrganization.id);
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null);
     
     const existingPhones = new Set(
       (existingCustomers || [])
