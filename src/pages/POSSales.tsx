@@ -1699,12 +1699,21 @@ export default function POSSales() {
         description: "Invoice printed successfully",
       });
 
+      // Clear saved invoice data so screen is ready for new invoice
+      setSavedInvoiceData(null);
+      setShowPrintPreview(false);
+
       // Open cash drawer if enabled in settings
       const billBarcodeSettings = (settingsData as any)?.bill_barcode_settings;
       if (billBarcodeSettings?.enable_cash_drawer) {
         const drawerPin = billBarcodeSettings?.cash_drawer_pin || 'pin2';
         await openCashDrawer(undefined, { pin: drawerPin, showToast: false });
       }
+
+      // Focus barcode input for next sale
+      setTimeout(() => {
+        barcodeInputRef.current?.focus();
+      }, 100);
     },
   });
 
