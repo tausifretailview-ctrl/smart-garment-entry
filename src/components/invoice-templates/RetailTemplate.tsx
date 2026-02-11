@@ -168,12 +168,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: "6px 8px",
+    padding: "3px 6px",
     fontSize: fsBody,
     verticalAlign: "middle",
-    lineHeight: "1.4",
-    height: "32px",
-    maxHeight: "32px",
+    lineHeight: "1.3",
+    height: "24px",
+    maxHeight: "24px",
     overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
@@ -298,7 +298,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           </thead>
           <tbody>
             {displayItems.map((item, idx) => (
-              <tr key={idx} style={{ height: "32px" }}>
+              <tr key={idx} style={{ height: "24px" }}>
                 <td style={cellC}>{item ? idx + 1 : "\u00A0"}</td>
                 <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
                 <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
@@ -310,12 +310,12 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
 
             {/* ===== TOTALS ROW ===== */}
             <tr style={{ borderTop: B2 }}>
-              <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>
+              <td colSpan={3} style={{ ...cellL, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>
                 Total Qty: {totalQty}
               </td>
-              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>{totalQty}</td>
-              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "35px" }}>Sub Total</td>
-              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "35px" }}>₹{fmt(subtotal)}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>{totalQty}</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderTop: B2, fontSize: fsTotals, height: "28px" }}>Sub Total</td>
+              <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, height: "28px" }}>₹{fmt(subtotal)}</td>
             </tr>
 
           </tbody>
@@ -350,8 +350,8 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 </div>
               )}
               {qrCodeUrl && (
-                <div style={{ marginTop: "4px" }}>
-                  <img src={qrCodeUrl} alt="QR" style={{ width: "60px", height: "60px" }} />
+                <div style={{ marginTop: "6px" }}>
+                  <img src={qrCodeUrl} alt="QR Code" style={{ width: "70px", height: "70px", border: "1px solid #ccc" }} />
                 </div>
               )}
               <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
