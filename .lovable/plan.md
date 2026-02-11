@@ -1,57 +1,65 @@
 
-# Fix: RetailTemplate Footer Layout
+# School ERP: Fee Structure Assignment and Fee Collection
 
-## Problem
-The current footer uses `rowSpan` on the left column within the items table, causing uneven stretching and misalignment between the terms/signature area and the totals summary.
+## Current State
+- Students, Classes, Academic Years, and Fee Heads are all working
+- Database tables already exist: `fee_structures`, `fee_schedules`, `student_fees`
+- **Missing**: No UI to assign total fees to students (Fee Structure page)
+- **Missing**: Fee Collection page is a placeholder -- "Collect" button shows "Coming soon!"
 
-## Solution
-Replace the `rowSpan`-based footer (lines 324-421) with a **separate grid-based footer section** outside the items table. The header and items table remain untouched.
+## What We Will Build
 
-## Changes (single file: `RetailTemplate.tsx`)
+### 1. New Page: Fee Structure Setup (`/fee-structures`)
+A page where you define how much each class pays for each fee head per academic year.
 
-### 1. End the items table after the "Total Qty / Sub Total" row (line 322)
-Close `</tbody></table>` right after the totals row at line 322. Remove everything from line 324 to line 421 (the rowSpan footer block).
+- Select Academic Year and Class
+- Shows a table of all active Fee Heads with amount input fields
+- Set frequency (Monthly, Quarterly, Yearly, One-time), due day, and optional late fee
+- Save creates/updates records in the `fee_structures` table
+- Add sidebar link for "Fee Structures" between "Fee Heads" and "Fee Collection"
 
-### 2. Add a new grid-based footer div after the table
+### 2. Upgrade Fee Collection Page
+Transform the placeholder into a fully working fee collection system:
 
-```
-<div style="display: grid; grid-template-columns: 70% 30%; border-top: 1px solid #000;">
-```
+**When you click "Collect" on a student:**
+- Opens a dialog showing all fee heads applicable to that student's class
+- Each fee head shows: Amount, Due Date, Paid Amount, Balance
+- Enter payment amount, payment method (Cash/UPI/Card/Bank Transfer), and optional transaction ID
+- On save: creates a record in `student_fees` with payment details
+- Auto-generates a printable Fee Receipt
 
-**Left Column (70%):**
-- Terms and Conditions (if any)
-- Notes (if any)
-- QR code (if any)
-- "E. & O.E." text
-- Bottom area with "Receiver's Signature" (left) and empty space
+**Student Fee Status:**
+- Calculate actual Total Due from `fee_structures` (based on student's class) minus payments in `student_fees`
+- Show real amounts instead of hardcoded "0.00"
+- Show proper status badges: Paid, Partial, Overdue, Pending
 
-**Right Column (30%):**
-- Structured rows, each 30px height, 1px black borders:
-  - Discount (if > 0)
-  - S/R Adjust (if > 0)
-  - **Grand Total** (bold, double top border, slightly larger font, light gray background)
-  - Received
-  - Balance
-  - Prev. Balance (if > 0)
-  - **TOTAL DUE** (if > 0, bold, larger font)
-- Authorized Signatory at bottom right
+**Summary Cards:**
+- Today's Collection: sum of `student_fees` paid today
+- This Month: sum of `student_fees` paid this month
+- Pending Dues: total outstanding across all students
 
-### 3. Layout details
-- Each summary row: `display: flex; justify-content: space-between; height: 30px; align-items: center; border-bottom: 1px solid #000; padding: 0 8px`
-- Grand Total row gets `border-top: 2px solid #000`
-- Left column has `border-right: 1px solid #000` to separate from right
-- Signature area at bottom uses flex with space-between for left/right signatures
-- Add `page-break-inside: avoid` to the footer div for print
+### 3. Fee Receipt Print
+- Reuse the existing `PaymentReceipt` component pattern
+- Show: Student Name, Admission No, Class, Fee Head breakdown, Amount Paid, Receipt Number, Date
+- Print button in the collection dialog after payment
 
-### 4. Print CSS
-Add to existing `@media print` block:
-```css
-.retail-footer { page-break-inside: avoid; }
-```
+## Technical Details
 
-## What stays the same
-- Header section (company name, address, logo)
-- Bill Of Supply title
-- Bill To / Invoice Info section
-- Items table with column widths and alignment
-- Total Qty / Sub Total row
+### Files to Create
+1. `src/pages/school/FeeStructureSetup.tsx` -- new page for defining class-wise fee amounts
+
+### Files to Modify
+1. `src/pages/school/FeeCollection.tsx` -- full rewrite with working collection dialog, real calculations, receipt printing
+2. `src/components/AppSidebar.tsx` -- add "Fee Structures" sidebar link
+3. `src/App.tsx` -- add route for `/fee-structures`
+
+### Database
+- No new tables needed -- `fee_structures`, `fee_schedules`, and `student_fees` already exist with the right schema
+- `fee_structures` stores: organization_id, academic_year_id, class_id, fee_head_id, amount, frequency, due_day, late_fee_amount, late_fee_after_days
+- `student_fees` stores: student_id, fee_head_id, amount, paid_amount, paid_date, payment_method, status, etc.
+
+### Flow
+1. Admin goes to Fee Heads -- creates Tuition, Transport, Library, etc.
+2. Admin goes to Fee Structures -- sets amounts per class (e.g., Class IV Tuition = 5000/month)
+3. Admin goes to Fee Collection -- sees students with calculated dues
+4. Clicks "Collect" on a student -- pays fees -- gets a receipt
