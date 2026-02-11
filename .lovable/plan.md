@@ -1,32 +1,22 @@
 
+# Fix: Hide Deleted Customers from Customer Master
 
-# Add Advance Amount and Credit Note Pending Cards to Customer History Dialog
+## Problem
+The Customer Master page fetches **all** customers including soft-deleted ones (those with a `deleted_at` timestamp). This causes deleted customers to appear in the list, confusing users who expect them to only be in the Recycle Bin.
 
-## What Changes
+## Fix
+A single line addition to `src/pages/CustomerMaster.tsx` at line 209:
 
-Add two new summary cards to the Customer History Dialog showing:
-1. **Advance Balance** -- unused advance amount available for the customer
-2. **CR Note Pending** -- unused credit note balance pending for the customer
+Add `.is("deleted_at", null)` to the main fetch query so only active customers are loaded.
 
-## Technical Details
+```
+// Line ~209: Add deleted_at filter
+.select("*")
+.eq("organization_id", currentOrganization.id)
+.is("deleted_at", null)              // <-- new line
+.order("created_at", { ascending: false })
+```
 
-### File: `src/components/CustomerHistoryDialog.tsx`
+Also add the same filter to the Excel import duplicate-check query (line ~516) to prevent matching against deleted customer phone numbers.
 
-1. **Import hooks**: Add `useCustomerAdvanceBalance` from `useCustomerAdvances` and add a query for credit note pending balance.
-
-2. **Add data fetching**:
-   - Use `useCustomerAdvanceBalance(customerId, organizationId)` to get the available advance amount
-   - Compute credit note pending from the already-fetched `creditNotes` data: sum of `(credit_amount - used_amount)` for active/partially_used notes
-
-3. **Update summary cards grid**: Change from `grid-cols-4` to `grid-cols-6` (or `grid-cols-3 grid-cols-6` responsive) and add two new cards after "Total Paid":
-
-   - **Advance** card (orange border) showing unused advance balance
-   - **CR Pending** card (pink/rose border) showing unused credit note balance
-
-4. The layout will be:
-   ```
-   Opening Balance | Total Sales | Total Paid | Advance | CR Pending | Current Balance
-   ```
-
-All values will be fetched from existing hooks/data -- no database changes needed.
-
+This is a minimal, two-line fix. No database changes needed.
