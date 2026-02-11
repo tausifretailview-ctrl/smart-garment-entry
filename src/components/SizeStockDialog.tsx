@@ -99,6 +99,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .is("products.deleted_at", null)
         .ilike("barcode", `%${query}%`)
         .limit(50);
 
@@ -228,6 +229,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           `)
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
+          .is("products.deleted_at", null)
           .in("product_id", productIds);
 
         if (error) throw error;
