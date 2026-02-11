@@ -10,8 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Loader2, Printer, Receipt } from "lucide-react";
+import { Loader2, MessageCircle, Printer, Receipt } from "lucide-react";
 import { format } from "date-fns";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useReactToPrint } from "react-to-print";
 
 interface Student {
@@ -58,6 +59,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student }: FeeCollecti
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+  const { sendWhatsApp } = useWhatsAppSend();
 
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
@@ -247,6 +249,19 @@ export function FeeCollectionDialog({ open, onOpenChange, student }: FeeCollecti
           </div>
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => { setShowReceipt(false); setReceiptData(null); onOpenChange(false); }}>Close</Button>
+            <Button
+              variant="outline"
+              className="text-green-600 border-green-600 hover:bg-green-50"
+              onClick={() => {
+                const phone = student.phone || student.guardian_phone;
+                if (!phone) { toast.error("No phone number found for this student"); return; }
+                const feeLines = receiptData.selectedItems.map((item: any) => `- ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`).join("\n");
+                const msg = `Dear ${student.student_name},\n\nFee Receipt - ${currentOrganization?.name || "School"}\nReceipt #: ${receiptData.receiptNumber}\nDate: ${format(new Date(receiptData.paidDate), "dd/MM/yyyy")}\n\nFee Details:\n${feeLines}\n\nTotal Paid: Rs.${receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nPayment Mode: ${receiptData.paymentMethod}\n\nThank you!`;
+                sendWhatsApp(phone, msg);
+              }}
+            >
+              <MessageCircle className="h-4 w-4 mr-2" /> WhatsApp
+            </Button>
             <Button onClick={() => handlePrint()}>
               <Printer className="h-4 w-4 mr-2" /> Print Receipt
             </Button>
