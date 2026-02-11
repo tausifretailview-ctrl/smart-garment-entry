@@ -154,18 +154,6 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const currentBalance = billTotal - receivedToday;
   const totalDue = currentBalance + previousBalance;
 
-  // Count summary rows for rowSpan
-  const summaryRows =
-    1 + // subtotal
-    (discount > 0 ? 1 : 0) +
-    (saleReturnAdjust > 0 ? 1 : 0) +
-    1 + // grand total
-    1 + // received
-    1 + // balance
-    (previousBalance > 0 ? 1 : 0) +
-    (totalDue > 0 ? 1 : 0) +
-    1; // signature
-
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
@@ -321,106 +309,96 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", borderTop: B2 }}>₹{fmt(subtotal)}</td>
             </tr>
 
-            {/* ===== FOOTER: Left=Terms, Right=Summary ===== */}
-            {/* First summary row with rowSpan on left */}
-            <tr>
-              <td
-                colSpan={4}
-                rowSpan={summaryRows}
-                style={{
-                  borderLeft: B,
-                  borderBottom: B,
-                  padding: "6px 8px",
-                  verticalAlign: "top",
-                  fontSize: isA4 ? "9px" : "8px",
-                  lineHeight: 1.5,
-                }}
-              >
-                {termsConditions.length > 0 && (
-                  <div>
-                    <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
-                    <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc" }}>
-                      {termsConditions.map((t, i) => (
-                        <li key={i}>{t}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {notes && (
-                  <div style={{ marginTop: "4px" }}>
-                    <strong>Note:</strong> {notes}
-                  </div>
-                )}
-                <div style={{ marginTop: "6px" }}>E. & O.E.</div>
-                {qrCodeUrl && (
-                  <div style={{ marginTop: "4px" }}>
-                    <img src={qrCodeUrl} alt="QR" style={{ width: "60px", height: "60px" }} />
-                  </div>
-                )}
-              </td>
-              {/* Subtotal already shown above, start with discount or grand total */}
-              {discount > 0 ? (
-                <>
-                  <td style={{ ...cellR, fontSize: fs }}>Discount</td>
-                  <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>- ₹{fmt(discount)}</td>
-                </>
-              ) : saleReturnAdjust > 0 ? (
-                <>
-                  <td style={{ ...cellR, fontSize: fs, color: "#b45309" }}>S/R Adjust</td>
-                  <td style={{ ...cellR, borderRight: "none", fontSize: fs, color: "#b45309" }}>- ₹{fmt(saleReturnAdjust)}</td>
-                </>
-              ) : (
-                <>
-                  <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderBottom: B2 }}>Grand Total</td>
-                  <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderRight: "none", borderBottom: B2 }}>₹{fmt(billTotal)}</td>
-                </>
-              )}
-            </tr>
-
-            {discount > 0 && saleReturnAdjust > 0 && (
-              <tr>
-                <td style={{ ...cellR, fontSize: fs, color: "#b45309" }}>S/R Adjust</td>
-                <td style={{ ...cellR, borderRight: "none", fontSize: fs, color: "#b45309" }}>- ₹{fmt(saleReturnAdjust)}</td>
-              </tr>
-            )}
-
-            {(discount > 0 || saleReturnAdjust > 0) && (
-              <tr>
-                <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderBottom: B2 }}>Grand Total</td>
-                <td style={{ ...cellR, fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5", borderRight: "none", borderBottom: B2 }}>₹{fmt(billTotal)}</td>
-              </tr>
-            )}
-
-            <tr>
-              <td style={{ ...cellR, fontSize: fs }}>Received</td>
-              <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(receivedToday)}</td>
-            </tr>
-            <tr>
-              <td style={{ ...cellR, fontSize: fs }}>Balance</td>
-              <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(currentBalance)}</td>
-            </tr>
-            {previousBalance > 0 && (
-              <tr>
-                <td style={{ ...cellR, fontSize: fs }}>Prev. Balance</td>
-                <td style={{ ...cellR, borderRight: "none", fontSize: fs }}>₹{fmt(previousBalance)}</td>
-              </tr>
-            )}
-            {totalDue > 0 && (
-              <tr>
-                <td style={{ ...cellR, fontWeight: "bold", fontSize: fs }}>TOTAL DUE</td>
-                <td style={{ ...cellR, fontWeight: "bold", borderRight: "none", fontSize: fs }}>₹{fmt(totalDue)}</td>
-              </tr>
-            )}
-            {/* Signature */}
-            <tr>
-              <td colSpan={2} style={{ borderLeft: B, borderBottom: "none", padding: "4px 6px", textAlign: "right", verticalAlign: "bottom", paddingTop: "24px", fontSize: "9px", borderRight: "none" }}>
-                <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "80px", textAlign: "center" }}>
-                  Authorized Signatory
-                </div>
-              </td>
-            </tr>
           </tbody>
         </table>
+
+        {/* ===== FOOTER: Grid Layout ===== */}
+        <div
+          className="retail-footer"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "70% 30%",
+            borderTop: B2,
+            fontSize: fs,
+          }}
+        >
+          {/* Left Column: Terms, Notes, QR, E&OE, Receiver Signature */}
+          <div style={{ borderRight: B, padding: "6px 8px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+            <div>
+              {termsConditions.length > 0 && (
+                <div>
+                  <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
+                  <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "9px" : "8px", lineHeight: 1.5 }}>
+                    {termsConditions.map((t, i) => (
+                      <li key={i}>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {notes && (
+                <div style={{ marginTop: "4px", fontSize: isA4 ? "9px" : "8px" }}>
+                  <strong>Note:</strong> {notes}
+                </div>
+              )}
+              {qrCodeUrl && (
+                <div style={{ marginTop: "4px" }}>
+                  <img src={qrCodeUrl} alt="QR" style={{ width: "60px", height: "60px" }} />
+                </div>
+              )}
+              <div style={{ marginTop: "4px", fontSize: isA4 ? "9px" : "8px" }}>E. & O.E.</div>
+            </div>
+            <div style={{ marginTop: "12px", paddingTop: "20px" }}>
+              <div style={{ borderTop: B, display: "inline-block", paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
+                Receiver's Signature
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Summary Rows + Authorized Signatory */}
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {discount > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px" }}>
+                <span>Discount</span>
+                <span>- ₹{fmt(discount)}</span>
+              </div>
+            )}
+            {saleReturnAdjust > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px", color: "#b45309" }}>
+                <span>S/R Adjust</span>
+                <span>- ₹{fmt(saleReturnAdjust)}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, borderTop: B2, padding: "0 8px", fontWeight: "bold", fontSize: isA4 ? "13px" : "12px", backgroundColor: "#f5f5f5" }}>
+              <span>Grand Total</span>
+              <span>₹{fmt(billTotal)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px" }}>
+              <span>Received</span>
+              <span>₹{fmt(receivedToday)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px" }}>
+              <span>Balance</span>
+              <span>₹{fmt(currentBalance)}</span>
+            </div>
+            {previousBalance > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px" }}>
+                <span>Prev. Balance</span>
+                <span>₹{fmt(previousBalance)}</span>
+              </div>
+            )}
+            {totalDue > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "30px", borderBottom: B, padding: "0 8px", fontWeight: "bold", fontSize: isA4 ? "13px" : "12px" }}>
+                <span>TOTAL DUE</span>
+                <span>₹{fmt(totalDue)}</span>
+              </div>
+            )}
+            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "4px 8px", paddingTop: "20px" }}>
+              <div style={{ borderTop: B, paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
+                Authorized Signatory
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Print Styles */}
@@ -435,6 +413,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             page-break-after: always;
           }
           * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .retail-footer { page-break-inside: avoid; }
         }
       `}</style>
     </div>
