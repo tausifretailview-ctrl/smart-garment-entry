@@ -2340,7 +2340,8 @@ Thank you for choosing us!`;
                           <Input
                             type="number"
                             min="1"
-                            value={item.quantity}
+                            value={item.quantity || ""}
+                            placeholder="1"
                             onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-16 h-8"
@@ -2363,7 +2364,8 @@ Thank you for choosing us!`;
                           <Input
                             type="number"
                             min="0"
-                            value={item.mrp}
+                            value={item.mrp || ""}
+                            placeholder="0"
                             onChange={(e) => updateMRP(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-20 h-8"
@@ -2375,7 +2377,8 @@ Thank you for choosing us!`;
                           <Input
                             type="number"
                             min="0"
-                            value={item.salePrice}
+                            value={item.salePrice || ""}
+                            placeholder="0"
                             onChange={(e) => updateSalePrice(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-20 h-8"
@@ -2388,7 +2391,8 @@ Thank you for choosing us!`;
                             type="number"
                             min="0"
                             max="100"
-                            value={item.discountPercent}
+                            value={item.discountPercent || ""}
+                            placeholder="0"
                             onChange={(e) => updateDiscountPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-14 h-8"
@@ -2400,7 +2404,8 @@ Thank you for choosing us!`;
                           <Input
                             type="number"
                             min="0"
-                            value={item.discountAmount}
+                            value={item.discountAmount || ""}
+                            placeholder="0"
                             onChange={(e) => updateDiscountAmount(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-20 h-8"
@@ -2413,7 +2418,8 @@ Thank you for choosing us!`;
                             type="number"
                             min="0"
                             max="100"
-                            value={item.gstPercent}
+                            value={item.gstPercent || ""}
+                            placeholder="0"
                             onChange={(e) => updateGSTPercent(item.id, parseFloat(e.target.value) || 0)}
                             onWheel={(e) => (e.target as HTMLInputElement).blur()}
                             className="w-16 h-8"
@@ -2468,7 +2474,8 @@ Thank you for choosing us!`;
                   type="number"
                   min="0"
                   max="100"
-                  value={flatDiscountPercent}
+                  value={flatDiscountPercent || ""}
+                  placeholder="0"
                   onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
                   className="w-20 h-8"
@@ -2483,7 +2490,8 @@ Thank you for choosing us!`;
               <Input
                 type="number"
                 min="0"
-                value={flatDiscountRupees}
+                value={flatDiscountRupees || ""}
+                placeholder="0"
                 onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 className="w-20 h-8"
@@ -2503,7 +2511,8 @@ Thank you for choosing us!`;
               <Input
                 type="number"
                 step="0.01"
-                value={roundOff}
+                value={roundOff || ""}
+                placeholder="0"
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
                 className="w-24 h-8"
