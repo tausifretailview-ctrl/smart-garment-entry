@@ -307,10 +307,21 @@ export default function POSSales() {
       setCustomerId(sale.customer_id || "");
       setCustomerName(sale.customer_name);
       setCustomerPhone(sale.customer_phone || "");
-      setFlatDiscountValue(sale.flat_discount_percent);
-      setFlatDiscountMode('percent');
+      const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
+      const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
+      if (savedFlatPercent > 0) {
+        setFlatDiscountValue(savedFlatPercent);
+        setFlatDiscountMode('percent');
+      } else if (savedFlatAmount > 0) {
+        setFlatDiscountValue(savedFlatAmount);
+        setFlatDiscountMode('amount');
+      } else {
+        setFlatDiscountValue(0);
+        setFlatDiscountMode('percent');
+      }
       setSaleReturnAdjust(sale.sale_return_adjust || 0);
-      setRoundOff(sale.round_off);
+      setRoundOff(Number(sale.round_off) || 0);
+      setIsManualRoundOff(true);
       setPaymentMethod(sale.payment_method as any);
       setSelectedSalesman(sale.salesman || "");
 
@@ -1867,14 +1878,32 @@ export default function POSSales() {
     }));
 
     setItems(loadedItems);
-    setFlatDiscountValue(Number(sale.flat_discount_percent) || 0);
-    setFlatDiscountMode('percent');
+    
+    // Restore flat discount - detect if it was saved as amount or percent mode
+    const savedFlatPercent = Number(sale.flat_discount_percent) || 0;
+    const savedFlatAmount = Number(sale.flat_discount_amount) || 0;
+    if (savedFlatPercent > 0) {
+      setFlatDiscountValue(savedFlatPercent);
+      setFlatDiscountMode('percent');
+    } else if (savedFlatAmount > 0) {
+      setFlatDiscountValue(savedFlatAmount);
+      setFlatDiscountMode('amount');
+    } else {
+      setFlatDiscountValue(0);
+      setFlatDiscountMode('percent');
+    }
+    
     setSaleReturnAdjust(Number(sale.sale_return_adjust) || 0);
-    setRoundOff(Number(sale.round_off) || 0);
+    
+    // Set round-off as manual to prevent auto-recalculation from overwriting saved value
+    const savedRoundOff = Number(sale.round_off) || 0;
+    setRoundOff(savedRoundOff);
+    setIsManualRoundOff(true);
+    
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
 
-    // Set saved invoice data to enable print button
+    // Set saved invoice data using actual stored values from DB
     setSavedInvoiceData({
       invoiceNumber: sale.sale_number,
       saleId: sale.id,
@@ -1885,14 +1914,14 @@ export default function POSSales() {
         discount: Number(sale.discount_amount),
         subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
       },
-      flatDiscountAmount: (Number(sale.flat_discount_percent) / 100) * Number(sale.gross_amount),
+      flatDiscountAmount: savedFlatAmount,
       saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
       finalAmount: Number(sale.net_amount),
       method: sale.payment_method,
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
       paidAmount: Number(sale.paid_amount) || 0,
-      previousBalance: 0, // Will be refreshed when customer balance hook updates
+      previousBalance: 0,
     });
 
     toast({
