@@ -99,24 +99,36 @@ export default function SaleReturnEntry() {
 
   const fetchAllProducts = async () => {
     try {
-      const { data: productsData, error: productsError } = await supabase
-        .from("products")
-        .select("id, product_name, brand, category, hsn_code")
-        .eq("organization_id", currentOrganization?.id)
-        .eq("status", "active")
-        .is("deleted_at", null)
-        .order("product_name");
+      // Fetch ALL products using pagination to avoid 1000-row limit
+      const allProducts: Product[] = [];
+      const PAGE_SIZE = 1000;
+      let page = 0;
+      let hasMore = true;
 
-      if (productsError) throw productsError;
+      while (hasMore) {
+        const { data: batch, error } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, hsn_code")
+          .eq("organization_id", currentOrganization?.id)
+          .eq("status", "active")
+          .is("deleted_at", null)
+          .order("product_name")
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      const productIds = productsData?.map(p => p.id) || [];
+        if (error) throw error;
+        allProducts.push(...(batch || []));
+        hasMore = (batch?.length || 0) === PAGE_SIZE;
+        page++;
+      }
+
+      const productIds = allProducts.map(p => p.id);
       if (productIds.length === 0) {
         setProducts([]);
         setVariants([]);
         return;
       }
 
-      // Fetch in batches of 500 to avoid query limits
+      // Fetch variants in batches of 500 to avoid query limits
       const allVariants: Variant[] = [];
       for (let i = 0; i < productIds.length; i += 500) {
         const batch = productIds.slice(i, i + 500);
@@ -142,7 +154,7 @@ export default function SaleReturnEntry() {
         );
       }
 
-      setProducts(productsData || []);
+      setProducts(allProducts);
       setVariants(allVariants);
     } catch (error) {
       console.error("Error loading products:", error);
@@ -199,11 +211,11 @@ export default function SaleReturnEntry() {
     if (!barcodeInput.trim()) return;
     const query = barcodeInput.trim();
     
-    // First try exact barcode match
+    // First try exact barcode match from local cache
     let variant = variants.find((v) => v.barcode === query);
     let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
     
-    // If no barcode match, try product name match (first matching product's first variant)
+    // If no local barcode match, try product name match
     if (!variant) {
       const matchedProduct = products.find((p) => 
         p.product_name.toLowerCase().includes(query.toLowerCase())
@@ -211,6 +223,27 @@ export default function SaleReturnEntry() {
       if (matchedProduct) {
         product = matchedProduct;
         variant = variants.find((v) => v.product_id === matchedProduct.id);
+      }
+    }
+    
+    // If still not found, try direct DB lookup (handles large catalogs where local cache may be incomplete)
+    if (!variant || !product) {
+      try {
+        const { data: dbVariant } = await supabase
+          .from("product_variants")
+          .select("id, product_id, size, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
+          .eq("barcode", query)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .maybeSingle();
+
+        if (dbVariant && (dbVariant.products as any)?.status === 'active' && !(dbVariant.products as any)?.deleted_at) {
+          const p = dbVariant.products as any;
+          product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
+          variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
+        }
+      } catch (err) {
+        console.error("DB barcode lookup error:", err);
       }
     }
     
