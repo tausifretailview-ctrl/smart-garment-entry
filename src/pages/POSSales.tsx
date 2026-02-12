@@ -3100,8 +3100,9 @@ export default function POSSales() {
                       <div>
                         <Input
                           type="number"
-                          value={item.quantity}
+                          value={item.quantity || ""}
                           onChange={(e) => updateQuantity(index, parseInt(e.target.value) || 1)}
+                          placeholder="1"
                           className="h-9 text-base w-full"
                           min="1"
                         />
@@ -3109,8 +3110,9 @@ export default function POSSales() {
                       <div>
                         <Input
                           type="number"
-                          value={item.mrp}
+                          value={item.mrp || ""}
                           onChange={(e) => updateMrp(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
                           className="h-9 text-base w-full"
                           min="0"
                           step="0.01"
@@ -3132,8 +3134,9 @@ export default function POSSales() {
                       <div>
                         <Input
                           type="number"
-                          value={item.discountPercent}
+                          value={item.discountPercent || ""}
                           onChange={(e) => updateDiscountPercent(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
                           className="h-9 text-base w-full"
                           min="0"
                           max="100"
@@ -3143,8 +3146,9 @@ export default function POSSales() {
                       <div>
                         <Input
                           type="number"
-                          value={item.discountAmount}
+                          value={item.discountAmount || ""}
                           onChange={(e) => updateDiscountAmount(index, parseFloat(e.target.value) || 0)}
+                          placeholder="0"
                           className="h-9 text-base w-full"
                           min="0"
                           step="0.01"
@@ -3235,7 +3239,8 @@ export default function POSSales() {
                               <Input 
                                 type="number"
                                 className="w-16 h-8 bg-white text-green-700 text-center text-sm font-semibold rounded border-0" 
-                                value={pointsToRedeem}
+                                value={pointsToRedeem || ""}
+                                placeholder="0"
                                 onChange={(e) => {
                                   const value = parseInt(e.target.value) || 0;
                                   const maxPoints = calculateMaxRedeemablePoints(totals.subtotal - flatDiscountAmount, customerPointsData?.balance || 0);
@@ -3299,7 +3304,8 @@ export default function POSSales() {
                 <Input 
                   type="number"
                   className="w-16 h-8 bg-white text-black text-center text-base font-semibold" 
-                  value={flatDiscountValue}
+                  value={flatDiscountValue || ""}
+                  placeholder="0"
                   onChange={(e) => setFlatDiscountValue(parseFloat(e.target.value) || 0)}
                 />
               </div>
@@ -3309,7 +3315,8 @@ export default function POSSales() {
               <Input 
                 type="number"
                 className="w-20 h-8 bg-white text-black text-center text-base font-semibold mx-auto" 
-                value={saleReturnAdjust}
+                value={saleReturnAdjust || ""}
+                placeholder="0"
                 onChange={(e) => setSaleReturnAdjust(parseFloat(e.target.value) || 0)}
                 step="0.01"
               />
@@ -3321,7 +3328,8 @@ export default function POSSales() {
                 <Input 
                   type="number"
                   className="w-20 h-8 bg-white text-purple-700 text-center text-base font-semibold mx-auto" 
-                  value={creditApplied}
+                  value={creditApplied || ""}
+                  placeholder="0"
                   onChange={(e) => {
                     const value = parseFloat(e.target.value) || 0;
                     const maxApplicable = Math.min(value, availableCreditBalance, amountBeforeCredit);
@@ -3358,7 +3366,8 @@ export default function POSSales() {
                 <Input 
                   type="number"
                   className={`w-20 h-8 text-center text-base font-semibold ${roundOff >= 0 ? 'bg-green-100 text-green-700 border-green-300' : 'bg-red-100 text-red-700 border-red-300'}`}
-                  value={roundOff}
+                  value={roundOff || ""}
+                  placeholder="0"
                   onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
                   step="1"
                 />
