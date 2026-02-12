@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -487,6 +488,16 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
         return false;
       }
       
+      // Check purchase price > sale price
+      if (variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
+        toast({
+          title: "Price Warning",
+          description: `Purchase price (₹${variant.pur_price}) is greater than Sale price (₹${variant.sale_price}) for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please correct the prices.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
       // Check barcode is present
       if (!variant.barcode || variant.barcode.trim() === '') {
         toast({
@@ -1001,16 +1012,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                                 type="number"
                                 value={variant.pur_price || ""}
                                 onChange={(e) => handleVariantChange(index, "pur_price", e.target.value === "" ? 0 : Number(e.target.value))}
-                                className="w-24"
+                                className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
                                 placeholder="0"
                               />
+                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                <span className="text-[10px] text-destructive mt-0.5 block">Pur &gt; Sale!</span>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="number"
                                 value={variant.sale_price || ""}
                                 onChange={(e) => handleVariantChange(index, "sale_price", e.target.value === "" ? 0 : Number(e.target.value))}
-                                className="w-24"
+                                className={cn("w-24", variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && "border-destructive text-destructive")}
                                 placeholder="0"
                               />
                             </TableCell>
