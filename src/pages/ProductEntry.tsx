@@ -735,6 +735,16 @@ const ProductEntry = () => {
       return false;
     }
 
+    // Validate default prices: purchase should not exceed sale
+    if ((formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0)) {
+      toast({
+        title: "Check Sale Price",
+        description: "Purchase price is greater than sale price. Please check the prices.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     // Validate variants: purchase price and sale price are required
     for (let i = 0; i < variants.length; i++) {
       const variant = variants[i];
@@ -754,6 +764,16 @@ const ProductEntry = () => {
         toast({
           title: "Validation Error",
           description: `Sale price is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please enter a valid sale price.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+      
+      // Check purchase price > sale price
+      if (variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price) {
+        toast({
+          title: "Check Sale Price",
+          description: `Purchase price (₹${variant.pur_price}) is greater than sale price (₹${variant.sale_price}) for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}.`,
           variant: "destructive",
         });
         return false;
@@ -1823,9 +1843,12 @@ const ProductEntry = () => {
                       default_pur_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
-                  className="h-7 text-xs"
+                  className={`h-7 text-xs ${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   required
                 />
+                {(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) && (
+                  <p className="text-destructive text-[10px] font-semibold">⚠ Pur &gt; Sale!</p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -1842,9 +1865,12 @@ const ProductEntry = () => {
                       default_sale_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
                     })
                   }
-                  className="h-7 text-xs"
+                  className={`h-7 text-xs ${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   required
                 />
+                {(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) && (
+                  <p className="text-destructive text-[10px] font-semibold">⚠ Check sale price</p>
+                )}
               </div>
 
               {showMrp && (
@@ -1962,8 +1988,11 @@ const ProductEntry = () => {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-20 h-6 text-xs"
+                                className={`w-20 h-6 text-xs ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive' : ''}`}
                               />
+                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                <p className="text-destructive text-[9px] font-semibold mt-0.5">Pur &gt; Sale!</p>
+                              )}
                             </TableCell>
                             <TableCell className="py-1">
                               <Input
@@ -1978,8 +2007,11 @@ const ProductEntry = () => {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-20 h-6 text-xs"
+                                className={`w-20 h-6 text-xs ${variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price ? 'border-destructive' : ''}`}
                               />
+                              {variant.pur_price > 0 && variant.sale_price > 0 && variant.pur_price > variant.sale_price && (
+                                <p className="text-destructive text-[9px] font-semibold mt-0.5">Check sale price</p>
+                              )}
                             </TableCell>
                             {showMrp && (
                               <TableCell className="py-1">
