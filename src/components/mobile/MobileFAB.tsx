@@ -73,11 +73,11 @@ export const MobileFAB = () => {
 
   return (
     <>
-      <div className="fixed bottom-20 right-4 z-50 lg:hidden">
+      <div className="fixed bottom-20 right-4 z-[45] lg:hidden pointer-events-auto">
         {/* Backdrop */}
         {isOpen && (
           <div 
-            className="fixed inset-0 bg-black/20 backdrop-blur-sm -z-10"
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[44]"
             onClick={() => setIsOpen(false)}
           />
         )}
