@@ -965,15 +965,7 @@ export default function SalesInvoiceDashboard() {
       const newStatus = newPaidAmount >= selectedInvoiceForPayment.net_amount ? 'completed' : 
                        newPaidAmount > 0 ? 'partial' : 'pending';
 
-      // If payment mode is advance, apply advance deduction using FIFO
-      if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-        await applyAdvance.mutateAsync({
-          customerId: selectedInvoiceForPayment.customer_id,
-          amountToApply: amount,
-        });
-      }
-
-      // Update sales table
+      // Update sales table FIRST (before advance deduction to avoid orphaned deductions on failure)
       const { error: updateError } = await supabase
         .from('sales')
         .update({
@@ -985,6 +977,14 @@ export default function SalesInvoiceDashboard() {
         .eq('id', selectedInvoiceForPayment.id);
 
       if (updateError) throw updateError;
+
+      // If payment mode is advance, apply advance deduction using FIFO (after sale update succeeds)
+      if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
+        await applyAdvance.mutateAsync({
+          customerId: selectedInvoiceForPayment.customer_id,
+          amountToApply: amount,
+        });
+      }
 
       // Generate voucher number
       const { data: voucherData, error: voucherError } = await supabase.rpc(
