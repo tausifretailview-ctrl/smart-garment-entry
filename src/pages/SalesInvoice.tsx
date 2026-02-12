@@ -1569,6 +1569,8 @@ Thank you for choosing us!`;
           invoiceNumber: invoiceData?.sale_number,
           filledItems,
           netAmount,
+          grossAmount,
+          totalDiscount,
           customer: selectedCustomer,
         });
         setShowPrintDialog(true);
@@ -1710,6 +1712,8 @@ Thank you for choosing us!`;
           invoiceNumber: saleNumber,
           filledItems,
           netAmount,
+          grossAmount,
+          totalDiscount,
           customer: selectedCustomer,
         };
 
@@ -2683,9 +2687,9 @@ Thank you for choosing us!`;
               color: item.color || "",
               gstPercent: item.gstPercent || 0,
             }))}
-            subTotal={grossAmount}
-            discount={totalDiscount}
-            grandTotal={netAmount}
+            subTotal={savedInvoiceData?.grossAmount ?? grossAmount}
+            discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
+            grandTotal={savedInvoiceData?.netAmount ?? netAmount}
             paymentMethod="Cash"
           />
         </div>
