@@ -299,7 +299,21 @@ export default function SaleReturnEntry() {
       setReturnItems(updated);
       toast({ title: "Updated", description: "Quantity increased" });
     } else {
-      addProduct(product.id, variant.id);
+      // Directly create ReturnItem instead of calling addProduct,
+      // because product/variant may not be in local state (DB lookup path)
+      const newItem: ReturnItem = {
+        productId: product.id,
+        variantId: variant.id,
+        productName: product.product_name,
+        size: variant.size,
+        barcode: variant.barcode,
+        quantity: 1,
+        unitPrice: variant.sale_price,
+        gstPercent: variant.gst_per,
+        lineTotal: variant.sale_price,
+        hsnCode: product.hsn_code || '',
+      };
+      setReturnItems(prev => [...prev, newItem]);
       toast({ title: "Added", description: `${product.product_name} added to return` });
     }
     
