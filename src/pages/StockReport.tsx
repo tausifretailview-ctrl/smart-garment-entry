@@ -89,7 +89,8 @@ export default function StockReport() {
     sizes: [] as string[],
     categories: [] as string[],
     suppliers: [] as string[],
-    supplierInvoices: [] as string[]
+    supplierInvoices: [] as string[],
+    productNames: [] as string[]
   });
   
   // Pagination for All Stock tab
@@ -125,7 +126,7 @@ export default function StockReport() {
       // Fetch distinct brands, categories, styles from products
       const { data: products } = await supabase
         .from("products")
-        .select("brand, category, style")
+        .select("product_name, brand, category, style")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .neq("product_type", "service");
@@ -169,7 +170,8 @@ export default function StockReport() {
         departments,
         sizes,
         suppliers,
-        supplierInvoices
+        supplierInvoices,
+        productNames: [...new Set((products || []).map(p => p.product_name).filter(Boolean))].sort() as string[]
       });
     } catch (error) {
       console.error("Error fetching filter options:", error);
@@ -391,36 +393,29 @@ export default function StockReport() {
       
       const data = allVariants;
 
-      // Fetch ALL stock movements using pagination
+      // Fetch stock movements only for the fetched variant IDs (batched)
+      const variantIds = allVariants.map((v: any) => v.id);
       const allMovements: any[] = [];
-      offset = 0;
-      hasMore = true;
+      const BATCH_SIZE = 200;
       
-      while (hasMore) {
+      for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
+        const batchIds = variantIds.slice(i, i + BATCH_SIZE);
         const { data: movementsData, error: movementsError } = await supabase
           .from("stock_movements")
           .select("variant_id, movement_type, quantity")
-          .range(offset, offset + PAGE_SIZE - 1);
+          .in("variant_id", batchIds);
 
         if (movementsError) throw movementsError;
-        
-        if (movementsData && movementsData.length > 0) {
-          allMovements.push(...movementsData);
-          offset += PAGE_SIZE;
-          hasMore = movementsData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+        if (movementsData) allMovements.push(...movementsData);
       }
       
       const movementsData = allMovements;
 
-      // Fetch ALL batch stock with supplier info using pagination
+      // Fetch batch stock only for fetched variant IDs (batched)
       const allBatchData: any[] = [];
-      offset = 0;
-      hasMore = true;
       
-      while (hasMore) {
+      for (let i = 0; i < variantIds.length; i += BATCH_SIZE) {
+        const batchIds = variantIds.slice(i, i + BATCH_SIZE);
         const { data: batchData, error: batchError } = await supabase
           .from("batch_stock")
           .select(`
@@ -431,17 +426,10 @@ export default function StockReport() {
             )
           `)
           .eq("organization_id", currentOrganization.id)
-          .range(offset, offset + PAGE_SIZE - 1);
+          .in("variant_id", batchIds);
 
         if (batchError) throw batchError;
-        
-        if (batchData && batchData.length > 0) {
-          allBatchData.push(...batchData);
-          offset += PAGE_SIZE;
-          hasMore = batchData.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+        if (batchData) allBatchData.push(...batchData);
       }
       
       const batchData = allBatchData;
@@ -514,14 +502,15 @@ export default function StockReport() {
       }) || [];
 
       // Update filter options from fetched data
-      setFilterOptions({
+      setFilterOptions(prev => ({
+        ...prev,
         brands: [...new Set(formattedData.map(i => i.brand).filter(Boolean))].sort() as string[],
         departments: [...new Set(formattedData.map(i => i.department).filter(Boolean))].sort() as string[],
         sizes: [...new Set(formattedData.map(i => i.size).filter(Boolean))].sort() as string[],
         categories: [...new Set(formattedData.map(i => i.category).filter(Boolean))].sort() as string[],
         suppliers: [...new Set(formattedData.map(i => i.supplier_name).filter(Boolean))].sort() as string[],
         supplierInvoices: [...new Set(formattedData.map(i => i.supplier_invoice_no).filter(Boolean))].sort() as string[]
-      });
+      }));
 
       setStockItems(formattedData);
     } catch (error) {
@@ -815,7 +804,7 @@ export default function StockReport() {
         
         {/* Always visible multi-field filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             <label className="text-xs font-medium text-muted-foreground">Product Name</label>
             <Input
               placeholder="Filter by name..."
@@ -823,7 +812,13 @@ export default function StockReport() {
               onChange={(e) => setProductNameFilter(e.target.value)}
               onKeyDown={handleKeyDown}
               className="h-9 !bg-white !text-gray-900"
+              list="product-name-suggestions"
             />
+            <datalist id="product-name-suggestions">
+              {filterOptions.productNames.map(name => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium text-muted-foreground">Brand</label>
