@@ -47,6 +47,7 @@ import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { CustomerHistoryDialog } from "@/components/CustomerHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
+import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDistanceToNow } from "date-fns";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
@@ -131,7 +132,8 @@ export default function SalesInvoiceDashboard() {
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
-  
+  const [advanceBalance, setAdvanceBalance] = useState<number>(0);
+  const [isFetchingAdvance, setIsFetchingAdvance] = useState(false);
   // Receipt state
   const [showReceiptDialog, setShowReceiptDialog] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
@@ -152,7 +154,7 @@ export default function SalesInvoiceDashboard() {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
-
+  const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(currentOrganization?.id || null);
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
@@ -909,7 +911,27 @@ export default function SalesInvoiceDashboard() {
     setPaymentDate(new Date());
     setPaymentMode("cash");
     setPaymentNarration("");
+    setAdvanceBalance(0);
+    setIsFetchingAdvance(false);
     setShowPaymentDialog(true);
+  };
+
+  const handlePaymentModeChange = async (mode: string) => {
+    setPaymentMode(mode);
+    if (mode === "advance" && selectedInvoiceForPayment?.customer_id) {
+      setIsFetchingAdvance(true);
+      try {
+        const balance = await getAvailableAdvanceBalance(selectedInvoiceForPayment.customer_id);
+        setAdvanceBalance(balance);
+        const pendingAmount = selectedInvoiceForPayment.net_amount - (selectedInvoiceForPayment.paid_amount || 0);
+        setPaidAmount(Math.min(balance, pendingAmount).toString());
+      } catch (error) {
+        console.error("Failed to fetch advance balance:", error);
+        setAdvanceBalance(0);
+      } finally {
+        setIsFetchingAdvance(false);
+      }
+    }
   };
 
   const handleRecordPayment = async () => {
@@ -943,6 +965,14 @@ export default function SalesInvoiceDashboard() {
       const newStatus = newPaidAmount >= selectedInvoiceForPayment.net_amount ? 'completed' : 
                        newPaidAmount > 0 ? 'partial' : 'pending';
 
+      // If payment mode is advance, apply advance deduction using FIFO
+      if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
+        await applyAdvance.mutateAsync({
+          customerId: selectedInvoiceForPayment.customer_id,
+          amountToApply: amount,
+        });
+      }
+
       // Update sales table
       const { error: updateError } = await supabase
         .from('sales')
@@ -975,7 +1005,9 @@ export default function SalesInvoiceDashboard() {
           reference_type: 'customer',
           reference_id: selectedInvoiceForPayment.id,
           total_amount: amount,
-          description: `Payment received for invoice ${selectedInvoiceForPayment.sale_number} - ${paymentNarration}`,
+          description: paymentMode === "advance" 
+            ? `Adjusted from advance balance for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`
+            : `Payment received for invoice ${selectedInvoiceForPayment.sale_number}${paymentNarration ? ' - ' + paymentNarration : ''}`,
           created_by: user?.id,
         })
         .select()
@@ -2268,7 +2300,7 @@ export default function SalesInvoiceDashboard() {
               </div>
               <div>
                 <Label>Payment Mode *</Label>
-                <Select value={paymentMode} onValueChange={setPaymentMode}>
+                <Select value={paymentMode} onValueChange={handlePaymentModeChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -2278,8 +2310,30 @@ export default function SalesInvoiceDashboard() {
                     <SelectItem value="card">Card</SelectItem>
                     <SelectItem value="cheque">Cheque</SelectItem>
                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    {selectedInvoiceForPayment?.customer_id && (
+                      <SelectItem value="advance">From Advance</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
+                {paymentMode === "advance" && (
+                  <div className="mt-2">
+                    {isFetchingAdvance ? (
+                      <Badge variant="info" className="gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Fetching advance balance...
+                      </Badge>
+                    ) : advanceBalance > 0 ? (
+                      <Badge variant="success" className="gap-1">
+                        <IndianRupee className="h-3 w-3" />
+                        Available Advance: ₹{Math.round(advanceBalance).toLocaleString('en-IN')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="gap-1">
+                        No advance balance available
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <Label>Narration</Label>
@@ -2295,7 +2349,10 @@ export default function SalesInvoiceDashboard() {
               <Button variant="outline" onClick={() => setShowPaymentDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleRecordPayment} disabled={isRecordingPayment}>
+              <Button 
+                onClick={handleRecordPayment} 
+                disabled={isRecordingPayment || (paymentMode === "advance" && advanceBalance <= 0)}
+              >
                 {isRecordingPayment && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Record Payment
               </Button>
