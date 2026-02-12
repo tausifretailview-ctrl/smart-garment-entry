@@ -1635,9 +1635,9 @@ Thank you for choosing us!`;
 
         if (itemsError) throw itemsError;
 
-        // Auto-send WhatsApp invoice notification (does not block saving)
+        // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
         if (selectedCustomer?.phone && currentOrganization?.id) {
-          try {
+          (async () => { try {
             const { data: whatsappSettings } = await (supabase as any)
               .from('whatsapp_api_settings')
               .select('is_active, auto_send_invoice, invoice_template_name')
@@ -1660,12 +1660,11 @@ Thank you for choosing us!`;
               });
               const formattedAmount = `${Number(netAmount).toLocaleString('en-IN')}`;
 
-              // Calculate total quantity from items
               const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
               const messageText = `Hello ${selectedCustomer.customer_name},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
-              await supabase.functions.invoke('send-whatsapp', {
+              supabase.functions.invoke('send-whatsapp', {
                 body: {
                   organizationId: currentOrganization.id,
                   phone: selectedCustomer.phone,
@@ -1691,7 +1690,7 @@ Thank you for choosing us!`;
             }
           } catch (e) {
             console.error('WhatsApp auto-send failed (SalesInvoice):', e);
-          }
+          } })();
         }
 
         toast({

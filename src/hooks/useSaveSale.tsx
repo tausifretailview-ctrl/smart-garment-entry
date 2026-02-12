@@ -337,11 +337,10 @@ export const useSaveSale = () => {
         pointsAwarded = result.pointsAwarded;
       }
 
-      // Auto-send WhatsApp invoice notification - TWO FLOW APPROACH
-      // Flow A: Utility/Text template (immediate notification)
-      // Flow B: Document template with PDF (only if enabled and configured)
+      // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
+      // This runs in the background so it doesn't delay the print dialog
       if (saleData.customerPhone && currentOrganization?.id) {
-        try {
+        const whatsAppPromise = (async () => { try {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await (supabase as any)
             .from('whatsapp_api_settings')
@@ -504,6 +503,8 @@ export const useSaveSale = () => {
           // Don't fail the sale if WhatsApp notification fails
           console.error('WhatsApp auto-send failed:', whatsappError);
         }
+        })();
+        // Fire and forget - don't await
       }
 
       // Invalidate dashboard queries for immediate UI refresh

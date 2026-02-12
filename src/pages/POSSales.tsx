@@ -1378,27 +1378,10 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      // Refetch today's sales and dashboard data
-      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
-      await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      
       toast({
         title: wasEditing ? "Sale Updated" : "Sale Saved",
         description: `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with ${method.toUpperCase()} payment`,
       });
-      
-      // Apply credit if any
-      if (creditApplied > 0 && customerId) {
-        await applyCredit(customerId, creditApplied);
-      }
-      
-      // Redeem points if any
-      if (pointsToRedeem > 0 && customerId) {
-        await redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number);
-        // Invalidate customer points query to refresh balance
-        await queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
-      }
       
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
@@ -1541,11 +1524,6 @@ export default function POSSales() {
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
       
-      // Refetch today's sales and dashboard data
-      await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      await queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
-      await queryClient.refetchQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
-      
       const isRefund = paymentData.refundAmount > 0 && !paymentData.issueCreditNote;
       const isCreditNote = paymentData.issueCreditNote && paymentData.refundAmount > 0;
       
@@ -1575,17 +1553,7 @@ export default function POSSales() {
             : `Invoice ${result.sale_number} ${wasEditing ? 'updated' : 'saved'} with mixed payment${balanceAmount > 0 ? ` (Balance: ₹${balanceAmount.toFixed(2)})` : ''}`,
       });
       
-      // Apply credit if any (for non-credit note cases)
-      if (!isCreditNote && creditApplied > 0 && customerId) {
-        await applyCredit(customerId, creditApplied);
-      }
-      
-      // Redeem points if any (for non-credit note cases)
-      if (!isCreditNote && pointsToRedeem > 0 && customerId) {
-        await redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number);
-        // Invalidate customer points query to refresh balance
-        await queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
-      }
+      // Credit and points operations moved to after print dialog (non-blocking, see below)
       
       // Store invoice data BEFORE clearing the form (only for non-credit note cases)
       const invoiceDataForPrint = !isCreditNote ? {
@@ -1642,6 +1610,19 @@ export default function POSSales() {
       setTimeout(() => {
         barcodeInputRef.current?.focus();
       }, 100);
+      
+      // Non-blocking background operations
+      queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
+      queryClient.invalidateQueries({ queryKey: ['pos-dashboard'] });
+      
+      if (!isCreditNote && creditApplied > 0 && customerId) {
+        applyCredit(customerId, creditApplied);
+      }
+      if (!isCreditNote && pointsToRedeem > 0 && customerId) {
+        redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
+        });
+      }
     }
   };
 
