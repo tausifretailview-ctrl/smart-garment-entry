@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+
 import { Trash2, Search, Plus } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -77,144 +77,82 @@ export default function SaleReturnEntry() {
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (currentOrganization) {
-      fetchCustomers();
-      fetchNextReturnNumber();
-    }
-  }, [currentOrganization]);
-
-  useEffect(() => {
-    if (currentOrganization) {
-      fetchProducts();
-    }
-  }, [currentOrganization, originalSaleNumber, selectedCustomer]);
-
-  const fetchNextReturnNumber = async () => {
-    const { data, error } = await supabase.rpc('generate_sale_return_number', {
-      p_organization_id: currentOrganization?.id
-    });
-    if (!error && data) {
-      setNextReturnNumber(data);
-    }
-  };
-
-  const fetchCustomers = async () => {
-    const { data, error } = await supabase
+    if (!currentOrganization) return;
+    
+    // Fetch customers
+    supabase
       .from("customers")
       .select("id, customer_name, phone")
-      .eq("organization_id", currentOrganization?.id)
-      .order("customer_name");
+      .eq("organization_id", currentOrganization.id)
+      .is("deleted_at", null)
+      .order("customer_name")
+      .then(({ data }) => setCustomers(data || []));
 
-    if (error) {
-      toast({ title: "Error", description: "Failed to load customers", variant: "destructive" });
-      return;
-    }
-    setCustomers(data || []);
-  };
+    // Fetch next return number
+    supabase.rpc('generate_sale_return_number', {
+      p_organization_id: currentOrganization.id
+    }).then(({ data }) => { if (data) setNextReturnNumber(data); });
 
-  const fetchProducts = async () => {
-    // Step 1: Build sales query with filters
-    let salesQuery = supabase
-      .from("sales")
-      .select("id")
-      .eq("organization_id", currentOrganization?.id);
+    // Fetch all products
+    fetchAllProducts();
+  }, [currentOrganization]);
 
-    // Apply filters if provided
-    if (originalSaleNumber?.trim()) {
-      salesQuery = salesQuery.eq("sale_number", originalSaleNumber.trim());
-    }
-    
-    if (selectedCustomer) {
-      salesQuery = salesQuery.eq("customer_id", selectedCustomer);
-    }
+  const fetchAllProducts = async () => {
+    try {
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select("id, product_name, brand, category, hsn_code")
+        .eq("organization_id", currentOrganization?.id)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .order("product_name");
 
-    const { data: salesData, error: salesError } = await salesQuery;
+      if (productsError) throw productsError;
 
-    if (salesError) {
-      toast({ title: "Error", description: "Failed to load sales data", variant: "destructive" });
-      return;
-    }
-
-    const saleIds = salesData?.map(s => s.id) || [];
-    
-    if (saleIds.length === 0) {
-      setProducts([]);
-      setVariants([]);
-      if (originalSaleNumber?.trim() || selectedCustomer) {
-        toast({ 
-          title: "No Sales Found", 
-          description: originalSaleNumber?.trim() 
-            ? "No sale found with this sale number" 
-            : "No sales found for selected customer",
-          variant: "destructive" 
-        });
+      const productIds = productsData?.map(p => p.id) || [];
+      if (productIds.length === 0) {
+        setProducts([]);
+        setVariants([]);
+        return;
       }
-      return;
-    }
 
-    const { data: soldItems, error: soldError } = await supabase
-      .from("sale_items")
-      .select("product_id, variant_id")
-      .in("sale_id", saleIds);
+      // Fetch in batches of 500 to avoid query limits
+      const allVariants: Variant[] = [];
+      for (let i = 0; i < productIds.length; i += 500) {
+        const batch = productIds.slice(i, i + 500);
+        const { data: variantsData, error: variantsError } = await supabase
+          .from("product_variants")
+          .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
+          .in("product_id", batch)
+          .eq("active", true)
+          .is("deleted_at", null);
 
-    if (soldError) {
-      toast({ title: "Error", description: "Failed to load sold products", variant: "destructive" });
-      return;
-    }
+        if (variantsError) throw variantsError;
 
-    // Get unique product and variant IDs
-    const uniqueProductIds = [...new Set(soldItems?.map(s => s.product_id))];
-    const uniqueVariantIds = [...new Set(soldItems?.map(s => s.variant_id))];
+        allVariants.push(
+          ...(variantsData?.map((v) => ({
+            id: v.id,
+            product_id: v.product_id,
+            size: v.size,
+            sale_price: v.sale_price || 0,
+            stock_qty: v.stock_qty,
+            barcode: v.barcode,
+            gst_per: (v.products as any)?.gst_per || 0,
+          })) || [])
+        );
+      }
 
-    if (uniqueProductIds.length === 0) {
-      setProducts([]);
-      setVariants([]);
-      return;
-    }
-
-    // Step 2: Fetch product details for sold products only
-    const { data: productsData, error: productsError } = await supabase
-      .from("products")
-      .select("id, product_name, brand, category, hsn_code")
-      .in("id", uniqueProductIds)
-      .eq("organization_id", currentOrganization?.id)
-      .eq("status", "active")
-      .is("deleted_at", null);
-
-    if (productsError) {
+      setProducts(productsData || []);
+      setVariants(allVariants);
+    } catch (error) {
+      console.error("Error loading products:", error);
       toast({ title: "Error", description: "Failed to load products", variant: "destructive" });
-      return;
     }
-
-    // Step 3: Fetch variants for sold products
-    const { data: variantsData, error: variantsError } = await supabase
-      .from("product_variants")
-      .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
-      .in("id", uniqueVariantIds)
-      .eq("active", true)
-      .is("deleted_at", null);
-
-    if (variantsError) {
-      toast({ title: "Error", description: "Failed to load product variants", variant: "destructive" });
-      return;
-    }
-
-    setProducts(productsData || []);
-    setVariants(
-      variantsData?.map((v) => ({
-        id: v.id,
-        product_id: v.product_id,
-        size: v.size,
-        sale_price: v.sale_price || 0,
-        stock_qty: v.stock_qty,
-        barcode: v.barcode,
-        gst_per: (v.products as any)?.gst_per || 0,
-      })) || []
-    );
   };
 
   const filteredProducts = products.filter((product) => {
     const search = searchTerm.toLowerCase();
+    if (!search) return true;
     const matchingVariants = variants.filter(v => v.product_id === product.id);
     const barcodeMatch = matchingVariants.some(v => v.barcode?.toLowerCase().includes(search));
     
@@ -259,27 +197,27 @@ export default function SaleReturnEntry() {
     e.preventDefault();
     
     if (!barcodeInput.trim()) return;
+    const query = barcodeInput.trim();
     
-    // Find variant by barcode
-    const variant = variants.find((v) => v.barcode === barcodeInput.trim());
+    // First try exact barcode match
+    let variant = variants.find((v) => v.barcode === query);
+    let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
     
+    // If no barcode match, try product name match (first matching product's first variant)
     if (!variant) {
-      toast({ 
-        title: "Not Found", 
-        description: "No product found with this barcode",
-        variant: "destructive" 
-      });
-      setBarcodeInput("");
-      return;
+      const matchedProduct = products.find((p) => 
+        p.product_name.toLowerCase().includes(query.toLowerCase())
+      );
+      if (matchedProduct) {
+        product = matchedProduct;
+        variant = variants.find((v) => v.product_id === matchedProduct.id);
+      }
     }
     
-    // Find associated product
-    const product = products.find((p) => p.id === variant.product_id);
-    
-    if (!product) {
+    if (!variant || !product) {
       toast({ 
-        title: "Error", 
-        description: "Product data not found",
+        title: "Not Found", 
+        description: "No product found with this barcode or name",
         variant: "destructive" 
       });
       setBarcodeInput("");
@@ -288,11 +226,10 @@ export default function SaleReturnEntry() {
     
     // Check if already added
     const existingIndex = returnItems.findIndex(
-      (item) => item.variantId === variant.id
+      (item) => item.variantId === variant!.id
     );
     
     if (existingIndex !== -1) {
-      // Increment quantity if already exists
       const updated = [...returnItems];
       updated[existingIndex].quantity += 1;
       updated[existingIndex].lineTotal = 
@@ -300,12 +237,10 @@ export default function SaleReturnEntry() {
       setReturnItems(updated);
       toast({ title: "Updated", description: "Quantity increased" });
     } else {
-      // Add new item
       addProduct(product.id, variant.id);
       toast({ title: "Added", description: `${product.product_name} added to return` });
     }
     
-    // Clear input and refocus
     setBarcodeInput("");
     barcodeInputRef.current?.focus();
   };
@@ -432,7 +367,7 @@ export default function SaleReturnEntry() {
               <Input
                 ref={barcodeInputRef}
                 type="text"
-                placeholder="Scan or enter barcode..."
+                placeholder="Scan barcode or enter product name..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 className="flex-1"
@@ -441,7 +376,7 @@ export default function SaleReturnEntry() {
               <Button type="submit">Add</Button>
             </form>
             <p className="text-sm text-muted-foreground mt-2">
-              Scan barcode or manually enter barcode number to add product to return
+              Scan barcode or enter product name/barcode number to add product to return
             </p>
           </CardContent>
         </Card>
@@ -516,7 +451,6 @@ export default function SaleReturnEntry() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span>Return Items</span>
-                <Badge variant="secondary" className="text-xs">Sold Products Only</Badge>
               </div>
               <Popover open={searchOpen} onOpenChange={setSearchOpen}>
                 <PopoverTrigger asChild>
