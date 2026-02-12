@@ -2512,7 +2512,7 @@ const PurchaseEntry = () => {
                           />
                         </TableCell>
                         <TableCell className="text-center font-medium">{index + 1}</TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">
+                        <TableCell className="font-medium whitespace-normal break-words min-w-[200px] max-w-[320px] leading-tight">
                           {formatProductDescription(item)}
                         </TableCell>
                         <TableCell>

@@ -2284,10 +2284,10 @@ Thank you for choosing us!`;
             <TableHeader className="z-0">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
-                <TableHead>Product</TableHead>
-                <TableHead>Size</TableHead>
-                <TableHead>Color</TableHead>
-                <TableHead>Barcode</TableHead>
+                <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
+                <TableHead className="w-16">Size</TableHead>
+                <TableHead className="w-16">Color</TableHead>
+                <TableHead className="w-28">Barcode</TableHead>
                 <TableHead>HSN</TableHead>
                 <TableHead className="w-20">Qty</TableHead>
                 <TableHead className="w-16">Box</TableHead>
@@ -2317,12 +2317,12 @@ Thank you for choosing us!`;
                   return (
                     <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
                       <TableCell>{srNo}</TableCell>
-                      <TableCell>
+                      <TableCell className="min-w-[180px] max-w-[280px]">
                         {item.productId ? (
                           <button
                             type="button"
                             onClick={() => setHistoryProduct({ id: item.productId, name: item.productName })}
-                            className="text-primary hover:underline text-left font-medium"
+                            className="text-primary hover:underline text-left font-medium break-words whitespace-normal leading-tight"
                           >
                             {item.productName}
                           </button>
