@@ -21,6 +21,7 @@ import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
 
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -390,10 +391,7 @@ export default function POSSales() {
           quantity: item.quantity,
         })));
 
-        toast({
-          title: "Invoice Loaded",
-          description: `Invoice ${sale.sale_number} loaded for editing`,
-        });
+        sonnerToast.success(`Invoice ${sale.sale_number} loaded for editing`);
       }
     } catch (error: any) {
       console.error('Error loading sale:', error);
@@ -1924,10 +1922,7 @@ export default function POSSales() {
       previousBalance: 0,
     });
 
-    toast({
-      title: "Invoice Loaded",
-      description: `Invoice #${sale.sale_number} loaded successfully`,
-    });
+    sonnerToast.success(`Invoice #${sale.sale_number} loaded successfully`);
   };
 
   const handleDeleteInvoice = async () => {
@@ -2011,10 +2006,7 @@ export default function POSSales() {
       loadInvoice(sale);
       setInvoiceSearchInput("");
       
-      toast({
-        title: "Invoice Loaded",
-        description: `Invoice ${sale.sale_number} loaded successfully`,
-      });
+      sonnerToast.success(`Invoice ${sale.sale_number} loaded successfully`);
     } catch (error: any) {
       toast({
         title: "Search Error",
