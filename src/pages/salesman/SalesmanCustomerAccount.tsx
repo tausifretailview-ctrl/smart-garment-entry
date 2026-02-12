@@ -93,7 +93,7 @@ const SalesmanCustomerAccount = () => {
       // Fetch payment receipts
       const { data: receiptsData, error: receiptsError } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, total_amount, reference_id")
+        .select("id, voucher_number, voucher_date, total_amount, reference_id, reference_type")
         .eq("voucher_type", "receipt")
         .eq("organization_id", currentOrganization!.id)
         .is("deleted_at", null)
@@ -101,18 +101,24 @@ const SalesmanCustomerAccount = () => {
 
       if (receiptsError) throw receiptsError;
 
-      // Filter receipts for this customer's sales
+      // Filter receipts for this customer's sales AND opening balance payments
       const customerSaleIds = new Set((salesData || []).map(s => s.id));
       const customerReceipts = (receiptsData || []).filter(r => 
-        r.reference_id && customerSaleIds.has(r.reference_id)
+        r.reference_id && (
+          customerSaleIds.has(r.reference_id) ||
+          (r.reference_type === 'customer' && r.reference_id === customerId)
+        )
       );
 
       // Build voucher payments map by sale id to detect which payments came from vouchers
       const voucherPaymentsBySaleId: Record<string, number> = {};
+      let openingBalanceVoucherPayments = 0;
       customerReceipts.forEach(r => {
-        if (r.reference_id) {
+        if (r.reference_id && customerSaleIds.has(r.reference_id)) {
           voucherPaymentsBySaleId[r.reference_id] = 
             (voucherPaymentsBySaleId[r.reference_id] || 0) + (r.total_amount || 0);
+        } else if (r.reference_type === 'customer' && r.reference_id === customerId) {
+          openingBalanceVoucherPayments += Number(r.total_amount) || 0;
         }
       });
 
@@ -196,12 +202,15 @@ const SalesmanCustomerAccount = () => {
       const totalSales = (salesData || []).reduce((sum, s) => sum + (s.net_amount || 0), 0);
       
       // Use MAX of paid_amount or voucher payments for each sale (same logic as useCustomerBalance)
-      let totalPaid = 0;
+      let totalPaidOnSales = 0;
       (salesData || []).forEach(sale => {
         const salePaidAmount = sale.paid_amount || 0;
         const voucherAmount = voucherPaymentsBySaleId[sale.id] || 0;
-        totalPaid += Math.max(salePaidAmount, voucherAmount);
+        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
       });
+
+      // Total paid includes both invoice payments AND opening balance payments
+      const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
       
       const pendingInvoices = (salesData || []).filter(s => s.payment_status !== "completed").length;
 

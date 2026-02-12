@@ -83,8 +83,9 @@ const SalesmanOutstanding = () => {
 
       if (vouchersError) throw vouchersError;
 
-      // Build invoice voucher payments map - same logic as Accounts page
+      // Build invoice voucher payments map AND opening balance payments map
       const invoiceVoucherPayments = new Map<string, number>();
+      const openingBalancePayments = new Map<string, number>();
       const saleIdSet = new Set(allSales.map((s: any) => s.id));
       
       (allVouchers || []).forEach((v: any) => {
@@ -93,6 +94,11 @@ const SalesmanOutstanding = () => {
           invoiceVoucherPayments.set(
             v.reference_id,
             (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
+          );
+        } else if (v.reference_type === 'customer') {
+          openingBalancePayments.set(
+            v.reference_id,
+            (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
           );
         }
       });
@@ -108,12 +114,13 @@ const SalesmanOutstanding = () => {
         }
       });
 
-      // Build outstanding list - same as Accounts page
+      // Build outstanding list - includes opening balance payments
       const outstandingCustomers: CustomerOutstanding[] = (customersData || [])
         .map((c: any) => {
           const openingBalance = c.opening_balance || 0;
           const invoiceBalance = customerBalances.get(c.id) || 0;
-          const totalBalance = Math.round(openingBalance + invoiceBalance);
+          const obPayments = openingBalancePayments.get(c.id) || 0;
+          const totalBalance = Math.round(openingBalance + invoiceBalance - obPayments);
           return {
             id: c.id,
             customer_name: c.customer_name,
