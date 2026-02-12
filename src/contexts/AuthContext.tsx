@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
-const SESSION_EXPIRY_BUFFER = 300; // 5 minutes buffer before expiry
+const SESSION_EXPIRY_BUFFER = 600; // 10 minutes buffer before expiry
+const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
 
 interface AuthContextType {
   user: User | null;
@@ -23,8 +24,8 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-// Check if session is near expiry (within 5 minutes)
-const isSessionNearExpiry = (session: Session | null): boolean => {
+// Check if session needs refresh (within buffer OR already expired)
+const isSessionNeedsRefresh = (session: Session | null): boolean => {
   if (!session?.expires_at) return false;
   const expiryTime = session.expires_at;
   const currentTime = Math.floor(Date.now() / 1000);
@@ -151,25 +152,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Check for existing session with stale state recovery
     supabase.auth.getSession().then(async ({ data: { session: existingSession }, error }) => {
-      // If there's an error getting session, clear stale data and reset
+      // If there's an error getting session, try to refresh instead of signing out
       if (error) {
-        console.warn("Error getting session, clearing stale auth state:", error);
+        console.warn("Error getting session, attempting refresh:", error);
         localStorage.removeItem(REFRESH_LOCK_KEY);
-        await supabase.auth.signOut({ scope: 'local' });
+        try {
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData.session) {
+            setSession(refreshData.session);
+            setUser(refreshData.session.user);
+            setLoading(false);
+            return;
+          }
+        } catch (refreshErr) {
+          console.error("Refresh also failed:", refreshErr);
+        }
+        // Only sign out if refresh also failed
         setSession(null);
         setUser(null);
         setLoading(false);
         return;
       }
       
-      // If session exists but is expired, clear it
+      // If session exists but is expired, try refresh before giving up
       if (existingSession && existingSession.expires_at) {
         const expiryTime = existingSession.expires_at;
         const currentTime = Math.floor(Date.now() / 1000);
         if (currentTime > expiryTime) {
-          console.warn("Session expired, clearing stale auth state");
+          console.warn("Session expired, attempting refresh...");
           localStorage.removeItem(REFRESH_LOCK_KEY);
-          await supabase.auth.signOut({ scope: 'local' });
+          try {
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            if (refreshData.session) {
+              setSession(refreshData.session);
+              setUser(refreshData.session.user);
+              setLoading(false);
+              return;
+            }
+          } catch (refreshErr) {
+            console.error("Refresh failed for expired session:", refreshErr);
+          }
           setSession(null);
           setUser(null);
           setLoading(false);
@@ -184,17 +206,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // Visibility change handler - use ref to access current session without stale closure
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNearExpiry(sessionRef.current)) {
-        console.log("App became visible and session near expiry, refreshing...");
+      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
+        console.log("App became visible and session needs refresh, refreshing...");
         safelyRefreshSession();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // Periodic session check to prevent expiry during long active usage
+    const periodicCheck = setInterval(() => {
+      if (document.visibilityState === 'visible' && sessionRef.current && isSessionNeedsRefresh(sessionRef.current)) {
+        console.log("Periodic check: session needs refresh");
+        safelyRefreshSession();
+      }
+    }, PERIODIC_CHECK_INTERVAL);
+
     return () => {
       subscription.unsubscribe();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(periodicCheck);
     };
   }, [safelyRefreshSession]); // Remove session from deps - use ref instead
 
