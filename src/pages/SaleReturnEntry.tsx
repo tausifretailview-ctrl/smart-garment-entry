@@ -99,43 +99,62 @@ export default function SaleReturnEntry() {
 
   const fetchAllProducts = async () => {
     try {
-      // Fetch ALL products using pagination to avoid 1000-row limit
-      const allProducts: Product[] = [];
+      // Fetch only products/variants that were sold via Sales & POS
+      const soldVariantIds = new Set<string>();
+      const soldProductIds = new Set<string>();
       const PAGE_SIZE = 1000;
       let page = 0;
       let hasMore = true;
 
+      // Paginate through sale_items to get all sold variant/product IDs
       while (hasMore) {
         const { data: batch, error } = await supabase
-          .from("products")
-          .select("id, product_name, brand, category, hsn_code")
-          .eq("organization_id", currentOrganization?.id)
-          .eq("status", "active")
+          .from("sale_items")
+          .select("product_id, variant_id, sales!inner(organization_id)")
+          .eq("sales.organization_id", currentOrganization?.id)
           .is("deleted_at", null)
-          .order("product_name")
+          .order("id")
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
         if (error) throw error;
-        allProducts.push(...(batch || []));
+        (batch || []).forEach(item => {
+          if (item.product_id) soldProductIds.add(item.product_id);
+          if (item.variant_id) soldVariantIds.add(item.variant_id);
+        });
         hasMore = (batch?.length || 0) === PAGE_SIZE;
         page++;
       }
 
-      const productIds = allProducts.map(p => p.id);
-      if (productIds.length === 0) {
+      const productIdArray = Array.from(soldProductIds);
+      if (productIdArray.length === 0) {
         setProducts([]);
         setVariants([]);
         return;
       }
 
-      // Fetch variants in batches of 500 to avoid query limits
+      // Fetch product details for sold products in batches
+      const allProducts: Product[] = [];
+      for (let i = 0; i < productIdArray.length; i += 500) {
+        const batch = productIdArray.slice(i, i + 500);
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, hsn_code")
+          .in("id", batch)
+          .eq("status", "active")
+          .is("deleted_at", null);
+        if (error) throw error;
+        allProducts.push(...(data || []));
+      }
+
+      // Fetch variants for sold products in batches
+      const variantIdArray = Array.from(soldVariantIds);
       const allVariants: Variant[] = [];
-      for (let i = 0; i < productIds.length; i += 500) {
-        const batch = productIds.slice(i, i + 500);
+      for (let i = 0; i < variantIdArray.length; i += 500) {
+        const batch = variantIdArray.slice(i, i + 500);
         const { data: variantsData, error: variantsError } = await supabase
           .from("product_variants")
           .select("id, product_id, size, sale_price, stock_qty, barcode, products(gst_per)")
-          .in("product_id", batch)
+          .in("id", batch)
           .eq("active", true)
           .is("deleted_at", null);
 
@@ -157,8 +176,8 @@ export default function SaleReturnEntry() {
       setProducts(allProducts);
       setVariants(allVariants);
     } catch (error) {
-      console.error("Error loading products:", error);
-      toast({ title: "Error", description: "Failed to load products", variant: "destructive" });
+      console.error("Error loading sold products:", error);
+      toast({ title: "Error", description: "Failed to load sold products", variant: "destructive" });
     }
   };
 
@@ -226,9 +245,10 @@ export default function SaleReturnEntry() {
       }
     }
     
-    // If still not found, try direct DB lookup (handles large catalogs where local cache may be incomplete)
+    // If still not found, try direct DB lookup but only if it was sold before
     if (!variant || !product) {
       try {
+        // First check if this barcode's variant was ever sold in this org
         const { data: dbVariant } = await supabase
           .from("product_variants")
           .select("id, product_id, size, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
@@ -238,9 +258,18 @@ export default function SaleReturnEntry() {
           .maybeSingle();
 
         if (dbVariant && (dbVariant.products as any)?.status === 'active' && !(dbVariant.products as any)?.deleted_at) {
-          const p = dbVariant.products as any;
-          product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
-          variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
+          // Verify it was sold in this organization
+          const { count } = await supabase
+            .from("sale_items")
+            .select("id", { count: "exact", head: true })
+            .eq("variant_id", dbVariant.id)
+            .is("deleted_at", null);
+
+          if (count && count > 0) {
+            const p = dbVariant.products as any;
+            product = { id: p.id, product_name: p.product_name, brand: p.brand, category: p.category, hsn_code: p.hsn_code };
+            variant = { id: dbVariant.id, product_id: dbVariant.product_id, size: dbVariant.size, sale_price: dbVariant.sale_price || 0, stock_qty: dbVariant.stock_qty, barcode: dbVariant.barcode, gst_per: p.gst_per || 0 };
+          }
         }
       } catch (err) {
         console.error("DB barcode lookup error:", err);
