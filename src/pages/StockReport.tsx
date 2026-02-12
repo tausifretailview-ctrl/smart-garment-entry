@@ -1067,7 +1067,7 @@ export default function StockReport() {
                           <TableHead className="text-right bg-green-50 dark:bg-green-950 text-green-800 dark:text-white">Purchase Qty</TableHead>
                           <TableHead className="text-right bg-orange-50 dark:bg-orange-950 text-orange-800 dark:text-white">Pur Return</TableHead>
                           <TableHead className="text-right bg-red-50 dark:bg-red-950 text-red-800 dark:text-white">Sales Qty</TableHead>
-                          <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-white">Current Stock</TableHead>
+                          <TableHead className="text-right bg-primary/10 font-semibold text-primary dark:text-primary">Current Stock</TableHead>
                           <TableHead className="text-right">Pur Price</TableHead>
                           <TableHead className="text-right">Stock Value</TableHead>
                           <TableHead className="text-right">Sale Price</TableHead>
@@ -1136,6 +1136,35 @@ export default function StockReport() {
                               </TableCell>
                             </TableRow>
                           ))
+                        )}
+                        {/* Totals Row */}
+                        {filteredStockItems.length > 0 && (
+                          <TableRow className="bg-muted/50 font-bold border-t-2">
+                            <TableCell className="text-center" colSpan={7}>TOTAL</TableCell>
+                            <TableCell className="text-right bg-blue-50 dark:bg-blue-950">
+                              {filteredStockItems.reduce((s, i) => s + i.opening_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400">
+                              +{filteredStockItems.reduce((s, i) => s + i.purchase_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400">
+                              -{filteredStockItems.reduce((s, i) => s + i.purchase_return_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
+                              -{filteredStockItems.reduce((s, i) => s + i.sales_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right bg-primary/10 text-primary">
+                              {filteredStockItems.reduce((s, i) => s + i.stock_qty, 0).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right">—</TableCell>
+                            <TableCell className="text-right text-primary">
+                              ₹{Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              ₹{Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}
+                            </TableCell>
+                            <TableCell>—</TableCell>
+                          </TableRow>
                         )}
                       </TableBody>
                     </Table>
