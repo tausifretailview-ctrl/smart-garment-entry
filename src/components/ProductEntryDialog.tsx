@@ -999,17 +999,19 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                             <TableCell>
                               <Input
                                 type="number"
-                                value={variant.pur_price}
-                                onChange={(e) => handleVariantChange(index, "pur_price", Number(e.target.value))}
+                                value={variant.pur_price || ""}
+                                onChange={(e) => handleVariantChange(index, "pur_price", e.target.value === "" ? 0 : Number(e.target.value))}
                                 className="w-24"
+                                placeholder="0"
                               />
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="number"
-                                value={variant.sale_price}
-                                onChange={(e) => handleVariantChange(index, "sale_price", Number(e.target.value))}
+                                value={variant.sale_price || ""}
+                                onChange={(e) => handleVariantChange(index, "sale_price", e.target.value === "" ? 0 : Number(e.target.value))}
                                 className="w-24"
+                                placeholder="0"
                               />
                             </TableCell>
                             {showMrp && (
@@ -1033,9 +1035,10 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                             <TableCell>
                               <Input
                                 type="number"
-                                value={variant.opening_qty}
-                                onChange={(e) => handleVariantChange(index, "opening_qty", Number(e.target.value))}
+                                value={variant.opening_qty || ""}
+                                onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
                                 className="w-20"
+                                placeholder="0"
                               />
                             </TableCell>
                             <TableCell>
