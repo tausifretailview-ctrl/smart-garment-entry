@@ -508,6 +508,26 @@ export default function StockAnalysis() {
                               <TableCell className="text-right">₹{item.sale_price}</TableCell>
                             </TableRow>
                           ))}
+                          {lowStockItems.length > 0 && (
+                            <TableRow className="bg-muted/70 font-bold border-t-2">
+                              <TableCell colSpan={5} className="text-primary">Total</TableCell>
+                              <TableCell className="text-right bg-blue-50 dark:bg-blue-950 font-bold">
+                                {lowStockItems.reduce((sum, i) => sum + i.opening_qty, 0)}
+                              </TableCell>
+                              <TableCell className="text-right bg-green-50 dark:bg-green-950 font-bold text-green-700 dark:text-green-400">
+                                +{lowStockItems.reduce((sum, i) => sum + i.purchase_qty, 0)}
+                              </TableCell>
+                              <TableCell className="text-right bg-red-50 dark:bg-red-950 font-bold text-red-700 dark:text-red-400">
+                                -{lowStockItems.reduce((sum, i) => sum + i.sales_qty, 0)}
+                              </TableCell>
+                              <TableCell className="text-right bg-primary/10 font-bold text-destructive">
+                                {lowStockItems.reduce((sum, i) => sum + i.stock_qty, 0)}
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                ₹{lowStockItems.reduce((sum, i) => sum + i.sale_price, 0).toFixed(2)}
+                              </TableCell>
+                            </TableRow>
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -588,6 +608,15 @@ export default function StockAnalysis() {
                             </TableRow>
                           );
                         })}
+                        {batchStock.length > 0 && (
+                          <TableRow className="bg-muted/70 font-bold border-t-2">
+                            <TableCell colSpan={7} className="text-primary">Total</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {batchStock.reduce((sum, b) => sum + b.quantity, 0)}
+                            </TableCell>
+                            <TableCell colSpan={2}></TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   )}
@@ -623,7 +652,7 @@ export default function StockAnalysis() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {movements.map((movement) => (
+                          {movements.map((movement) => (
                           <TableRow key={movement.id}>
                             <TableCell>
                               {new Date(movement.created_at).toLocaleDateString()} {new Date(movement.created_at).toLocaleTimeString()}
@@ -641,6 +670,15 @@ export default function StockAnalysis() {
                             <TableCell className="text-muted-foreground">{movement.notes}</TableCell>
                           </TableRow>
                         ))}
+                        {movements.length > 0 && (
+                          <TableRow className="bg-muted/70 font-bold border-t-2">
+                            <TableCell colSpan={4} className="text-primary">Total</TableCell>
+                            <TableCell className="text-right font-bold">
+                              {movements.reduce((sum, m) => sum + m.quantity, 0)}
+                            </TableCell>
+                            <TableCell></TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   )}
