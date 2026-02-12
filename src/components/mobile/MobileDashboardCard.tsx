@@ -68,8 +68,10 @@ export const MobileDashboardCard = ({
 
   return (
     <Card 
-      className="overflow-hidden active:scale-[0.98] transition-transform touch-manipulation cursor-pointer"
+      className="overflow-hidden active:scale-[0.98] transition-transform touch-manipulation cursor-pointer relative z-[2]"
       onClick={onClick}
+      role="button"
+      tabIndex={0}
     >
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-2">

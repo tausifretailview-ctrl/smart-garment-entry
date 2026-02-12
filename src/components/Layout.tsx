@@ -29,12 +29,15 @@ export const Layout = ({ children }: LayoutProps) => {
           <AppSidebar />
           <SidebarInset className="flex flex-col flex-1">
             <Header />
-            <WindowTabsBar />
+            {/* WindowTabsBar hidden on mobile to prevent tooltip touch interference */}
+            <div className="hidden lg:block">
+              <WindowTabsBar />
+            </div>
             <div className="flex lg:hidden items-center gap-1 px-2 py-0.5 border-b bg-sidebar">
               <SidebarTrigger className="text-sidebar-foreground h-5 w-5" />
             </div>
-            {/* Add bottom padding on mobile for bottom nav */}
-            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-4">{children}</main>
+            {/* Add bottom padding on mobile for bottom nav; z-[1] ensures content is below fixed nav elements */}
+            <main className="flex-1 overflow-auto p-4 pb-20 lg:pb-4 relative z-[1]">{children}</main>
             <Footer />
           </SidebarInset>
         </div>

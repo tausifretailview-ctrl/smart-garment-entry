@@ -127,9 +127,9 @@ export const OfflineIndicator = ({ className, showAlways = false }: OfflineIndic
 
   return (
     <div className={cn(
-      "fixed top-0 left-0 right-0 z-[100] flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium transition-all duration-300 lg:hidden",
+      "fixed top-0 left-0 right-0 z-[60] flex items-center justify-center gap-2 py-2 px-4 text-sm font-medium transition-all duration-300 lg:hidden pointer-events-auto",
       config.className,
-      showBanner ? "translate-y-0" : "-translate-y-full",
+      showBanner ? "translate-y-0" : "-translate-y-full pointer-events-none",
       className
     )}>
       <Icon className={cn(
