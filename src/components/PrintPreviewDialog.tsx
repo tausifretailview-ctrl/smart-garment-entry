@@ -91,13 +91,26 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   const getPageSize = () => {
     switch (selectedFormat) {
       case 'a5':
-        return '148mm 210mm'; // A5 portrait
+        return 'A5 portrait';
       case 'a5-horizontal':
-        return '210mm 148mm'; // A5 landscape
+        return 'A5 landscape';
       case 'thermal':
         return '80mm auto';
       default:
-        return '210mm 297mm'; // A4 portrait
+        return 'A4 portrait';
+    }
+  };
+
+  const getBodyDimensions = () => {
+    switch (selectedFormat) {
+      case 'a5':
+        return 'width: 148mm !important; height: 210mm !important;';
+      case 'a5-horizontal':
+        return 'width: 210mm !important; height: 148mm !important;';
+      case 'thermal':
+        return 'width: 80mm !important; height: auto !important;';
+      default:
+        return 'width: 210mm !important; height: 297mm !important;';
     }
   };
 
@@ -153,8 +166,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         html, body {
           margin: 0 !important;
           padding: 0 !important;
-          width: 100% !important;
-          height: auto !important;
+          ${getBodyDimensions()}
           background: white !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
