@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2, Lock } from "lucide-react";
+import { Loader2, Package, Barcode, Upload, X, FileSpreadsheet, Plus, Edit, Trash2, Lock, Search, Copy } from "lucide-react";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { productEntryFields, productEntrySampleData, parseLocalizedNumber } from "@/utils/excelImportUtils";
@@ -134,6 +134,14 @@ const ProductEntry = () => {
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState<string>("");
 
+  // Copy from existing product
+  const [copySearch, setCopySearch] = useState("");
+  const [copyResults, setCopyResults] = useState<Array<{ id: string; product_name: string; brand: string; category: string }>>([]);
+  const [copyLoading, setCopyLoading] = useState(false);
+  const [showCopyDropdown, setShowCopyDropdown] = useState(false);
+  const [copySelectedIndex, setCopySelectedIndex] = useState(-1);
+  const copyDropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetchSizeGroups();
     fetchFieldSettings();
@@ -149,7 +157,137 @@ const ProductEntry = () => {
     }
   }, [location.search]);
 
-  // Fetch unique categories, brands, HSN codes, and styles from existing products
+  // Copy from existing product - debounced search
+  useEffect(() => {
+    if (!copySearch.trim() || copySearch.length < 2 || !currentOrganization?.id || editingProductId) {
+      setCopyResults([]);
+      setShowCopyDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCopyLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .or(`product_name.ilike.%${copySearch}%,brand.ilike.%${copySearch}%,category.ilike.%${copySearch}%`)
+          .limit(20);
+
+        if (error) throw error;
+        const results = (data || []).map((p: any) => ({
+          id: p.id,
+          product_name: p.product_name || "",
+          brand: p.brand || "",
+          category: p.category || "",
+        }));
+        setCopyResults(results);
+        setShowCopyDropdown(results.length > 0);
+        setCopySelectedIndex(-1);
+      } catch (err) {
+        console.error("Copy search error:", err);
+      } finally {
+        setCopyLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [copySearch, currentOrganization?.id, editingProductId]);
+
+  // Close copy dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (copyDropdownRef.current && !copyDropdownRef.current.contains(e.target as Node)) {
+        setShowCopyDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleCopyFromProduct = useCallback(async (productId: string) => {
+    setShowCopyDropdown(false);
+    setCopySearch("");
+    try {
+      const { data: product, error } = await supabase
+        .from("products")
+        .select("*, product_variants(*)")
+        .eq("id", productId)
+        .single();
+
+      if (error || !product) throw error || new Error("Product not found");
+
+      // Extract colors from variants
+      const variantColors = product.product_variants
+        ? [...new Set(product.product_variants.map((v: any) => v.color).filter(Boolean))]
+        : [];
+
+      // Set form data from source product (leave product_name empty)
+      setFormData(prev => ({
+        ...prev,
+        product_name: "",
+        category: product.category || "",
+        brand: product.brand || "",
+        style: product.style || "",
+        colors: variantColors.length > 0 ? variantColors : [],
+        size_group_id: product.size_group_id || "",
+        hsn_code: product.hsn_code || "",
+        gst_per: product.gst_per ?? 18,
+        uom: product.uom || "NOS",
+        default_pur_price: product.default_pur_price || 0,
+        default_sale_price: product.default_sale_price || 0,
+        default_mrp: undefined,
+      }));
+
+      // Recalculate markup
+      const purPrice = product.default_pur_price || 0;
+      const salePrice = product.default_sale_price || 0;
+      if (purPrice > 0 && salePrice > 0) {
+        const calc = ((salePrice - purPrice) / purPrice) * 100;
+        setMarkupPercent(Math.round(calc * 100) / 100 + "");
+      }
+
+      // Set color input
+      setColorInput(variantColors.join(", "));
+
+      // Copy variants with empty barcodes and zero opening stock
+      if (product.product_variants && product.product_variants.length > 0) {
+        const copiedVariants: ProductVariant[] = product.product_variants
+          .filter((v: any) => v.active !== false && !v.deleted_at)
+          .map((v: any) => ({
+            color: v.color || "",
+            size: v.size || "",
+            pur_price: v.pur_price || 0,
+            sale_price: v.sale_price || 0,
+            mrp: v.mrp || null,
+            barcode: "", // New barcodes needed
+            active: true,
+            opening_qty: 0,
+          }));
+        setVariants(copiedVariants);
+        setShowVariants(true);
+      }
+
+      toast({
+        title: "Product Copied",
+        description: `Details copied from "${product.product_name}". Enter a new name and generate barcodes.`,
+      });
+
+      // Focus product name field
+      setTimeout(() => productNameInputRef.current?.focus(), 100);
+    } catch (err: any) {
+      console.error("Copy product error:", err);
+      toast({
+        title: "Error",
+        description: "Failed to copy product details",
+        variant: "destructive",
+      });
+    }
+  }, [currentOrganization, toast]);
+
+
   const fetchPreviousValues = async () => {
     if (!currentOrganization) return;
     
@@ -1465,6 +1603,68 @@ const ProductEntry = () => {
             </div>
           </CardHeader>
           <CardContent className="p-3 space-y-3">
+            {/* Copy from Existing Product - only shown for new products */}
+            {!editingProductId && (
+              <div className="space-y-1" ref={copyDropdownRef}>
+                <Label className="text-xs flex items-center gap-1">
+                  <Copy className="h-3 w-3" />
+                  Copy from Existing Product
+                </Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={copySearch}
+                    onChange={(e) => setCopySearch(e.target.value)}
+                    onFocus={() => {
+                      if (copyResults.length > 0) setShowCopyDropdown(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!showCopyDropdown || copyResults.length === 0) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setCopySelectedIndex(prev => Math.min(prev + 1, copyResults.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setCopySelectedIndex(prev => Math.max(prev - 1, 0));
+                      } else if (e.key === "Enter" && copySelectedIndex >= 0) {
+                        e.preventDefault();
+                        handleCopyFromProduct(copyResults[copySelectedIndex].id);
+                      } else if (e.key === "Escape") {
+                        setShowCopyDropdown(false);
+                      }
+                    }}
+                    placeholder="Search product name, brand, or category to copy..."
+                    className="h-7 text-xs pl-7 pr-7 border-dashed"
+                  />
+                  {copyLoading && (
+                    <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                  )}
+                  {showCopyDropdown && copyResults.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {copyResults.map((product, index) => (
+                        <div
+                          key={product.id}
+                          className={`px-3 py-1.5 cursor-pointer text-xs border-b border-border last:border-b-0 hover:bg-accent ${
+                            copySelectedIndex === index ? "bg-primary text-primary-foreground" : ""
+                          }`}
+                          onClick={() => handleCopyFromProduct(product.id)}
+                          onMouseEnter={() => setCopySelectedIndex(index)}
+                        >
+                          <div className="font-medium truncate">{product.product_name}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {[product.brand, product.category].filter(Boolean).join(" • ")}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Search & select a product to auto-fill all details. Then change name & generate barcodes.
+                </p>
+              </div>
+            )}
+
             {/* Product Image Upload */}
             <div className="space-y-1">
               <Label htmlFor="product_image" className="text-xs">Product Image</Label>
