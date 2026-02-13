@@ -1,19 +1,25 @@
 import JsBarcode from "jsbarcode";
 
-// Pre-render barcode to image data URL using canvas - PERMANENT FIX for barcode lines
-const renderBarcodeToDataURL = (code: string, height: number = 30, width: number = 1.5): string => {
+// Render barcode as inline SVG string for crisp vector output on all printers
+const renderBarcodeToSVG = (code: string, height: number = 30, width: number = 1.5): string => {
   try {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, code, {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, code, {
       format: 'CODE128',
       height: height,
       width: width,
       displayValue: false,
       margin: 0,
-      background: '#ffffff',
+      background: 'transparent',
       lineColor: '#000000',
     });
-    return canvas.toDataURL('image/png');
+    // Ensure explicit dimensions for consistent sizing
+    const w = svg.getAttribute('width') || '100';
+    const h = svg.getAttribute('height') || String(height);
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.display = 'block';
+    return new XMLSerializer().serializeToString(svg);
   } catch (error) {
     console.error('Failed to render barcode:', code, error);
     return '';
@@ -153,7 +159,7 @@ const getAbsolutePositionedLabelHTML = (
     if (fieldKey === 'barcode') {
       // Pre-render barcode as image for reliable printing
       const barcodeHeightMm = Math.max(6, (labelConfig.barcodeHeight || 30) * 0.4);
-      const barcodeDataUrl = renderBarcodeToDataURL(content, labelConfig.barcodeHeight || 30, labelConfig.barcodeWidth || 1.5);
+      const barcodeSvg = renderBarcodeToSVG(content, labelConfig.barcodeHeight || 30, labelConfig.barcodeWidth || 1.5);
       fieldsHtml += `
         <div style="
           position: absolute;
@@ -166,7 +172,7 @@ const getAbsolutePositionedLabelHTML = (
           align-items: center;
           overflow: visible;
         ">
-          ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="height: ${barcodeHeightMm}mm; max-width: 100%; display: block;" alt="barcode" />` : `<span style="font-size: 8px;">${content}</span>`}
+          ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${content}</span>`}
         </div>
       `;
     } else {
@@ -212,8 +218,8 @@ const getThermalLabelHTML = (
       <div style="font-size: 7px; text-align: center; font-weight: bold;">Our Price: ₹${ourPrice}</div>
       <div style="display: flex; justify-content: center; align-items: center; flex: 1; min-height: 8mm;">
         ${(() => {
-          const barcodeDataUrl = renderBarcodeToDataURL(barcode, 30, 1.5);
-          return barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="height: 8mm; max-width: 100%;" alt="barcode" />` : `<span style="font-size: 8px;">${barcode}</span>`;
+          const barcodeSvg = renderBarcodeToSVG(barcode, 30, 1.5);
+          return barcodeSvg ? `<div style="height: 8mm; max-width: 100%; display: flex; align-items: center; justify-content: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`;
         })()}
       </div>
       <div style="font-size: 7px; text-align: center; font-weight: bold;">${barcode}</div>
@@ -269,9 +275,9 @@ const getLegacyLabelHTML = (
     html += `<div class="mrp" style="font-size: ${config.price.fontSize}px; font-weight: ${config.price.bold ? 'bold' : 'normal'}; text-align: ${config.price.textAlign || 'center'}; margin-bottom: 3mm;">MRP: ₹${item.sale_price}</div>`;
   }
   if (config.barcode.show) {
-    const barcodeDataUrl = renderBarcodeToDataURL(barcode, 35, 2);
-    html += barcodeDataUrl 
-      ? `<img src="${barcodeDataUrl}" style="margin-bottom: 2mm; max-width: 100%; display: block; margin-left: auto; margin-right: auto;" alt="barcode" />`
+    const barcodeSvg = renderBarcodeToSVG(barcode, 35, 2);
+    html += barcodeSvg 
+      ? `<div style="margin-bottom: 2mm; max-width: 100%; display: flex; justify-content: center;">${barcodeSvg}</div>`
       : `<div style="font-size: 10px; text-align: center; margin-bottom: 2mm;">${barcode}</div>`;
   }
   html += `<div class="meta" style="font-size: ${config.barcodeText.fontSize}px; font-weight: ${config.barcodeText.bold ? 'bold' : 'normal'}; text-align: ${config.barcodeText.textAlign || 'center'}; margin-bottom: 1mm;">${barcode}</div>`;
@@ -740,35 +746,8 @@ export const printBarcodesDirectly = async (
       }
     }
 
-    // Barcodes are now pre-rendered as images, no need to wait for JsBarcode library
-    // Just wait for images to load
-    await new Promise<void>((resolve) => {
-      const images = printContainer.querySelectorAll('img');
-      if (images.length === 0) {
-        resolve();
-        return;
-      }
-      
-      let loadedCount = 0;
-      const checkAllLoaded = () => {
-        loadedCount++;
-        if (loadedCount >= images.length) {
-          resolve();
-        }
-      };
-      
-      images.forEach((img) => {
-        if (img.complete) {
-          checkAllLoaded();
-        } else {
-          img.onload = checkAllLoaded;
-          img.onerror = checkAllLoaded;
-        }
-      });
-      
-      // Fallback timeout
-      setTimeout(resolve, 2000);
-    });
+    // SVG barcodes are inline – no image loading needed, just a brief DOM settle
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
     setTimeout(() => {
       printWindow.focus();
