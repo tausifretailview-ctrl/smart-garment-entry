@@ -124,7 +124,17 @@ const FeeCollection = () => {
       const { data, error } = await query.limit(50);
       if (error) throw error;
 
-      if (!currentYear || !data?.length) return data || [];
+      if (!data?.length) return data || [];
+
+      if (!currentYear) {
+        return data.map((student: any) => ({
+          ...student,
+          totalExpected: 0,
+          totalPaid: 0,
+          totalDue: 0,
+          feeStatus: "no-structure",
+        }));
+      }
 
       // Get fee structures and payments in parallel for calculation
       const classIds = [...new Set(data.map((s: any) => s.class_id).filter(Boolean))];
