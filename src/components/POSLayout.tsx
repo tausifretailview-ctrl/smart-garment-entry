@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon } from "lucide-react";
+import { Menu, Home, Package, ShoppingCart, FileText, Settings, LogOut, Store, PlusCircle, Trash2, Keyboard, LayoutGrid, BarChart3, Package as PackageIcon, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -36,7 +36,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const { signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
-  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, hasItems } = usePOS();
+  const { onNewSale, onClearCart, onOpenCashierReport, onOpenStockReport, onOpenSaleReturn, hasItems } = usePOS();
   const { isOpen, setIsOpen } = useKeyboardShortcuts("pos");
 
   const handleSignOut = async () => {
@@ -172,6 +172,24 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
                   <p>Quick Stock Check</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {onOpenSaleReturn && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={onOpenSaleReturn}
+                    className="text-primary-foreground hover:bg-primary/80 gap-1"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    <span className="hidden sm:inline">S/R</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
+                  <p>Sale Return</p>
                 </TooltipContent>
               </Tooltip>
             )}

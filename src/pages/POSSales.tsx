@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Scan, X, Plus, Trash2, Banknote, CreditCard, Smartphone, Printer, ChevronLeft, ChevronRight, FileText, RotateCcw, Check, UserPlus, MessageCircle, Link2, Wallet, IndianRupee, ArrowUp, Pause, Loader2, AlertCircle, Clock, Coins, BarChart3, Package } from "lucide-react";
 import { MobilePOSLayout } from "@/components/mobile/MobilePOSLayout";
 import { FloatingPOSReports } from "@/components/FloatingPOSReports";
+import { FloatingSaleReturn } from "@/components/FloatingSaleReturn";
 
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
@@ -103,7 +104,7 @@ interface CartItem {
 export default function POSSales() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setHasItems } = usePOS();
+  const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setHasItems } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { createCreditNote, getAvailableCreditBalance, applyCredit, isCreating: isCreatingCreditNote, isApplying: isApplyingCredit } = useCreditNotes();
   const isMobile = useIsMobile();
@@ -196,6 +197,7 @@ export default function POSSales() {
   // Floating reports state
   const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
+  const [showFloatingSaleReturn, setShowFloatingSaleReturn] = useState(false);
 
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
 
@@ -547,13 +549,18 @@ export default function POSSales() {
       setShowFloatingStockReport(true);
     });
 
+    setOnOpenSaleReturn(() => () => {
+      setShowFloatingSaleReturn(true);
+    });
+
     return () => {
       setOnNewSale(null);
       setOnClearCart(null);
       setOnOpenCashierReport(null);
       setOnOpenStockReport(null);
+      setOnOpenSaleReturn(null);
     };
-  }, [setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, toast]);
+  }, [setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, toast]);
 
   // Update hasItems in header
   useEffect(() => {
@@ -2323,6 +2330,7 @@ export default function POSSales() {
           flatDiscountMode={flatDiscountMode}
           onFlatDiscountValueChange={setFlatDiscountValue}
           onFlatDiscountModeChange={setFlatDiscountMode}
+          onSaleReturn={() => setShowFloatingSaleReturn(true)}
         />
 
         {/* Dialogs needed for mobile too */}
@@ -2332,6 +2340,19 @@ export default function POSSales() {
           billAmount={finalAmount}
           creditApplied={creditApplied}
           onSave={handleMixPaymentSave}
+        />
+
+        {/* Floating Sale Return for mobile */}
+        <FloatingSaleReturn
+          open={showFloatingSaleReturn}
+          onOpenChange={setShowFloatingSaleReturn}
+          organizationId={currentOrganization?.id || ""}
+          customerId={customerId}
+          customerName={customerName || undefined}
+          onReturnSaved={(amount, returnNumber) => {
+            setSaleReturnAdjust(amount);
+            toast({ title: "Sale Return Applied", description: `Return ${returnNumber} — ₹${Math.round(amount)} adjusted` });
+          }}
         />
 
         {/* Add Customer Dialog */}
@@ -3837,6 +3858,19 @@ export default function POSSales() {
           onCloseCashierReport={() => setShowFloatingCashierReport(false)}
           showStockReport={showFloatingStockReport}
           onCloseStockReport={() => setShowFloatingStockReport(false)}
+        />
+
+        {/* Floating Sale Return */}
+        <FloatingSaleReturn
+          open={showFloatingSaleReturn}
+          onOpenChange={setShowFloatingSaleReturn}
+          organizationId={currentOrganization?.id || ""}
+          customerId={customerId}
+          customerName={customerName || undefined}
+          onReturnSaved={(amount, returnNumber) => {
+            setSaleReturnAdjust(amount);
+            toast({ title: "Sale Return Applied", description: `Return ${returnNumber} — ₹${Math.round(amount)} adjusted` });
+          }}
         />
 
       </div>
