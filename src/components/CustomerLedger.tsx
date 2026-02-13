@@ -40,7 +40,7 @@ interface Customer {
 interface Transaction {
   id: string;
   date: string;
-  type: 'invoice' | 'payment' | 'advance';
+  type: 'invoice' | 'payment' | 'advance' | 'adjustment';
   reference: string;
   description: string;
   debit: number;
@@ -259,11 +259,30 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
 
       if (advancesError) throw advancesError;
 
+      // Fetch balance adjustments
+      let adjustmentsQuery = (supabase as any)
+        .from("customer_balance_adjustments")
+        .select("*")
+        .eq("customer_id", selectedCustomer.id)
+        .eq("organization_id", organizationId);
+
+      if (startDate) {
+        adjustmentsQuery = adjustmentsQuery.gte("adjustment_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        adjustmentsQuery = adjustmentsQuery.lte("adjustment_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const { data: adjustmentsData, error: adjustmentsError } = await adjustmentsQuery.order("created_at", { ascending: true });
+
+      if (adjustmentsError) throw adjustmentsError;
+
       console.log('Sales for customer:', salesData?.length || 0);
       console.log('All customer sale IDs:', allSaleIds.length);
       console.log('Invoice payments found:', vouchersData?.length || 0);
       console.log('Opening balance payments found:', openingBalancePayments?.length || 0);
       console.log('Advances found:', advancesData?.length || 0);
+      console.log('Adjustments found:', adjustmentsData?.length || 0);
 
       // Calculate total voucher payments per sale to exclude from "payment at sale"
       const voucherPaymentsBySaleId: Record<string, number> = {};
@@ -311,6 +330,11 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
           date: advance.advance_date,
           type: 'advance' as const,
           data: advance,
+        })),
+        ...(adjustmentsData || []).map((adj: any) => ({
+          date: adj.adjustment_date,
+          type: 'adjustment' as const,
+          data: adj,
         })),
       ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -399,6 +423,26 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
             credit: advance.amount,
             balance: runningBalance,
             paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
+          });
+        } else if (item.type === 'adjustment') {
+          const adj = item.data as any;
+          const outDiff = adj.outstanding_difference || 0;
+          const advDiff = adj.advance_difference || 0;
+          // Outstanding increase = debit, decrease = credit
+          // Advance increase = credit, decrease = debit
+          const netDebit = (outDiff > 0 ? outDiff : 0) + (advDiff < 0 ? Math.abs(advDiff) : 0);
+          const netCredit = (outDiff < 0 ? Math.abs(outDiff) : 0) + (advDiff > 0 ? advDiff : 0);
+          runningBalance += netDebit - netCredit;
+          
+          allTransactions.push({
+            id: adj.id,
+            date: adj.adjustment_date,
+            type: 'adjustment',
+            reference: 'ADJ',
+            description: `Balance Adjustment: ${adj.reason}`,
+            debit: netDebit,
+            credit: netCredit,
+            balance: runningBalance,
           });
         } else {
           const voucher = item.data as any;
@@ -1093,6 +1137,10 @@ Please clear your dues at the earliest. Thank you!`;
                                   {transaction.type === 'advance' ? (
                                     <Badge className="bg-primary/20 text-primary border-primary/30">
                                       <Wallet className="h-3 w-3 mr-1" /> ADVANCE
+                                    </Badge>
+                                  ) : transaction.type === 'adjustment' ? (
+                                    <Badge className="bg-orange-500/20 text-orange-700 dark:text-orange-400 border-orange-500/30">
+                                      ADJ
                                     </Badge>
                                   ) : (
                                     <Badge variant={transaction.type === 'invoice' ? 'default' : 'secondary'}>

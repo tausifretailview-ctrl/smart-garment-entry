@@ -613,6 +613,69 @@ export type Database = {
           },
         ]
       }
+      customer_balance_adjustments: {
+        Row: {
+          adjustment_date: string
+          advance_difference: number
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          new_advance: number
+          new_outstanding: number
+          organization_id: string
+          outstanding_difference: number
+          previous_advance: number
+          previous_outstanding: number
+          reason: string
+        }
+        Insert: {
+          adjustment_date?: string
+          advance_difference?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          new_advance?: number
+          new_outstanding?: number
+          organization_id: string
+          outstanding_difference?: number
+          previous_advance?: number
+          previous_outstanding?: number
+          reason: string
+        }
+        Update: {
+          adjustment_date?: string
+          advance_difference?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          new_advance?: number
+          new_outstanding?: number
+          organization_id?: string
+          outstanding_difference?: number
+          previous_advance?: number
+          previous_outstanding?: number
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_balance_adjustments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_balance_adjustments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_brand_discounts: {
         Row: {
           brand: string

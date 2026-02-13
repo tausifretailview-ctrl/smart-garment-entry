@@ -34,6 +34,7 @@ import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
+import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdjustmentDialog";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -72,6 +73,7 @@ export default function Accounts() {
   
   // Advance booking dialog state
   const [showAdvanceDialog, setShowAdvanceDialog] = useState(false);
+  const [showBalanceAdjustmentDialog, setShowBalanceAdjustmentDialog] = useState(false);
 
   // Customer search state
   const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
@@ -1460,7 +1462,7 @@ export default function Accounts() {
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-8">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-9">
             <TabsTrigger value="customer-ledger">Customer Ledger</TabsTrigger>
             <TabsTrigger value="supplier-ledger">Supplier Ledger</TabsTrigger>
             <TabsTrigger value="customer-payment">Customer Payment</TabsTrigger>
@@ -1469,6 +1471,7 @@ export default function Accounts() {
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="voucher-entry">Voucher Entry</TabsTrigger>
             <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+            {isAdmin && <TabsTrigger value="balance-adjustment">Balance Adj.</TabsTrigger>}
           </TabsList>
 
           {/* Customer Ledger Tab */}
@@ -3239,6 +3242,27 @@ export default function Accounts() {
           </TabsContent>
 
 
+          {/* Balance Adjustment Tab */}
+          {isAdmin && (
+            <TabsContent value="balance-adjustment" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Coins className="h-5 w-5" />
+                    Customer Balance Adjustment
+                  </CardTitle>
+                  <CardDescription>Adjust customer outstanding or advance balances with full audit trail</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button onClick={() => setShowBalanceAdjustmentDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Balance Adjustment
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
         </Tabs>
 
         {/* Receipt Dialog */}
@@ -3460,6 +3484,15 @@ export default function Accounts() {
           <AddAdvanceBookingDialog
             open={showAdvanceDialog}
             onOpenChange={setShowAdvanceDialog}
+            organizationId={currentOrganization.id}
+          />
+        )}
+
+        {/* Balance Adjustment Dialog */}
+        {currentOrganization?.id && (
+          <CustomerBalanceAdjustmentDialog
+            open={showBalanceAdjustmentDialog}
+            onOpenChange={setShowBalanceAdjustmentDialog}
             organizationId={currentOrganization.id}
           />
         )}
