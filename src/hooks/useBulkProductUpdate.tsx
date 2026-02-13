@@ -271,6 +271,48 @@ export const useBulkProductUpdate = () => {
     }
   };
 
+  // Field mappings for cascade updates
+  const purchaseItemsFieldMap: Record<string, string> = {
+    product_name: "product_name",
+    category: "category",
+    brand: "brand",
+    style: "style",
+    hsn_code: "hsn_code",
+    gst_per: "gst_per",
+  };
+
+  const saleItemsFieldMap: Record<string, string> = {
+    product_name: "product_name",
+    hsn_code: "hsn_code",
+    gst_per: "gst_percent",
+  };
+
+  const cascadeToTransactionItems = async (
+    field: string,
+    value: string | number | null,
+    productIds: string[]
+  ) => {
+    if (!currentOrganization || !productIds.length) return;
+
+    const piField = purchaseItemsFieldMap[field];
+    if (piField) {
+      await (supabase
+        .from("purchase_items")
+        .update({ [piField]: value } as any) as any)
+        .in("product_id", productIds)
+        .eq("organization_id", currentOrganization.id);
+    }
+
+    const siField = saleItemsFieldMap[field];
+    if (siField) {
+      await (supabase
+        .from("sale_items")
+        .update({ [siField]: value } as any) as any)
+        .in("product_id", productIds)
+        .eq("organization_id", currentOrganization.id);
+    }
+  };
+
   const applyUpdates = async (
     updateType: UpdateType,
     config: FindReplaceConfig | UpdateFieldConfig | DiscountConfig | GSTConfig | PriceConfig,
@@ -292,6 +334,9 @@ export const useBulkProductUpdate = () => {
               .from("products")
               .update({ [frConfig.field]: item.newValue })
               .eq("id", item.id);
+
+            // Cascade to transaction items
+            await cascadeToTransactionItems(frConfig.field, item.newValue, [item.id]);
           }
         } else if (updateType === "update_field") {
           const ufConfig = config as UpdateFieldConfig;
@@ -300,6 +345,9 @@ export const useBulkProductUpdate = () => {
             .from("products")
             .update({ [ufConfig.field]: ufConfig.value })
             .in("id", ids);
+
+          // Cascade to transaction items
+          await cascadeToTransactionItems(ufConfig.field, ufConfig.value, ids);
         } else if (updateType === "update_gst") {
           const gstConfig = config as GSTConfig;
           const ids = productItems.map(i => i.id);
@@ -307,6 +355,9 @@ export const useBulkProductUpdate = () => {
             .from("products")
             .update({ gst_per: gstConfig.newGst })
             .in("id", ids);
+
+          // Cascade GST to transaction items
+          await cascadeToTransactionItems("gst_per", gstConfig.newGst, ids);
         }
       }
 
