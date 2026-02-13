@@ -36,6 +36,7 @@ const DeliveryDashboard = () => {
   const [statusDate, setStatusDate] = useState<Date>(new Date());
   const [statusNarration, setStatusNarration] = useState("");
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [isExporting, setIsExporting] = useState(false);
 
   // Fetch delivery statistics
   const { data: deliveryStats } = useQuery({
@@ -326,11 +327,14 @@ const DeliveryDashboard = () => {
     });
   }, []);
 
-  const exportToExcel = () => {
+  const exportToExcel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isExporting) return;
     if (!filteredInvoices || filteredInvoices.length === 0) {
       toast.error("No data to export");
       return;
     }
+    setIsExporting(true);
 
     // Determine which invoices to export
     const invoicesToExport = selectedInvoiceIds.size > 0
@@ -339,6 +343,7 @@ const DeliveryDashboard = () => {
 
     if (invoicesToExport.length === 0) {
       toast.error("No invoices selected for export");
+      setIsExporting(false);
       return;
     }
 
@@ -415,9 +420,13 @@ const DeliveryDashboard = () => {
     // Generate filename with date
     const fileName = `Delivery_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
     
-    // Export with bookType xlsx for proper table format
-    XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
-    toast.success(`Exported ${invoicesToExport.length} invoice(s) successfully!`);
+    try {
+      // Export with bookType xlsx for proper table format
+      XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
+      toast.success(`Exported ${invoicesToExport.length} invoice(s) successfully!`);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -579,8 +588,8 @@ const DeliveryDashboard = () => {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    onClick={exportToExcel}
-                    disabled={!filteredInvoices || filteredInvoices.length === 0}
+                    onClick={(e) => exportToExcel(e)}
+                    disabled={isExporting || !filteredInvoices || filteredInvoices.length === 0}
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Export Excel {selectedInvoiceIds.size > 0 && `(${selectedInvoiceIds.size})`}
