@@ -131,7 +131,15 @@ export default function POSSales() {
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const { getBrandDiscount, hasBrandDiscounts, brandDiscounts } = useCustomerBrandDiscounts(customerId || null);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
-  const [items, setItems] = useState<CartItem[]>([]);
+  const [items, setItemsRaw] = useState<CartItem[]>([]);
+  const itemsRef = useRef<CartItem[]>([]);
+  const setItems = useCallback((updater: CartItem[] | ((prev: CartItem[]) => CartItem[])) => {
+    setItemsRaw(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      itemsRef.current = next;
+      return next;
+    });
+  }, []);
   const [flatDiscountValue, setFlatDiscountValue] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
@@ -907,11 +915,11 @@ export default function POSSales() {
     
     const existingItemIndex = isServiceProduct 
       ? -1  // Always treat as new item for service products
-      : items.findIndex(item => item.barcode === variant.barcode);
+      : itemsRef.current.findIndex(item => item.barcode === variant.barcode);
     
     if (existingItemIndex >= 0) {
       // Real-time stock validation before incrementing
-      const newQty = items[existingItemIndex].quantity + 1;
+      const newQty = itemsRef.current[existingItemIndex].quantity + 1;
       const stockCheck = await checkStock(variant.id, newQty);
       
       if (!stockCheck.isAvailable) {
