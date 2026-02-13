@@ -132,6 +132,7 @@ const ProductEntry = () => {
     status: "active",
   });
   const [colorInput, setColorInput] = useState("");
+  const [markupPercent, setMarkupPercent] = useState<string>("");
 
   useEffect(() => {
     fetchSizeGroups();
@@ -1837,18 +1838,46 @@ const ProductEntry = () => {
                   min="0"
                   step="0.01"
                   value={formData.default_pur_price ?? ""}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const purPrice = e.target.value === "" ? undefined : parseFloat(e.target.value) || 0;
+                    const markup = parseFloat(markupPercent);
+                    const newSalePrice = (!isNaN(markup) && (purPrice ?? 0) > 0)
+                      ? Math.round(((purPrice ?? 0) * (1 + markup / 100)) * 100) / 100
+                      : formData.default_sale_price;
                     setFormData({
                       ...formData,
-                      default_pur_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
-                    })
-                  }
+                      default_pur_price: purPrice,
+                      ...((!isNaN(markup) && (purPrice ?? 0) > 0) ? { default_sale_price: newSalePrice } : {}),
+                    });
+                  }}
                   className={`h-7 text-xs ${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   required
                 />
                 {(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) && (
                   <p className="text-destructive text-[10px] font-semibold">⚠ Pur &gt; Sale!</p>
                 )}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="markup_percent" className="text-xs">Markup %</Label>
+                <Input
+                  id="markup_percent"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={markupPercent}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setMarkupPercent(val);
+                    const markup = parseFloat(val);
+                    if (!isNaN(markup) && (formData.default_pur_price ?? 0) > 0) {
+                      const newSalePrice = Math.round(((formData.default_pur_price ?? 0) * (1 + markup / 100)) * 100) / 100;
+                      setFormData(prev => ({ ...prev, default_sale_price: newSalePrice }));
+                    }
+                  }}
+                  placeholder="e.g. 100"
+                  className="h-7 text-xs"
+                />
               </div>
 
               <div className="space-y-1">
@@ -1859,12 +1888,17 @@ const ProductEntry = () => {
                   min="0"
                   step="0.01"
                   value={formData.default_sale_price ?? ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      default_sale_price: e.target.value === "" ? undefined : parseFloat(e.target.value) || 0,
-                    })
-                  }
+                  onChange={(e) => {
+                    const salePrice = e.target.value === "" ? undefined : parseFloat(e.target.value) || 0;
+                    setFormData({ ...formData, default_sale_price: salePrice });
+                    // Recalculate markup %
+                    if ((formData.default_pur_price ?? 0) > 0 && (salePrice ?? 0) > 0) {
+                      const calc = (((salePrice ?? 0) - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
+                      setMarkupPercent(Math.round(calc * 100) / 100 + "");
+                    } else {
+                      setMarkupPercent("");
+                    }
+                  }}
                   className={`h-7 text-xs ${(formData.default_pur_price ?? 0) > 0 && (formData.default_sale_price ?? 0) > 0 && (formData.default_pur_price ?? 0) > (formData.default_sale_price ?? 0) ? 'border-destructive' : ''}`}
                   required
                 />
