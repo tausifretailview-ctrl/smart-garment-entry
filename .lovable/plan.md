@@ -1,83 +1,83 @@
 
 
-## Professional Invoice Template Improvements
+## Proportional Bill Discount Distribution for Accurate Sale Returns
 
-This plan updates the `ProfessionalTemplate` component with refined font sizes, compact row heights, new fields (S/R Adjusted Amount, Customer Outstanding), removal of the "Authorized Signatory" section, and improved Terms & Conditions styling.
+### Problem
+When a total bill discount is applied (e.g., Rs 1,000 off on a Rs 10,000 bill), the discount is stored only at the sale header level (`flat_discount_amount`). Individual `sale_items` rows do not reflect their share of this discount. During sale returns, the system uses the **current product price** (`variant.sale_price`) instead of the **actual discounted sale price**, leading to incorrect refund amounts.
 
----
+### Solution Overview
 
-### Changes Summary
-
-All changes are in **one file**: `src/components/invoice-templates/ProfessionalTemplate.tsx`
-
-### 1. Increase Font Sizes (A4 format)
-
-Update the `getFontSizes()` function for the `a4` case:
-
-| Field | Current | New |
-|-------|---------|-----|
-| Shop Name (businessName) | 14pt | 20pt |
-| Address, Mobile, Email | 8pt (small) | 13px |
-| Invoice No | 9pt (normal) | 14px bold |
-| Date, Payment Mode | 9pt | 13px |
-| Customer Name | 9pt bold | 14px bold |
-| Customer Mobile | 9pt | 13px |
-| Header Title (BILL OF SUPPLY) | 16pt | 16pt (unchanged) |
-| Table body | 8pt (small) | 12px |
-| Grand Total | 12pt | 14px |
-| Terms | 8pt | 11px |
-
-### 2. Table Improvements
-
-- Reduce empty row height from `16px` to `12px` (25% reduction)
-- Reduce data row padding from `3px 2px` to `2px 2px`
-- Change `minItemRows` default from `12` to `8`
-- Table header remains bold (already is)
-- Column structure unchanged (Sr, Description, Barcode, Qty, Rate, Amount)
-
-### 3. Add S/R Adjusted Amount Field
-
-Already partially implemented -- the `saleReturnAdjust` prop and rendering exist (lines 676-681). Will verify it appears in the summary between Discount and Grand Total. No change needed here as it already conditionally renders when `saleReturnAdjust > 0`.
-
-### 4. Add Customer Previous Outstanding
-
-- Add new prop `previousBalance?: number` to the interface
-- Render below the Balance row in the summary section:
-  ```
-  Customer Previous Outstanding: Rs XXXX
-  ```
-- Show only when `showPartyBalance` is true and `previousBalance > 0`
-
-### 5. Remove Authorized Signatory
-
-Remove the "For {businessName}" / "Authorised Signatory" box (lines 826-838). Replace with just the Declaration section spanning full width.
-
-### 6. Terms & Conditions
-
-- Increase font size from `8pt` to `11px`
-- Keep compact bullet/ordered list format
-- Proper alignment maintained
-
-### 7. QR Code Size
-
-- Increase QR code image from `100px` to `120px`
-- Increase container width from `110px` to `130px`
+```text
++---------------------+       +-------------------------+       +------------------------+
+| Sale Save           |       | sale_items table         |       | Sale Return (barcode)  |
+| (POS + Invoice)     | ----> | + discount_share         | ----> | Fetch original sale    |
+|                     |       | + net_after_discount     |       | item price, not current |
+| Distribute flat     |       | + per_qty_net_amount     |       | product price          |
+| discount to items   |       |                         |       |                        |
++---------------------+       +-------------------------+       +------------------------+
+```
 
 ---
 
-### Technical Details
+### Step 1: Database Migration
 
-**File:** `src/components/invoice-templates/ProfessionalTemplate.tsx`
+Add 3 new columns to `sale_items`:
 
-Changes by line area:
-1. **Lines 34-107 (Interface)**: Add `previousBalance?: number` prop
-2. **Lines 207-241 (getFontSizes)**: Update A4 font sizes to new values
-3. **Lines 322 (getItemsPerPage)**: Keep A4 at 18 items per page (compact rows compensate)
-4. **Lines 142 (minItemRows default)**: Change from `12` to `8`
-5. **Lines 401-419 (header)**: Apply `20px` to businessName, `13px` to address/mobile
-6. **Lines 448-486 (customer/invoice details)**: Apply `14px bold` to customer name and invoice no, `13px` to other fields
-7. **Lines 500-581 (table)**: Reduce row padding and empty row height
-8. **Lines 659-743 (summary)**: Add previousBalance row after balanceDue
-9. **Lines 795-810 (QR code)**: Increase QR image size
-10. **Lines 813-839 (footer)**: Remove Authorised Signatory box, make Declaration full width
-11. **Lines 855-871 (terms)**: Increase font to `11px`
+| Column | Type | Default | Description |
+|--------|------|---------|-------------|
+| `discount_share` | numeric | 0 | Item's proportional share of total bill discount |
+| `net_after_discount` | numeric | 0 | Item gross amount minus discount share |
+| `per_qty_net_amount` | numeric | 0 | Net amount per unit (net_after_discount / quantity) |
+
+---
+
+### Step 2: Sale Save Logic (useSaveSale.tsx)
+
+When inserting `sale_items`, calculate and store per-item discount distribution:
+
+```text
+For each item:
+  item_gross = unit_price * quantity  (already stored as line_total)
+  discount_share = (item_gross / sub_total) * flat_discount_amount
+  net_after_discount = item_gross - discount_share
+  per_qty_net_amount = net_after_discount / quantity
+```
+
+This applies to both POS and Sales Invoice saves since both go through `useSaveSale`.
+
+The `CartItem` interface already has `discountAmount` (line-level discount). The new `discount_share` specifically tracks the **bill-level flat discount** portion allocated to each item.
+
+---
+
+### Step 3: Sale Return Entry (SaleReturnEntry.tsx)
+
+When a barcode is scanned for return:
+
+1. Query `sale_items` for the most recent sale containing this barcode/variant
+2. Use `per_qty_net_amount` as the return unit price (instead of `variant.sale_price`)
+3. Use `net_after_discount` for full-quantity returns
+4. Fall back to `line_total / quantity` if `per_qty_net_amount` is 0 (for legacy sales before this change)
+
+**Lookup logic:**
+```text
+SELECT per_qty_net_amount, net_after_discount, quantity, unit_price
+FROM sale_items
+WHERE variant_id = ? AND deleted_at IS NULL
+ORDER BY created_at DESC
+LIMIT 1
+```
+
+---
+
+### Files to Modify
+
+1. **Database migration** -- Add 3 columns to `sale_items`
+2. **`src/hooks/useSaveSale.tsx`** -- Calculate `discount_share`, `net_after_discount`, `per_qty_net_amount` during item insert (both `saveSale` and `updateSale` functions)
+3. **`src/pages/SaleReturnEntry.tsx`** -- Change barcode scan handler and `addProduct` to fetch original sale price from `sale_items` instead of using current `variant.sale_price`
+
+### Important Rules Enforced
+- Return amounts always come from stored sale data, never from current product price
+- No re-application of discount during returns
+- Legacy sales (before migration) gracefully fall back to `line_total / quantity`
+- Both POS and Sales Invoice paths are covered (single `useSaveSale` hook)
+
