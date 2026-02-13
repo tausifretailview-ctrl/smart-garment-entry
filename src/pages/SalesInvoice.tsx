@@ -1490,6 +1490,19 @@ Thank you for choosing us!`;
         title: "Validation Error",
         description: "Please add at least one product",
       });
+      savingLockRef.current = false;
+      return;
+    }
+
+    // Validate no items have 0 or negative quantity
+    const zeroQtyItems = filledItems.filter(item => !item.quantity || item.quantity <= 0);
+    if (zeroQtyItems.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Quantity",
+        description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.`,
+      });
+      savingLockRef.current = false;
       return;
     }
 

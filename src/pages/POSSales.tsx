@@ -1244,6 +1244,17 @@ export default function POSSales() {
       return;
     }
 
+    // Validate no items have 0 or negative quantity
+    const zeroQtyItems = items.filter(item => !item.quantity || item.quantity <= 0);
+    if (zeroQtyItems.length > 0) {
+      toast({
+        title: "Invalid Quantity",
+        description: `${zeroQtyItems.length} item(s) have zero or invalid quantity. Please fix before saving.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Check if payment method is pay_later and customer mobile is missing
     if ((forcePaymentMethod || paymentMethod) === 'pay_later' && !customerPhone?.trim()) {
       toast({
