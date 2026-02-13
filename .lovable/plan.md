@@ -1,90 +1,56 @@
 
-## Inline Sale Return in POS -- Floating Return Window
 
-### What This Does
-Adds a "Sale Return" button to the POS screen that opens a floating dialog window. Inside this dialog, you can scan/search returned products, save the return, and the return amount automatically fills into the S/R Adjusted field. Then you scan new products the customer is taking, and the return amount is adjusted against the new sale total.
+## Cascade Bulk Product Updates to Purchase Bill Items
 
-### User Flow
+### Problem
+When you use Bulk Update to change product fields like category, brand, HSN code, GST%, or product name, the changes only apply to the `products` table. The `purchase_items` table stores its own copy of these fields (denormalized), so purchase bills still show the old values.
 
-```text
-1. Customer brings old product to return
-2. Click "S/R" button in POS bottom bar (mobile) or header (desktop)
-3. Floating dialog opens with barcode scanner + product search
-4. Scan returned product(s) --> items appear in return list
-5. Click "Save Return" --> return is saved to database
-6. Dialog closes, return amount auto-fills into S/R Adjust field
-7. Scan new products customer is taking
-8. Final amount = New Sale Total - S/R Adjusted Amount
-```
+### Solution
+After updating the `products` table, also update the matching denormalized fields in `purchase_items` (and `sale_items` where applicable) for the same product IDs.
 
----
+### Field Mapping
+
+| Bulk Update Field | purchase_items column | sale_items column |
+|---|---|---|
+| product_name | product_name | product_name |
+| category | category | -- |
+| brand | brand | -- |
+| style | style | -- |
+| hsn_code | hsn_code | hsn_code |
+| gst_per | gst_per | gst_percent |
 
 ### Changes
 
-**New File: `src/components/FloatingSaleReturn.tsx`**
+**File: `src/hooks/useBulkProductUpdate.tsx`**
 
-A floating dialog component containing:
-- Barcode scanner input (auto-focused)
-- Product search popover (only sold products, reusing existing pattern from SaleReturnEntry)
-- Return items table with quantity +/- and remove buttons
-- Total display
-- "Save Return" button that:
-  - Generates a sale return number via `generate_sale_return_number` RPC
-  - Inserts into `sale_returns` and `sale_return_items` tables
-  - Fetches original sale price from `sale_items.per_qty_net_amount` (with fallback)
-  - Returns the net amount to the parent via callback
-- "Cancel" button to close without saving
+In the `applyUpdates` function, after each product-level update block, add corresponding updates to `purchase_items` and `sale_items`:
 
-Props:
-- `open: boolean`
-- `onOpenChange: (open: boolean) => void`
-- `organizationId: string`
-- `customerId?: string` (auto-passed from current POS customer)
-- `customerName?: string`
-- `onReturnSaved: (returnAmount: number, returnNumber: string) => void`
+1. **Find & Replace** -- After updating each product, also update `purchase_items` rows where `product_id = item.id` with the same field/value (if the field exists in `purchase_items`). For `product_name` changes, also update `sale_items`.
 
-**Modified File: `src/pages/POSSales.tsx`**
+2. **Update Field** -- After bulk updating products, run a matching update on `purchase_items` for the same product IDs with the mapped column name. If the field is `hsn_code`, also update `sale_items`. If the field is `gst_per`, also update `sale_items.gst_percent`.
 
-- Add state: `showFloatingSaleReturn`
-- Import and render `FloatingSaleReturn` dialog
-- On `onReturnSaved` callback: set `saleReturnAdjust` to the returned amount, show success toast
-- Wire up the button to open the dialog
-
-**Modified File: `src/components/mobile/MobilePOSBottomBar.tsx`**
-
-- Add a "S/R" (Sale Return) button in the bottom bar, replacing one of the existing layout options or adding it to the "More" sheet
-- On click: call `onSaleReturn` callback
-
-**Modified File: `src/components/mobile/MobilePOSLayout.tsx`**
-
-- Pass through `onSaleReturn` and `showFloatingSaleReturn` props
-
-**Modified File: `src/components/mobile/MobilePOSPaymentSheet.tsx`**
-
-- Add "Sale Return" option in the payment sheet's "More" actions
-
-**Modified File: `src/components/POSLayout.tsx` (Desktop)**
-
-- Add a "Sale Return" button in the header toolbar (next to existing buttons like New Sale, Clear, Cashier, Stock)
-
----
+3. **Update GST** -- After updating `products.gst_per`, also update `purchase_items.gst_per` and `sale_items.gst_percent` for the same product IDs.
 
 ### Technical Details
 
-**Return item pricing logic** (reused from SaleReturnEntry):
-- Query `sale_items` for `per_qty_net_amount` (post-migration sales with proportional discount)
-- Fall back to `line_total / quantity` for legacy sales
-- Final fallback to `variant.sale_price`
+A helper mapping will translate product field names to their corresponding column names in each transaction table:
 
-**Database operations** (same tables as SaleReturnEntry):
-- `sale_returns` -- header record with return number, customer, amounts
-- `sale_return_items` -- line items with product, variant, quantity, unit price
+```text
+purchaseItemsFieldMap = {
+  product_name -> product_name
+  category -> category
+  brand -> brand
+  style -> style
+  hsn_code -> hsn_code
+  gst_per -> gst_per
+}
 
-**Amount flow:**
-- After saving the return, the return's `net_amount` is passed back to POSSales
-- POSSales sets `saleReturnAdjust = returnAmount`
-- The existing formula already handles it: `finalAmount = subtotal - flatDiscount - saleReturnAdjust + roundOff`
+saleItemsFieldMap = {
+  product_name -> product_name
+  hsn_code -> hsn_code
+  gst_per -> gst_percent   (note: different column name)
+}
+```
 
-**Desktop POS:** The existing S/R Adjust input field (line ~3325-3334) will be auto-populated but remains editable for manual override.
+Each cascade update will filter by `product_id IN (affected product IDs)` and the organization's scope, ensuring only the correct records are updated. Soft-deleted transaction items (with `deleted_at`) will also be updated to maintain data consistency if they are ever restored.
 
-**Mobile POS:** The "Sale Return" option will be available in the "More" payment sheet to keep the bottom bar clean.
