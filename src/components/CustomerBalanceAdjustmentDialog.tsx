@@ -37,10 +37,75 @@ export function CustomerBalanceAdjustmentDialog({
   const [newAdvance, setNewAdvance] = useState("");
   const [reason, setReason] = useState("");
 
-  // Fetch customers
+  // Fetch customers with outstanding and advance balances
   const { data: customers } = useQuery({
-    queryKey: ["all-customers-adjustment", organizationId],
-    queryFn: () => fetchAllCustomers(organizationId),
+    queryKey: ["all-customers-adjustment-balances", organizationId],
+    queryFn: async () => {
+      const allCustomers = await fetchAllCustomers(organizationId);
+
+      // Fetch all sales summary
+      const { data: allSales } = await supabase
+        .from("sales")
+        .select("id, customer_id, net_amount, paid_amount")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null);
+
+      // Fetch all voucher payments
+      const { data: allVouchers } = await supabase
+        .from("voucher_entries")
+        .select("reference_id, reference_type, total_amount")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "receipt")
+        .is("deleted_at", null);
+
+      // Fetch all active advances
+      const { data: allAdvances } = await supabase
+        .from("customer_advances")
+        .select("customer_id, amount, used_amount")
+        .eq("organization_id", organizationId)
+        .eq("status", "active");
+
+      // Build voucher maps
+      const saleIdSet = new Set((allSales || []).map((s: any) => s.id));
+      const invoiceVoucherPayments = new Map<string, number>();
+      const openingBalancePayments = new Map<string, number>();
+
+      (allVouchers || []).forEach((v: any) => {
+        if (!v.reference_id) return;
+        if (saleIdSet.has(v.reference_id)) {
+          invoiceVoucherPayments.set(v.reference_id, (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        } else if (v.reference_type === "customer") {
+          openingBalancePayments.set(v.reference_id, (openingBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0));
+        }
+      });
+
+      // Calculate per-customer outstanding
+      const customerOutstanding = new Map<string, number>();
+      (allSales || []).forEach((sale: any) => {
+        if (!sale.customer_id) return;
+        const salePaid = sale.paid_amount || 0;
+        const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
+        const effectivePaid = Math.max(salePaid, voucherPaid);
+        const outstanding = Math.max(0, (sale.net_amount || 0) - effectivePaid);
+        customerOutstanding.set(sale.customer_id, (customerOutstanding.get(sale.customer_id) || 0) + outstanding);
+      });
+
+      // Calculate per-customer advance
+      const customerAdvance = new Map<string, number>();
+      (allAdvances || []).forEach((a: any) => {
+        if (!a.customer_id) return;
+        const available = (a.amount || 0) - (a.used_amount || 0);
+        if (available > 0) {
+          customerAdvance.set(a.customer_id, (customerAdvance.get(a.customer_id) || 0) + available);
+        }
+      });
+
+      return allCustomers.map((c: any) => ({
+        ...c,
+        outstandingBalance: Math.round((c.opening_balance || 0) + (customerOutstanding.get(c.id) || 0) - (openingBalancePayments.get(c.id) || 0)),
+        advanceBalance: Math.round(customerAdvance.get(c.id) || 0),
+      }));
+    },
     enabled: !!organizationId && open,
   });
 
@@ -288,7 +353,7 @@ export function CustomerBalanceAdjustmentDialog({
                       {customers?.map((c: any) => (
                         <CommandItem
                           key={c.id}
-                          value={c.customer_name}
+                          value={`${c.customer_name} ${c.phone || ''}`}
                           onSelect={() => {
                             setSelectedCustomerId(c.id);
                             setCustomerSearchOpen(false);
@@ -296,9 +361,24 @@ export function CustomerBalanceAdjustmentDialog({
                             setNewAdvance("");
                           }}
                         >
-                          <Check className={cn("mr-2 h-4 w-4", selectedCustomerId === c.id ? "opacity-100" : "opacity-0")} />
-                          {c.customer_name}
-                          {c.phone && <span className="ml-2 text-xs text-muted-foreground">{c.phone}</span>}
+                          <Check className={cn("mr-2 h-4 w-4 shrink-0", selectedCustomerId === c.id ? "opacity-100" : "opacity-0")} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{c.customer_name}</span>
+                              {c.phone && <span className="text-xs text-muted-foreground">{c.phone}</span>}
+                            </div>
+                            <div className="flex items-center gap-3 text-xs mt-0.5">
+                              {c.outstandingBalance > 0 && (
+                                <span className="text-destructive font-medium">OS: ₹{c.outstandingBalance.toLocaleString("en-IN")}</span>
+                              )}
+                              {c.advanceBalance > 0 && (
+                                <span className="text-green-600 dark:text-green-400 font-medium">Adv: ₹{c.advanceBalance.toLocaleString("en-IN")}</span>
+                              )}
+                              {c.outstandingBalance <= 0 && c.advanceBalance <= 0 && (
+                                <span className="text-muted-foreground">No balance</span>
+                              )}
+                            </div>
+                          </div>
                         </CommandItem>
                       ))}
                     </CommandGroup>
