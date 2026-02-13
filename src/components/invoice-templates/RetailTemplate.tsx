@@ -158,22 +158,25 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
   const fsBody = isA4 ? "12px" : "10px";
-  const fsHeader = isA4 ? "11px" : "9px";
+  const fsHeader = isA4 ? "13px" : "9px";
   const fsHeading = isA4 ? "12px" : "10px";
   const fsTotals = isA4 ? "13px" : "11px";
   const fsGrand = isA4 ? "14px" : "12px";
-  const headerFs = isA4 ? "18px" : "16px";
+  const headerFs = isA4 ? "20px" : "16px";
   const titleFs = isA4 ? "14px" : "11px";
+  const fsCustName = isA4 ? "14px" : "9px";
+  const fsCustDetail = isA4 ? "13px" : "9px";
+  const fsInvoiceNo = isA4 ? "14px" : "9px";
 
   const cellBase: React.CSSProperties = {
     borderLeft: B,
     borderBottom: B,
-    padding: "3px 6px",
+    padding: "2px 6px",
     fontSize: fsBody,
     verticalAlign: "middle",
     lineHeight: "1.3",
-    height: "24px",
-    maxHeight: "24px",
+    height: "18px",
+    maxHeight: "18px",
     overflow: "hidden",
   };
   const cellR: React.CSSProperties = { ...cellBase, textAlign: "right" };
@@ -253,19 +256,19 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
         >
           <div style={{ flex: 1, padding: "4px 8px", borderRight: B }}>
             <div style={{ fontWeight: "bold" }}>BILL TO:</div>
-            <div>{customerName || "Walk-in Customer"}</div>
-            {customerAddress && <div>{customerAddress}</div>}
-            {customerMobile && <div>Ph: {customerMobile}</div>}
-            {customerGSTIN && <div>GSTIN: {customerGSTIN}</div>}
+            <div style={{ fontWeight: "bold", fontSize: fsCustName }}>{customerName || "Walk-in Customer"}</div>
+            {customerAddress && <div style={{ fontSize: fsCustDetail }}>{customerAddress}</div>}
+            {customerMobile && <div style={{ fontSize: fsCustDetail }}>Ph: {customerMobile}</div>}
+            {customerGSTIN && <div style={{ fontSize: fsCustDetail }}>GSTIN: {customerGSTIN}</div>}
           </div>
           <div style={{ width: "40%", padding: "4px 8px" }}>
-            <div><strong>Invoice No:</strong> {invoiceNumber}</div>
-            <div>
+            <div style={{ fontSize: fsInvoiceNo, fontWeight: "bold" }}>Invoice No: {invoiceNumber}</div>
+            <div style={{ fontSize: fsCustDetail }}>
               <strong>Date:</strong> {invoiceDate.toLocaleDateString("en-IN")}
               {invoiceTime && ` ${invoiceTime}`}
             </div>
-            {salesman && <div><strong>Salesman:</strong> {salesman}</div>}
-            {paymentMethod && <div><strong>Payment:</strong> {paymentMethod}</div>}
+            {salesman && <div style={{ fontSize: fsCustDetail }}><strong>Salesman:</strong> {salesman}</div>}
+            {paymentMethod && <div style={{ fontSize: fsCustDetail }}><strong>Payment:</strong> {paymentMethod}</div>}
           </div>
         </div>
 
@@ -298,7 +301,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
           </thead>
           <tbody>
             {displayItems.map((item, idx) => (
-              <tr key={idx} style={{ height: "24px" }}>
+              <tr key={idx} style={{ height: "18px" }}>
                 <td style={cellC}>{item ? idx + 1 : "\u00A0"}</td>
                 <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
                 <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
@@ -337,7 +340,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               {termsConditions.length > 0 && (
                 <div>
                   <strong style={{ textDecoration: "underline" }}>Terms & Conditions:</strong>
-                  <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "10px" : "8px", lineHeight: 1.5 }}>
+                  <ul style={{ margin: "2px 0 0 14px", padding: 0, listStyleType: "disc", fontSize: isA4 ? "11px" : "8px", lineHeight: 1.5 }}>
                     {termsConditions.map((t, i) => (
                       <li key={i}>{t}</li>
                     ))}
@@ -351,7 +354,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
               )}
               {qrCodeUrl && (
                 <div style={{ marginTop: "6px" }}>
-                  <img src={qrCodeUrl} alt="QR Code" style={{ width: "70px", height: "70px", border: "1px solid #ccc" }} />
+                  <img src={qrCodeUrl} alt="QR Code" style={{ width: isA4 ? "120px" : "70px", height: isA4 ? "120px" : "70px", border: "1px solid #ccc" }} />
                 </div>
               )}
               <div style={{ marginTop: "4px", fontSize: isA4 ? "10px" : "8px" }}>E. & O.E.</div>
@@ -401,11 +404,6 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                 <span>₹{fmt(totalDue)}</span>
               </div>
             )}
-            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "4px 8px", paddingTop: "20px" }}>
-              <div style={{ borderTop: B, paddingTop: "2px", minWidth: "100px", textAlign: "center", fontSize: "9px" }}>
-                Authorized Signatory
-              </div>
-            </div>
           </div>
         </div>
       </div>
