@@ -1,56 +1,43 @@
 
 
-## Cascade Bulk Product Updates to Purchase Bill Items
+## Auto-Fill Product Entry from Existing Product
 
-### Problem
-When you use Bulk Update to change product fields like category, brand, HSN code, GST%, or product name, the changes only apply to the `products` table. The `purchase_items` table stores its own copy of these fields (denormalized), so purchase bills still show the old values.
+### What This Does
+Adds a "Copy from Existing" search field at the top of the Product Entry form. When you search and select an existing product, all details (brand, category, style, HSN, GST, size group, colors, sizes, prices) are auto-filled into the form. You only need to change what's different (like the product name) and click "Generate Barcodes" for new barcodes, then save.
 
-### Solution
-After updating the `products` table, also update the matching denormalized fields in `purchase_items` (and `sale_items` where applicable) for the same product IDs.
+### User Flow
 
-### Field Mapping
-
-| Bulk Update Field | purchase_items column | sale_items column |
-|---|---|---|
-| product_name | product_name | product_name |
-| category | category | -- |
-| brand | brand | -- |
-| style | style | -- |
-| hsn_code | hsn_code | hsn_code |
-| gst_per | gst_per | gst_percent |
+```text
+1. Open Product Entry to add a new product
+2. Type in the "Copy from existing product" search field
+3. Select a matching product from the dropdown
+4. Form auto-fills: brand, category, style, HSN, GST, size group, colors
+5. Variants (sizes) are generated with prices from the source product
+6. User changes the product name and any other fields as needed
+7. Click "Generate Barcodes" to get fresh barcodes for the new product
+8. Save the product
+```
 
 ### Changes
 
-**File: `src/hooks/useBulkProductUpdate.tsx`**
+**File: `src/pages/ProductEntry.tsx`**
 
-In the `applyUpdates` function, after each product-level update block, add corresponding updates to `purchase_items` and `sale_items`:
-
-1. **Find & Replace** -- After updating each product, also update `purchase_items` rows where `product_id = item.id` with the same field/value (if the field exists in `purchase_items`). For `product_name` changes, also update `sale_items`.
-
-2. **Update Field** -- After bulk updating products, run a matching update on `purchase_items` for the same product IDs with the mapped column name. If the field is `hsn_code`, also update `sale_items`. If the field is `gst_per`, also update `sale_items.gst_percent`.
-
-3. **Update GST** -- After updating `products.gst_per`, also update `purchase_items.gst_per` and `sale_items.gst_percent` for the same product IDs.
+1. Add a "Copy from Existing" search input above the Product Name field (only shown when creating a new product, not when editing)
+2. Add state for the search query and a dropdown of matching products
+3. On selecting a product:
+   - Fetch the product with its variants from the database
+   - Set `formData` fields: `category`, `brand`, `style`, `hsn_code`, `gst_per`, `size_group_id`, `default_pur_price`, `default_sale_price`, `default_mrp`, `colors`, `uom`
+   - Set `variants` array from the source product's variants (all sizes/colors with prices) but with empty barcodes and zero opening stock
+   - Auto-show the variants table
+   - Leave `product_name` empty so user must enter a new name
+4. The search uses a debounced query against the `products` table filtered by organization, matching on `product_name` or `brand`
 
 ### Technical Details
 
-A helper mapping will translate product field names to their corresponding column names in each transaction table:
-
-```text
-purchaseItemsFieldMap = {
-  product_name -> product_name
-  category -> category
-  brand -> brand
-  style -> style
-  hsn_code -> hsn_code
-  gst_per -> gst_per
-}
-
-saleItemsFieldMap = {
-  product_name -> product_name
-  hsn_code -> hsn_code
-  gst_per -> gst_percent   (note: different column name)
-}
-```
-
-Each cascade update will filter by `product_id IN (affected product IDs)` and the organization's scope, ensuring only the correct records are updated. Soft-deleted transaction items (with `deleted_at`) will also be updated to maintain data consistency if they are ever restored.
+- Search query: `supabase.from("products").select("id, product_name, brand, category").ilike("product_name", "%search%").eq("organization_id", orgId).is("deleted_at", null).limit(20)`
+- On selection: `supabase.from("products").select("*, product_variants(*)").eq("id", selectedId).single()` to get full details
+- Variants are copied with `barcode: ""` and `opening_qty: 0` so user generates fresh barcodes
+- The markup percentage is recalculated from the copied purchase/sale prices
+- This feature is hidden when `editingProductId` is set (edit mode)
+- Uses a simple dropdown with `datalist`-style results, matching the compact UI style of the existing form
 
