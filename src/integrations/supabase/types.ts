@@ -2940,11 +2940,14 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           discount_percent: number
+          discount_share: number
           gst_percent: number
           hsn_code: string | null
           id: string
           line_total: number
           mrp: number
+          net_after_discount: number
+          per_qty_net_amount: number
           product_id: string
           product_name: string
           quantity: number
@@ -2960,11 +2963,14 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           discount_percent?: number
+          discount_share?: number
           gst_percent?: number
           hsn_code?: string | null
           id?: string
           line_total: number
           mrp: number
+          net_after_discount?: number
+          per_qty_net_amount?: number
           product_id: string
           product_name: string
           quantity: number
@@ -2980,11 +2986,14 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           discount_percent?: number
+          discount_share?: number
           gst_percent?: number
           hsn_code?: string | null
           id?: string
           line_total?: number
           mrp?: number
+          net_after_discount?: number
+          per_qty_net_amount?: number
           product_id?: string
           product_name?: string
           quantity?: number

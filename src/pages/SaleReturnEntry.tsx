@@ -195,13 +195,31 @@ export default function SaleReturnEntry() {
     );
   });
 
-  const addProduct = (productId: string, variantId: string) => {
+  const addProduct = async (productId: string, variantId: string) => {
     const product = products.find((p) => p.id === productId);
     const variant = variants.find((v) => v.id === variantId);
 
     if (!product || !variant) return;
 
-    const lineTotal = variant.sale_price;
+    // Fetch original sale price from sale_items (most recent sale)
+    const { data: saleItemData } = await supabase
+      .from("sale_items")
+      .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
+      .eq("variant_id", variantId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Use per_qty_net_amount if available (post-migration sales), else fall back
+    let unitPrice = variant.sale_price;
+    if (saleItemData) {
+      if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
+        unitPrice = saleItemData.per_qty_net_amount;
+      } else if (saleItemData.line_total && saleItemData.quantity) {
+        unitPrice = saleItemData.line_total / saleItemData.quantity;
+      }
+    }
 
     const newItem: ReturnItem = {
       productId: product.id,
@@ -210,9 +228,9 @@ export default function SaleReturnEntry() {
       size: variant.size,
       barcode: variant.barcode,
       quantity: 1,
-      unitPrice: variant.sale_price,
+      unitPrice,
       gstPercent: variant.gst_per,
-      lineTotal,
+      lineTotal: unitPrice,
       hsnCode: product.hsn_code || '',
     };
 
@@ -299,8 +317,26 @@ export default function SaleReturnEntry() {
       setReturnItems(updated);
       toast({ title: "Updated", description: "Quantity increased" });
     } else {
-      // Directly create ReturnItem instead of calling addProduct,
-      // because product/variant may not be in local state (DB lookup path)
+      // Fetch original sale price from sale_items (most recent sale)
+      const { data: saleItemData } = await supabase
+        .from("sale_items")
+        .select("per_qty_net_amount, net_after_discount, unit_price, line_total, quantity")
+        .eq("variant_id", variant.id)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Use per_qty_net_amount if available, else fall back to line_total/qty, then sale_price
+      let unitPrice = variant.sale_price;
+      if (saleItemData) {
+        if (saleItemData.per_qty_net_amount && saleItemData.per_qty_net_amount > 0) {
+          unitPrice = saleItemData.per_qty_net_amount;
+        } else if (saleItemData.line_total && saleItemData.quantity) {
+          unitPrice = saleItemData.line_total / saleItemData.quantity;
+        }
+      }
+
       const newItem: ReturnItem = {
         productId: product.id,
         variantId: variant.id,
@@ -308,9 +344,9 @@ export default function SaleReturnEntry() {
         size: variant.size,
         barcode: variant.barcode,
         quantity: 1,
-        unitPrice: variant.sale_price,
+        unitPrice,
         gstPercent: variant.gst_per,
-        lineTotal: variant.sale_price,
+        lineTotal: unitPrice,
         hsnCode: product.hsn_code || '',
       };
       setReturnItems(prev => [...prev, newItem]);

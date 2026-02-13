@@ -301,23 +301,34 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Insert sale items
-      const saleItems = saleData.items.map((item) => ({
-        sale_id: sale.id,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        color: item.color || null,
-        quantity: item.quantity,
-        unit_price: item.unitCost,
-        mrp: item.mrp,
-        gst_percent: item.gstPer,
-        discount_percent: item.discountPercent,
-        line_total: item.netAmount,
-        hsn_code: item.hsnCode || null,
-      }));
+      // Insert sale items with proportional bill discount distribution
+      const subTotal = saleData.grossAmount;
+      const flatDiscount = saleData.flatDiscountAmount || 0;
+      const saleItems = saleData.items.map((item) => {
+        const itemGross = item.netAmount; // line_total (unit_price * qty after line discount)
+        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
+        const netAfterDiscount = itemGross - discountShare;
+        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
+        return {
+          sale_id: sale.id,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          color: item.color || null,
+          quantity: item.quantity,
+          unit_price: item.unitCost,
+          mrp: item.mrp,
+          gst_percent: item.gstPer,
+          discount_percent: item.discountPercent,
+          line_total: item.netAmount,
+          hsn_code: item.hsnCode || null,
+          discount_share: Math.round(discountShare * 100) / 100,
+          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+        };
+      });
 
       const { error: itemsError } = await (supabase as any)
         .from('sale_items')
@@ -627,23 +638,34 @@ export const useSaveSale = () => {
 
       if (deleteError) throw deleteError;
 
-      // Step 2: Insert new sale_items (triggers stock deduction via update_stock_on_sale)
-      const saleItems = saleData.items.map((item) => ({
-        sale_id: saleId,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        color: item.color || null,
-        quantity: item.quantity,
-        unit_price: item.unitCost,
-        mrp: item.mrp,
-        gst_percent: item.gstPer,
-        discount_percent: item.discountPercent,
-        line_total: item.netAmount,
-        hsn_code: item.hsnCode || null,
-      }));
+      // Step 2: Insert new sale_items with proportional bill discount distribution
+      const subTotal = saleData.grossAmount;
+      const flatDiscount = saleData.flatDiscountAmount || 0;
+      const saleItems = saleData.items.map((item) => {
+        const itemGross = item.netAmount;
+        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
+        const netAfterDiscount = itemGross - discountShare;
+        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
+        return {
+          sale_id: saleId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          color: item.color || null,
+          quantity: item.quantity,
+          unit_price: item.unitCost,
+          mrp: item.mrp,
+          gst_percent: item.gstPer,
+          discount_percent: item.discountPercent,
+          line_total: item.netAmount,
+          hsn_code: item.hsnCode || null,
+          discount_share: Math.round(discountShare * 100) / 100,
+          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+        };
+      });
 
       const { error: itemsError } = await (supabase as any)
         .from('sale_items')
@@ -899,23 +921,34 @@ export const useSaveSale = () => {
         refundAmt = saleData.refundAmount;
       }
 
-      // Insert sale items (NOW affects stock via triggers)
-      const saleItems = saleData.items.map((item) => ({
-        sale_id: heldSaleId,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        product_name: item.productName,
-        size: item.size,
-        barcode: item.barcode,
-        color: item.color || null,
-        quantity: item.quantity,
-        unit_price: item.unitCost,
-        mrp: item.mrp,
-        gst_percent: item.gstPer,
-        discount_percent: item.discountPercent,
-        line_total: item.netAmount,
-        hsn_code: item.hsnCode || null,
-      }));
+      // Insert sale items with proportional bill discount distribution (NOW affects stock via triggers)
+      const subTotal = saleData.grossAmount;
+      const flatDiscount = saleData.flatDiscountAmount || 0;
+      const saleItems = saleData.items.map((item) => {
+        const itemGross = item.netAmount;
+        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
+        const netAfterDiscount = itemGross - discountShare;
+        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
+        return {
+          sale_id: heldSaleId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          product_name: item.productName,
+          size: item.size,
+          barcode: item.barcode,
+          color: item.color || null,
+          quantity: item.quantity,
+          unit_price: item.unitCost,
+          mrp: item.mrp,
+          gst_percent: item.gstPer,
+          discount_percent: item.discountPercent,
+          line_total: item.netAmount,
+          hsn_code: item.hsnCode || null,
+          discount_share: Math.round(discountShare * 100) / 100,
+          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+        };
+      });
 
       const { error: itemsError } = await (supabase as any)
         .from('sale_items')
