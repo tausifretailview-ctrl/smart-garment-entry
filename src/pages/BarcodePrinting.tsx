@@ -102,20 +102,25 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
   };
 };
 
-// Helper function to pre-render barcode as image data URL
-const renderBarcodeToDataURL = (code: string, height: number = 30, width: number = 1.5): string => {
+// Helper function to render barcode as inline SVG string (vector, no blur)
+const renderBarcodeToSVG = (code: string, height: number = 30, width: number = 1.5): string => {
   try {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, code, {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    JsBarcode(svg, code, {
       format: 'CODE128',
       height: height,
       width: width,
       displayValue: false,
       margin: 0,
-      background: '#ffffff',
+      background: 'transparent',
       lineColor: '#000000',
     });
-    return canvas.toDataURL('image/png');
+    const w = svg.getAttribute('width') || '100';
+    const h = svg.getAttribute('height') || String(height);
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    svg.style.display = 'block';
+    return new XMLSerializer().serializeToString(svg);
   } catch (error) {
     console.error('Failed to render barcode:', code, error);
     return '';
@@ -2470,7 +2475,7 @@ export default function BarcodePrinting() {
           const barcodeHeight = config.barcodeHeight || 25;
           const barcodeWidth = config.barcodeWidth || 1.5;
           const barcodeHeightMm = Math.max(6, barcodeHeight * 0.35);
-          const barcodeDataUrl = renderBarcodeToDataURL(barcode, barcodeHeight, barcodeWidth);
+          const barcodeSvg = renderBarcodeToSVG(barcode, barcodeHeight, barcodeWidth);
           
           fieldsHtml += `
             <div style="
@@ -2484,7 +2489,7 @@ export default function BarcodePrinting() {
               align-items: center;
               overflow: visible;
             ">
-              ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" style="height: ${barcodeHeightMm}mm; max-width: 100%; display: block;" alt="barcode" />` : `<span style="font-size: 8px;">${barcode}</span>`}
+              ${barcodeSvg ? `<div style="height: ${barcodeHeightMm}mm; max-width: 100%; display: flex; align-items: center;">${barcodeSvg}</div>` : `<span style="font-size: 8px;">${barcode}</span>`}
             </div>
           `;
         } else {
@@ -2538,10 +2543,10 @@ export default function BarcodePrinting() {
         const bcPaddingRight = field.paddingRight ?? 0;
         const barcodeHeight = config.barcodeHeight || 28;
         const barcodeWidth = config.barcodeWidth || 1.8;
-        const barcodeDataUrl = renderBarcodeToDataURL(barcode, barcodeHeight, barcodeWidth);
+        const barcodeSvg = renderBarcodeToSVG(barcode, barcodeHeight, barcodeWidth);
         
-        if (barcodeDataUrl) {
-          html += `<img src="${barcodeDataUrl}" class="barcode-img" style="display: block; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeight * 0.35}mm;" alt="barcode" />`;
+        if (barcodeSvg) {
+          html += `<div style="display: flex; justify-content: center; margin: ${bcPaddingTop}px auto ${bcPaddingBottom}px auto; padding-left: ${bcPaddingLeft}px; padding-right: ${bcPaddingRight}px; height: ${barcodeHeight * 0.35}mm;">${barcodeSvg}</div>`;
         } else {
           html += `<div style="text-align: center; font-size: 10px; font-weight: bold;">${barcode}</div>`;
         }
@@ -3073,104 +3078,8 @@ export default function BarcodePrinting() {
 
         tempContainer.appendChild(gridDiv);
 
-        // Pre-render barcodes as canvas images for reliable PDF capture
-        const barcodes = tempContainer.querySelectorAll("svg.barcode");
-        const barcodePromises: Promise<void>[] = [];
-        
-        barcodes.forEach((svg) => {
-          const code = (svg as HTMLElement).dataset.code;
-          if (code) {
-            const promise = new Promise<void>((resolve) => {
-              try {
-                const barcodeHeight = labelConfig.barcodeHeight || 28;
-                const barcodeWidth = labelConfig.barcodeWidth || 1.8;
-                
-                // Create a temporary canvas to render barcode
-                const tempCanvas = document.createElement('canvas');
-                
-                // First render to SVG to get dimensions
-                const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                JsBarcode(tempSvg, code, {
-                  format: "CODE128",
-                  fontSize: 0,
-                  height: barcodeHeight,
-                  width: barcodeWidth,
-                  textMargin: 0,
-                  margin: 0,
-                  marginTop: 0,
-                  marginBottom: 0,
-                  marginLeft: 0,
-                  marginRight: 0,
-                  displayValue: false,
-                  background: 'transparent',
-                  lineColor: '#000000',
-                });
-                
-                // Get SVG dimensions
-                const svgWidth = tempSvg.getAttribute('width') || '100';
-                const svgHeight = tempSvg.getAttribute('height') || '30';
-                
-                // Convert SVG to data URL and create image
-                const svgString = new XMLSerializer().serializeToString(tempSvg);
-                const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-                const url = URL.createObjectURL(svgBlob);
-                
-                const img = new Image();
-                img.onload = () => {
-                  // Draw to canvas
-                  tempCanvas.width = img.width * 2; // Higher resolution
-                  tempCanvas.height = img.height * 2;
-                  const ctx = tempCanvas.getContext('2d');
-                  if (ctx) {
-                    ctx.fillStyle = 'white';
-                    ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    ctx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-                  }
-                  
-                  // Convert canvas to data URL
-                  const dataUrl = tempCanvas.toDataURL('image/png');
-                  
-                  // Replace SVG with IMG element
-                  const imgElement = document.createElement('img');
-                  imgElement.src = dataUrl;
-                  imgElement.style.cssText = `width: 100%; height: ${barcodeHeight}px; display: block; object-fit: contain;`;
-                  
-                  svg.parentNode?.replaceChild(imgElement, svg);
-                  
-                  URL.revokeObjectURL(url);
-                  resolve();
-                };
-                
-                img.onerror = () => {
-                  console.error('Failed to load barcode image for:', code);
-                  // Fallback: render barcode number as text
-                  const textDiv = document.createElement('div');
-                  textDiv.textContent = code;
-                  textDiv.style.cssText = 'font-size: 10px; font-weight: bold; text-align: center; font-family: monospace;';
-                  svg.parentNode?.replaceChild(textDiv, svg);
-                  URL.revokeObjectURL(url);
-                  resolve();
-                };
-                
-                img.src = url;
-              } catch (error) {
-                console.error("Barcode generation failed for code:", code, error);
-                // Fallback: display barcode as text
-                const textDiv = document.createElement('div');
-                textDiv.textContent = code;
-                textDiv.style.cssText = 'font-size: 10px; font-weight: bold; text-align: center; font-family: monospace;';
-                svg.parentNode?.replaceChild(textDiv, svg);
-                resolve();
-              }
-            });
-            barcodePromises.push(promise);
-          }
-        });
-
-        // Wait for all barcodes to be converted to images
-        await Promise.all(barcodePromises);
-        
-        // Additional wait to ensure DOM is updated
+        // SVG barcodes are already inline – no conversion needed.
+        // Brief wait for DOM to settle before html2canvas capture.
         await new Promise(resolve => setTimeout(resolve, 100));
 
         // Capture this page with high quality - only capture actual content height
