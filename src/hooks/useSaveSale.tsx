@@ -174,6 +174,18 @@ export const useSaveSale = () => {
       return null;
     }
 
+    // Safety net: reject items with 0 or negative quantity
+    const invalidItems = saleData.items.filter(item => !item.quantity || item.quantity <= 0);
+    if (invalidItems.length > 0) {
+      savingLockRef.current = false;
+      toast({
+        title: "Invalid Quantity",
+        description: `Cannot save: ${invalidItems.length} item(s) have zero or invalid quantity`,
+        variant: "destructive",
+      });
+      return null;
+    }
+
     if (saleData.items.length === 0) {
       savingLockRef.current = false;
       toast({
