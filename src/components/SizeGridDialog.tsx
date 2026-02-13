@@ -111,15 +111,26 @@ export function SizeGridDialog({
   // Check if product has multiple colors (truly needs color selection)
   const hasMultipleColors = uniqueColors.length > 1;
 
-  // Filter variants by selected color
+  // Natural size sort helper
+  const sortBySize = (a: Variant, b: Variant) => {
+    const numA = parseFloat(a.size);
+    const numB = parseFloat(b.size);
+    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+    if (!isNaN(numA)) return -1;
+    if (!isNaN(numB)) return 1;
+    return a.size.localeCompare(b.size);
+  };
+
+  // Filter variants by selected color and sort by size
   const filteredVariants = useMemo(() => {
-    // If multiple colors exist, we need a selection to filter
+    let result: Variant[];
     if (hasMultipleColors) {
       if (!selectedColor) return [];
-      return variants.filter((v) => v.color === selectedColor);
+      result = variants.filter((v) => v.color === selectedColor);
+    } else {
+      result = [...variants];
     }
-    // For 0 or 1 color, show all variants
-    return variants;
+    return result.sort(sortBySize);
   }, [variants, selectedColor, hasMultipleColors]);
 
   // Get default prices
@@ -510,7 +521,7 @@ export function SizeGridDialog({
           <>
             <div className="space-y-4">
               {uniqueColors.map((color, colorIndex) => {
-                const colorVariants = variants.filter(v => v.color === color);
+                const colorVariants = variants.filter(v => v.color === color).sort(sortBySize);
                 const colorQtyMap = multiColorQty[color] || {};
                 const colorCustomSizes = multiColorCustomSizes[color] || [];
                 
