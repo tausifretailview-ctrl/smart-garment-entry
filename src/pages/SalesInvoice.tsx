@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan } from "lucide-react";
+import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import { useBeepSound } from "@/hooks/useBeepSound";
 
 import { SizeGridDialog } from "@/components/SizeGridDialog";
 import { format } from "date-fns";
@@ -118,6 +120,13 @@ export default function SalesInvoice() {
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+  const lastInputTime = useRef<number>(0);
+  const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Barcode scanner detection for instant add (like POS)
+  const { recordKeystroke, reset: resetScannerDetection, detectScannerInput } = useBarcodeScanner();
+  const { playSuccessBeep, playErrorBeep } = useBeepSound();
+  
   // Initialize 5 empty rows for predefined table
   const [lineItems, setLineItems] = useState<LineItem[]>(
     Array(5).fill(null).map((_, i) => ({
@@ -628,6 +637,20 @@ export default function SalesInvoice() {
     }
   }, [brandDiscounts, hasBrandDiscounts, isBrandDiscountsLoading, productsData, selectedCustomer?.discount_percent]);
 
+  // Build in-memory barcode index for O(1) lookup (like POS)
+  const barcodeIndex = useMemo(() => {
+    const index = new Map<string, { product: any; variant: any }>();
+    if (!productsData) return index;
+    for (const product of productsData) {
+      for (const variant of product.product_variants || []) {
+        if (variant.barcode) {
+          index.set(variant.barcode.toLowerCase(), { product, variant });
+        }
+      }
+    }
+    return index;
+  }, [productsData]);
+
   // Product search with server-side filtering and smart sorting
   useEffect(() => {
     const searchProducts = async () => {
@@ -835,29 +858,64 @@ export default function SalesInvoice() {
     }, 100);
   };
 
-  // Handle barcode/product search on Enter (like POS)
-  const handleBarcodeSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
-      searchAndAddProduct(searchInput.trim());
+  // Optimized barcode input change handler with scanner detection (like POS)
+  const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const now = Date.now();
+    const timeSinceLastKeystroke = now - lastInputTime.current;
+    
+    recordKeystroke();
+    lastInputTime.current = now;
+    setSearchInput(value);
+    
+    // Clear previous debounce timer
+    if (dropdownDebounceTimer.current) {
+      clearTimeout(dropdownDebounceTimer.current);
+      dropdownDebounceTimer.current = null;
     }
-  };
+    
+    // Detect scanner input - don't trigger any search for fast input
+    const isScannerLike = detectScannerInput(value, timeSinceLastKeystroke);
+    if (isScannerLike || (value.length >= 4 && timeSinceLastKeystroke < 50)) {
+      return; // Wait for Enter key from scanner
+    }
+  }, [recordKeystroke, detectScannerInput]);
 
-  const searchAndAddProduct = async (searchTerm: string) => {
+  // Handle barcode/product search on Enter (like POS) - optimized for scanner input
+  const handleBarcodeSearch = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchInput.trim()) {
+      e.preventDefault();
+      
+      // Clear any pending debounce timer
+      if (dropdownDebounceTimer.current) {
+        clearTimeout(dropdownDebounceTimer.current);
+        dropdownDebounceTimer.current = null;
+      }
+      
+      searchAndAddProduct(searchInput.trim());
+      resetScannerDetection();
+    }
+  }, [searchInput, resetScannerDetection]);
+
+  const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     if (!productsData) return;
 
-    // Search by barcode first (exact match)
-    let foundVariant: any = null;
-    let foundProduct: any = null;
+    // O(1) barcode lookup from in-memory index
+    const indexMatch = barcodeIndex.get(searchTerm.toLowerCase());
+    let foundVariant: any = indexMatch?.variant || null;
+    let foundProduct: any = indexMatch?.product || null;
 
-    for (const product of productsData) {
-      const variantMatch = product.product_variants?.find((v: any) => 
-        v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
-      );
-      
-      if (variantMatch) {
-        foundVariant = variantMatch;
-        foundProduct = product;
-        break;
+    // Fallback: linear search if not found in index (handles partial matches)
+    if (!foundVariant) {
+      for (const product of productsData) {
+        const variantMatch = product.product_variants?.find((v: any) => 
+          v.barcode?.toLowerCase() === searchTerm.toLowerCase() && v.stock_qty > 0
+        );
+        if (variantMatch) {
+          foundVariant = variantMatch;
+          foundProduct = product;
+          break;
+        }
       }
     }
 
@@ -870,11 +928,12 @@ export default function SalesInvoice() {
         return;
       }
       
+      playSuccessBeep();
       await addProductToInvoice(foundProduct, foundVariant);
       setSearchInput("");
-      // Keep focus on barcode input for continuous scanning
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
     } else {
+      playErrorBeep();
       toast({
         title: "Product not found",
         description: "No product matches the scanned barcode.",
@@ -883,7 +942,7 @@ export default function SalesInvoice() {
       setSearchInput("");
       barcodeInputRef.current?.focus();
     }
-  };
+  }, [productsData, barcodeIndex, entryMode, playSuccessBeep, playErrorBeep, toast]);
 
   const addProductToInvoice = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // If in grid mode, open size grid dialog
@@ -902,41 +961,39 @@ export default function SalesInvoice() {
         .reduce((sum, orig) => sum + orig.quantity, 0);
     }
 
-    // Real-time stock validation with freed quantity
-    const stockCheck = await checkStock(variant.id, 1, freedQty);
-    if (!stockCheck.isAvailable) {
-      showStockError(
-        stockCheck.productName,
-        stockCheck.size,
-        1,
-        stockCheck.availableStock
-      );
-      return;
-    }
-
     // Check if product already exists in filled rows
     const existingIndex = lineItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
     
     if (existingIndex >= 0) {
-      // Real-time stock validation for increased quantity with freed quantity
+      // Increment quantity immediately (non-blocking for speed)
       const newQty = lineItems[existingIndex].quantity + 1;
-      const stockCheckIncrease = await checkStock(variant.id, newQty, freedQty);
       
-      if (!stockCheckIncrease.isAvailable) {
-        showStockError(
-          stockCheckIncrease.productName,
-          stockCheckIncrease.size,
-          newQty,
-          stockCheckIncrease.availableStock
-        );
-        return;
-      }
+      // Use functional update to prevent stale state during rapid scans
+      setLineItems(prev => {
+        const updatedItems = [...prev];
+        const idx = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+        if (idx >= 0) {
+          updatedItems[idx] = calculateLineTotal({ ...updatedItems[idx], quantity: updatedItems[idx].quantity + 1 });
+        }
+        return updatedItems;
+      });
       
-      // Increase quantity if already exists
-      const updatedItems = [...lineItems];
-      updatedItems[existingIndex].quantity = newQty;
-      updatedItems[existingIndex] = calculateLineTotal(updatedItems[existingIndex]);
-      setLineItems(updatedItems);
+      // Validate stock asynchronously (non-blocking) - revert if insufficient
+      checkStock(variant.id, newQty, freedQty).then(stockCheck => {
+        if (!stockCheck.isAvailable) {
+          playErrorBeep();
+          showStockError(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock);
+          // Revert the quantity increment
+          setLineItems(prev => {
+            const updatedItems = [...prev];
+            const idx = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
+            if (idx >= 0) {
+              updatedItems[idx] = calculateLineTotal({ ...updatedItems[idx], quantity: updatedItems[idx].quantity - 1 });
+            }
+            return updatedItems;
+          });
+        }
+      });
     } else {
       // Check if last_purchase prices differ from master prices (for new items only)
       const masterSalePrice = parseFloat(variant.sale_price || 0);
@@ -983,69 +1040,74 @@ export default function SalesInvoice() {
       const brandDiscount = customerHasMasterDiscount ? 0 : getBrandDiscount(product.brand);
       const discountPercent = brandDiscount > 0 ? brandDiscount : 0;
       
-      // Find first empty row and fill it
-      const emptyRowIndex = lineItems.findIndex(item => item.productId === '');
+      // Use functional update to find empty row and fill it (prevents stale state)
+      const newItemBase = {
+        productId: product.id,
+        variantId: variant.id,
+        productName: product.product_name,
+        size: variant.size,
+        barcode: variant.barcode || '',
+        color: variant.color || product.color || '',
+        quantity: 1,
+        box: '',
+        mrp: mrpToUse,
+        salePrice: salePrice,
+        discountPercent,
+        discountAmount: 0,
+        gstPercent: product.gst_per || 0,
+        lineTotal: 0,
+        hsnCode: product.hsn_code || '',
+      };
+
+      setLineItems(prev => {
+        const emptyRowIndex = prev.findIndex(item => item.productId === '');
+        if (emptyRowIndex === -1) {
+          // Add new row
+          const newItem: LineItem = calculateLineTotal({
+            ...newItemBase,
+            id: `row-${prev.length}`,
+          });
+          return [...prev, newItem];
+        } else {
+          // Fill empty row
+          const updatedItems = [...prev];
+          updatedItems[emptyRowIndex] = calculateLineTotal({
+            ...newItemBase,
+            id: updatedItems[emptyRowIndex].id,
+          });
+          return updatedItems;
+        }
+      });
       
-      if (emptyRowIndex === -1) {
-        // Add new row instead of blocking
-        const newItem: LineItem = calculateLineTotal({
-          id: `row-${lineItems.length}`,
-          productId: product.id,
-          variantId: variant.id,
-          productName: product.product_name,
-          size: variant.size,
-          barcode: variant.barcode || '',
-          color: variant.color || product.color || '',
-          quantity: 1,
-          box: '',
-          mrp: mrpToUse,
-          salePrice: salePrice,
-          discountPercent,
-          discountAmount: 0,
-          gstPercent: product.gst_per || 0,
-          lineTotal: 0,
-          hsnCode: product.hsn_code || '',
+      // Show toast if brand discount was applied
+      if (brandDiscount > 0) {
+        toast({
+          title: `Brand discount applied: ${brandDiscount}%`,
+          description: `${product.brand} discount for this customer`,
         });
-        setLineItems(prev => [...prev, newItem]);
-        
-        // Show toast if brand discount was applied
-        if (brandDiscount > 0) {
-          toast({
-            title: `Brand discount applied: ${brandDiscount}%`,
-            description: `${product.brand} discount for this customer`,
-          });
-        }
-      } else {
-        const updatedItems = [...lineItems];
-        const newItem: LineItem = {
-          id: updatedItems[emptyRowIndex].id,
-          productId: product.id,
-          variantId: variant.id,
-          productName: product.product_name,
-          size: variant.size,
-          barcode: variant.barcode || '',
-          color: variant.color || product.color || '',
-          quantity: 1,
-          box: '',
-          mrp: mrpToUse,
-          salePrice: salePrice,
-          discountPercent,
-          discountAmount: 0,
-          gstPercent: product.gst_per || 0,
-          lineTotal: 0,
-          hsnCode: product.hsn_code || '',
-        };
-        updatedItems[emptyRowIndex] = calculateLineTotal(newItem);
-        setLineItems(updatedItems);
-        
-        // Show toast if brand discount was applied
-        if (brandDiscount > 0) {
-          toast({
-            title: `Brand discount applied: ${brandDiscount}%`,
-            description: `${product.brand} discount for this customer`,
-          });
-        }
       }
+      
+      // Validate stock asynchronously (non-blocking) - revert if insufficient
+      checkStock(variant.id, 1, freedQty).then(stockCheck => {
+        if (!stockCheck.isAvailable) {
+          playErrorBeep();
+          showStockError(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock);
+          // Remove the just-added item
+          setLineItems(prev => {
+            const idx = prev.findIndex(item => item.variantId === variant.id && item.productId !== '');
+            if (idx >= 0) {
+              const updatedItems = [...prev];
+              updatedItems[idx] = {
+                ...updatedItems[idx],
+                productId: '', variantId: '', productName: '', size: '', barcode: '', color: '',
+                quantity: 0, mrp: 0, salePrice: 0, discountPercent: 0, discountAmount: 0, gstPercent: 0, lineTotal: 0, hsnCode: '',
+              };
+              return updatedItems;
+            }
+            return prev;
+          });
+        }
+      });
     }
     
     setOpenProductSearch(false);
@@ -2169,7 +2231,7 @@ Thank you for choosing us!`;
                 ref={barcodeInputRef}
                 placeholder="Scan barcode..."
                 value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={handleBarcodeInputChange}
                 onKeyDown={handleBarcodeSearch}
                 className="pl-10 pr-4"
                 autoFocus
