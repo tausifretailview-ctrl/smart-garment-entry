@@ -303,7 +303,18 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
             {displayItems.map((item, idx) => (
               <tr key={idx} style={{ height: "18px" }}>
                 <td style={cellC}>{item ? idx + 1 : "\u00A0"}</td>
-                <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item?.particulars || "\u00A0"}</td>
+                <td style={{ ...cellL, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {item ? (
+                    <>
+                      {item.particulars}
+                      {(item.brand || item.size || item.color) && (
+                        <span style={{ fontSize: "9px", color: "#555", marginLeft: "4px" }}>
+                          ({[item.brand, item.size, item.color].filter(Boolean).join(" | ")})
+                        </span>
+                      )}
+                    </>
+                  ) : "\u00A0"}
+                </td>
                 <td style={{ ...cellC, fontSize: "10px" }}>{item?.barcode || "\u00A0"}</td>
                 <td style={cellC}>{item ? item.qty : "\u00A0"}</td>
                 <td style={cellR}>{item ? fmt(item.rate) : "\u00A0"}</td>
