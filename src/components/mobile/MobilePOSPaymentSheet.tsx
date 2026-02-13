@@ -13,6 +13,7 @@ import {
   Pause,
   Printer,
   MessageCircle,
+  RotateCcw,
   X
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ interface MobilePOSPaymentSheetProps {
   onHold: () => void;
   onPrint?: () => void;
   onWhatsApp?: () => void;
+  onSaleReturn?: () => void;
   isSaving: boolean;
   hasItems: boolean;
   finalAmount: number;
@@ -37,6 +39,7 @@ export const MobilePOSPaymentSheet = ({
   onHold,
   onPrint,
   onWhatsApp,
+  onSaleReturn,
   isSaving,
   hasItems,
   finalAmount,
@@ -144,6 +147,20 @@ export const MobilePOSPaymentSheet = ({
             <Pause className="h-4 w-4" />
             <span className="text-xs">Hold</span>
           </Button>
+
+          {onSaleReturn && (
+            <Button
+              onClick={() => {
+                onSaleReturn();
+                onOpenChange(false);
+              }}
+              variant="outline"
+              className="h-12 flex-col gap-1"
+            >
+              <RotateCcw className="h-4 w-4" />
+              <span className="text-xs">Sale Return</span>
+            </Button>
+          )}
           
           {onPrint && (
             <Button

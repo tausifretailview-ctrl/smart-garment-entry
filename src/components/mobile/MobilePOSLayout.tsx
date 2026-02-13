@@ -77,6 +77,9 @@ interface MobilePOSLayoutProps {
   flatDiscountMode: 'percent' | 'amount';
   onFlatDiscountValueChange: (value: number) => void;
   onFlatDiscountModeChange: (mode: 'percent' | 'amount') => void;
+
+  // Sale Return
+  onSaleReturn?: () => void;
 }
 
 export const MobilePOSLayout = ({
@@ -113,6 +116,7 @@ export const MobilePOSLayout = ({
   flatDiscountMode,
   onFlatDiscountValueChange,
   onFlatDiscountModeChange,
+  onSaleReturn,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -204,6 +208,7 @@ export const MobilePOSLayout = ({
         onPayment={onPaymentAndPrint}
         onMixPayment={onMixPayment}
         onHold={onHoldBill}
+        onSaleReturn={onSaleReturn}
         isSaving={isSaving}
         hasItems={items.length > 0}
         finalAmount={finalAmount}
