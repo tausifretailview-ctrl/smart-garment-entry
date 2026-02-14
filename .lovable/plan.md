@@ -1,42 +1,38 @@
 
 
-## Add "Copy from Existing Product" to Purchase Bill's Product Entry Dialog
+## Size Stock Report: Consolidate Multi-Color Products into Single Search Entry
 
-### What This Does
-When you click "Add New Product" from the Purchase Entry screen, the floating product creation dialog will now include a "Copy from Existing Product" search bar at the top. You can search for a similar product, select it, and all details (brand, category, style, HSN, GST, size group, colors, prices) will auto-fill. You then just change the product name, generate new barcodes, and save.
+### Problem
+Currently, when searching for a product like "FL475" in the Size Stock report, each color variant (BLUE, NAVY, etc.) shows as a separate search result. The customer wants to see ONE entry per product name, and when selected, the grid should show all colors together.
 
-### User Flow
+### Solution
+Group search results by product name (stripping color from the display in search dropdown) and when a grouped product is selected, fetch and display variants for ALL matching product IDs. The grid already handles multi-color display (separate row per color), so the main change is in the search and selection logic.
 
-```text
-1. In Purchase Entry, click "Add New Product" button
-2. Product Entry Dialog opens
-3. Type in the "Copy from Existing Product" search bar
-4. Select a matching product from the dropdown
-5. Form auto-fills: brand, category, style, HSN, GST, size group, colors, prices
-6. Variants (sizes) are populated with prices but empty barcodes
-7. Change the product name
-8. Click "Generate Barcodes" for fresh barcodes
-9. Save the product -- it auto-opens the size grid in Purchase Entry
-```
+### Technical Changes
 
-### Changes
+**File: `src/components/SizeStockDialog.tsx`**
 
-**File: `src/components/ProductEntryDialog.tsx`**
+1. **Change Product interface and search grouping**
+   - Add a `productIds` array field to the `Product` interface to hold all product IDs sharing the same base name
+   - After fetching search results, group products by a normalized key (product_name + brand + category + style, excluding color) so that FL475|RLX|MN|FL with BLUE and NAVY become one entry
+   - Show all available colors as badges/text in the search dropdown item (e.g., "FL475 | RLX | MN | FL -- Colors: BLUE, NAVY")
 
-1. Add "Copy from Existing Product" search state (query, results, dropdown visibility) and a debounced search against `products` table
-2. Add a search input with dropdown at the top of the dialog (above Product Name field)
-3. On selecting a product:
-   - Fetch full product details with variants from the database
-   - Set `formData` fields: `category`, `brand`, `style`, `hsn_code`, `gst_per`, `size_group_id`, `default_pur_price`, `default_sale_price`, `default_mrp`, `colors`, `uom`
-   - Set `variants` array from the source product's variants with prices but empty barcodes and zero opening stock
-   - Auto-show the variants table
-   - Leave `product_name` empty so user must enter a new name
-   - Focus the product name field
+2. **Update search dropdown display**
+   - Show consolidated product with all colors listed
+   - Show barcode from the first variant and price info as before
 
-### Technical Details
+3. **Update selection logic**
+   - When a grouped product is selected, store all its product IDs in `selectedProducts`
+   - Update `loadStockData` to use all product IDs from the group, not just one
 
-- Search query: debounced 300ms, queries `products` table matching `product_name`, `brand`, or `category` with `ilike`, filtered by `organization_id` and `deleted_at IS NULL`, limited to 20 results
-- On selection: fetches full product with `product_variants(*)` join, maps variants with `barcode: ""` and `opening_qty: 0`
-- Colors are extracted from unique variant colors of the source product
-- The search dropdown uses a portal-based popover matching the existing UI patterns
-- Reuses the same reset logic already in the dialog, just populates fields after reset
+4. **Update stock data loading**
+   - The `.in("product_id", productIds)` query already supports multiple IDs
+   - The grid already groups by `product_id + color` and shows separate rows per color -- no changes needed there
+
+5. **Update selected product tags display**
+   - Show the consolidated product name (without color) in the tag chips
+
+### What stays the same
+- The stock grid table (already shows separate rows per color with totals)
+- PDF export logic
+- Size sorting logic
