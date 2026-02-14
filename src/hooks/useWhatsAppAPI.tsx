@@ -27,6 +27,11 @@ export interface WhatsAppSettings {
   business_name: string | null;
   is_active: boolean;
   use_default_api: boolean;
+  // Third-party provider fields
+  api_provider: string;
+  custom_api_url: string | null;
+  api_version: string;
+  business_id: string | null;
   auto_send_invoice: boolean;
   auto_send_quotation: boolean;
   auto_send_sale_order: boolean;

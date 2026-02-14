@@ -70,6 +70,11 @@ export const WhatsAppAPISettings = () => {
     business_name: "",
     is_active: false,
     use_default_api: true,
+    // Third-party provider fields
+    api_provider: "meta_direct" as "meta_direct" | "third_party",
+    custom_api_url: "",
+    api_version: "v21.0",
+    business_id: "",
     auto_send_invoice: false,
     auto_send_quotation: false,
     auto_send_sale_order: false,
@@ -124,6 +129,11 @@ export const WhatsAppAPISettings = () => {
         business_name: settings.business_name || "",
         is_active: settings.is_active || false,
         use_default_api: settings.use_default_api !== false, // Default to true
+        // Third-party provider fields
+        api_provider: (settings as any).api_provider || "meta_direct",
+        custom_api_url: (settings as any).custom_api_url || "",
+        api_version: (settings as any).api_version || "v21.0",
+        business_id: (settings as any).business_id || "",
         auto_send_invoice: settings.auto_send_invoice || false,
         auto_send_quotation: settings.auto_send_quotation || false,
         auto_send_sale_order: settings.auto_send_sale_order || false,
@@ -305,6 +315,86 @@ export const WhatsAppAPISettings = () => {
           ) : (
             <>
               <Separator />
+              
+              {/* API Provider Toggle */}
+              <div className="space-y-2">
+                <Label>API Provider</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={formData.api_provider === "meta_direct" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleInputChange("api_provider", "meta_direct")}
+                    className="flex-1"
+                  >
+                    Direct Meta API
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={formData.api_provider === "third_party" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => handleInputChange("api_provider", "third_party")}
+                    className="flex-1"
+                  >
+                    Third-Party Provider
+                  </Button>
+                </div>
+              </div>
+
+              {/* Third-party specific fields */}
+              {formData.api_provider === "third_party" && (
+                <>
+                  <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle className="text-amber-800 dark:text-amber-200">Third-Party Provider</AlertTitle>
+                    <AlertDescription className="text-sm text-amber-700 dark:text-amber-300">
+                      Third-party providers may use temporary access tokens that need periodic renewal. Make sure to update the token before it expires.
+                    </AlertDescription>
+                  </Alert>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="custom_api_url">Custom API URL</Label>
+                    <Input
+                      id="custom_api_url"
+                      placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
+                      value={formData.custom_api_url}
+                      onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      The base URL provided by your third-party WhatsApp API provider
+                    </p>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="api_version">API Version</Label>
+                      <Input
+                        id="api_version"
+                        placeholder="e.g., v19.0"
+                        value={formData.api_version}
+                        onChange={(e) => handleInputChange("api_version", e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        API version (default: v21.0)
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="business_id">Business ID</Label>
+                      <Input
+                        id="business_id"
+                        placeholder="e.g., 24732513237950"
+                        value={formData.business_id}
+                        onChange={(e) => handleInputChange("business_id", e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Third-party Business ID (if applicable)
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="phone_number_id">Phone Number ID</Label>
@@ -315,7 +405,7 @@ export const WhatsAppAPISettings = () => {
                     onChange={(e) => handleInputChange("phone_number_id", e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Found in WhatsApp Manager → Phone Numbers
+                    {formData.api_provider === "third_party" ? "Phone Number ID from your provider" : "Found in WhatsApp Manager → Phone Numbers"}
                   </p>
                 </div>
 
@@ -328,7 +418,7 @@ export const WhatsAppAPISettings = () => {
                     onChange={(e) => handleInputChange("waba_id", e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Found in WhatsApp Manager → Account settings
+                    {formData.api_provider === "third_party" ? "WABA ID from your provider" : "Found in WhatsApp Manager → Account settings"}
                   </p>
                 </div>
               </div>
@@ -339,7 +429,7 @@ export const WhatsAppAPISettings = () => {
                   <Input
                     id="access_token"
                     type={showToken ? "text" : "password"}
-                    placeholder="Permanent Access Token from System User"
+                    placeholder={formData.api_provider === "third_party" ? "Access Token from your provider (may be temporary)" : "Permanent Access Token from System User"}
                     value={formData.access_token}
                     onChange={(e) => handleInputChange("access_token", e.target.value)}
                     className="pr-10"
@@ -355,7 +445,9 @@ export const WhatsAppAPISettings = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Create a System User in Business Settings → System Users → Generate Token
+                  {formData.api_provider === "third_party" 
+                    ? "⚠️ Token may be temporary — update before it expires" 
+                    : "Create a System User in Business Settings → System Users → Generate Token"}
                 </p>
               </div>
             </>
