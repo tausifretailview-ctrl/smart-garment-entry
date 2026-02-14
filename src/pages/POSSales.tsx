@@ -1692,14 +1692,8 @@ export default function POSSales() {
       @media print {
         html, body {
           width: 100%;
-          height: 100%;
           margin: 0;
           padding: 0;
-          overflow: hidden;
-        }
-        * {
-          page-break-after: avoid !important;
-          page-break-inside: avoid !important;
         }
       }
     `;
@@ -2495,6 +2489,7 @@ export default function POSSales() {
             notes={savedInvoiceData?.notes || saleNotes}
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+            roundOff={savedInvoiceData?.roundOff ?? roundOff}
           />
         </div>
       </>
@@ -3466,6 +3461,7 @@ export default function POSSales() {
                 paymentMethod={paymentMethod}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
+                roundOff={roundOff}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
@@ -3647,6 +3643,7 @@ export default function POSSales() {
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
+                roundOff={savedInvoiceData.roundOff ?? 0}
               />
             )}
             onPrint={handleClosePrintConfirmDialog}
@@ -3719,6 +3716,7 @@ export default function POSSales() {
               notes={savedInvoiceData?.notes || saleNotes}
               paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
               previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+              roundOff={savedInvoiceData?.roundOff ?? roundOff}
             />
           )}
         </div>
