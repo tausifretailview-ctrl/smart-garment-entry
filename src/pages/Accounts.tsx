@@ -339,16 +339,23 @@ export default function Accounts() {
       
       if (voucherError) throw voucherError;
       
-      // Build invoice voucher payments map
+      // Build invoice voucher payments map AND track customer-level (opening balance) payments
       const invoiceVoucherPayments = new Map<string, number>();
+      const customerOpeningBalancePayments = new Map<string, number>();
+      const saleIdSet = new Set(allSales.map((s: any) => s.id));
+      
       allVouchers?.forEach((v: any) => {
         if (!v.reference_id) return;
-        // Only count payments that reference a sale_id (not customer opening balance payments)
-        const isSalePayment = allSales.some((s: any) => s.id === v.reference_id);
-        if (isSalePayment) {
+        if (saleIdSet.has(v.reference_id)) {
           invoiceVoucherPayments.set(
             v.reference_id,
             (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
+          );
+        } else if (v.reference_type === 'customer') {
+          // Opening balance payments reference the customer_id
+          customerOpeningBalancePayments.set(
+            v.reference_id,
+            (customerOpeningBalancePayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
           );
         }
       });
@@ -356,17 +363,18 @@ export default function Accounts() {
       // Calculate invoice balance per customer using Math.max() logic
       const customerBalances = calculateCustomerInvoiceBalances(allSales, invoiceVoucherPayments);
 
-      // Filter customers with total balance > 0 (opening_balance + invoice balance)
+      // Filter customers with total balance > 0 (opening_balance - opening_balance_payments + invoice balance)
       return allCustomers
         .filter((c: any) => {
           const openingBalance = c.opening_balance || 0;
+          const obPayments = customerOpeningBalancePayments.get(c.id) || 0;
           const invoiceBalance = customerBalances.get(c.id) || 0;
-          const totalBalance = openingBalance + invoiceBalance;
+          const totalBalance = Math.max(0, openingBalance - obPayments) + invoiceBalance;
           return totalBalance > 0;
         })
         .map((c: any) => ({
           ...c,
-          outstandingBalance: (c.opening_balance || 0) + (customerBalances.get(c.id) || 0),
+          outstandingBalance: Math.max(0, (c.opening_balance || 0) - (customerOpeningBalancePayments.get(c.id) || 0)) + (customerBalances.get(c.id) || 0),
         }));
     },
     enabled: !!currentOrganization?.id,
