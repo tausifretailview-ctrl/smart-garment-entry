@@ -35,6 +35,7 @@ import { calculateCustomerInvoiceBalances } from "@/utils/customerBalanceUtils";
 import { ChequePrintDialog } from "@/components/ChequePrintDialog";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { CustomerBalanceAdjustmentDialog } from "@/components/CustomerBalanceAdjustmentDialog";
+import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments";
 
 export default function Accounts() {
   const { currentOrganization } = useOrganization();
@@ -3260,6 +3261,9 @@ export default function Accounts() {
                   </Button>
                 </CardContent>
               </Card>
+
+              {/* Recent Adjustment History */}
+              <RecentBalanceAdjustments organizationId={currentOrganization?.id || ""} />
             </TabsContent>
           )}
 
