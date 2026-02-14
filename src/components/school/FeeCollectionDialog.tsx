@@ -20,8 +20,8 @@ interface Student {
   student_name: string;
   admission_number: string;
   class_id: string | null;
-  phone: string | null;
-  guardian_phone: string | null;
+  parent_phone: string | null;
+  parent_name: string | null;
   school_classes?: { class_name: string } | null;
   school_sections?: { section_name: string } | null;
 }
@@ -70,24 +70,14 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     queryKey: ["student-search-fee", currentOrganization?.id, studentSearch],
     queryFn: async () => {
       if (!studentSearch || studentSearch.length < 2) return [];
-      // Split search into words for flexible matching
-      const words = studentSearch.trim().split(/\s+/).filter(w => w.length >= 2);
-      let query = supabase
+      const searchTerm = studentSearch.trim();
+      const { data } = await supabase
         .from("students")
         .select("*, school_classes:class_id (class_name), school_sections:section_id (section_name)")
         .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null);
-      
-      if (words.length > 1) {
-        // Match each word against name/admission/phone for flexible multi-word search
-        for (const word of words) {
-          query = query.or(`student_name.ilike.%${word}%,admission_number.ilike.%${word}%,phone.ilike.%${word}%`);
-        }
-      } else {
-        query = query.or(`student_name.ilike.%${studentSearch}%,admission_number.ilike.%${studentSearch}%,phone.ilike.%${studentSearch}%,guardian_phone.ilike.%${studentSearch}%`);
-      }
-      
-      const { data } = await query.limit(10);
+        .is("deleted_at", null)
+        .or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%,parent_name.ilike.%${searchTerm}%`)
+        .limit(10);
       return data || [];
     },
     enabled: !!currentOrganization?.id && !initialStudent && open && studentSearch.length >= 2,
@@ -285,7 +275,7 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
               variant="outline"
               className="text-green-600 border-green-600 hover:bg-green-50"
               onClick={() => {
-                const phone = student.phone || student.guardian_phone;
+                const phone = student.parent_phone;
                 if (!phone) { toast.error("No phone number found for this student"); return; }
                 const feeLines = receiptData.selectedItems.map((item: any) => `- ${item.head_name}: Rs.${item.paying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`).join("\n");
                 const msg = `Dear ${student.student_name},\n\nFee Receipt - ${currentOrganization?.name || "School"}\nReceipt #: ${receiptData.receiptNumber}\nDate: ${format(new Date(receiptData.paidDate), "dd/MM/yyyy")}\n\nFee Details:\n${feeLines}\n\nTotal Paid: Rs.${receiptData.totalPaying.toLocaleString("en-IN", { minimumFractionDigits: 2 })}\nPayment Mode: ${receiptData.paymentMethod}\n\nThank you!`;
