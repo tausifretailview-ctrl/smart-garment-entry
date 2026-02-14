@@ -302,7 +302,9 @@ async function sendWhatsAppMessage(
   recipientPhone: string,
   message: string
 ) {
-  const url = `https://graph.facebook.com/v18.0/${settings.phone_number_id}/messages`;
+  const baseUrl = settings.custom_api_url || 'https://graph.facebook.com';
+  const version = settings.api_version || 'v21.0';
+  const url = `${baseUrl}/${version}/${settings.phone_number_id}/messages`;
   
   try {
     const response = await fetch(url, {
@@ -342,7 +344,9 @@ async function sendWhatsAppDocument(
   filename: string,
   caption?: string
 ) {
-  const url = `https://graph.facebook.com/v18.0/${settings.phone_number_id}/messages`;
+  const baseUrl = settings.custom_api_url || 'https://graph.facebook.com';
+  const version = settings.api_version || 'v21.0';
+  const url = `${baseUrl}/${version}/${settings.phone_number_id}/messages`;
 
   try {
     const response = await fetch(url, {
@@ -974,8 +978,10 @@ Deno.serve(async (req) => {
                           
                           // WhatsApp allows max 3 buttons, so we send chat option as text
                           try {
+                            const menuBaseUrl = settings.custom_api_url || 'https://graph.facebook.com';
+                            const menuVersion = settings.api_version || 'v21.0';
                             const menuResponse = await fetch(
-                              `https://graph.facebook.com/v18.0/${settings.phone_number_id}/messages`,
+                              `${menuBaseUrl}/${menuVersion}/${settings.phone_number_id}/messages`,
                               {
                                 method: 'POST',
                                 headers: {
