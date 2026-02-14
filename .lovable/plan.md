@@ -1,89 +1,68 @@
 
 
-## Support Third-Party WhatsApp API Providers (Custom Webhook URL)
+## Fix WhatsApp Inbox Not Showing Messages for Third-Party Providers
 
-### Problem
-Currently, the WhatsApp integration only supports direct Meta Cloud API with a permanent access token. Some users use third-party providers (like WappConnect, Wati, etc.) that provide:
-- A custom API URL (e.g., `https://crmapi.wappconnect.com/api/meta`)
-- A configurable API version (e.g., `v19.0`)
-- A temporary access token (that may need periodic renewal)
-- A Business ID (separate from WABA ID)
+### Root Cause Analysis
 
-These users cannot configure their WhatsApp integration because the edge function hardcodes the Meta Graph API URL.
+There are two separate issues preventing messages from appearing in the inbox:
+
+**Issue 1: Outbound messages not saved to inbox**
+The `send-whatsapp` edge function saves messages to `whatsapp_logs` but never creates entries in `whatsapp_conversations` or `whatsapp_messages`. This means conversations never appear in the WhatsApp Inbox after sending an invoice.
+
+**Issue 2: Webhook not receiving events from third-party provider**
+The third-party provider (WappConnect) needs to be configured with the correct webhook URL to send events to our system. Currently, zero webhook events are being received. Additionally, the webhook URL is not displayed anywhere in the settings UI, making it impossible for users to configure their third-party provider.
 
 ### Solution
 
-**1. Add new columns to `whatsapp_api_settings` table**
-- `api_provider` (text, default `'meta_direct'`) -- values: `meta_direct` or `third_party`
-- `custom_api_url` (text, nullable) -- e.g., `https://crmapi.wappconnect.com/api/meta`
-- `api_version` (text, default `'v21.0'`) -- e.g., `v19.0`, `v21.0`
-- `business_id` (text, nullable) -- Third-party Business ID
+**1. Save outbound messages to inbox tables (`send-whatsapp` edge function)**
 
-**2. Update WhatsApp API Settings UI (`WhatsAppAPISettings.tsx`)**
-- Add a provider selection toggle: "Direct Meta API" vs "Third-Party Provider"
-- When "Third-Party" is selected, show additional fields:
-  - Custom API URL (required)
-  - API Version (default v21.0)
-  - Business ID
-- Show a note that third-party tokens may be temporary and need renewal
-- Keep the existing fields (Phone Number ID, WABA ID, Access Token) visible for both modes
+After successfully sending a template message or text message, the function will:
+- Get or create a `whatsapp_conversations` record for the recipient phone
+- Insert the outbound message into `whatsapp_messages`
+- Update `last_message_at` on the conversation
 
-**3. Update `send-whatsapp` edge function**
-- Instead of hardcoding `https://graph.facebook.com/v21.0/`, build the API URL dynamically:
-  - If `custom_api_url` is set: use `{custom_api_url}/{api_version}/{phone_number_id}/messages`
-  - If not set (direct Meta): use `https://graph.facebook.com/{api_version}/{phone_number_id}/messages`
-- Apply the same logic to all API calls in the function (message sending, media upload, template fetching)
+This ensures every sent message creates a conversation visible in the inbox.
 
-**4. Update Platform Settings (`PlatformWhatsAppSettings.tsx`)**
-- Add the same provider selection and custom URL fields for the platform-level default
+**2. Display webhook URL in WhatsApp Settings UI**
+
+Add a "Webhook Configuration" section to the WhatsApp API Settings page that shows:
+- The webhook URL the user needs to configure in their third-party provider
+- The verify token
+- Copy-to-clipboard buttons for easy configuration
 
 ### Files to Change
 
 | File | Change |
 |------|--------|
-| Database migration | Add `api_provider`, `custom_api_url`, `api_version`, `business_id` columns |
-| `src/components/WhatsAppAPISettings.tsx` | Add provider toggle, custom API URL fields, API version, Business ID |
-| `src/hooks/useWhatsAppAPI.tsx` | Add new fields to WhatsAppSettings interface and form data handling |
-| `supabase/functions/send-whatsapp/index.ts` | Build API URL dynamically from settings; apply to all Meta API calls |
-| `src/components/PlatformWhatsAppSettings.tsx` | Add same fields for platform-level default settings |
+| `supabase/functions/send-whatsapp/index.ts` | After successful send, create/update conversation and insert message into `whatsapp_messages` |
+| `src/components/WhatsAppAPISettings.tsx` | Add webhook URL display section for third-party providers |
 
 ### Technical Details
 
-**Dynamic API URL construction (send-whatsapp edge function):**
+**send-whatsapp changes (after successful API response):**
 ```text
-Current (hardcoded):
-  metaApiUrl = "https://graph.facebook.com/v21.0/{phone_number_id}/messages"
+1. Get or create whatsapp_conversations record:
+   - Look up by organization_id + customer phone
+   - Create if not exists (with customer name from saleData)
+   - Update last_message_at
 
-New (dynamic):
-  baseUrl = settings.custom_api_url || "https://graph.facebook.com"
-  version = settings.api_version || "v21.0"
-  metaApiUrl = "{baseUrl}/{version}/{phone_number_id}/messages"
+2. Insert into whatsapp_messages:
+   - direction: 'outbound'
+   - message_type: 'template' or 'text'
+   - message_text: the message content
+   - wamid: from API response
+   - status: 'sent'
 ```
 
-This applies to 4 locations in the edge function:
-1. Main message sending (line 651)
-2. Media upload for PDF (line 226)
-3. Template metadata fetch (line 62)
-4. Document header template sending (line 262)
-
-**UI layout for third-party mode:**
+**Webhook URL display:**
 ```text
-API Provider: [Direct Meta API] [Third-Party Provider]
+Webhook URL: https://lkbbrqcsbhqjvsxiorvp.supabase.co/functions/v1/whatsapp-webhook
+Verify Token: lovable_whatsapp_webhook
 
--- When Third-Party selected --
-Custom API URL:  [https://crmapi.wappconnect.com/api/meta]
-API Version:     [v19.0]
-Business ID:     [24732513237950]
-Phone Number ID: [997588563431761]
-WABA ID:         [2393068857780985]
-Access Token:    [••••••••••••••••] (Note: May be temporary)
-```
+[Copy URL] [Copy Token]
 
-**Form data additions:**
-```typescript
-api_provider: "meta_direct" | "third_party",
-custom_api_url: "",
-api_version: "v21.0",
-business_id: "",
+Note: Configure this URL in your third-party provider's 
+webhook settings to receive message delivery updates 
+and customer replies.
 ```
 
