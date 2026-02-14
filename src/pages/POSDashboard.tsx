@@ -867,7 +867,8 @@ const POSDashboard = () => {
       // Check basic sale fields
       const matchesBasicSearch =
         sale.sale_number.toLowerCase().includes(searchLower) ||
-        sale.customer_name.toLowerCase().includes(searchLower);
+        sale.customer_name.toLowerCase().includes(searchLower) ||
+        (sale.customer_phone && sale.customer_phone.includes(searchLower));
       
       // Check barcode in sale items
       const items = saleItems[sale.id] || [];
@@ -878,15 +879,18 @@ const POSDashboard = () => {
       
       const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
 
+      // When user is actively searching, bypass date range filter
+      const hasSearchQuery = searchLower.length > 0;
+      
       // Convert sale_date to local date for comparison
       const saleLocalDate = new Date(sale.sale_date);
       const saleDateStr = format(saleLocalDate, 'yyyy-MM-dd');
       const startDateStr = startDate ? startDate : null;
       const endDateStr = endDate ? endDate : null;
 
-      const matchesDateRange =
-        (!startDateStr || saleDateStr >= startDateStr) &&
-        (!endDateStr || saleDateStr <= endDateStr);
+      const matchesDateRange = hasSearchQuery ? true :
+        ((!startDateStr || saleDateStr >= startDateStr) &&
+        (!endDateStr || saleDateStr <= endDateStr));
 
       const matchesPaymentMethod =
         paymentMethodFilter === "all" || sale.payment_method === paymentMethodFilter;
