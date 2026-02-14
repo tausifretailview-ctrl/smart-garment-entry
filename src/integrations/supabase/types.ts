@@ -4407,6 +4407,8 @@ export type Database = {
       whatsapp_api_settings: {
         Row: {
           access_token: string | null
+          api_provider: string
+          api_version: string
           auto_send_invoice: boolean
           auto_send_invoice_link: boolean | null
           auto_send_payment_reminder: boolean
@@ -4415,12 +4417,14 @@ export type Database = {
           business_hours_enabled: boolean | null
           business_hours_end: string | null
           business_hours_start: string | null
+          business_id: string | null
           business_name: string | null
           button_followup_message: string | null
           chatbot_enabled: boolean | null
           chatbot_greeting: string | null
           chatbot_system_prompt: string | null
           created_at: string
+          custom_api_url: string | null
           followup_chat_message: string | null
           followup_invoice_message: string | null
           followup_menu_message: string | null
@@ -4460,6 +4464,8 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          api_provider?: string
+          api_version?: string
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
@@ -4468,12 +4474,14 @@ export type Database = {
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
+          business_id?: string | null
           business_name?: string | null
           button_followup_message?: string | null
           chatbot_enabled?: boolean | null
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
           created_at?: string
+          custom_api_url?: string | null
           followup_chat_message?: string | null
           followup_invoice_message?: string | null
           followup_menu_message?: string | null
@@ -4513,6 +4521,8 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          api_provider?: string
+          api_version?: string
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
@@ -4521,12 +4531,14 @@ export type Database = {
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
+          business_id?: string | null
           business_name?: string | null
           button_followup_message?: string | null
           chatbot_enabled?: boolean | null
           chatbot_greeting?: string | null
           chatbot_system_prompt?: string | null
           created_at?: string
+          custom_api_url?: string | null
           followup_chat_message?: string | null
           followup_invoice_message?: string | null
           followup_menu_message?: string | null

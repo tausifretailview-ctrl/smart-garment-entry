@@ -54,12 +54,17 @@ async function fetchNamedTemplateParamNames(opts: {
   accessToken: string;
   wabaId?: string | null;
   templateName: string;
+  apiBaseUrl?: string;
+  apiVersion?: string;
 }): Promise<string[] | null> {
   const wabaId = String(opts.wabaId ?? '').trim();
   if (!wabaId) return null;
 
+  const baseUrl = opts.apiBaseUrl || 'https://graph.facebook.com';
+  const version = opts.apiVersion || 'v21.0';
+  
   // Fetch template metadata to detect NAMED parameter format
-  const url = `https://graph.facebook.com/v21.0/${wabaId}/message_templates?name=${encodeURIComponent(
+  const url = `${baseUrl}/${version}/${wabaId}/message_templates?name=${encodeURIComponent(
     opts.templateName
   )}&limit=1`;
 
@@ -205,7 +210,9 @@ async function uploadPdfToMeta(
   pdfBlob: string, // Base64 encoded PDF
   filename: string,
   phoneNumberId: string,
-  accessToken: string
+  accessToken: string,
+  apiBaseUrl?: string,
+  apiVersion?: string,
 ): Promise<string | null> {
   try {
     console.log('Uploading PDF to Meta media endpoint...');
@@ -223,7 +230,7 @@ async function uploadPdfToMeta(
     formData.append('messaging_product', 'whatsapp');
     formData.append('type', 'application/pdf');
     
-    const uploadUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/media`;
+    const uploadUrl = `${apiBaseUrl || 'https://graph.facebook.com'}/${apiVersion || 'v21.0'}/${phoneNumberId}/media`;
     
     const response = await fetch(uploadUrl, {
       method: 'POST',
@@ -257,9 +264,11 @@ async function sendDocumentHeaderTemplate(
   templateLanguage: string,
   mediaId: string,
   filename: string,
-  bodyParameters: Array<Record<string, string>>
+  bodyParameters: Array<Record<string, string>>,
+  apiBaseUrl?: string,
+  apiVersion?: string,
 ): Promise<{ success: boolean; messageId?: string; error?: string; responseData?: any }> {
-  const metaApiUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
+  const metaApiUrl = `${apiBaseUrl || 'https://graph.facebook.com'}/${apiVersion || 'v21.0'}/${phoneNumberId}/messages`;
   
   const components: Array<Record<string, unknown>> = [
     {
@@ -401,6 +410,8 @@ serve(async (req) => {
       phone_number_id: string;
       access_token: string;
       waba_id?: string | null;
+      custom_api_url?: string | null;
+      api_version?: string | null;
     };
 
     const useDefaultApi = orgSettings?.use_default_api !== false; // Default to true if not set
@@ -442,6 +453,8 @@ serve(async (req) => {
         phone_number_id: defaultCreds.phone_number_id as string,
         access_token: defaultCreds.access_token as string,
         waba_id: defaultCreds.waba_id as string | null,
+        custom_api_url: defaultCreds.custom_api_url as string | null,
+        api_version: defaultCreds.api_version as string | null,
       };
     } else {
       // Use organization's own credentials
@@ -461,15 +474,23 @@ serve(async (req) => {
         phone_number_id: orgSettings.phone_number_id,
         access_token: orgSettings.access_token,
         waba_id: orgSettings.waba_id,
+        custom_api_url: orgSettings.custom_api_url,
+        api_version: orgSettings.api_version,
       };
     }
 
     // Create a merged settings object for template fetching
+    // Build dynamic API base URL based on provider settings
+    const apiBaseUrl = apiCredentials.custom_api_url || 'https://graph.facebook.com';
+    const apiVersion = apiCredentials.api_version || 'v21.0';
+    
     const settings = {
       ...orgSettings,
       phone_number_id: apiCredentials.phone_number_id,
       access_token: apiCredentials.access_token,
       waba_id: apiCredentials.waba_id,
+      custom_api_url: apiCredentials.custom_api_url,
+      api_version: apiCredentials.api_version,
     };
 
     const formattedPhone = formatPhoneNumber(phone);
@@ -572,7 +593,9 @@ serve(async (req) => {
         pdfBlob,
         documentFilename || 'Invoice.pdf',
         settings.phone_number_id,
-        settings.access_token
+        settings.access_token,
+        apiBaseUrl,
+        apiVersion
       );
       
       if (!mediaId) {
@@ -606,7 +629,9 @@ serve(async (req) => {
           docTemplateLanguage,
           mediaId,
           documentFilename || 'Invoice.pdf',
-          docBodyParams
+          docBodyParams,
+          apiBaseUrl,
+          apiVersion
         );
         
         // Update log entry
@@ -648,7 +673,7 @@ serve(async (req) => {
     }
 
     // Call Meta WhatsApp Business API
-    const metaApiUrl = `https://graph.facebook.com/v21.0/${settings.phone_number_id}/messages`;
+    const metaApiUrl = `${apiBaseUrl}/${apiVersion}/${settings.phone_number_id}/messages`;
     
     // Build the request payload
     // Use template message if templateName is provided (required for business-initiated messages)
@@ -821,6 +846,8 @@ serve(async (req) => {
           accessToken: settings.access_token,
           wabaId: settings.waba_id,
           templateName: cleanedTemplateName,
+          apiBaseUrl,
+          apiVersion,
         });
 
         const bodyParameters = normalizedParams.map((text, idx) => {

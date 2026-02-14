@@ -31,6 +31,10 @@ interface PlatformWhatsAppCredentials {
   waba_id: string;
   access_token: string;
   business_name: string;
+  api_provider: "meta_direct" | "third_party";
+  custom_api_url: string;
+  api_version: string;
+  business_id: string;
 }
 
 export const PlatformWhatsAppSettings = () => {
@@ -41,6 +45,10 @@ export const PlatformWhatsAppSettings = () => {
     waba_id: "",
     access_token: "",
     business_name: "",
+    api_provider: "meta_direct",
+    custom_api_url: "",
+    api_version: "v21.0",
+    business_id: "",
   });
 
   // Fetch platform settings
@@ -121,6 +129,10 @@ export const PlatformWhatsAppSettings = () => {
         waba_id: value.waba_id || "",
         access_token: value.access_token || "",
         business_name: value.business_name || "",
+        api_provider: value.api_provider || "meta_direct",
+        custom_api_url: value.custom_api_url || "",
+        api_version: value.api_version || "v21.0",
+        business_id: value.business_id || "",
       });
     }
   }, [platformSettings]);
@@ -206,6 +218,66 @@ export const PlatformWhatsAppSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* API Provider Toggle */}
+          <div className="space-y-2">
+            <Label>API Provider</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={formData.api_provider === "meta_direct" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleInputChange("api_provider", "meta_direct")}
+                className="flex-1"
+              >
+                Direct Meta API
+              </Button>
+              <Button
+                type="button"
+                variant={formData.api_provider === "third_party" ? "default" : "outline"}
+                size="sm"
+                onClick={() => handleInputChange("api_provider", "third_party")}
+                className="flex-1"
+              >
+                Third-Party Provider
+              </Button>
+            </div>
+          </div>
+
+          {/* Third-party specific fields */}
+          {formData.api_provider === "third_party" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="platform_custom_api_url">Custom API URL</Label>
+                <Input
+                  id="platform_custom_api_url"
+                  placeholder="e.g., https://crmapi.wappconnect.com/api/meta"
+                  value={formData.custom_api_url}
+                  onChange={(e) => handleInputChange("custom_api_url", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="platform_api_version">API Version</Label>
+                  <Input
+                    id="platform_api_version"
+                    placeholder="e.g., v19.0"
+                    value={formData.api_version}
+                    onChange={(e) => handleInputChange("api_version", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="platform_business_id">Business ID</Label>
+                  <Input
+                    id="platform_business_id"
+                    placeholder="e.g., 24732513237950"
+                    value={formData.business_id}
+                    onChange={(e) => handleInputChange("business_id", e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="phone_number_id">Phone Number ID</Label>
@@ -234,7 +306,7 @@ export const PlatformWhatsAppSettings = () => {
               <Input
                 id="access_token"
                 type={showToken ? "text" : "password"}
-                placeholder="Permanent Access Token"
+                placeholder={formData.api_provider === "third_party" ? "Access Token (may be temporary)" : "Permanent Access Token"}
                 value={formData.access_token}
                 onChange={(e) => handleInputChange("access_token", e.target.value)}
                 className="pr-10"
