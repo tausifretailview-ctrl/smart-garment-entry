@@ -2951,6 +2951,7 @@ export type Database = {
           product_id: string
           product_name: string
           quantity: number
+          round_off_share: number | null
           sale_id: string
           size: string
           unit_price: number
@@ -2974,6 +2975,7 @@ export type Database = {
           product_id: string
           product_name: string
           quantity: number
+          round_off_share?: number | null
           sale_id: string
           size: string
           unit_price: number
@@ -2997,6 +2999,7 @@ export type Database = {
           product_id?: string
           product_name?: string
           quantity?: number
+          round_off_share?: number | null
           sale_id?: string
           size?: string
           unit_price?: number

@@ -1,0 +1,1 @@
+ALTER TABLE public.sale_items ADD COLUMN IF NOT EXISTS round_off_share numeric DEFAULT 0;

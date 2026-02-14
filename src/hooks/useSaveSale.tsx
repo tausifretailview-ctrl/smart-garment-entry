@@ -313,13 +313,15 @@ export const useSaveSale = () => {
 
       if (saleError) throw saleError;
 
-      // Insert sale items with proportional bill discount distribution
+      // Insert sale items with proportional bill discount + round-off distribution
       const subTotal = saleData.grossAmount;
       const flatDiscount = saleData.flatDiscountAmount || 0;
+      const roundOffAmount = saleData.roundOff || 0;
       const saleItems = saleData.items.map((item) => {
         const itemGross = item.netAmount; // line_total (unit_price * qty after line discount)
         const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const netAfterDiscount = itemGross - discountShare;
+        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
+        const netAfterDiscount = itemGross - discountShare + roundOffShare;
         const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
         return {
           sale_id: sale.id,
@@ -337,6 +339,7 @@ export const useSaveSale = () => {
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
           discount_share: Math.round(discountShare * 100) / 100,
+          round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
         };
@@ -650,13 +653,15 @@ export const useSaveSale = () => {
 
       if (deleteError) throw deleteError;
 
-      // Step 2: Insert new sale_items with proportional bill discount distribution
+      // Step 2: Insert new sale_items with proportional bill discount + round-off distribution
       const subTotal = saleData.grossAmount;
       const flatDiscount = saleData.flatDiscountAmount || 0;
+      const roundOffAmount = saleData.roundOff || 0;
       const saleItems = saleData.items.map((item) => {
         const itemGross = item.netAmount;
         const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const netAfterDiscount = itemGross - discountShare;
+        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
+        const netAfterDiscount = itemGross - discountShare + roundOffShare;
         const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
         return {
           sale_id: saleId,
@@ -674,6 +679,7 @@ export const useSaveSale = () => {
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
           discount_share: Math.round(discountShare * 100) / 100,
+          round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
         };
@@ -933,13 +939,15 @@ export const useSaveSale = () => {
         refundAmt = saleData.refundAmount;
       }
 
-      // Insert sale items with proportional bill discount distribution (NOW affects stock via triggers)
+      // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
       const subTotal = saleData.grossAmount;
       const flatDiscount = saleData.flatDiscountAmount || 0;
+      const roundOffAmount = saleData.roundOff || 0;
       const saleItems = saleData.items.map((item) => {
         const itemGross = item.netAmount;
         const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const netAfterDiscount = itemGross - discountShare;
+        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
+        const netAfterDiscount = itemGross - discountShare + roundOffShare;
         const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
         return {
           sale_id: heldSaleId,
@@ -957,6 +965,7 @@ export const useSaveSale = () => {
           line_total: item.netAmount,
           hsn_code: item.hsnCode || null,
           discount_share: Math.round(discountShare * 100) / 100,
+          round_off_share: Math.round(roundOffShare * 100) / 100,
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
         };
