@@ -28,6 +28,9 @@ interface Product {
   barcode: string | null;
   pur_price: number | null;
   sale_price: number | null;
+  // For grouped multi-color products
+  productIds: string[];
+  allColors: string[];
 }
 
 // Helper to format product description like Purchase/Sale entry
@@ -121,6 +124,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             barcode: v.barcode,
             pur_price: v.pur_price,
             sale_price: v.sale_price,
+            productIds: [v.products.id],
+            allColors: v.products.color ? [v.products.color] : [],
           });
         }
       });
@@ -161,11 +166,30 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             barcode: variant?.barcode || null,
             pur_price: variant?.pur_price || null,
             sale_price: variant?.sale_price || null,
+            productIds: [p.id],
+            allColors: p.color ? [p.color] : [],
           });
         }
       });
 
-      setProducts(Array.from(allProducts.values()).slice(0, 100));
+      // Group products by normalized key (name + brand + category + style) to consolidate colors
+      const grouped = new Map<string, Product>();
+      Array.from(allProducts.values()).forEach((p) => {
+        const key = `${(p.product_name || '').trim().toLowerCase()}||${(p.brand || '').trim().toLowerCase()}||${(p.category || '').trim().toLowerCase()}||${(p.style || '').trim().toLowerCase()}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, { ...p, productIds: [p.id], allColors: p.color ? [p.color] : [] });
+        } else {
+          const existing = grouped.get(key)!;
+          if (!existing.productIds.includes(p.id)) {
+            existing.productIds.push(p.id);
+          }
+          if (p.color && !existing.allColors.includes(p.color)) {
+            existing.allColors.push(p.color);
+          }
+        }
+      });
+
+      setProducts(Array.from(grouped.values()).slice(0, 100));
       setProductDisplayLimit(100); // Reset on new search
     } catch (error) {
       console.error("Error searching products:", error);
@@ -186,9 +210,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     }, 200);
   };
 
-  // Add product to selection
+  // Add product to selection (grouped - use grouping key to avoid duplicates)
   const handleSelectProduct = (product: Product) => {
-    if (!selectedProducts.find(p => p.id === product.id)) {
+    const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
+    if (!selectedProducts.find(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` === groupKey)) {
       setSelectedProducts(prev => [...prev, product]);
     }
     setPopoverOpen(false);
@@ -196,8 +221,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   };
 
   // Remove product from selection
-  const handleRemoveProduct = (productId: string) => {
-    setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+  const handleRemoveProduct = (groupKey: string) => {
+    setSelectedProducts(prev => prev.filter(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` !== groupKey));
   };
 
   // Load stock data when products are selected
@@ -210,7 +235,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
       setLoading(true);
       try {
-        const productIds = selectedProducts.map(p => p.id);
+        // Collect ALL product IDs from all grouped selections
+        const productIds = selectedProducts.flatMap(p => p.productIds);
         
         const { data, error } = await supabase
           .from("product_variants")
@@ -513,11 +539,18 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                       )}
                       <CommandGroup>
                         {products.slice(0, productDisplayLimit).map((product) => {
-                        const isSelected = selectedProducts.some(p => p.id === product.id);
+                        const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
+                        const isSelected = selectedProducts.some(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` === groupKey);
+                        // Show description without color (color shown separately as badges)
+                        const descParts = [product.product_name];
+                        if (product.brand) descParts.push(product.brand);
+                        if (product.category) descParts.push(product.category);
+                        if (product.style) descParts.push(product.style);
+                        const description = descParts.join(' | ');
                         return (
                           <CommandItem
-                            key={product.id}
-                            value={product.id}
+                            key={groupKey}
+                            value={groupKey}
                             onSelect={() => handleSelectProduct(product)}
                             className="cursor-pointer py-2"
                           >
@@ -528,19 +561,31 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                               )}
                             />
                             <div className="flex flex-col flex-1 gap-0.5">
-                              {/* Line 1: Formatted description with size range badge */}
-                              <div className="flex items-center gap-2">
+                              {/* Line 1: Product description (without color) + size group badge */}
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-medium">
-                                  {formatProductDescription(product)}
+                                  {description}
                                 </span>
                                 {product.size_group_name && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-semibold shrink-0">
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold shrink-0">
                                     {product.size_group_name}
                                   </span>
                                 )}
                               </div>
+
+                              {/* Line 2: Colors as badges */}
+                              {product.allColors.length > 0 && (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[9px] text-muted-foreground">Colors:</span>
+                                  {product.allColors.map(c => (
+                                    <span key={c} className="text-[9px] px-1 py-0 rounded bg-secondary text-secondary-foreground font-medium">
+                                      {c}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               
-                              {/* Line 2: Barcode and prices */}
+                              {/* Line 3: Barcode and prices */}
                               <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
                                 {product.barcode && (
                                   <span>Barcode: {product.barcode}</span>
@@ -576,20 +621,23 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           {/* Selected Products Tags - Compact */}
           {selectedProducts.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {selectedProducts.map((product) => (
+              {selectedProducts.map((product) => {
+                const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
+                return (
                 <div
-                  key={product.id}
+                  key={groupKey}
                   className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-medium"
                 >
-                  <span>{product.product_name}</span>
+                  <span>{product.product_name}{product.allColors.length > 0 ? ` (${product.allColors.join(', ')})` : ''}</span>
                   <button
-                    onClick={() => handleRemoveProduct(product.id)}
+                    onClick={() => handleRemoveProduct(groupKey)}
                     className="ml-0.5 hover:bg-primary/20 rounded p-0.5"
                   >
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </div>
-              ))}
+                );
+              })}
               <Button
                 variant="ghost"
                 size="sm"
