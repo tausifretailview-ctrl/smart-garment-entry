@@ -327,7 +327,7 @@ const DeliveryDashboard = () => {
     });
   }, []);
 
-  const exportToExcel = (e: React.MouseEvent) => {
+  const exportToExcel = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isExporting) return;
     if (!filteredInvoices || filteredInvoices.length === 0) {
@@ -336,94 +336,124 @@ const DeliveryDashboard = () => {
     }
     setIsExporting(true);
 
-    // Determine which invoices to export
-    const invoicesToExport = selectedInvoiceIds.size > 0
-      ? filteredInvoices.filter((inv) => selectedInvoiceIds.has(inv.id))
-      : filteredInvoices;
-
-    if (invoicesToExport.length === 0) {
-      toast.error("No invoices selected for export");
-      setIsExporting(false);
-      return;
-    }
-
-    // Get organization settings for header info
-    const settings = currentOrganization?.settings as any;
-    const businessName = settings?.business_name || currentOrganization?.name || "";
-    const businessPhone = settings?.business_phone || "";
-    
-    // Create header row with date and business info
-    const headerDate = format(new Date(), "do MMMM yyyy");
-    const headerText = `${headerDate} ${businessName}`;
-    
-    // Column headers
-    const headers = ["Sr No", "Name", "Contact", "Address", "Order ID", "Amount", "Pending", "Sign", "Remarks"];
-    
-    // Prepare data rows
-    const dataRows = invoicesToExport.map((invoice, index) => {
-      const pendingAmount = invoice.payment_status === "completed" 
-        ? 0 
-        : Number(invoice.net_amount) - Number(invoice.paid_amount || 0);
-      
-      return [
-        index + 1,
-        invoice.customer_name || "",
-        invoice.customer_phone || "",
-        invoice.customer_address || "",
-        invoice.sale_number || "",
-        Number(invoice.net_amount) || 0,
-        pendingAmount,
-        "",
-        ""
-      ];
-    });
-
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-    
-    // Build worksheet data as array of arrays
-    const wsData = [
-      [headerText], // Header row (will be merged)
-      headers,      // Column headers row
-      ...dataRows   // Data rows
-    ];
-    
-    // Create worksheet from array
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
-    
-    // Set column widths
-    ws["!cols"] = [
-      { wch: 6 },   // Sr No
-      { wch: 20 },  // Name
-      { wch: 15 },  // Contact
-      { wch: 50 },  // Address
-      { wch: 20 },  // Order ID
-      { wch: 12 },  // Amount
-      { wch: 12 },  // Pending
-      { wch: 10 },  // Sign
-      { wch: 15 }   // Remarks
-    ];
-    
-    // Merge header cells (row 0, columns A to I)
-    ws["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }
-    ];
-
-    // Set row heights (optional, for better readability)
-    ws["!rows"] = [
-      { hpt: 25 }, // Header row height
-      { hpt: 20 }, // Column headers row height
-    ];
-    
-    XLSX.utils.book_append_sheet(wb, ws, "Delivery Report");
-    
-    // Generate filename with date
-    const fileName = `Delivery_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
-    
     try {
-      // Export with bookType xlsx for proper table format
+      // Determine which invoices to export
+      const invoicesToExport = selectedInvoiceIds.size > 0
+        ? filteredInvoices.filter((inv) => selectedInvoiceIds.has(inv.id))
+        : filteredInvoices;
+
+      if (invoicesToExport.length === 0) {
+        toast.error("No invoices selected for export");
+        setIsExporting(false);
+        return;
+      }
+
+      // Fetch sale items for all exported invoices
+      const saleIds = invoicesToExport.map((inv) => inv.id);
+      const { data: saleItems } = await supabase
+        .from("sale_items")
+        .select("sale_id, product_name, size, color, quantity")
+        .in("sale_id", saleIds);
+
+      // Group items by sale_id
+      const itemsBySaleId = new Map<string, any[]>();
+      (saleItems || []).forEach((item) => {
+        if (!itemsBySaleId.has(item.sale_id)) {
+          itemsBySaleId.set(item.sale_id, []);
+        }
+        itemsBySaleId.get(item.sale_id)!.push(item);
+      });
+
+      // Get organization settings for header info
+      const settings = currentOrganization?.settings as any;
+      const businessName = settings?.business_name || currentOrganization?.name || "";
+      
+      // Create header row with date and business info
+      const headerDate = format(new Date(), "do MMMM yyyy");
+      const headerText = `${headerDate} ${businessName}`;
+      
+      // Column headers
+      const headers = ["Sr No", "Name", "Contact", "Address", "Order ID", "Product Details", "Total Qty", "Amount", "Pending", "Sign", "Remarks"];
+      
+      // Prepare data rows
+      const dataRows = invoicesToExport.map((invoice, index) => {
+        const pendingAmount = invoice.payment_status === "completed" 
+          ? 0 
+          : Number(invoice.net_amount) - Number(invoice.paid_amount || 0);
+        
+        const items = itemsBySaleId.get(invoice.id) || [];
+        const productDetails = items.map((item: any) => {
+          const parts = [item.product_name];
+          if (item.size) parts.push(item.size);
+          if (item.color) parts.push(item.color);
+          return `${parts.join(" / ")} x${item.quantity}`;
+        }).join(", ");
+        const totalQty = items.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0);
+
+        return [
+          index + 1,
+          invoice.customer_name || "",
+          invoice.customer_phone || "",
+          invoice.customer_address || "",
+          invoice.sale_number || "",
+          productDetails,
+          totalQty,
+          Number(invoice.net_amount) || 0,
+          pendingAmount,
+          "",
+          ""
+        ];
+      });
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      
+      // Build worksheet data as array of arrays
+      const wsData = [
+        [headerText], // Header row (will be merged)
+        headers,      // Column headers row
+        ...dataRows   // Data rows
+      ];
+      
+      // Create worksheet from array
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      
+      // Set column widths
+      ws["!cols"] = [
+        { wch: 6 },   // Sr No
+        { wch: 20 },  // Name
+        { wch: 15 },  // Contact
+        { wch: 50 },  // Address
+        { wch: 20 },  // Order ID
+        { wch: 45 },  // Product Details
+        { wch: 10 },  // Total Qty
+        { wch: 12 },  // Amount
+        { wch: 12 },  // Pending
+        { wch: 10 },  // Sign
+        { wch: 15 }   // Remarks
+      ];
+      
+      // Merge header cells (row 0, columns A to K)
+      ws["!merges"] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 10 } }
+      ];
+
+      // Set row heights
+      ws["!rows"] = [
+        { hpt: 25 },
+        { hpt: 20 },
+      ];
+      
+      XLSX.utils.book_append_sheet(wb, ws, "Delivery Report");
+      
+      // Generate filename with date
+      const fileName = `Delivery_Report_${format(new Date(), "yyyy-MM-dd")}.xlsx`;
+      
       XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
       toast.success(`Exported ${invoicesToExport.length} invoice(s) successfully!`);
+    } catch (error: any) {
+      console.error("Excel export error:", error);
+      toast.error("Export failed");
     } finally {
       setIsExporting(false);
     }
