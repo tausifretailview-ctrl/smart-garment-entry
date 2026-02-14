@@ -215,7 +215,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
       try {
         const { data } = await supabase
           .from("products")
-          .select("id, product_name, brand, category")
+          .select("id, product_name, brand, category, default_sale_price, size_group_id, size_groups(group_name)")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .or(`product_name.ilike.%${copySearch}%,brand.ilike.%${copySearch}%,category.ilike.%${copySearch}%`)
@@ -834,12 +834,20 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                         <div
                           key={p.id}
                           className={cn("px-3 py-2 cursor-pointer hover:bg-accent text-sm border-b border-border last:border-b-0", copySelectedIndex === i && "bg-primary text-primary-foreground")}
-                          onClick={() => handleCopyFromProduct(p.id)}
+                          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleCopyFromProduct(p.id); }}
                           onMouseEnter={() => setCopySelectedIndex(i)}
                         >
                           <div className="font-medium truncate">{p.product_name}</div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
                             {[p.brand, p.category].filter(Boolean).join(" • ")}
+                            {(p as any).size_groups?.group_name && (
+                              <span className="bg-muted px-1.5 py-0.5 rounded text-[10px] font-medium">
+                                {(p as any).size_groups.group_name}
+                              </span>
+                            )}
+                            {p.default_sale_price != null && p.default_sale_price > 0 && (
+                              <span className="ml-auto font-medium text-primary">₹{p.default_sale_price}</span>
+                            )}
                           </div>
                         </div>
                       ))}
