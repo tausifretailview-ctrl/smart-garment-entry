@@ -4,8 +4,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Plus, Minus, Search, Loader2, Scan } from "lucide-react";
+import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -36,6 +37,17 @@ interface Variant {
   gst_per: number;
 }
 
+interface SaleItemRecord {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  size: string;
+  barcode: string | null;
+  quantity: number;
+  per_qty_net_amount: number;
+  line_total: number;
+}
+
 interface FloatingSaleReturnProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +74,10 @@ export const FloatingSaleReturn = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
+  const [billNumber, setBillNumber] = useState("");
+  const [billSaleId, setBillSaleId] = useState<string | null>(null);
+  const [billItems, setBillItems] = useState<SaleItemRecord[]>([]);
+  const [billLookupLoading, setBillLookupLoading] = useState(false);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
 
   // Load sold products when dialog opens
@@ -75,6 +91,9 @@ export const FloatingSaleReturn = ({
       setReturnItems([]);
       setBarcodeInput("");
       setSearchTerm("");
+      setBillNumber("");
+      setBillSaleId(null);
+      setBillItems([]);
     }
   }, [open, organizationId]);
 
@@ -156,7 +175,62 @@ export const FloatingSaleReturn = ({
     }
   };
 
+  // Look up sale by bill number
+  const lookupBillNumber = async () => {
+    if (!billNumber.trim()) {
+      setBillSaleId(null);
+      setBillItems([]);
+      return;
+    }
+    setBillLookupLoading(true);
+    try {
+      const { data: sale } = await supabase
+        .from("sales")
+        .select("id")
+        .eq("sale_number", billNumber.trim())
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      if (!sale) {
+        toast({ title: "Not Found", description: `No sale found with number "${billNumber.trim()}"`, variant: "destructive" });
+        setBillSaleId(null);
+        setBillItems([]);
+        setBillLookupLoading(false);
+        return;
+      }
+
+      setBillSaleId(sale.id);
+
+      const { data: items } = await supabase
+        .from("sale_items")
+        .select("variant_id, product_id, product_name, size, barcode, quantity, per_qty_net_amount, line_total")
+        .eq("sale_id", sale.id)
+        .is("deleted_at", null);
+
+      setBillItems((items as SaleItemRecord[]) || []);
+      toast({ title: "Bill Found", description: `${(items || []).length} items loaded from ${billNumber.trim()}` });
+    } catch (err) {
+      console.error("Bill lookup error:", err);
+    } finally {
+      setBillLookupLoading(false);
+      setTimeout(() => barcodeInputRef.current?.focus(), 100);
+    }
+  };
+
   const fetchUnitPrice = async (variantId: string, fallbackPrice: number): Promise<number> => {
+    // If bill number is specified, use exact price from that bill
+    if (billSaleId && billItems.length > 0) {
+      const billItem = billItems.find(bi => bi.variant_id === variantId);
+      if (billItem && billItem.per_qty_net_amount && billItem.per_qty_net_amount > 0) {
+        return billItem.per_qty_net_amount;
+      }
+      if (billItem && billItem.line_total && billItem.quantity) {
+        return billItem.line_total / billItem.quantity;
+      }
+    }
+
+    // Fallback: most recent sale price
     const { data: saleItemData } = await supabase
       .from("sale_items")
       .select("per_qty_net_amount, line_total, quantity")
@@ -181,6 +255,14 @@ export const FloatingSaleReturn = ({
     const product = products.find(p => p.id === productId);
     const variant = variants.find(v => v.id === variantId);
     if (!product || !variant) return;
+
+    // If bill is specified, warn if item not in that bill
+    if (billSaleId && billItems.length > 0) {
+      const inBill = billItems.find(bi => bi.variant_id === variantId);
+      if (!inBill) {
+        toast({ title: "Warning", description: "This item was not found in the specified bill", variant: "destructive" });
+      }
+    }
 
     // Check if already added
     const existingIndex = returnItems.findIndex(item => item.variantId === variantId);
@@ -269,6 +351,14 @@ export const FloatingSaleReturn = ({
       toast({ title: "Not Found", description: "No sold product found with this barcode", variant: "destructive" });
       setBarcodeInput("");
       return;
+    }
+
+    // Warn if bill specified but item not in that bill
+    if (billSaleId && billItems.length > 0) {
+      const inBill = billItems.find(bi => bi.variant_id === variant!.id);
+      if (!inBill) {
+        toast({ title: "Warning", description: "This item was not found in the specified bill" });
+      }
     }
 
     // Check if already added
@@ -401,6 +491,30 @@ export const FloatingSaleReturn = ({
             {customerName && <span className="text-sm font-normal text-muted-foreground">— {customerName}</span>}
           </DialogTitle>
         </DialogHeader>
+
+        {/* Bill Number Lookup */}
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <Label className="text-xs mb-1">Original Sale Bill No (optional)</Label>
+            <div className="relative">
+              <FileText className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="e.g. POS/25-26/52"
+                value={billNumber}
+                onChange={(e) => setBillNumber(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupBillNumber(); } }}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={lookupBillNumber} disabled={billLookupLoading || !billNumber.trim()}>
+            {billLookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Lookup"}
+          </Button>
+          {billSaleId && (
+            <span className="text-xs text-green-600 font-medium whitespace-nowrap pb-1">✓ {billItems.length} items</span>
+          )}
+        </div>
 
         {/* Barcode Scanner */}
         <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
