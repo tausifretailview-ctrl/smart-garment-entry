@@ -1,89 +1,89 @@
 
 
-## Round-Off Distribution in Sale Items + Bill Number Lookup in Sale Return
+## Support Third-Party WhatsApp API Providers (Custom Webhook URL)
 
 ### Problem
-1. **Round-off not distributed**: When a bill has round-off (e.g., -1190), the `per_qty_net_amount` in `sale_items` only accounts for flat discount distribution, NOT round-off. So when a barcode is scanned for return, the refund amount is higher than what the customer actually paid.
-2. **No bill number lookup**: The Floating Sale Return dialog has no way to enter an original sale/bill number. Without it, the system picks the most recent sale price for that variant, which may not match the actual transaction being returned.
+Currently, the WhatsApp integration only supports direct Meta Cloud API with a permanent access token. Some users use third-party providers (like WappConnect, Wati, etc.) that provide:
+- A custom API URL (e.g., `https://crmapi.wappconnect.com/api/meta`)
+- A configurable API version (e.g., `v19.0`)
+- A temporary access token (that may need periodic renewal)
+- A Business ID (separate from WABA ID)
+
+These users cannot configure their WhatsApp integration because the edge function hardcodes the Meta Graph API URL.
 
 ### Solution
 
-**1. Add `round_off_share` column to `sale_items` table**
-- New column to store proportionally distributed round-off per line item
-- Formula: `(itemGross / subTotal) * roundOff`
+**1. Add new columns to `whatsapp_api_settings` table**
+- `api_provider` (text, default `'meta_direct'`) -- values: `meta_direct` or `third_party`
+- `custom_api_url` (text, nullable) -- e.g., `https://crmapi.wappconnect.com/api/meta`
+- `api_version` (text, default `'v21.0'`) -- e.g., `v19.0`, `v21.0`
+- `business_id` (text, nullable) -- Third-party Business ID
 
-**2. Update `per_qty_net_amount` calculation in `useSaveSale.tsx`**
-- Current: `per_qty_net_amount = (line_total - discount_share) / quantity`
-- New: `per_qty_net_amount = (line_total - discount_share - round_off_share) / quantity`
-- This applies to all 3 save paths (new sale, update sale, finalize held sale)
+**2. Update WhatsApp API Settings UI (`WhatsAppAPISettings.tsx`)**
+- Add a provider selection toggle: "Direct Meta API" vs "Third-Party Provider"
+- When "Third-Party" is selected, show additional fields:
+  - Custom API URL (required)
+  - API Version (default v21.0)
+  - Business ID
+- Show a note that third-party tokens may be temporary and need renewal
+- Keep the existing fields (Phone Number ID, WABA ID, Access Token) visible for both modes
 
-**3. Add Sale Bill Number input to Floating Sale Return**
-- Add an input field for "Original Sale No" above the barcode scanner
-- When a bill number is entered and items are scanned:
-  - Look up items from that specific sale (`sale_items` where `sale_id` matches)
-  - Use exact `per_qty_net_amount` from that sale record
-  - Auto-populate all items from that bill with their exact prices
-- When no bill number is entered (current behavior):
-  - Use most recent `per_qty_net_amount` for the scanned variant (which now includes round-off)
+**3. Update `send-whatsapp` edge function**
+- Instead of hardcoding `https://graph.facebook.com/v21.0/`, build the API URL dynamically:
+  - If `custom_api_url` is set: use `{custom_api_url}/{api_version}/{phone_number_id}/messages`
+  - If not set (direct Meta): use `https://graph.facebook.com/{api_version}/{phone_number_id}/messages`
+- Apply the same logic to all API calls in the function (message sending, media upload, template fetching)
+
+**4. Update Platform Settings (`PlatformWhatsAppSettings.tsx`)**
+- Add the same provider selection and custom URL fields for the platform-level default
 
 ### Files to Change
 
 | File | Change |
 |------|--------|
-| **Database migration** | Add `round_off_share` column (numeric, default 0) to `sale_items` |
-| `src/hooks/useSaveSale.tsx` | Distribute round-off proportionally and include in `per_qty_net_amount` (3 locations) |
-| `src/components/FloatingSaleReturn.tsx` | Add bill number input; fetch exact items from specific sale when bill number provided; update `fetchUnitPrice` to include round-off share |
+| Database migration | Add `api_provider`, `custom_api_url`, `api_version`, `business_id` columns |
+| `src/components/WhatsAppAPISettings.tsx` | Add provider toggle, custom API URL fields, API version, Business ID |
+| `src/hooks/useWhatsAppAPI.tsx` | Add new fields to WhatsAppSettings interface and form data handling |
+| `supabase/functions/send-whatsapp/index.ts` | Build API URL dynamically from settings; apply to all Meta API calls |
+| `src/components/PlatformWhatsAppSettings.tsx` | Add same fields for platform-level default settings |
 
 ### Technical Details
 
-**Round-off distribution formula (useSaveSale.tsx):**
+**Dynamic API URL construction (send-whatsapp edge function):**
+```text
+Current (hardcoded):
+  metaApiUrl = "https://graph.facebook.com/v21.0/{phone_number_id}/messages"
+
+New (dynamic):
+  baseUrl = settings.custom_api_url || "https://graph.facebook.com"
+  version = settings.api_version || "v21.0"
+  metaApiUrl = "{baseUrl}/{version}/{phone_number_id}/messages"
+```
+
+This applies to 4 locations in the edge function:
+1. Main message sending (line 651)
+2. Media upload for PDF (line 226)
+3. Template metadata fetch (line 62)
+4. Document header template sending (line 262)
+
+**UI layout for third-party mode:**
+```text
+API Provider: [Direct Meta API] [Third-Party Provider]
+
+-- When Third-Party selected --
+Custom API URL:  [https://crmapi.wappconnect.com/api/meta]
+API Version:     [v19.0]
+Business ID:     [24732513237950]
+Phone Number ID: [997588563431761]
+WABA ID:         [2393068857780985]
+Access Token:    [••••••••••••••••] (Note: May be temporary)
+```
+
+**Form data additions:**
 ```typescript
-const roundOffAmount = saleData.roundOff || 0;
-const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
-const netAfterDiscount = itemGross - discountShare - roundOffShare;
-const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
+api_provider: "meta_direct" | "third_party",
+custom_api_url: "",
+api_version: "v21.0",
+business_id: "",
 ```
-
-**Bill number lookup flow (FloatingSaleReturn.tsx):**
-```
-User enters bill number (e.g., "POS/25-26/52")
-  -> Query: sales WHERE sale_number = input AND organization_id = orgId
-  -> If found: fetch all sale_items for that sale_id
-  -> Each scanned barcode matches against those items for exact pricing
-  -> If barcode not in that bill: show warning "Item not found in this bill"
-
-No bill number entered:
-  -> Current behavior: fetch latest per_qty_net_amount for that variant
-```
-
-**Example with the screenshot data:**
-- Bill: 2 items, gross 8090, round-off -1190, net 6900
-- Item 1 (3895): round_off_share = (3895/8090) * -1190 = -573.05, per_qty = 3895 - 0 - (-573.05) = ... 
-- Wait -- round-off is negative (discount-like), so subtracting a negative adds. Let me reconsider.
-- Actually round_off can be negative (reducing total) or positive (increasing total)
-- For return: customer paid 6900 for 8090 worth of goods, so each item should refund proportionally to 6900
-- Item 1: (3895/8090) * 6900 = 3322.87
-- Item 2: (4195/8090) * 6900 = 3577.13
-- Total: 6900 (correct)
-
-**Correct formula:**
-```
-roundOffShare = (itemGross / subTotal) * roundOffAmount  // roundOff is -1190
-netAfterDiscount = itemGross - discountShare - roundOffShare
-// = 3895 - 0 - (3895/8090 * -1190) = 3895 - (-573.05) = 4468 -- WRONG
-```
-
-The issue is the sign. Round-off of -1190 means the total was REDUCED. So we need:
-```
-netAfterAll = itemGross - discountShare + roundOffShare  
-// where roundOffShare = (3895/8090) * (-1190) = -573.05
-// netAfterAll = 3895 - 0 + (-573.05) = 3321.95
-```
-
-Or equivalently, store `round_off_share` and compute:
-```
-per_qty_net_amount = (line_total - discount_share + round_off_share) / quantity
-```
-
-Since round_off can be negative (reduction) or positive (increase), adding it directly gives the correct result. This matches how the bill total works: `net = gross - discount + roundOff`.
 
