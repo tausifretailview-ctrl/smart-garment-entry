@@ -1,60 +1,89 @@
 
-## Fix: Round-Off Amount Not Showing on Invoice
+
+## Round-Off Distribution in Sale Items + Bill Number Lookup in Sale Return
 
 ### Problem
-When a manual round-off (e.g., -1190) is applied in POS, the printed invoice shows only "Sub Total" and "Grand Total" without displaying the round-off line item explaining the difference. This confuses customers and staff.
-
-### Root Cause Analysis
-
-**Two issues found:**
-
-1. **Overflow Clipping (Primary Cause)**: The print CSS in `getPageStyle()` (POSSales.tsx line 1698) sets `overflow: hidden` on `html, body` for print media. Combined with A5 page constraints, the amounts breakdown box (Subtotal, Taxable Amount, Round Off) gets clipped when content exceeds the page height. The 12 minimum empty rows in the items table consume most of the A5 page space, leaving no room for the full summary section.
-
-2. **Round-Off Calculation Bug**: In `InvoiceWrapper.tsx`, the round-off is recalculated internally as `grandTotal - (taxableAmount + totalTax)` instead of receiving the actual round-off value from POS. This formula does not account for discount, sale return adjustments, or points redemption that are displayed as separate line items, which can lead to double-counting when those values are non-zero.
+1. **Round-off not distributed**: When a bill has round-off (e.g., -1190), the `per_qty_net_amount` in `sale_items` only accounts for flat discount distribution, NOT round-off. So when a barcode is scanned for return, the refund amount is higher than what the customer actually paid.
+2. **No bill number lookup**: The Floating Sale Return dialog has no way to enter an original sale/bill number. Without it, the system picks the most recent sale price for that variant, which may not match the actual transaction being returned.
 
 ### Solution
 
-**1. Pass round-off as a direct prop to InvoiceWrapper**
-- Add a `roundOff` prop to InvoiceWrapper instead of recalculating it internally
-- POS already tracks the exact round-off value -- pass it directly for accuracy
-- Update all InvoiceWrapper call sites in POSSales.tsx to pass `roundOff` from saved/live state
+**1. Add `round_off_share` column to `sale_items` table**
+- New column to store proportionally distributed round-off per line item
+- Formula: `(itemGross / subTotal) * roundOff`
 
-**2. Fix the internal round-off calculation as fallback**
-- Update formula to: `grandTotal - (subtotal - discount - saleReturnAdjust + totalTax - pointsRedemptionValue)`
-- This ensures round-off only captures the actual rounding, not other deductions
+**2. Update `per_qty_net_amount` calculation in `useSaveSale.tsx`**
+- Current: `per_qty_net_amount = (line_total - discount_share) / quantity`
+- New: `per_qty_net_amount = (line_total - discount_share - round_off_share) / quantity`
+- This applies to all 3 save paths (new sale, update sale, finalize held sale)
 
-**3. Fix overflow clipping for A5 format**
-- Remove `overflow: hidden` from print body styles -- let content flow naturally
-- Reduce `minItemRows` for A5 format to prevent content from exceeding page height
-- Remove the wildcard `page-break-inside: avoid` rule that prevents natural page flow
-
-**4. Update all invoice templates**
-- Ensure ProfessionalTemplate, ClassicTemplate, ModernTemplate, RetailTemplate, and others consistently show the round-off line
-- For large round-off values (effectively a bill-level discount), label it as "Discount/Round Off" for clarity
+**3. Add Sale Bill Number input to Floating Sale Return**
+- Add an input field for "Original Sale No" above the barcode scanner
+- When a bill number is entered and items are scanned:
+  - Look up items from that specific sale (`sale_items` where `sale_id` matches)
+  - Use exact `per_qty_net_amount` from that sale record
+  - Auto-populate all items from that bill with their exact prices
+- When no bill number is entered (current behavior):
+  - Use most recent `per_qty_net_amount` for the scanned variant (which now includes round-off)
 
 ### Files to Change
 
 | File | Change |
 |------|--------|
-| `src/components/InvoiceWrapper.tsx` | Add `roundOff` prop; fix fallback calculation formula; pass round-off to template |
-| `src/pages/POSSales.tsx` | Pass `roundOff` prop to all InvoiceWrapper instances from savedInvoiceData/live state |
-| `src/pages/POSSales.tsx` | Fix `getPageStyle()` -- remove `overflow: hidden` from print body |
-| `src/components/invoice-templates/ProfessionalTemplate.tsx` | Verify round-off row rendering (code is correct, just needs data fix) |
+| **Database migration** | Add `round_off_share` column (numeric, default 0) to `sale_items` |
+| `src/hooks/useSaveSale.tsx` | Distribute round-off proportionally and include in `per_qty_net_amount` (3 locations) |
+| `src/components/FloatingSaleReturn.tsx` | Add bill number input; fetch exact items from specific sale when bill number provided; update `fetchUnitPrice` to include round-off share |
 
 ### Technical Details
 
-Current broken calculation (InvoiceWrapper.tsx line 234):
-```
-const roundOff = props.grandTotal - (taxableAmount + totalTax);
-```
-
-Fixed approach -- prefer prop, fallback to corrected formula:
-```
-const roundOff = props.roundOff ?? 
-  (props.grandTotal - (props.subTotal - props.discount - (props.saleReturnAdjust || 0) + totalTax - (props.pointsRedemptionValue || 0)));
+**Round-off distribution formula (useSaveSale.tsx):**
+```typescript
+const roundOffAmount = saleData.roundOff || 0;
+const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
+const netAfterDiscount = itemGross - discountShare - roundOffShare;
+const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
 ```
 
-POS InvoiceWrapper call -- add roundOff prop:
+**Bill number lookup flow (FloatingSaleReturn.tsx):**
 ```
-roundOff={savedInvoiceData?.roundOff || roundOff}
+User enters bill number (e.g., "POS/25-26/52")
+  -> Query: sales WHERE sale_number = input AND organization_id = orgId
+  -> If found: fetch all sale_items for that sale_id
+  -> Each scanned barcode matches against those items for exact pricing
+  -> If barcode not in that bill: show warning "Item not found in this bill"
+
+No bill number entered:
+  -> Current behavior: fetch latest per_qty_net_amount for that variant
 ```
+
+**Example with the screenshot data:**
+- Bill: 2 items, gross 8090, round-off -1190, net 6900
+- Item 1 (3895): round_off_share = (3895/8090) * -1190 = -573.05, per_qty = 3895 - 0 - (-573.05) = ... 
+- Wait -- round-off is negative (discount-like), so subtracting a negative adds. Let me reconsider.
+- Actually round_off can be negative (reducing total) or positive (increasing total)
+- For return: customer paid 6900 for 8090 worth of goods, so each item should refund proportionally to 6900
+- Item 1: (3895/8090) * 6900 = 3322.87
+- Item 2: (4195/8090) * 6900 = 3577.13
+- Total: 6900 (correct)
+
+**Correct formula:**
+```
+roundOffShare = (itemGross / subTotal) * roundOffAmount  // roundOff is -1190
+netAfterDiscount = itemGross - discountShare - roundOffShare
+// = 3895 - 0 - (3895/8090 * -1190) = 3895 - (-573.05) = 4468 -- WRONG
+```
+
+The issue is the sign. Round-off of -1190 means the total was REDUCED. So we need:
+```
+netAfterAll = itemGross - discountShare + roundOffShare  
+// where roundOffShare = (3895/8090) * (-1190) = -573.05
+// netAfterAll = 3895 - 0 + (-573.05) = 3321.95
+```
+
+Or equivalently, store `round_off_share` and compute:
+```
+per_qty_net_amount = (line_total - discount_share + round_off_share) / quantity
+```
+
+Since round_off can be negative (reduction) or positive (increase), adding it directly gives the correct result. This matches how the bill total works: `net = gross - discount + roundOff`.
+
