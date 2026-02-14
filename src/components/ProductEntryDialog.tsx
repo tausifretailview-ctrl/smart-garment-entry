@@ -235,15 +235,15 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
+      const target = e.target as Node;
       if (
-        copyDropdownRef.current && !copyDropdownRef.current.contains(e.target as Node) &&
-        copyInputRef.current && !copyInputRef.current.contains(e.target as Node)
-      ) {
-        setShowCopyDropdown(false);
-      }
+        copyDropdownRef.current?.contains(target) ||
+        copyInputRef.current?.contains(target)
+      ) return;
+      setShowCopyDropdown(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
   }, []);
 
   const handleCopyFromProduct = async (productId: string) => {
@@ -265,7 +265,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
 
       setFormData(prev => ({
         ...prev,
-        product_name: "",
+        product_name: product.product_name || "",
         category: product.category || "",
         brand: product.brand || "",
         style: product.style || "",
