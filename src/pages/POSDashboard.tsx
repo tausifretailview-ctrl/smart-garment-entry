@@ -271,35 +271,62 @@ const POSDashboard = () => {
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("*")
-        .eq("organization_id", currentOrganization.id)
-        .eq("sale_type", "pos")
-        .is("deleted_at", null)
-        .order("sale_date", { ascending: false });
+      // Use range-based pagination to bypass 1000-row limit
+      const allSales: any[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setSales(data || []);
-      
-      // Fetch all sale items upfront for quantity calculation
-      if (data && data.length > 0) {
-        const saleIds = data.map(sale => sale.id);
-        const { data: itemsData, error: itemsError } = await supabase
-          .from("sale_items")
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("sales")
           .select("*")
-          .in("sale_id", saleIds);
-        
-        if (!itemsError && itemsData) {
-          const itemsBySale: Record<string, SaleItem[]> = {};
-          itemsData.forEach((item: any) => {
-            if (!itemsBySale[item.sale_id]) {
-              itemsBySale[item.sale_id] = [];
-            }
-            itemsBySale[item.sale_id].push(item);
-          });
-          setSaleItems(itemsBySale);
+          .eq("organization_id", currentOrganization.id)
+          .eq("sale_type", "pos")
+          .is("deleted_at", null)
+          .order("sale_date", { ascending: false })
+          .order("id")
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allSales.push(...data);
+          offset += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
         }
+      }
+
+      setSales(allSales);
+      
+      // Fetch all sale items upfront using batched queries
+      if (allSales.length > 0) {
+        const saleIds = allSales.map(sale => sale.id);
+        const batchSize = 500;
+        const allItems: any[] = [];
+
+        for (let i = 0; i < saleIds.length; i += batchSize) {
+          const batchIds = saleIds.slice(i, i + batchSize);
+          const { data: itemsData, error: itemsError } = await supabase
+            .from("sale_items")
+            .select("*")
+            .in("sale_id", batchIds);
+          
+          if (!itemsError && itemsData) {
+            allItems.push(...itemsData);
+          }
+        }
+
+        const itemsBySale: Record<string, SaleItem[]> = {};
+        allItems.forEach((item: any) => {
+          if (!itemsBySale[item.sale_id]) {
+            itemsBySale[item.sale_id] = [];
+          }
+          itemsBySale[item.sale_id].push(item);
+        });
+        setSaleItems(itemsBySale);
       }
     } catch (error: any) {
       toast({
