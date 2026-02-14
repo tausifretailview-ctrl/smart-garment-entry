@@ -70,13 +70,24 @@ export function FeeCollectionDialog({ open, onOpenChange, student: initialStuden
     queryKey: ["student-search-fee", currentOrganization?.id, studentSearch],
     queryFn: async () => {
       if (!studentSearch || studentSearch.length < 2) return [];
-      const { data } = await supabase
+      // Split search into words for flexible matching
+      const words = studentSearch.trim().split(/\s+/).filter(w => w.length >= 2);
+      let query = supabase
         .from("students")
         .select("*, school_classes:class_id (class_name), school_sections:section_id (section_name)")
         .eq("organization_id", currentOrganization!.id)
-        .is("deleted_at", null)
-        .or(`student_name.ilike.%${studentSearch}%,admission_number.ilike.%${studentSearch}%,phone.ilike.%${studentSearch}%`)
-        .limit(10);
+        .is("deleted_at", null);
+      
+      if (words.length > 1) {
+        // Match each word against name/admission/phone for flexible multi-word search
+        for (const word of words) {
+          query = query.or(`student_name.ilike.%${word}%,admission_number.ilike.%${word}%,phone.ilike.%${word}%`);
+        }
+      } else {
+        query = query.or(`student_name.ilike.%${studentSearch}%,admission_number.ilike.%${studentSearch}%,phone.ilike.%${studentSearch}%,guardian_phone.ilike.%${studentSearch}%`);
+      }
+      
+      const { data } = await query.limit(10);
       return data || [];
     },
     enabled: !!currentOrganization?.id && !initialStudent && open && studentSearch.length >= 2,
