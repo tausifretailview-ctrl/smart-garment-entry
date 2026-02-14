@@ -330,6 +330,71 @@ async function sendDocumentHeaderTemplate(
   }
 }
 
+// Save outbound message to whatsapp_conversations + whatsapp_messages for inbox visibility
+async function saveOutboundToInbox(
+  supabase: any,
+  organizationId: string,
+  formattedPhone: string,
+  saleData: Record<string, unknown> | undefined,
+  messageText: string,
+  wamid: string | null,
+  messageType: string,
+) {
+  try {
+    const customerName = saleData ? String(saleData.customer_name || '') : '';
+
+    // Upsert conversation (unique on organization_id + customer_phone)
+    const { data: conversation, error: convError } = await supabase
+      .from('whatsapp_conversations')
+      .upsert(
+        {
+          organization_id: organizationId,
+          customer_phone: formattedPhone,
+          customer_name: customerName || null,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          status: 'active',
+        },
+        { onConflict: 'organization_id,customer_phone' }
+      )
+      .select('id')
+      .single();
+
+    if (convError || !conversation) {
+      console.error('Error upserting conversation:', convError);
+      return;
+    }
+
+    // Also update last_message_at in case upsert didn't (existing row)
+    await supabase
+      .from('whatsapp_conversations')
+      .update({ last_message_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', conversation.id);
+
+    // Insert outbound message
+    const { error: msgError } = await supabase
+      .from('whatsapp_messages')
+      .insert({
+        conversation_id: conversation.id,
+        organization_id: organizationId,
+        direction: 'outbound',
+        message_type: messageType,
+        message_text: messageText,
+        wamid: wamid,
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+      });
+
+    if (msgError) {
+      console.error('Error inserting outbound message:', msgError);
+    } else {
+      console.log('Outbound message saved to inbox for conversation:', conversation.id);
+    }
+  } catch (err) {
+    console.error('Error saving outbound to inbox:', err);
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -650,6 +715,9 @@ serve(async (req) => {
         }
         
         if (docResult.success) {
+          // Save outbound message to inbox tables
+          await saveOutboundToInbox(supabase, organizationId, formattedPhone, saleData, message || `Document template: ${docTemplateName}`, docResult.messageId || null, isTextMessage ? 'text' : 'template');
+          
           return new Response(
             JSON.stringify({ 
               success: true, 
@@ -1151,10 +1219,14 @@ serve(async (req) => {
       }
     }
 
+    // Save outbound message to inbox tables (whatsapp_conversations + whatsapp_messages)
+    const mainWamid = responseData.messages?.[0]?.id;
+    await saveOutboundToInbox(supabase, organizationId, formattedPhone, saleData, message || `Template: ${templateName || templateType}`, mainWamid || null, isTextMessage ? 'text' : 'template');
+
     return new Response(
       JSON.stringify({ 
         success: true, 
-        messageId: responseData.messages?.[0]?.id,
+        messageId: mainWamid,
         documentMessageId,
         logId: logEntry?.id
       }),

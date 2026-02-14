@@ -352,6 +352,58 @@ export const WhatsAppAPISettings = () => {
                     </AlertDescription>
                   </Alert>
 
+                  {/* Webhook Configuration Section */}
+                  <div className="p-4 bg-muted rounded-lg space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-primary" />
+                      <Label className="font-medium">Webhook Configuration</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Configure this URL in your third-party provider's webhook settings to receive delivery updates and customer replies.
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          readOnly
+                          value={`https://lkbbrqcsbhqjvsxiorvp.supabase.co/functions/v1/whatsapp-webhook`}
+                          className="text-xs font-mono bg-background"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`https://lkbbrqcsbhqjvsxiorvp.supabase.co/functions/v1/whatsapp-webhook`);
+                            toast.success("Webhook URL copied!");
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          readOnly
+                          value="lovable_whatsapp_webhook"
+                          className="text-xs font-mono bg-background"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText("lovable_whatsapp_webhook");
+                            toast.success("Verify token copied!");
+                          }}
+                        >
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        <strong>Webhook URL</strong> (top) and <strong>Verify Token</strong> (bottom)
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="custom_api_url">Custom API URL</Label>
                     <Input
