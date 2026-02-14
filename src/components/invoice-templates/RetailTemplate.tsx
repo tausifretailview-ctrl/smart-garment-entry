@@ -308,7 +308,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
                     <>
                       {item.particulars}
                       {(item.brand || item.size || item.color) && (
-                        <span style={{ fontSize: "9px", color: "#555", marginLeft: "4px" }}>
+                        <span style={{ fontSize: "11px", color: "#000", fontWeight: "600", marginLeft: "4px" }}>
                           ({[item.brand, item.size, item.color].filter(Boolean).join(" | ")})
                         </span>
                       )}
