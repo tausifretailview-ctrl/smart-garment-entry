@@ -3100,6 +3100,7 @@ const PurchaseEntry = () => {
           open={showProductDialog}
           onOpenChange={setShowProductDialog}
           onProductCreated={handleProductCreated}
+          hideOpeningQty
         />
 
         {/* Price Update Confirmation Dialog */}
