@@ -1,43 +1,42 @@
 
 
-## Auto-Fill Product Entry from Existing Product
+## Add "Copy from Existing Product" to Purchase Bill's Product Entry Dialog
 
 ### What This Does
-Adds a "Copy from Existing" search field at the top of the Product Entry form. When you search and select an existing product, all details (brand, category, style, HSN, GST, size group, colors, sizes, prices) are auto-filled into the form. You only need to change what's different (like the product name) and click "Generate Barcodes" for new barcodes, then save.
+When you click "Add New Product" from the Purchase Entry screen, the floating product creation dialog will now include a "Copy from Existing Product" search bar at the top. You can search for a similar product, select it, and all details (brand, category, style, HSN, GST, size group, colors, prices) will auto-fill. You then just change the product name, generate new barcodes, and save.
 
 ### User Flow
 
 ```text
-1. Open Product Entry to add a new product
-2. Type in the "Copy from existing product" search field
-3. Select a matching product from the dropdown
-4. Form auto-fills: brand, category, style, HSN, GST, size group, colors
-5. Variants (sizes) are generated with prices from the source product
-6. User changes the product name and any other fields as needed
-7. Click "Generate Barcodes" to get fresh barcodes for the new product
-8. Save the product
+1. In Purchase Entry, click "Add New Product" button
+2. Product Entry Dialog opens
+3. Type in the "Copy from Existing Product" search bar
+4. Select a matching product from the dropdown
+5. Form auto-fills: brand, category, style, HSN, GST, size group, colors, prices
+6. Variants (sizes) are populated with prices but empty barcodes
+7. Change the product name
+8. Click "Generate Barcodes" for fresh barcodes
+9. Save the product -- it auto-opens the size grid in Purchase Entry
 ```
 
 ### Changes
 
-**File: `src/pages/ProductEntry.tsx`**
+**File: `src/components/ProductEntryDialog.tsx`**
 
-1. Add a "Copy from Existing" search input above the Product Name field (only shown when creating a new product, not when editing)
-2. Add state for the search query and a dropdown of matching products
+1. Add "Copy from Existing Product" search state (query, results, dropdown visibility) and a debounced search against `products` table
+2. Add a search input with dropdown at the top of the dialog (above Product Name field)
 3. On selecting a product:
-   - Fetch the product with its variants from the database
+   - Fetch full product details with variants from the database
    - Set `formData` fields: `category`, `brand`, `style`, `hsn_code`, `gst_per`, `size_group_id`, `default_pur_price`, `default_sale_price`, `default_mrp`, `colors`, `uom`
-   - Set `variants` array from the source product's variants (all sizes/colors with prices) but with empty barcodes and zero opening stock
+   - Set `variants` array from the source product's variants with prices but empty barcodes and zero opening stock
    - Auto-show the variants table
    - Leave `product_name` empty so user must enter a new name
-4. The search uses a debounced query against the `products` table filtered by organization, matching on `product_name` or `brand`
+   - Focus the product name field
 
 ### Technical Details
 
-- Search query: `supabase.from("products").select("id, product_name, brand, category").ilike("product_name", "%search%").eq("organization_id", orgId).is("deleted_at", null).limit(20)`
-- On selection: `supabase.from("products").select("*, product_variants(*)").eq("id", selectedId).single()` to get full details
-- Variants are copied with `barcode: ""` and `opening_qty: 0` so user generates fresh barcodes
-- The markup percentage is recalculated from the copied purchase/sale prices
-- This feature is hidden when `editingProductId` is set (edit mode)
-- Uses a simple dropdown with `datalist`-style results, matching the compact UI style of the existing form
-
+- Search query: debounced 300ms, queries `products` table matching `product_name`, `brand`, or `category` with `ilike`, filtered by `organization_id` and `deleted_at IS NULL`, limited to 20 results
+- On selection: fetches full product with `product_variants(*)` join, maps variants with `barcode: ""` and `opening_qty: 0`
+- Colors are extracted from unique variant colors of the source product
+- The search dropdown uses a portal-based popover matching the existing UI patterns
+- Reuses the same reset logic already in the dialog, just populates fields after reset
