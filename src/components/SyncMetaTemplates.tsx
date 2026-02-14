@@ -34,9 +34,13 @@ export const SyncMetaTemplates = () => {
         throw new Error("WhatsApp API not configured. Please configure API credentials first.");
       }
 
-      // Call Meta API to fetch templates
+      // Build dynamic API URL based on provider settings
+      const baseUrl = settings.custom_api_url || 'https://graph.facebook.com';
+      const version = settings.api_version || 'v21.0';
+
+      // Call Meta/Provider API to fetch templates
       const response = await fetch(
-        `https://graph.facebook.com/v19.0/${settings.waba_id}/message_templates?fields=name,status,category,language,components`,
+        `${baseUrl}/${version}/${settings.waba_id}/message_templates?fields=name,status,category,language,components`,
         {
           headers: {
             Authorization: `Bearer ${settings.access_token}`,
