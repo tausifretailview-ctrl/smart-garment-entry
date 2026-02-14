@@ -84,9 +84,10 @@ interface ProductEntryDialogProps {
     color: string | null;
     variants: any[];
   }) => void;
+  hideOpeningQty?: boolean;
 }
 
-export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: ProductEntryDialogProps) => {
+export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideOpeningQty }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const [loading, setLoading] = useState(false);
@@ -1177,7 +1178,7 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                           <TableHead>Sale Price<span className="text-destructive">*</span></TableHead>
                           {showMrp && <TableHead>MRP<span className="text-destructive">*</span></TableHead>}
                           <TableHead>Barcode<span className="text-destructive">*</span></TableHead>
-                          <TableHead>Opening Qty</TableHead>
+                          {!hideOpeningQty && <TableHead>Opening Qty</TableHead>}
                           <TableHead>Active</TableHead>
                           <TableHead></TableHead>
                         </TableRow>
@@ -1228,15 +1229,17 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated }: Pro
                                 placeholder="Barcode"
                               />
                             </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                value={variant.opening_qty || ""}
-                                onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
-                                className="w-20"
-                                placeholder="0"
-                              />
-                            </TableCell>
+                            {!hideOpeningQty && (
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={variant.opening_qty || ""}
+                                  onChange={(e) => handleVariantChange(index, "opening_qty", e.target.value === "" ? 0 : Number(e.target.value))}
+                                  className="w-20"
+                                  placeholder="0"
+                                />
+                              </TableCell>
+                            )}
                             <TableCell>
                               <Switch
                                 checked={variant.active}
