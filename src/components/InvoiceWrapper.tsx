@@ -69,6 +69,9 @@ interface InvoiceWrapperProps {
   pointsRedemptionValue?: number;
   pointsBalance?: number;
   
+  // Round-off (pass directly from POS for accuracy)
+  roundOff?: number;
+  
   // Optional overrides
   template?: string;
   colorScheme?: string;
@@ -231,7 +234,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     // CGST and SGST are each exactly half of total GST
     const cgstAmount = totalTax / 2;
     const sgstAmount = totalTax / 2;
-    const roundOff = props.grandTotal - (taxableAmount + totalTax);
+    // Use direct prop if available, otherwise calculate as fallback
+    // Fallback accounts for discount, sale return, and points redemption to avoid double-counting
+    const roundOff = props.roundOff ?? 
+      (props.grandTotal - (props.subTotal - props.discount - (props.saleReturnAdjust || 0) + totalTax - (props.pointsRedemptionValue || 0)));
 
     // Common props for all templates
     const commonProps = {
