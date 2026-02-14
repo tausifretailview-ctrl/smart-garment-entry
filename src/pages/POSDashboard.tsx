@@ -1196,7 +1196,7 @@ const POSDashboard = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-4">
-              <div className="flex-1 relative">
+              <div className="flex-[2] min-w-[280px] relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by sale number, customer, barcode..."
