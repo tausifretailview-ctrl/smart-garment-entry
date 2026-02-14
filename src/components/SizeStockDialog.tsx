@@ -89,6 +89,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
     setProductsLoading(true);
     try {
+      // Normalize query: remove spaces for fuzzy matching (e.g., "Rolex36" matches "Rolex 36")
+      const normalizedQuery = query.replace(/\s+/g, '');
+      
       // First try to find by barcode in product_variants
       const { data: variantData, error: variantError } = await supabase
         .from("product_variants")
@@ -131,6 +134,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       });
 
       // Also search by product name, brand, style
+      // Use individual words from query for broader matching
+      const queryWords = query.trim().split(/\s+/).filter(Boolean);
+      const primaryWord = queryWords[0] || query;
+      
       const { data: productData, error: productError } = await supabase
         .from("products")
         .select(`
@@ -141,18 +148,32 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .is("product_variants.deleted_at", null)
-        .or(`product_name.ilike.%${query}%,brand.ilike.%${query}%,style.ilike.%${query}%`)
+        .or(`product_name.ilike.%${primaryWord}%,brand.ilike.%${primaryWord}%,style.ilike.%${primaryWord}%`)
         .order("product_name")
-        .limit(50);
+        .limit(100);
 
       if (productError) throw productError;
+
+      // Client-side fuzzy filter: match with spaces removed for cases like "Rolex36" -> "Rolex 36"
+      const filteredProductData = (productData || []).filter((p: any) => {
+        const nameNorm = (p.product_name || '').replace(/\s+/g, '').toLowerCase();
+        const brandNorm = (p.brand || '').replace(/\s+/g, '').toLowerCase();
+        const styleNorm = (p.style || '').replace(/\s+/g, '').toLowerCase();
+        const queryLower = query.toLowerCase();
+        const queryNorm = normalizedQuery.toLowerCase();
+        
+        // Match if original query OR space-stripped query matches any field
+        return nameNorm.includes(queryNorm) || brandNorm.includes(queryNorm) || styleNorm.includes(queryNorm)
+          || (p.product_name || '').toLowerCase().includes(queryLower)
+          || (p.brand || '').toLowerCase().includes(queryLower)
+          || (p.style || '').toLowerCase().includes(queryLower);
+      });
 
       // Merge results - barcode matches first, then product matches
       const allProducts = new Map<string, Product>();
       barcodeProducts.forEach((p, id) => allProducts.set(id, p));
-      (productData || []).forEach((p: any) => {
+      filteredProductData.forEach((p: any) => {
         if (!allProducts.has(p.id)) {
-          // Get first variant with data
           const variant = p.product_variants?.find((v: any) => v.mrp != null) || p.product_variants?.[0];
           allProducts.set(p.id, {
             id: p.id,
