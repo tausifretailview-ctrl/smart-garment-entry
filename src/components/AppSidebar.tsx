@@ -102,7 +102,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border dark:bg-[hsl(213,32%,17%)] pt-0" style={{ width: '280px' }}>
-      <SidebarContent className="font-sans text-[16px] text-white pt-0 mt-0">
+      <SidebarContent className="font-sans text-[16px] text-white pt-0 mt-0 space-y-1">
         {/* Platform Admin - Only visible to platform admins */}
         {isPlatformAdmin && (
           <SidebarGroup className="pt-0 first:pt-0">
