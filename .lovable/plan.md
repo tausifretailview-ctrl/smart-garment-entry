@@ -1,87 +1,143 @@
 
+# Advanced Database-Level Aggregation Views
 
-# Phase 3 & 5: Payload Reduction and Organization Filter Audit
+Three new SQL views will be created to move heavy aggregation from the browser to the database, followed by frontend refactoring to consume them. All changes are additive and production-safe.
 
-## Phase 3: Replace `select('*')` with Explicit Columns
+---
 
-There are ~28 files with `select('*')` queries. We will focus on the **highest-traffic pages** first, where payload reduction has the biggest impact. Lower-traffic pages (e.g., WhatsApp Inbox, Recycle Bin) are left unchanged as they are rarely hit.
+## 1. Gross Profit View
 
-### High-Priority Files to Update
+**View name:** `v_dashboard_gross_profit`
 
-**1. Settings queries (loaded on almost every page)**
-These files use `select('*')` on `settings` but only need specific fields:
+The user's request references a `cost_price` column on `sale_items`, but this column does not exist. The actual cost data lives in `product_variants.pur_price`. The view will join `sales -> sale_items -> product_variants` to compute COGS server-side.
 
-| File | Replace with |
-|------|-------------|
-| `src/pages/POSSales.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, sale_settings, invoice_settings, bill_barcode_settings, pos_settings, header_text, footer_text, logo_url')` |
-| `src/pages/SalesInvoice.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, sale_settings, invoice_settings, bill_barcode_settings, header_text, footer_text, logo_url, state')` |
-| `src/pages/SalesInvoiceDashboard.tsx` | `select('business_name, address, mobile_number, gst_number, sale_settings, bill_barcode_settings, invoice_settings')` |
-| `src/pages/PaymentsDashboard.tsx` | `select('business_name, gst_number, bill_barcode_settings')` |
-| `src/pages/DailyCashierReport.tsx` | `select('business_name, address, mobile_number, gst_number')` |
-| `src/pages/Accounts.tsx` | `select('business_name, gst_number, bill_barcode_settings')` |
-| `src/components/InvoicePrint.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, invoice_settings, header_text, footer_text, logo_url, state')` |
-| `src/components/ThermalPrint80mm.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, invoice_settings, header_text, footer_text, logo_url, pos_settings')` |
+This replaces the heaviest dashboard query (currently 3 cascading fetches across sales, sale_items, and product_variants with client-side loops).
 
-**2. Employee queries**
-| File | Replace with |
-|------|-------------|
-| `src/pages/SalesInvoice.tsx` | `select('id, employee_name, status')` |
-| `src/pages/SaleOrderEntry.tsx` | `select('id, employee_name, status')` |
-| `src/pages/DeliveryChallanEntry.tsx` | `select('id, employee_name, status')` |
-| `src/pages/EmployeeMaster.tsx` | keep `select('*')` (master page needs all fields) |
-| `src/pages/Accounts.tsx` | `select('id, employee_name, status')` |
+```sql
+CREATE OR REPLACE VIEW v_dashboard_gross_profit WITH (security_invoker=on) AS
+SELECT
+  s.organization_id,
+  DATE(s.sale_date) AS sale_day,
+  COALESCE(SUM(si.quantity * si.unit_price), 0) AS total_sale_amount,
+  COALESCE(SUM(si.quantity * pv.pur_price), 0) AS total_cost_amount,
+  COALESCE(SUM(si.quantity * si.unit_price), 0) - COALESCE(SUM(si.quantity * pv.pur_price), 0) AS gross_profit,
+  CASE
+    WHEN SUM(si.quantity * si.unit_price) = 0 THEN 0
+    ELSE ((SUM(si.quantity * si.unit_price) - SUM(si.quantity * pv.pur_price))
+          / SUM(si.quantity * si.unit_price)) * 100
+  END AS gross_margin_percent
+FROM sales s
+JOIN sale_items si ON si.sale_id = s.id AND si.deleted_at IS NULL
+LEFT JOIN product_variants pv ON pv.id = si.variant_id
+WHERE s.deleted_at IS NULL
+GROUP BY s.organization_id, DATE(s.sale_date);
+```
 
-**3. Sales/Customer queries on dashboards**
+**Frontend change in `Index.tsx`:** Replace the 30-line `profit-data-cogs` query (lines 483-531) with a single view query summing `gross_profit` for the date range.
+
+---
+
+## 2. Purchase Summary View
+
+**View name:** `v_dashboard_purchase_summary`
+
+Corrected from the user's request to match actual schema (`bill_date`, `bill_id`, `qty`, `net_amount`).
+
+```sql
+CREATE OR REPLACE VIEW v_dashboard_purchase_summary WITH (security_invoker=on) AS
+SELECT
+  p.organization_id,
+  DATE(p.bill_date) AS purchase_day,
+  COUNT(DISTINCT p.id) AS bill_count,
+  COALESCE(SUM(DISTINCT p.net_amount), 0) AS total_purchase_amount,
+  COALESCE(SUM(DISTINCT p.paid_amount), 0) AS total_paid_amount,
+  COALESCE(SUM(DISTINCT p.net_amount) - SUM(DISTINCT p.paid_amount), 0) AS total_pending_amount,
+  COALESCE(SUM(pi.qty), 0) AS total_items_purchased
+FROM purchase_bills p
+LEFT JOIN purchase_items pi ON pi.bill_id = p.id AND pi.deleted_at IS NULL
+WHERE p.deleted_at IS NULL
+GROUP BY p.organization_id, DATE(p.bill_date);
+```
+
+**Frontend change in `Index.tsx`:** Replace the `purchase-total` query (lines 370-402) -- eliminates the cascading fetch for bill IDs then purchase items.
+
+---
+
+## 3. Enhanced Sales Summary View (Add sold_qty)
+
+Recreate the existing `v_dashboard_sales_summary` with an additional `sold_qty` column by joining `sale_items`.
+
+```sql
+CREATE OR REPLACE VIEW v_dashboard_sales_summary WITH (security_invoker=on) AS
+SELECT
+  s.organization_id,
+  DATE(s.sale_date) AS sale_day,
+  COUNT(DISTINCT s.id) AS invoice_count,
+  COALESCE(SUM(DISTINCT s.net_amount), 0) AS total_sales,
+  COALESCE(SUM(DISTINCT s.paid_amount), 0) AS total_paid,
+  COALESCE(SUM(DISTINCT s.cash_amount), 0) AS total_cash,
+  COALESCE(SUM(si.quantity), 0) AS sold_qty
+FROM sales s
+LEFT JOIN sale_items si ON si.sale_id = s.id AND si.deleted_at IS NULL
+WHERE s.deleted_at IS NULL
+GROUP BY s.organization_id, DATE(s.sale_date);
+```
+
+**Frontend change in `Index.tsx`:** Remove the cascading sale IDs + fetchAllSaleItems call from the `total-sales` query (lines 306-319). Just read `sold_qty` from the view.
+
+---
+
+## 4. Frontend Refactoring
+
+### Index.tsx -- `total-sales` query (lines 288-325)
+- Add `sold_qty` to the select list
+- Remove the secondary fetch for sale IDs and `fetchAllSaleItems`
+- Sum `sold_qty` from the view rows
+
+### Index.tsx -- `purchase-total` query (lines 370-402)
+- Replace with single query to `v_dashboard_purchase_summary`
+- Remove cascading bill ID + purchase_items fetch
+
+### Index.tsx -- `profit-data-cogs` query (lines 483-531)
+- Replace with single query to `v_dashboard_gross_profit`
+- Sum `gross_profit` for the date range
+- Eliminates 3 cascading fetches (sales, sale_items, product_variants)
+
+### useDashboardInvalidation.tsx
+- Add invalidation for new query keys if any change
+
+### StatsChartsSection.tsx
+- Update purchase trend query to use the new purchase summary view
+
+---
+
+## Safety Guarantees
+
+- No tables modified or dropped
+- No columns added or removed
+- Invoice numbering untouched
+- Existing frontend logic replaced only after view correctness is verified in the same query function
+- All views use `security_invoker=on` (RLS applies automatically)
+- All views filter by `organization_id` in GROUP BY
+- `SUM(DISTINCT ...)` used where joins could cause row multiplication
+
+---
+
+## Files Changed
+
 | File | Change |
 |------|--------|
-| `src/pages/PaymentsDashboard.tsx` (sales query) | `select('id, sale_number, sale_date, customer_name, customer_id, net_amount, paid_amount, cash_amount, payment_method, payment_status')` |
-| `src/pages/SaleOrderEntry.tsx` (customers query) | `select('id, customer_name, phone, email, address, gst_number, discount_percent')` |
+| New migration SQL | 3 views created/updated |
+| `src/pages/Index.tsx` | 3 queries simplified (profit, purchase, sales) |
+| `src/hooks/useDashboardInvalidation.tsx` | Minor key updates |
+| `src/components/dashboard/StatsChartsSection.tsx` | Purchase chart query optimization |
 
-**4. POS-specific queries** (POSSales.tsx)
-- Sale fetch for draft resume: keep `select('*')` since full sale data is needed for re-editing
-- Sale items fetch: keep `select('*')` since all item fields are needed for cart restoration
+## Net Impact
 
-### Files NOT Changed (intentionally)
-- `EmployeeMaster.tsx` -- master CRUD page, needs all columns
-- `WhatsAppInbox.tsx` -- low traffic, complex message structure
-- `CustomerHistoryDialog.tsx` -- dialog-level, rarely opened
-- `school/TeacherMaster.tsx` -- master page
-
----
-
-## Phase 5: Organization Filtering Verification
-
-Based on the codebase audit, organization filtering is consistently applied. Here is the verification summary:
-
-### Verified Patterns
-- All `settings` queries include `.eq('organization_id', ...)`
-- All `employees` queries include `.eq('organization_id', ...)`
-- All `sales` queries include `.eq('organization_id', ...)`
-- All `customers` queries include `.eq('organization_id', ...)`
-- All `product_variants` and `products` queries include `.eq('organization_id', ...)`
-- All `purchase_bills` queries include `.eq('organization_id', ...)`
-- The `useCustomerSearch` hook correctly filters by organization
-- Database triggers automatically populate `organization_id` on insert
-
-### RLS Status
-RLS is already enabled on all 77 tables with policies using `organization_id` filtering via `user_belongs_to_org()` and `get_user_organization_ids()` functions. No changes needed.
-
-### Result
-No gaps found. Phase 5 is a verification-only pass with no code changes.
-
----
-
-## Summary of Changes
-
-| Category | Files Modified | Impact |
-|----------|---------------|--------|
-| Settings `select('*')` reduction | 8 files | Reduces payload on every page load |
-| Employee `select('*')` reduction | 3 files | Smaller payloads for dropdown queries |
-| Sales/Customer query reduction | 2 files | Reduced dashboard payload |
-| Organization filter audit | 0 files (verified OK) | Confidence in data isolation |
-
-### Safety
-- No columns dropped, no tables modified
-- Invoice rendering fields are preserved in all print-related queries
-- POS draft resume keeps `select('*')` to avoid breaking cart restoration
-- All changes are column-list narrowing only -- additive and safe
+| Metric | Before | After |
+|--------|--------|-------|
+| Dashboard DB round-trips | ~15 | ~6 |
+| Profit calculation | 3 cascading fetches | 1 view query |
+| Purchase totals | 2 cascading fetches | 1 view query |
+| Sales sold_qty | 2 cascading fetches | Included in existing view |
+| Client-side JS loops | Heavy (variants map, reduce) | Minimal (sum view rows) |
