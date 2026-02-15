@@ -70,6 +70,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat } from "@/utils/pdfGenerator";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
@@ -198,6 +199,10 @@ export default function POSSales() {
   const [showFloatingCashierReport, setShowFloatingCashierReport] = useState(false);
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
   const [showFloatingSaleReturn, setShowFloatingSaleReturn] = useState(false);
+
+  // Quick service product dialog state
+  const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
+  const [quickServiceCode, setQuickServiceCode] = useState("");
 
   const { playSuccessBeep, playErrorBeep } = useBeepSound();
 
@@ -866,6 +871,14 @@ export default function POSSales() {
   }, [recordKeystroke, detectScannerInput]);
 
   const searchAndAddProduct = useCallback((searchTerm: string) => {
+    // Quick service shortcode detection (single digit 1-9)
+    if (/^[1-9]$/.test(searchTerm)) {
+      setQuickServiceCode(searchTerm);
+      setShowQuickServiceDialog(true);
+      setSearchInput("");
+      return;
+    }
+
     if (!productsData) {
       setSearchInput("");
       return;
@@ -914,6 +927,33 @@ export default function POSSales() {
       });
     }
   }, [productsData, playErrorBeep, toast]);
+
+  const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
+    const newItem: CartItem = {
+      id: `service-${code}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      barcode: code,
+      productName: `Service Item ${code}`,
+      size: '-',
+      color: '',
+      quantity,
+      mrp,
+      originalMrp: null,
+      gstPer: 0,
+      discountPercent: 0,
+      discountAmount: 0,
+      unitCost: mrp,
+      netAmount: quantity * mrp,
+      productId: '',
+      variantId: '',
+      hsnCode: '',
+      productType: 'service',
+    };
+    setItems(prev => [...prev, newItem]);
+    playSuccessBeep();
+    setShowQuickServiceDialog(false);
+    setQuickServiceCode("");
+    setTimeout(() => barcodeInputRef.current?.focus(), 100);
+  }, [setItems, playSuccessBeep]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
@@ -3869,6 +3909,14 @@ export default function POSSales() {
             setSaleReturnAdjust(amount);
             toast({ title: "Sale Return Applied", description: `Return ${returnNumber} — ₹${Math.round(amount)} adjusted` });
           }}
+        />
+
+        {/* Quick Service Product Dialog */}
+        <QuickServiceProductDialog
+          open={showQuickServiceDialog}
+          onOpenChange={setShowQuickServiceDialog}
+          serviceCode={quickServiceCode}
+          onAdd={handleQuickServiceAdd}
         />
 
       </div>
