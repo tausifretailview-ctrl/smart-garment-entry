@@ -751,32 +751,32 @@ const CustomerMaster = () => {
                       aria-label="Select all"
                     />
                   </TableHead>
-                  <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Sr No</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Customer Name</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Mobile</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Email</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">GST</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Opening Bal.</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Advance</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Discount %</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-center">Status</TableHead>
-                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Actions</TableHead>
+                   <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Sr No</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Customer Name</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Mobile</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Email</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">GST</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Opening Bal.</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Advance</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Discount %</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-center">Status</TableHead>
+                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center text-[13px] py-8 text-slate-500">Loading...</TableCell>
-                  </TableRow>
-                ) : customers.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center text-[13px] py-8 text-slate-500">No customers found</TableCell>
+                     <TableCell colSpan={11} className="text-center text-[14px] leading-5 py-8 text-slate-500">Loading...</TableCell>
+                   </TableRow>
+                 ) : customers.length === 0 ? (
+                   <TableRow>
+                     <TableCell colSpan={11} className="text-center text-[14px] leading-5 py-8 text-slate-500">No customers found</TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer, index) => (
                     <TableRow 
                       key={customer.id}
-                      className="h-11 hover:bg-blue-50/30 transition border-b border-slate-100"
+                      className="h-12 hover:bg-blue-50/30 transition border-b border-slate-100"
                       onContextMenu={(e) => handleRowContextMenu(e, customer)}
                     >
                       <TableCell className="py-2 px-4">
@@ -786,9 +786,9 @@ const CustomerMaster = () => {
                           aria-label={`Select ${customer.customer_name}`}
                         />
                       </TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>
-                      <TableCell 
-                        className="py-2 px-4 text-[13px] font-semibold text-blue-600 cursor-pointer hover:underline"
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>
+                       <TableCell 
+                         className="py-2 px-4 text-[14px] leading-5 font-semibold text-blue-600 cursor-pointer hover:underline"
                         onClick={() => {
                           setSelectedCustomerForHistory({
                             id: customer.id,
@@ -799,18 +799,18 @@ const CustomerMaster = () => {
                       >
                         {customer.customer_name}
                       </TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] text-slate-600">{customer.email || "-"}</TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums text-slate-800">
-                        {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString('en-IN')}` : "-"}
-                      </TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums">
-                        {advanceBalances[customer.id] ? (
-                          <span className="text-purple-600">₹{Math.round(advanceBalances[customer.id]).toLocaleString('en-IN')}</span>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums text-slate-700">
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-slate-600">{customer.email || "-"}</TableCell>
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-800">
+                         {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString('en-IN')}` : "-"}
+                       </TableCell>
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums">
+                         {advanceBalances[customer.id] ? (
+                           <span className="text-purple-600">₹{Math.round(advanceBalances[customer.id]).toLocaleString('en-IN')}</span>
+                         ) : "-"}
+                       </TableCell>
+                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-700">
                         {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
                       </TableCell>
                       <TableCell className="py-2 px-4 text-center">
