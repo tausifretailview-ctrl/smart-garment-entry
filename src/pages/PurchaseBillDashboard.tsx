@@ -886,7 +886,7 @@ const PurchaseBillDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
+    <div className="min-h-screen bg-background px-6 py-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -1397,7 +1397,7 @@ const PurchaseBillDashboard = () => {
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Rows per page:</span>
                     <Select value={itemsPerPage.toString()} onValueChange={handlePageSizeChange}>
-                      <SelectTrigger className="w-20 h-9">
+                      <SelectTrigger className="w-20 h-10">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
