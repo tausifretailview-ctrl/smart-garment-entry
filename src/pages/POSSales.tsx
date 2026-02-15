@@ -871,14 +871,15 @@ export default function POSSales() {
   }, [recordKeystroke, detectScannerInput]);
 
   const searchAndAddProduct = useCallback((searchTerm: string) => {
+    // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
+    if (/^[1-9]$/.test(searchTerm)) {
+      setQuickServiceCode(searchTerm);
+      setShowQuickServiceDialog(true);
+      setSearchInput("");
+      return;
+    }
+
     if (!productsData) {
-      // Even without product data, allow quick service shortcodes
-      if (/^[1-9]$/.test(searchTerm)) {
-        setQuickServiceCode(searchTerm);
-        setShowQuickServiceDialog(true);
-        setSearchInput("");
-        return;
-      }
       setSearchInput("");
       return;
     }
@@ -898,14 +899,6 @@ export default function POSSales() {
         foundProduct = product;
         break;
       }
-    }
-
-    // If no product found and it's a single digit, open quick service dialog
-    if (!foundVariant && /^[1-9]$/.test(searchTerm)) {
-      setQuickServiceCode(searchTerm);
-      setShowQuickServiceDialog(true);
-      setSearchInput("");
-      return;
     }
 
     // Priority 2: Product name match (for manual search)
