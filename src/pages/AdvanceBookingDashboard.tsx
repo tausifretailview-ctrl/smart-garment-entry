@@ -200,7 +200,7 @@ export default function AdvanceBookingDashboard() {
   const fmt = (n: number) => n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

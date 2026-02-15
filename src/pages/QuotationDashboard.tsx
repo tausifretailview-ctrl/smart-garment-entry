@@ -234,7 +234,7 @@ export default function QuotationDashboard() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
 
       {/* Summary Statistics Cards - Vasy ERP Style Vibrant */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

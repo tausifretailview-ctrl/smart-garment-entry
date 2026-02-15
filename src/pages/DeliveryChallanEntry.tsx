@@ -705,7 +705,7 @@ export default function DeliveryChallanEntry() {
           <div className="flex items-center gap-4">
             <BackToDashboard />
             <div>
-              <h1 className="text-xl font-bold text-foreground">Delivery Challan</h1>
+              <h1 className="text-2xl font-bold text-foreground">Delivery Challan</h1>
               <p className="text-sm text-muted-foreground">No GST - Stock will be deducted on save</p>
             </div>
           </div>
@@ -727,14 +727,14 @@ export default function DeliveryChallanEntry() {
           <Card className="p-4">
             <div className="space-y-3">
               <div>
-                <Label className="text-xs">Challan No</Label>
-                <Input value={editingChallanId ? "Editing..." : nextChallanPreview || "Auto"} disabled className="h-8 text-sm bg-muted" />
+                <Label>Challan No</Label>
+                <Input value={editingChallanId ? "Editing..." : nextChallanPreview || "Auto"} disabled className="bg-muted" />
               </div>
               <div>
-                <Label className="text-xs">Date</Label>
+                <Label>Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full h-8 justify-start text-left font-normal text-sm", !challanDate && "text-muted-foreground")}>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !challanDate && "text-muted-foreground")}>
                       <CalendarIcon className="mr-2 h-3 w-3" />
                       {challanDate ? format(challanDate, "dd/MM/yyyy") : "Select date"}
                     </Button>
@@ -743,9 +743,9 @@ export default function DeliveryChallanEntry() {
                 </Popover>
               </div>
               <div>
-                <Label className="text-xs">Salesman</Label>
+                <Label>Salesman</Label>
                 <Select value={salesman} onValueChange={setSalesman}>
-                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     {employeesData?.map((emp: any) => (
                       <SelectItem key={emp.id} value={emp.employee_name}>{emp.employee_name}</SelectItem>
@@ -760,14 +760,14 @@ export default function DeliveryChallanEntry() {
           <Card className="p-4 lg:col-span-2">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Customer</Label>
-                <Button variant="ghost" size="sm" onClick={() => setOpenCustomerDialog(true)} className="h-6 text-xs">
+                <Label>Customer</Label>
+                <Button variant="ghost" size="sm" onClick={() => setOpenCustomerDialog(true)}>
                   <Plus className="h-3 w-3 mr-1" /> New
                 </Button>
               </div>
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full h-8 justify-start text-left font-normal text-sm">
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
                     <Search className="mr-2 h-3 w-3" />
                     {selectedCustomer ? `${selectedCustomer.customer_name} - ${selectedCustomer.phone || ''}` : "Search customer..."}
                   </Button>
@@ -803,12 +803,12 @@ export default function DeliveryChallanEntry() {
           {/* From Sale Order */}
           <Card className="p-4">
             <div className="space-y-3">
-              <Label className="text-xs">From Sale Order</Label>
+              <Label>From Sale Order</Label>
               <Select value={selectedSaleOrderId || ""} onValueChange={(v) => {
                 const order = pendingSaleOrders?.find((o: any) => o.id === v);
                 if (order) loadFromSaleOrder(order);
               }}>
-                <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Select order" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select order" /></SelectTrigger>
                 <SelectContent>
                   {pendingSaleOrders?.map((order: any) => (
                     <SelectItem key={order.id} value={order.id}>
@@ -817,7 +817,7 @@ export default function DeliveryChallanEntry() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" className="w-full h-8 text-xs" onClick={() => navigate('/sale-order-dashboard')}>
+              <Button variant="outline" size="sm" className="w-full" onClick={() => navigate('/sale-order-dashboard')}>
                 <FileText className="h-3 w-3 mr-1" /> View Orders
               </Button>
             </div>
@@ -946,27 +946,27 @@ export default function DeliveryChallanEntry() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Notes */}
           <Card className="p-4">
-            <Label className="text-xs mb-2 block">Notes</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes..." className="text-sm" rows={3} />
-            <Label className="text-xs mt-3 mb-2 block">Shipping Address</Label>
-            <Textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} placeholder="Delivery address..." className="text-sm" rows={2} />
+            <Label className="mb-2 block">Notes</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes..." rows={3} />
+            <Label className="mt-3 mb-2 block">Shipping Address</Label>
+            <Textarea value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} placeholder="Delivery address..." rows={2} />
           </Card>
 
           {/* Discounts */}
           <Card className="p-4">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Flat Discount %</Label>
+                <Label>Flat Discount %</Label>
                 <Input type="number" min={0} max={100} value={flatDiscountPercent || ''} onChange={(e) => { setFlatDiscountPercent(parseFloat(e.target.value) || 0); setFlatDiscountRupees(0); }}
                   className="h-7 w-20 text-right text-sm" />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Flat Discount ₹</Label>
+                <Label>Flat Discount ₹</Label>
                 <Input type="number" min={0} value={flatDiscountRupees || ''} onChange={(e) => { setFlatDiscountRupees(parseFloat(e.target.value) || 0); setFlatDiscountPercent(0); }}
                   className="h-7 w-20 text-right text-sm" />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Round Off</Label>
+                <Label>Round Off</Label>
                 <Input type="number" value={roundOff || ''} onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                   className="h-7 w-20 text-right text-sm" />
               </div>

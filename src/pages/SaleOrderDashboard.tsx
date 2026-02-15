@@ -445,7 +445,7 @@ export default function SaleOrderDashboard() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
 
       {/* Unsaved Draft Card */}
       {hasDraft && draftData && (
