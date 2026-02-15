@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { Trash2, Search, Plus } from "lucide-react";
+import { Trash2, Search, Plus, Check, ChevronsUpDown } from "lucide-react";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -60,6 +60,8 @@ export default function SaleReturnEntry() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [customerSearchOpen, setCustomerSearchOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [returnDate, setReturnDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [originalSaleNumber, setOriginalSaleNumber] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
@@ -78,14 +80,15 @@ export default function SaleReturnEntry() {
 
   useEffect(() => {
     if (!currentOrganization) return;
-    
-    // Fetch customers
+
+    // Fetch initial customers
     supabase
       .from("customers")
       .select("id, customer_name, phone")
       .eq("organization_id", currentOrganization.id)
       .is("deleted_at", null)
       .order("customer_name")
+      .limit(50)
       .then(({ data }) => setCustomers(data || []));
 
     // Fetch next return number
@@ -510,18 +513,72 @@ export default function SaleReturnEntry() {
 
               <div className="space-y-2">
                 <Label>Customer (Optional)</Label>
-                <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select customer" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((customer) => (
-                      <SelectItem key={customer.id} value={customer.id}>
-                        {customer.customer_name} {customer.phone && `- ${customer.phone}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={customerSearchOpen} onOpenChange={setCustomerSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={customerSearchOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedCustomer
+                        ? customers.find(c => c.id === selectedCustomer)?.customer_name || "Selected"
+                        : "Select customer"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[350px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Search by name or phone..."
+                        value={customerSearchTerm}
+                        onValueChange={(val) => {
+                          setCustomerSearchTerm(val);
+                          // Server-side search
+                          if (!currentOrganization) return;
+                          let query = supabase
+                            .from("customers")
+                            .select("id, customer_name, phone")
+                            .eq("organization_id", currentOrganization.id)
+                            .is("deleted_at", null)
+                            .order("customer_name")
+                            .limit(50);
+                          if (val.trim()) {
+                            const term = `%${val.trim()}%`;
+                            query = query.or(`customer_name.ilike.${term},phone.ilike.${term}`);
+                          }
+                          query.then(({ data }) => setCustomers(data || []));
+                        }}
+                      />
+                      <CommandList>
+                        <CommandEmpty>No customer found.</CommandEmpty>
+                        <CommandGroup>
+                          {customers.map((customer) => (
+                            <CommandItem
+                              key={customer.id}
+                              value={customer.customer_name + (customer.phone || "")}
+                              onSelect={() => {
+                                setSelectedCustomer(customer.id);
+                                setCustomerSearchOpen(false);
+                                setCustomerSearchTerm("");
+                              }}
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">{customer.customer_name}</span>
+                                {customer.phone && (
+                                  <span className="text-xs text-muted-foreground">{customer.phone}</span>
+                                )}
+                              </div>
+                              {selectedCustomer === customer.id && (
+                                <Check className="ml-auto h-4 w-4 text-primary" />
+                              )}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="space-y-2">
