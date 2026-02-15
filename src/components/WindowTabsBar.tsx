@@ -21,8 +21,9 @@ import { cn } from "@/lib/utils";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 
 const QUICK_OPEN_PAGES = [
-  { path: "dashboard", label: "Dashboard", icon: "Home", category: "Main" },
+  { path: "", label: "Dashboard", icon: "Home", category: "Main" },
   { path: "pos-sales", label: "POS Sales", icon: "ShoppingCart", category: "Sales" },
+  { path: "pos-dashboard", label: "POS Dashboard", icon: "ShoppingCart", category: "Sales" },
   { path: "sales-invoice", label: "Sales Invoice", icon: "FileText", category: "Sales" },
   { path: "sales-invoice-dashboard", label: "Sales Dashboard", icon: "FileText", category: "Sales" },
   { path: "quotation-dashboard", label: "Quotations", icon: "ClipboardList", category: "Sales" },
