@@ -258,56 +258,56 @@ All colors MUST be HSL.
   }
 }
 
-/* ERP Compact Styles */
+/* ERP Full View Styles */
 @layer base {
-  /* Windows Desktop App Density */
+  /* Professional ERP Density */
   .erp-compact {
-    @apply text-sm;
+    @apply text-[15px];
   }
   
   .erp-compact input,
   .erp-compact select,
   .erp-compact textarea {
-    @apply h-8 text-sm;
+    @apply h-10 text-sm;
   }
   
   .erp-compact label {
-    @apply text-xs;
+    @apply text-sm;
   }
   
   .erp-compact .card {
-    @apply p-4;
+    @apply p-5;
   }
   
   .erp-compact table th {
-    @apply h-8 text-xs px-2 py-1;
+    @apply h-9 text-[13px] font-semibold px-4 py-2.5;
   }
   
   .erp-compact table td {
-    @apply px-2 py-1 text-sm;
+    @apply px-4 py-2.5 text-sm;
   }
 
-  /* Sidebar menu item height - Windows desktop density */
+  /* Sidebar menu item height - Professional ERP density */
   [data-sidebar="menu-button"] {
-    @apply h-10 text-[13px];
+    @apply h-11 text-[14px];
   }
 
   [data-sidebar="menu-sub-button"] {
-    @apply h-9 text-[13px];
+    @apply h-10 text-[14px];
   }
 
   /* Card padding standard */
   .card {
-    @apply p-4;
+    @apply p-5;
   }
 
-  /* Table density for ERP */
+  /* Table density for ERP - Full View */
   table th {
-    @apply text-xs font-medium px-3 py-2;
+    @apply text-[13px] font-semibold px-4 py-2.5;
   }
 
   table td {
-    @apply text-sm px-3 py-2;
+    @apply text-sm px-4 py-2.5;
   }
 }
 
@@ -317,7 +317,7 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground text-sm;
+    @apply bg-background text-foreground text-[15px];
   }
 }
 
