@@ -2224,8 +2224,8 @@ const PurchaseEntry = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-background px-6 py-6">
+      <div className="w-full space-y-4">
         <BackToDashboard label="Back to Purchase Dashboard" to="/purchase-bills" />
         <div className="mb-6 flex items-center gap-3">
           <ShoppingCart className="h-8 w-8 text-primary" />
