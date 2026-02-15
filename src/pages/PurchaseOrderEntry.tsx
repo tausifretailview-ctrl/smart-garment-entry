@@ -629,7 +629,7 @@ export default function PurchaseOrderEntry() {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
       <BackToDashboard to="/purchase-orders" label="Purchase Orders" />
 
       <DraftResumeDialog
@@ -646,10 +646,10 @@ export default function PurchaseOrderEntry() {
         draftType="purchase_order"
       />
 
-      <Card className="p-4">
+      <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <ClipboardList className="h-6 w-6" />
             {editingOrderId ? 'Edit Purchase Order' : 'New Purchase Order'}
           </h1>
           <span className="text-lg font-semibold text-primary">{orderNumber}</span>

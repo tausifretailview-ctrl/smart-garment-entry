@@ -1181,7 +1181,7 @@ export default function SaleOrderEntry() {
   }, [searchInput]);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
       <BackToDashboard />
       
       <Card className="p-6">

@@ -803,7 +803,7 @@ const DesktopDashboard = () => {
             size="sm"
             onClick={handleRefreshAll}
             disabled={isRefreshing}
-            className="h-8 text-xs border-border bg-card hover:bg-muted"
+            className="h-9 text-sm border-border bg-card hover:bg-muted"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1", isRefreshing && "animate-spin")} />
             Refresh
@@ -812,7 +812,7 @@ const DesktopDashboard = () => {
           <div className="flex items-center gap-2 bg-card border border-border rounded-md px-2 py-1 shadow-elevated">
             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
             <Select value={dateRange} onValueChange={(v: DateRangeType) => setDateRange(v)}>
-              <SelectTrigger className="w-[100px] h-7 border-0 shadow-none text-xs bg-transparent text-foreground">
+              <SelectTrigger className="w-[100px] h-9 border-0 shadow-none text-sm bg-transparent text-foreground">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-popover border-border">
@@ -832,7 +832,7 @@ const DesktopDashboard = () => {
             variant="default" 
             size="sm" 
             onClick={() => navigate(`/net-profit-analysis?from=${startDate}&to=${endDate}`)}
-            className="h-8 text-xs"
+            className="h-9 text-sm"
           >
             <TrendingUp className="h-3.5 w-3.5 mr-1" />
             Net Profit
@@ -1038,41 +1038,41 @@ const DesktopDashboard = () => {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 pt-1">
+                <CardContent className="p-4 pt-2">
                   <div className="flex flex-wrap gap-2">
                     <Button 
                       size="sm"
                       onClick={() => navigate("/salesman")}
-                      className="h-8 text-xs"
+                      className="h-9 text-sm"
                     >
-                      <Smartphone className="mr-1 h-3 w-3" />
+                      <Smartphone className="mr-1 h-3.5 w-3.5" />
                       Open App
                     </Button>
                     <Button 
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/order/new")}
-                      className="h-8 text-xs border-border"
+                      className="h-9 text-sm border-border"
                     >
-                      <ClipboardList className="mr-1 h-3 w-3" />
+                      <ClipboardList className="mr-1 h-3.5 w-3.5" />
                       New Order
                     </Button>
                     <Button 
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/customers")}
-                      className="h-8 text-xs border-border"
+                      className="h-9 text-sm border-border"
                     >
-                      <MapPin className="mr-1 h-3 w-3" />
+                      <MapPin className="mr-1 h-3.5 w-3.5" />
                       Customers
                     </Button>
                     <Button 
                       size="sm"
                       variant="outline" 
                       onClick={() => navigate("/salesman/outstanding")}
-                      className="h-8 text-xs border-border"
+                      className="h-9 text-sm border-border"
                     >
-                      <IndianRupee className="mr-1 h-3 w-3" />
+                      <IndianRupee className="mr-1 h-3.5 w-3.5" />
                       Outstanding
                     </Button>
                   </div>
