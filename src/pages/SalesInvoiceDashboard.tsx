@@ -1157,12 +1157,14 @@ export default function SalesInvoiceDashboard() {
   const getDeliveryBadgeVariant = (status: string) => {
     switch (status) {
       case 'delivered':
-        return 'default'; // Green
+        return 'default';
       case 'in_process':
-        return 'secondary'; // Yellow/Orange
+        return 'secondary';
+      case 'order_cancelled':
+        return 'destructive';
       case 'undelivered':
       default:
-        return 'outline'; // Red/Gray
+        return 'outline';
     }
   };
 
@@ -1172,6 +1174,8 @@ export default function SalesInvoiceDashboard() {
         return 'bg-green-100 text-green-800 border-green-300';
       case 'in_process':
         return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'order_cancelled':
+        return 'bg-red-100 text-red-800 border-red-300';
       case 'undelivered':
       default:
         return 'bg-gray-100 text-gray-800 border-gray-300';
@@ -1184,6 +1188,8 @@ export default function SalesInvoiceDashboard() {
         return 'Delivered';
       case 'in_process':
         return 'In Process';
+      case 'order_cancelled':
+        return 'Order Cancelled';
       case 'undelivered':
       default:
         return 'Undelivered';
@@ -1584,6 +1590,7 @@ export default function SalesInvoiceDashboard() {
                   <SelectItem value="delivered">Delivered</SelectItem>
                   <SelectItem value="in_process">In Process</SelectItem>
                   <SelectItem value="undelivered">Undelivered</SelectItem>
+                  <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                 </SelectContent>
               </Select>
               <Popover>
@@ -2219,6 +2226,7 @@ export default function SalesInvoiceDashboard() {
                     <SelectItem value="delivered">Delivered</SelectItem>
                     <SelectItem value="in_process">In Process</SelectItem>
                     <SelectItem value="undelivered">Undelivered</SelectItem>
+                    <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
