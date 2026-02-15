@@ -2731,8 +2731,8 @@ const PurchaseEntry = () => {
                                     onClick={() => handleInlineProductSelect(result)}
                                     onMouseEnter={() => setSelectedInlineIndex(idx)}
                                     className={cn(
-                                      "w-full text-left px-4 py-3 text-popover-foreground border-b border-border last:border-0 transition-colors",
-                                      idx === selectedInlineIndex ? "bg-accent" : "hover:bg-accent/50"
+                                      "w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors",
+                                      idx === selectedInlineIndex ? "bg-primary text-primary-foreground [&_*]:text-primary-foreground" : "text-popover-foreground hover:bg-accent/50"
                                     )}
                                   >
                                     <div className="font-medium flex items-center gap-2">
