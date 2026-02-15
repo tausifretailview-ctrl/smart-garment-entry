@@ -313,8 +313,17 @@ const ProductDashboard = () => {
 
   const visibleColumnCount = Object.values(columnVisibility).filter(Boolean).length + 4; // +4 for expand, checkbox, sr.no, actions
 
+  // Debounced search
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef2 = useState<NodeJS.Timeout | null>(null);
+  
   useEffect(() => {
-    fetchProductVariants();
+    if (searchTimerRef2[0]) clearTimeout(searchTimerRef2[0]);
+    searchTimerRef2[0] = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => { if (searchTimerRef2[0]) clearTimeout(searchTimerRef2[0]); };
+  }, [searchQuery]);
+
+  useEffect(() => {
     fetchSizeGroups();
     fetchSettings();
   }, []);
@@ -342,59 +351,67 @@ const ProductDashboard = () => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedProductType, selectedSizeGroup, selectedStockLevel, minPrice, maxPrice, itemsPerPage]);
 
+  // Fetch only current page of products with server-side filters
+  useEffect(() => {
+    fetchProductVariants();
+  }, [currentOrganization?.id, currentPage, itemsPerPage, debouncedSearch, selectedCategory, selectedProductType, selectedStockLevel]);
+
   const fetchProductVariants = async () => {
+    if (!currentOrganization?.id) return;
     setLoading(true);
     try {
-      // Fetch ALL products using pagination to bypass 1000 row limit
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
+      const offset = (currentPage - 1) * itemsPerPage;
       
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("products")
-          .select(`
+      let query = supabase
+        .from("products")
+        .select(`
+          id,
+          product_name,
+          product_type,
+          category,
+          brand,
+          style,
+          color,
+          hsn_code,
+          image_url,
+          gst_per,
+          default_pur_price,
+          default_sale_price,
+          status,
+          product_variants (
             id,
-            product_name,
-            product_type,
-            category,
-            brand,
-            style,
+            size,
             color,
-            hsn_code,
-            image_url,
-            gst_per,
-            default_pur_price,
-            default_sale_price,
-            status,
-            product_variants (
-              id,
-              size,
-              color,
-              barcode,
-              pur_price,
-              sale_price,
-              mrp,
-              stock_qty
-            )
-          `)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+            barcode,
+            pur_price,
+            sale_price,
+            mrp,
+            stock_qty
+          )
+        `)
+        .is("deleted_at", null)
+        .eq("organization_id", currentOrganization.id);
+      
+      // Server-side search
+      const term = debouncedSearch.trim();
+      if (term) {
+        query = query.or(`product_name.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%,style.ilike.%${term}%`);
       }
       
-      const data = allProducts;
+      // Server-side filters
+      if (selectedCategory !== "all") {
+        query = query.eq("category", selectedCategory);
+      }
+      if (selectedProductType !== "all") {
+        query = query.eq("product_type", selectedProductType);
+      }
+      
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(offset, offset + itemsPerPage - 1);
+
+      if (error) throw error;
 
       const rows: ProductRow[] = (data || []).map((product: any) => {
         // Filter out deleted variants
@@ -437,17 +454,28 @@ const ProductDashboard = () => {
 
       setProductRows(rows);
       
-      // Extract unique categories
-      const uniqueCategories = Array.from(
-        new Set(rows.map(r => r.category).filter(c => c && c.trim() !== ""))
-      ).sort();
-      setCategories(uniqueCategories);
+      // Extract unique categories (fetch separately for filters, only once)
+      if (categories.length === 0) {
+        const { data: catData } = await supabase
+          .from("products")
+          .select("category")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .not("category", "is", null);
+        const uniqueCategories = Array.from(new Set((catData || []).map((p: any) => p.category).filter(Boolean))).sort();
+        setCategories(uniqueCategories as string[]);
+      }
 
-      // Extract unique product types
-      const uniqueProductTypes = Array.from(
-        new Set((data || []).map((p: any) => p.product_type).filter((t: string) => t && t.trim() !== ""))
-      ).sort();
-      setProductTypes(uniqueProductTypes);
+      if (productTypes.length === 0) {
+        const { data: typeData } = await supabase
+          .from("products")
+          .select("product_type")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .not("product_type", "is", null);
+        const uniqueTypes = Array.from(new Set((typeData || []).map((p: any) => p.product_type).filter(Boolean))).sort();
+        setProductTypes(uniqueTypes as string[]);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -650,7 +678,7 @@ const ProductDashboard = () => {
   };
 
   const handleNextPage = () => {
-    if (currentPage < totalPages) {
+    if (productRows.length >= itemsPerPage) {
       setCurrentPage(currentPage + 1);
     }
   };
@@ -738,44 +766,32 @@ const ProductDashboard = () => {
     maxPrice !== "" ||
     searchQuery !== "";
 
+  // Client-side filters for fields not handled server-side (stock level, price range, barcode)
   const filteredRows = productRows.filter((row) => {
-    const searchLower = searchQuery.toLowerCase();
-    
-    // Search filter - includes barcode search in variants
-    const matchesBasicSearch = 
-      row.product_name.toLowerCase().includes(searchLower) ||
-      row.brand?.toLowerCase().includes(searchLower) ||
-      row.category?.toLowerCase().includes(searchLower) ||
-      row.color?.toLowerCase().includes(searchLower) ||
-      row.style?.toLowerCase().includes(searchLower);
-    
-    // Check barcode in variants
-    const matchesBarcodeSearch = row.variants.some(variant => 
-      variant.barcode?.toLowerCase().includes(searchLower)
-    );
-    
-    const matchesSearch = matchesBasicSearch || matchesBarcodeSearch;
-    
-    if (!matchesSearch) return false;
-
-    // Category filter
-    if (selectedCategory !== "all" && row.category !== selectedCategory) {
-      return false;
+    // Barcode search (server doesn't search variants)
+    if (debouncedSearch.trim()) {
+      const searchLower = debouncedSearch.toLowerCase();
+      const matchesBarcodeSearch = row.variants.some(variant => 
+        variant.barcode?.toLowerCase().includes(searchLower)
+      );
+      // If server didn't match (no basic field match), check barcode
+      const matchesBasicSearch = 
+        row.product_name.toLowerCase().includes(searchLower) ||
+        row.brand?.toLowerCase().includes(searchLower) ||
+        row.category?.toLowerCase().includes(searchLower) ||
+        row.color?.toLowerCase().includes(searchLower) ||
+        row.style?.toLowerCase().includes(searchLower);
+      if (!matchesBasicSearch && !matchesBarcodeSearch) return false;
     }
 
-    // Product Type filter
-    if (selectedProductType !== "all" && row.product_type !== selectedProductType) {
-      return false;
-    }
-
-    // Stock level filter
+    // Stock level filter (client-side)
     if (selectedStockLevel !== "all") {
       if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
       if (selectedStockLevel === "low_stock" && (row.total_stock === 0 || row.total_stock > 10)) return false;
       if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
     }
 
-    // Price range filter (checking sale_price of variants)
+    // Price range filter
     const min = minPrice ? parseFloat(minPrice) : null;
     const max = maxPrice ? parseFloat(maxPrice) : null;
     
@@ -786,18 +802,17 @@ const ProductDashboard = () => {
         if (max !== null && price > max) return false;
         return true;
       });
-      
       if (!hasVariantInRange) return false;
     }
 
     return true;
   });
 
-  // Pagination
-  const totalPages = Math.ceil(filteredRows.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedRows = filteredRows.slice(startIndex, endIndex);
+  // Data is already paginated server-side, so paginatedRows = filteredRows
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / itemsPerPage) || 1);
+  const startIndex = 0;
+  const endIndex = filteredRows.length;
+  const paginatedRows = filteredRows;
 
   if (loading) {
     return (
@@ -1480,7 +1495,7 @@ const ProductDashboard = () => {
                     </Select>
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    Showing {startIndex + 1}-{Math.min(endIndex, filteredRows.length)} of {filteredRows.length} products
+                    Showing {((currentPage - 1) * itemsPerPage) + 1}-{((currentPage - 1) * itemsPerPage) + filteredRows.length} products (Page {currentPage})
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1493,13 +1508,13 @@ const ProductDashboard = () => {
                     Previous
                   </Button>
                   <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages}
+                    Page {currentPage}
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleNextPage}
-                    disabled={currentPage === totalPages}
+                    disabled={productRows.length < itemsPerPage}
                   >
                     Next
                   </Button>

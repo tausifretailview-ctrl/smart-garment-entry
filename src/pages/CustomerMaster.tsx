@@ -192,79 +192,103 @@ const CustomerMaster = () => {
     if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
     pageContextMenu.openMenu(e, undefined);
   };
-  const { data: customers = [], isLoading } = useQuery({
-    queryKey: ["customers", currentOrganization?.id],
+  // Debounced search for server-side filtering
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  
+  // Debounce search input
+  const searchTimerRef = useState<NodeJS.Timeout | null>(null);
+  
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+    if (searchTimerRef[0]) clearTimeout(searchTimerRef[0]);
+    searchTimerRef[0] = setTimeout(() => setDebouncedSearch(value), 300);
+  };
+
+  // Get total count (lightweight query)
+  const { data: totalCount = 0 } = useQuery({
+    queryKey: ["customers-count", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      
-      const allCustomers: Customer[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("customers")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allCustomers.push(...(data as Customer[]));
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      return allCustomers;
+      if (!currentOrganization?.id) return 0;
+      const { count, error } = await supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return count || 0;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
   });
 
-  // Fetch advance balances for all customers
-  const { data: advanceBalances = {} } = useQuery({
-    queryKey: ["customer-advances-summary", currentOrganization?.id],
+  // Server-side paginated + searched query
+  const { data: customersPage, isLoading } = useQuery({
+    queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage],
     queryFn: async () => {
-      if (!currentOrganization?.id) return {};
+      if (!currentOrganization?.id) return { customers: [] as Customer[], filteredCount: 0 };
       
-      const balanceMap: Record<string, number> = {};
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const term = debouncedSearch.trim();
       
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("customer_advances")
-          .select("customer_id, amount, used_amount")
-          .eq("organization_id", currentOrganization.id)
-          .in("status", ["active", "partially_used"])
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          data.forEach(adv => {
-            const available = (adv.amount || 0) - (adv.used_amount || 0);
-            if (available > 0) {
-              balanceMap[adv.customer_id] = (balanceMap[adv.customer_id] || 0) + available;
-            }
-          });
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
+      let query = supabase
+        .from("customers")
+        .select("*", { count: "exact" })
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
+      
+      if (term) {
+        const filters: string[] = [
+          `customer_name.ilike.%${term}%`,
+          `phone.ilike.%${term}%`,
+          `email.ilike.%${term}%`,
+        ];
+        query = query.or(filters.join(','));
       }
       
-      return balanceMap;
+      const { data, error, count } = await query
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+      
+      if (error) throw error;
+      return { customers: (data || []) as Customer[], filteredCount: count || 0 };
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const customers = customersPage?.customers || [];
+  const filteredCount = customersPage?.filteredCount || 0;
+
+  // Fetch advance balances only for visible customers (not all)
+  const visibleCustomerIds = customers.map(c => c.id);
+  const { data: advanceBalances = {} } = useQuery({
+    queryKey: ["customer-advances-summary", visibleCustomerIds],
+    queryFn: async () => {
+      if (!currentOrganization?.id || visibleCustomerIds.length === 0) return {};
+      
+      const { data, error } = await supabase
+        .from("customer_advances")
+        .select("customer_id, amount, used_amount")
+        .eq("organization_id", currentOrganization.id)
+        .in("status", ["active", "partially_used"])
+        .in("customer_id", visibleCustomerIds);
+      
+      if (error) throw error;
+      
+      const balanceMap: Record<string, number> = {};
+      data?.forEach(adv => {
+        const available = (adv.amount || 0) - (adv.used_amount || 0);
+        if (available > 0) {
+          balanceMap[adv.customer_id] = (balanceMap[adv.customer_id] || 0) + available;
+        }
+      });
+      return balanceMap;
+    },
+    enabled: !!currentOrganization?.id && visibleCustomerIds.length > 0,
+    staleTime: 30000,
   });
 
   const createCustomer = useMutation({
@@ -446,26 +470,15 @@ const CustomerMaster = () => {
     }
   };
 
-  const filteredCustomers = customers.filter((customer) =>
-    customer.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    customer.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Pagination
-  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
+  // Pagination computed from server-side count
+  const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Reset to page 1 when search changes
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    setCurrentPage(1);
-  };
+  // handleSearchChange is defined above with debounce logic
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedCustomers(new Set(filteredCustomers.map(c => c.id)));
+      setSelectedCustomers(new Set(customers.map(c => c.id)));
     } else {
       setSelectedCustomers(new Set());
     }
@@ -488,7 +501,7 @@ const CustomerMaster = () => {
     }
   };
 
-  const isAllSelected = filteredCustomers.length > 0 && filteredCustomers.every(c => selectedCustomers.has(c.id));
+  const isAllSelected = customers.length > 0 && customers.every(c => selectedCustomers.has(c.id));
   const isSomeSelected = selectedCustomers.size > 0;
 
   const handleExcelImport = async (
@@ -601,7 +614,7 @@ const CustomerMaster = () => {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground">Customer Master</h1>
           <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
-            Total: {customers.length.toLocaleString()} customers
+            Total: {totalCount.toLocaleString()} customers
           </span>
         </div>
         <div className="flex gap-2">
@@ -772,12 +785,12 @@ const CustomerMaster = () => {
               <TableRow>
                 <TableCell colSpan={10} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : filteredCustomers.length === 0 ? (
+            ) : customers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center">No customers found</TableCell>
               </TableRow>
             ) : (
-              paginatedCustomers.map((customer, index) => (
+              customers.map((customer, index) => (
                 <TableRow 
                   key={customer.id}
                   onContextMenu={(e) => handleRowContextMenu(e, customer)}
@@ -865,7 +878,7 @@ const CustomerMaster = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredCustomers.length)} of {filteredCustomers.length} customers
+            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount} customers
           </p>
           <div className="flex items-center gap-2">
             <Button

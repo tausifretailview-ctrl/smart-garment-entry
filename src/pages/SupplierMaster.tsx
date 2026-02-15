@@ -74,40 +74,72 @@ const SupplierMaster = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [historySupplier, setHistorySupplier] = useState<Supplier | null>(null);
 
-  // Fetch ALL suppliers using pagination to bypass 1000 row limit
-  const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: ["suppliers", currentOrganization?.id],
+  // Debounced search for server-side filtering
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useState<NodeJS.Timeout | null>(null);
+  
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+    if (searchTimerRef[0]) clearTimeout(searchTimerRef[0]);
+    searchTimerRef[0] = setTimeout(() => setDebouncedSearch(value), 300);
+  };
+
+  // Get total count (lightweight)
+  const { data: totalCount = 0 } = useQuery({
+    queryKey: ["suppliers-count", currentOrganization?.id],
     queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      
-      const allSuppliers: Supplier[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from("suppliers")
-          .select("*")
-          .eq("organization_id", currentOrganization.id)
-          .order("created_at", { ascending: false })
-          .range(offset, offset + PAGE_SIZE - 1);
-        
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          allSuppliers.push(...(data as Supplier[]));
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      return allSuppliers;
+      if (!currentOrganization?.id) return 0;
+      const { count, error } = await supabase
+        .from("suppliers")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+      return count || 0;
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 60000,
   });
+
+  // Server-side paginated + searched query
+  const { data: suppliersPage, isLoading } = useQuery({
+    queryKey: ["suppliers", currentOrganization?.id, debouncedSearch, currentPage],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return { suppliers: [] as Supplier[], filteredCount: 0 };
+      
+      const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+      const term = debouncedSearch.trim();
+      
+      let query = supabase
+        .from("suppliers")
+        .select("*", { count: "exact" })
+        .eq("organization_id", currentOrganization.id);
+      
+      if (term) {
+        const filters = [
+          `supplier_name.ilike.%${term}%`,
+          `contact_person.ilike.%${term}%`,
+          `phone.ilike.%${term}%`,
+          `supplier_code.ilike.%${term}%`,
+        ];
+        query = query.or(filters.join(','));
+      }
+      
+      const { data, error, count } = await query
+        .order("created_at", { ascending: false })
+        .order("id")
+        .range(offset, offset + ITEMS_PER_PAGE - 1);
+      
+      if (error) throw error;
+      return { suppliers: (data || []) as Supplier[], filteredCount: count || 0 };
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
+  const suppliers = suppliersPage?.suppliers || [];
+  const filteredCount = suppliersPage?.filteredCount || 0;
 
   const createSupplier = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -205,7 +237,7 @@ const SupplierMaster = () => {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedSuppliers(new Set(filteredSuppliers.map(s => s.id)));
+      setSelectedSuppliers(new Set(suppliers.map(s => s.id)));
     } else {
       setSelectedSuppliers(new Set());
     }
@@ -271,23 +303,9 @@ const SupplierMaster = () => {
     }
   };
 
-  const filteredSuppliers = suppliers.filter((supplier) =>
-    supplier.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.phone?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    supplier.supplier_code?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Pagination
-  const totalPages = Math.ceil(filteredSuppliers.length / ITEMS_PER_PAGE);
+  // Server-side pagination - no client filtering needed
+  const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedSuppliers = filteredSuppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  // Reset to page 1 when search changes
-  const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
-    setCurrentPage(1);
-  };
 
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
@@ -530,7 +548,7 @@ const SupplierMaster = () => {
             <TableRow>
               <TableHead className="w-12">
                 <Checkbox
-                  checked={filteredSuppliers.length > 0 && selectedSuppliers.size === filteredSuppliers.length}
+                  checked={suppliers.length > 0 && selectedSuppliers.size === suppliers.length}
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
@@ -550,12 +568,12 @@ const SupplierMaster = () => {
               <TableRow>
                 <TableCell colSpan={10} className="text-center">Loading...</TableCell>
               </TableRow>
-            ) : filteredSuppliers.length === 0 ? (
+            ) : suppliers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={10} className="text-center">No suppliers found</TableCell>
               </TableRow>
             ) : (
-              paginatedSuppliers.map((supplier, index) => (
+              suppliers.map((supplier, index) => (
                 <TableRow key={supplier.id}>
                   <TableCell>
                     <Checkbox
@@ -619,7 +637,7 @@ const SupplierMaster = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredSuppliers.length)} of {filteredSuppliers.length} suppliers
+            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount} suppliers
           </p>
           <div className="flex items-center gap-2">
             <Button
