@@ -1055,7 +1055,7 @@ export default function POSSales() {
       if (displayColor) extraParts.push(displayColor);
       
       if (extraParts.length > 0) {
-        description += ',' + extraParts.join('-');
+        description += '-' + extraParts.join('-');
       }
       
       // Ensure displayMrp is never 0 - always fall back to salePrice
