@@ -1165,7 +1165,7 @@ const PurchaseBillDashboard = () => {
               >
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/50">
+                    <TableRow className="bg-foreground text-background [&>th]:text-background">
                       <TableHead className="w-12"></TableHead>
                       <TableHead className="w-12">
                         <Checkbox
