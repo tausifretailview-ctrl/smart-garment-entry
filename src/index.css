@@ -290,7 +290,7 @@ All colors MUST be HSL.
 
   /* Table density for ERP - Full View */
   table th {
-    @apply text-[13px] font-semibold px-4 py-3 bg-muted text-foreground;
+    @apply text-[13px] font-semibold px-4 py-3;
   }
 
   table td {
