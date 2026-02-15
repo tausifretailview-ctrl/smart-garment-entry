@@ -123,12 +123,12 @@ const AnimatedMetricCard = ({
               "transition-all duration-150 ease-out",
               "hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5",
               "active:translate-y-0 active:shadow-sm",
-              "border-l-[3px]",
+              "border-l-4",
               accentClasses.border
             )}
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1 pl-4">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <CardTitle className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {title}
               </CardTitle>
               <div className={cn("p-1.5 rounded-md transition-transform duration-150 group-hover:scale-110", accentClasses.bg)}>
@@ -136,7 +136,7 @@ const AnimatedMetricCard = ({
               </div>
             </CardHeader>
             <CardContent className="p-3 pt-0 pl-4">
-              <div className="text-2xl font-semibold text-card-foreground tracking-tight">
+              <div className="text-2xl font-bold text-card-foreground tracking-tight">
                 {displayValue}
               </div>
             </CardContent>
@@ -770,7 +770,7 @@ const DesktopDashboard = () => {
   return (
     <TooltipProvider>
     <div 
-      className="space-y-4 bg-background min-h-full"
+      className="space-y-6 bg-background min-h-full"
       onContextMenu={handlePageContextMenu}
     >
       {/* Desktop Context Menu */}
@@ -785,10 +785,10 @@ const DesktopDashboard = () => {
       {/* Compact Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-xl font-bold text-foreground">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Dashboard
           </h1>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-sm text-muted-foreground">
             Smart Inventory Management System
           </p>
         </div>

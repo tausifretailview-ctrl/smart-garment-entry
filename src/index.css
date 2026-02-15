@@ -57,13 +57,24 @@ All colors MUST be HSL.
     /* Windows-style radius */
     --radius: 0.375rem;
 
-    /* Clean minimal shadows */
+    /* Clean minimal shadows - Elevation System */
     --gradient-primary: none;
     --gradient-accent: none;
     --gradient-success: none;
     --shadow-glow: none;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-elevated: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
     --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+
+    /* ERP Design Tokens */
+    --erp-radius: 0.375rem;
+    --erp-card-padding: 1.25rem;
+    --erp-section-gap: 1.5rem;
+    --erp-form-gap: 1rem;
+    --erp-row-height: 3rem;
+    --erp-input-height: 2.5rem;
 
     /* Dark slate sidebar */
     --sidebar-background: 222 47% 11%;
@@ -279,12 +290,22 @@ All colors MUST be HSL.
 
   /* Table density for ERP - Full View */
   table th {
-    @apply text-[13px] font-semibold px-4 py-3;
+    @apply text-[13px] font-semibold px-4 py-3 bg-muted text-foreground;
   }
 
   table td {
-    @apply text-[14px] px-4 py-3;
+    @apply text-[14px] px-4 py-3 border-b border-muted;
   }
+
+  table tbody tr {
+    @apply hover:bg-muted/50 transition-colors;
+  }
+}
+
+/* Sidebar Active Indicator Bar */
+[data-sidebar="menu-button"][data-active="true"] {
+  border-left: 3px solid hsl(var(--sidebar-primary));
+  background: hsl(var(--sidebar-accent));
 }
 
 @layer base {
