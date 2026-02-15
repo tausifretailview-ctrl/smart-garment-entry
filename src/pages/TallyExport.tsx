@@ -426,7 +426,7 @@ const TallyExport = () => {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Tally Export</h1>
         <p className="text-muted-foreground mt-1">

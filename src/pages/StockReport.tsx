@@ -770,7 +770,7 @@ export default function StockReport() {
   };
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
       <div>
         <h1 className="text-3xl font-bold">Stock Report</h1>

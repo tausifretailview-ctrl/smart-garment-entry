@@ -102,7 +102,7 @@ const SalesReportByCustomer = () => {
   const pieChartData = Object.values(paymentMethodData);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
 
       <div className="flex justify-between items-center">
