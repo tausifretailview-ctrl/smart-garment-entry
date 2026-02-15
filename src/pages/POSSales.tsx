@@ -476,6 +476,11 @@ export default function POSSales() {
         e.preventDefault();
         handleHoldBill();
       }
+      // F8 - Cashier Report
+      else if (e.key === 'F8') {
+        e.preventDefault();
+        setShowFloatingCashierReport(true);
+      }
       // Esc - Clear items
       else if (e.key === 'Escape') {
         e.preventDefault();
@@ -2650,7 +2655,18 @@ export default function POSSales() {
             <span>Hold</span>
           </Button>
           
-          {/* 7. New - matches Dashboard "Completed" emerald-500 */}
+          {/* 8. Cashier Report F8 */}
+          <Button
+            onClick={() => setShowFloatingCashierReport(true)}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-teal-500 hover:bg-teal-600 text-white shadow-none"
+            title="Daily Cashier Report (F8)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F8</Badge>
+            <BarChart3 className="h-4 w-4" />
+            <span>Cashier</span>
+          </Button>
+          
+          {/* 9. New */}
           <Button
             onClick={handleNewInvoice}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-emerald-500 hover:bg-emerald-600 text-white shadow-none"

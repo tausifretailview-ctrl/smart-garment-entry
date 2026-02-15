@@ -55,16 +55,18 @@ export function FloatingPOSReports({
 // Floating Daily Cashier Report Dialog
 function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenChange: () => void }) {
   const { currentOrganization } = useOrganization();
-  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  // Fetch today's sales
+  const reportDate = new Date(selectedDate + 'T00:00:00');
+
+  // Fetch sales for selected date
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, format(today, 'yyyy-MM-dd')],
+    queryKey: ["floating-cashier-report-sales", currentOrganization?.id, selectedDate],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       
-      const startDate = startOfDay(today);
-      const endDate = endOfDay(today);
+      const startDate = startOfDay(reportDate);
+      const endDate = endOfDay(reportDate);
       
       const { data, error } = await supabase
         .from("sales")
@@ -79,7 +81,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       return data;
     },
     enabled: !!currentOrganization?.id && open,
-    refetchInterval: open ? 30000 : false, // Refresh every 30 seconds when open
+    refetchInterval: open ? 30000 : false,
   });
 
   const calculateTotals = () => {
@@ -148,7 +150,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         printWindow.document.write(`
           <html>
             <head>
-              <title>Daily Cashier Report - ${format(today, 'dd/MM/yyyy')}</title>
+              <title>Daily Cashier Report - ${format(reportDate, 'dd/MM/yyyy')}</title>
               <style>
                 body { font-family: Arial, sans-serif; padding: 20px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -161,7 +163,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
             </head>
             <body>
               <h2 style="text-align: center;">Daily Cashier Report</h2>
-              <p style="text-align: center;">${format(today, 'dd MMM yyyy')}</p>
+              <p style="text-align: center;">${format(reportDate, 'dd MMM yyyy')}</p>
               ${printContent.innerHTML}
             </body>
           </html>
@@ -179,12 +181,20 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
-              Daily Cashier Report - {format(today, 'dd MMM yyyy')}
+              Daily Cashier Report - {format(reportDate, 'dd MMM yyyy')}
             </DialogTitle>
-            <Button variant="outline" size="sm" onClick={handlePrint} className="mr-8">
-              <Printer className="h-4 w-4 mr-1" />
-              Print
-            </Button>
+            <div className="flex items-center gap-2 mr-8">
+              <Input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="h-8 w-36 text-sm"
+              />
+              <Button variant="outline" size="sm" onClick={handlePrint}>
+                <Printer className="h-4 w-4 mr-1" />
+                Print
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
