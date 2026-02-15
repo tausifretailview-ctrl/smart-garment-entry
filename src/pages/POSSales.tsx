@@ -446,23 +446,33 @@ export default function POSSales() {
         e.preventDefault();
         handlePaymentAndPrint('cash');
       }
-      // F2 - Card Payment (Save & Print)
+      // F2 - UPI Payment (Save & Print)
       else if (e.key === 'F2') {
-        e.preventDefault();
-        handlePaymentAndPrint('card');
-      }
-      // F3 - UPI Payment (Save & Print)
-      else if (e.key === 'F3') {
         e.preventDefault();
         handlePaymentAndPrint('upi');
       }
-      // F4 - Mix Payment
+      // F3 - Card Payment (Save & Print)
+      else if (e.key === 'F3') {
+        e.preventDefault();
+        handlePaymentAndPrint('card');
+      }
+      // F4 - Credit (Pay Later)
       else if (e.key === 'F4') {
+        e.preventDefault();
+        handlePaymentAndPrint('pay_later');
+      }
+      // F5 - Sale Return
+      else if (e.key === 'F5') {
+        e.preventDefault();
+        setShowFloatingSaleReturn(true);
+      }
+      // F6 - Mix Payment
+      else if (e.key === 'F6') {
         e.preventDefault();
         handleMixPayment();
       }
-      // F5 - Hold Bill
-      else if (e.key === 'F5') {
+      // F7 - Hold Bill
+      else if (e.key === 'F7') {
         e.preventDefault();
         handleHoldBill();
       }
@@ -2557,7 +2567,7 @@ export default function POSSales() {
       <div className="w-20 bg-slate-100 dark:bg-slate-900 border-r flex flex-col gap-2 p-2 pb-32 z-30 relative overflow-y-auto">
         {/* Buttons in sequence: Cash, UPI, Card, Credit, Mix, Hold, New, Last, Print, Clear, WhatsApp */}
         <div className="space-y-2">
-          {/* 1. Cash - matches Dashboard "Total Cash" green-500 */}
+          {/* 1. Cash F1 */}
           <Button
             onClick={() => handlePaymentAndPrint('cash')}
             disabled={items.length === 0 || isSaving}
@@ -2569,61 +2579,73 @@ export default function POSSales() {
             <span>Cash</span>
           </Button>
           
-          {/* 2. UPI - matches Dashboard "Total UPI" purple-500 */}
+          {/* 2. UPI F2 */}
           <Button
             onClick={() => handlePaymentAndPrint('upi')}
             disabled={items.length === 0 || isSaving}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-purple-500 hover:bg-purple-600 text-white shadow-none disabled:opacity-50"
-            title="UPI Payment - Save & Print (F3)"
+            title="UPI Payment - Save & Print (F2)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F3</Badge>
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F2</Badge>
             <Smartphone className="h-4 w-4" />
             <span>UPI</span>
           </Button>
           
-          {/* 3. Card - matches Dashboard "Total Card" cyan-500 */}
+          {/* 3. Card F3 */}
           <Button
             onClick={() => handlePaymentAndPrint('card')}
             disabled={items.length === 0 || isSaving}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-cyan-500 hover:bg-cyan-600 text-white shadow-none disabled:opacity-50"
-            title="Card Payment - Save & Print (F2)"
+            title="Card Payment - Save & Print (F3)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F2</Badge>
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F3</Badge>
             <CreditCard className="h-4 w-4" />
             <span>Card</span>
           </Button>
           
-          {/* 4. Credit - matches Dashboard "Pending/Partial" orange-500 */}
+          {/* 4. Credit F4 */}
           <Button
             onClick={() => handlePaymentAndPrint('pay_later')}
             disabled={items.length === 0 || isSaving}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-orange-500 hover:bg-orange-600 text-white shadow-none disabled:opacity-50"
-            title="Credit - Pay Later"
+            title="Credit - Pay Later (F4)"
           >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F4</Badge>
             <Clock className="h-4 w-4" />
             <span>Credit</span>
           </Button>
           
-          {/* 5. Mix - matches Dashboard "Sale Amount" violet-500 */}
+          {/* 5. Sale Return F5 */}
+          <Button
+            onClick={() => setShowFloatingSaleReturn(true)}
+            className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-red-500 hover:bg-red-600 text-white shadow-none"
+            title="Sale Return (F5)"
+          >
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F5</Badge>
+            <RotateCcw className="h-4 w-4" />
+            <span>S/R</span>
+          </Button>
+          
+          {/* 6. Mix F6 */}
           <Button
             onClick={handleMixPayment}
             disabled={items.length === 0 || isSaving}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-violet-500 hover:bg-violet-600 text-white shadow-none disabled:opacity-50"
-            title="Mix Payment - Save & Print (F4)"
+            title="Mix Payment - Save & Print (F6)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F4</Badge>
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F6</Badge>
             <Wallet className="h-4 w-4" />
             <span>Mix</span>
           </Button>
           
-          {/* 6. Hold - matches Dashboard "On Hold" amber-500 */}
+          {/* 7. Hold F7 */}
           <Button
             onClick={handleHoldBill}
             disabled={items.length === 0 || isSaving || isHeldSale}
             className="h-14 flex flex-col items-center justify-center gap-1 text-xs relative w-full bg-none from-transparent to-transparent bg-amber-500 hover:bg-amber-600 text-white shadow-none disabled:opacity-50"
-            title="Hold Bill (F5)"
+            title="Hold Bill (F7)"
           >
-            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F5</Badge>
+            <Badge className="absolute top-1 right-1 h-4 px-1 text-[9px] bg-slate-800 hover:bg-slate-800 text-white">F7</Badge>
             <Pause className="h-4 w-4" />
             <span>Hold</span>
           </Button>
