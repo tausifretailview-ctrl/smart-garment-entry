@@ -53,7 +53,7 @@ export const StatsChartsSection = () => {
     refetchInterval: getRefreshInterval('medium'), // Tier-based polling
   });
 
-  // Fetch last 7 days purchase data
+  // Fetch last 7 days purchase data - using aggregation view
   const { data: purchaseData } = useQuery({
     queryKey: ["purchase-trend", currentOrganization?.id],
     queryFn: async () => {
@@ -68,31 +68,29 @@ export const StatsChartsSection = () => {
       });
 
       const { data, error } = await supabase
-        .from("purchase_bills")
-        .select("net_amount, bill_date")
+        .from("v_dashboard_purchase_summary")
+        .select("total_purchase_amount, purchase_day")
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("bill_date", format(last7Days[0].date, "yyyy-MM-dd"))
-        .order("bill_date", { ascending: true });
+        .gte("purchase_day", format(last7Days[0].date, "yyyy-MM-dd"));
 
       if (error) throw error;
 
       const purchaseByDay = last7Days.map(day => {
         const dayPurchases = data?.filter(
-          purchase => format(new Date(purchase.bill_date), "MMM dd") === day.name
+          row => format(new Date(row.purchase_day), "MMM dd") === day.name
         ) || [];
         
         return {
           name: day.name,
-          purchases: dayPurchases.reduce((sum, purchase) => sum + (purchase.net_amount || 0), 0),
+          purchases: dayPurchases.reduce((sum, row) => sum + (Number(row.total_purchase_amount) || 0), 0),
         };
       });
 
       return purchaseByDay;
     },
     enabled: !!currentOrganization,
-    staleTime: 60000, // 1 minute stale time
-    refetchInterval: getRefreshInterval('medium'), // Tier-based polling
+    staleTime: 60000,
+    refetchInterval: getRefreshInterval('medium'),
   });
 
   // Fetch top 5 products by stock value

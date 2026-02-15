@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+// fetchAllSaleItems removed - sold_qty now comes from v_dashboard_sales_summary view
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -284,16 +284,15 @@ const DesktopDashboard = () => {
   // Update lastUpdated on successful fetches
   const onSuccessUpdate = () => setLastUpdated(new Date());
 
-  // Fetch total sales for selected period - using aggregation view
+  // Fetch total sales for selected period - using aggregation view with sold_qty
   const { data: salesData, isFetching: salesFetching } = useQuery({
     queryKey: ["total-sales", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0, soldQty: 0 };
       
-      // Use view for aggregated sales data (server-side SUM/COUNT)
       const { data, error } = await supabase
         .from("v_dashboard_sales_summary")
-        .select("invoice_count, total_sales, total_paid, total_cash")
+        .select("invoice_count, total_sales, total_paid, total_cash, sold_qty")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_day", startDate)
         .lte("sale_day", endDate);
@@ -301,22 +300,7 @@ const DesktopDashboard = () => {
       
       const total = data?.reduce((sum, row) => sum + (Number(row.total_sales) || 0), 0) || 0;
       const count = data?.reduce((sum, row) => sum + (Number(row.invoice_count) || 0), 0) || 0;
-      
-      // Sold qty still needs item-level query (not in view)
-      const { data: salesIds } = await supabase
-        .from("sales")
-        .select("id")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", startDate)
-        .lte("sale_date", endDate);
-      
-      let soldQty = 0;
-      const saleIds = salesIds?.map(s => s.id) || [];
-      if (saleIds.length > 0) {
-        const itemsData = await fetchAllSaleItems(saleIds);
-        soldQty = itemsData?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-      }
+      const soldQty = data?.reduce((sum, row) => sum + (Number(row.sold_qty) || 0), 0) || 0;
       
       return { total, count, soldQty };
     },
@@ -366,34 +350,23 @@ const DesktopDashboard = () => {
 
   const stockData = Number(stockSummary?.total_stock_qty) || 0;
 
-  // Fetch total purchase for selected period
+  // Fetch total purchase for selected period - using aggregation view
   const { data: purchaseData, isFetching: purchaseFetching } = useQuery({
     queryKey: ["purchase-total", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return { total: 0, count: 0, purchaseQty: 0 };
       
       const { data, error } = await supabase
-        .from("purchase_bills")
-        .select("net_amount, id")
+        .from("v_dashboard_purchase_summary")
+        .select("bill_count, total_purchase_amount, total_items_purchased")
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("bill_date", startDate)
-        .lte("bill_date", endDate);
+        .gte("purchase_day", startDate)
+        .lte("purchase_day", endDate);
       if (error) throw error;
       
-      const total = data?.reduce((sum, item) => sum + (Number(item.net_amount) || 0), 0) || 0;
-      const count = data?.length || 0;
-      
-      // Fetch purchase quantity
-      const billIds = data?.map(b => b.id) || [];
-      let purchaseQty = 0;
-      if (billIds.length > 0) {
-        const { data: itemsData } = await supabase
-          .from("purchase_items")
-          .select("qty")
-          .in("bill_id", billIds);
-        purchaseQty = itemsData?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
-      }
+      const total = data?.reduce((sum, row) => sum + (Number(row.total_purchase_amount) || 0), 0) || 0;
+      const count = data?.reduce((sum, row) => sum + (Number(row.bill_count) || 0), 0) || 0;
+      const purchaseQty = data?.reduce((sum, row) => sum + (Number(row.total_items_purchased) || 0), 0) || 0;
       
       return { total, count, purchaseQty };
     },
@@ -479,52 +452,21 @@ const DesktopDashboard = () => {
   // Stock value now comes from stockSummary (v_dashboard_stock_summary view)
   const stockValue = Number(stockSummary?.total_stock_value) || 0;
 
-  // Calculate Gross Profit using actual COGS (Cost of Goods Sold)
+  // Calculate Gross Profit using database-level COGS view
   const { data: profitData } = useQuery({
     queryKey: ["profit-data-cogs", currentOrganization?.id, startDate, endDate],
     queryFn: async () => {
       if (!currentOrganization) return 0;
       
-      // Get all sales in the period
-      const { data: salesList } = await supabase
-        .from("sales")
-        .select("id, net_amount")
+      const { data, error } = await supabase
+        .from("v_dashboard_gross_profit")
+        .select("gross_profit")
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", startDate)
-        .lte("sale_date", endDate);
+        .gte("sale_day", startDate)
+        .lte("sale_day", endDate);
+      if (error) throw error;
       
-      if (!salesList || salesList.length === 0) return 0;
-      
-      const totalSalesRevenue = salesList.reduce((sum, sale) => sum + (Number(sale.net_amount) || 0), 0);
-      const saleIds = salesList.map(s => s.id);
-      
-      // Get all sale items - use paginated fetch to bypass 1000 row limit
-      const saleItemsList = await fetchAllSaleItems(saleIds);
-      
-      if (!saleItemsList || saleItemsList.length === 0) return totalSalesRevenue;
-      
-      // Get unique variant IDs
-      const variantIds = [...new Set(saleItemsList.map(item => item.variant_id))];
-      
-      // Fetch purchase prices for all variants - use batched fetch to bypass 1000 limit
-      const { fetchVariantsByIds } = await import("@/utils/fetchAllRows");
-      const variants = await fetchVariantsByIds(variantIds, "id, pur_price");
-      
-      // Create a map of variant_id to pur_price
-      const variantPriceMap = new Map<string, number>();
-      variants?.forEach((v: any) => {
-        variantPriceMap.set(v.id, Number(v.pur_price) || 0);
-      });
-      
-      // Calculate total COGS (Cost of Goods Sold)
-      const totalCOGS = saleItemsList.reduce((sum, item) => {
-        const purPrice = variantPriceMap.get(item.variant_id) || 0;
-        return sum + (purPrice * (item.quantity || 0));
-      }, 0);
-      
-      // Gross Profit = Sales Revenue - COGS
-      return totalSalesRevenue - totalCOGS;
+      return data?.reduce((sum, row) => sum + (Number(row.gross_profit) || 0), 0) || 0;
     },
     enabled: !!currentOrganization,
     refetchInterval: getRefreshInterval('medium'), // Tier-based polling
