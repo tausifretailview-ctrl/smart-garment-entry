@@ -5431,6 +5431,32 @@ export type Database = {
         }
         Relationships: []
       }
+      v_dashboard_gross_profit: {
+        Row: {
+          gross_margin_percent: number | null
+          gross_profit: number | null
+          organization_id: string | null
+          sale_day: string | null
+          total_cost_amount: number | null
+          total_sale_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       v_dashboard_purchase_returns: {
         Row: {
           organization_id: string | null
@@ -5439,6 +5465,33 @@ export type Database = {
           total_returns: number | null
         }
         Relationships: []
+      }
+      v_dashboard_purchase_summary: {
+        Row: {
+          bill_count: number | null
+          organization_id: string | null
+          purchase_day: string | null
+          total_items_purchased: number | null
+          total_paid_amount: number | null
+          total_pending_amount: number | null
+          total_purchase_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
       }
       v_dashboard_receivables: {
         Row: {
@@ -5477,6 +5530,7 @@ export type Database = {
           invoice_count: number | null
           organization_id: string | null
           sale_day: string | null
+          sold_qty: number | null
           total_cash: number | null
           total_paid: number | null
           total_sales: number | null

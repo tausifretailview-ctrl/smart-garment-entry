@@ -22,10 +22,10 @@ export const MobileDashboardSummary = () => {
     queryFn: async () => {
       if (!currentOrganization) return { invoiceCount: 0, customersServed: 0, itemsSold: 0, pendingCount: 0 };
       
-      // Get today's sales summary from view (1 query instead of fetching all rows)
+      // Get today's sales summary from view (includes sold_qty now)
       const { data: salesSummary, error: salesError } = await supabase
         .from("v_dashboard_sales_summary")
-        .select("invoice_count, total_sales")
+        .select("invoice_count, total_sales, sold_qty")
         .eq("organization_id", currentOrganization.id)
         .eq("sale_day", today)
         .single();
@@ -34,16 +34,15 @@ export const MobileDashboardSummary = () => {
       if (salesError && salesError.code !== 'PGRST116') throw salesError;
       
       const invoiceCount = Number(salesSummary?.invoice_count) || 0;
+      const itemsSold = Number(salesSummary?.sold_qty) || 0;
       
-      // For customers served and items sold, we still need detail queries
-      // but only if there are sales today
+      // For customers served, we still need detail query
       let customersServed = 0;
-      let itemsSold = 0;
       
       if (invoiceCount > 0) {
         const { data: sales } = await supabase
           .from("sales")
-          .select("id, customer_id")
+          .select("customer_id")
           .eq("organization_id", currentOrganization.id)
           .is("deleted_at", null)
           .gte("sale_date", today)
@@ -51,15 +50,6 @@ export const MobileDashboardSummary = () => {
         
         const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
         customersServed = uniqueCustomers.size;
-        
-        const saleIds = sales?.map(s => s.id) || [];
-        if (saleIds.length > 0) {
-          const { data: items } = await supabase
-            .from("sale_items")
-            .select("quantity")
-            .in("sale_id", saleIds);
-          itemsSold = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-        }
       }
       
       // Get pending payments from receivables view (1 query)
