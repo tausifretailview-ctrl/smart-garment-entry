@@ -28,6 +28,7 @@ export function AddAdvanceBookingDialog({
   organizationId 
 }: AddAdvanceBookingDialogProps) {
   const [customerId, setCustomerId] = useState("");
+  const [selectedCustomerData, setSelectedCustomerData] = useState<{ id: string; customer_name: string; phone: string | null } | null>(null);
   const [amount, setAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [description, setDescription] = useState("");
@@ -89,6 +90,7 @@ export function AddAdvanceBookingDialog({
 
   const resetForm = () => {
     setCustomerId("");
+    setSelectedCustomerData(null);
     setAmount("");
     setPaymentMethod("cash");
     setDescription("");
@@ -183,8 +185,8 @@ export function AddAdvanceBookingDialog({
                   aria-expanded={customerSearchOpen}
                   className="w-full justify-between"
                 >
-                  {selectedCustomer
-                    ? selectedCustomer.customer_name
+                  {selectedCustomerData
+                    ? selectedCustomerData.customer_name
                     : "Select customer..."}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -206,6 +208,7 @@ export function AddAdvanceBookingDialog({
                             value={customer.customer_name + customer.phone}
                             onSelect={() => {
                               setCustomerId(customer.id);
+                              setSelectedCustomerData(customer);
                               setCustomerSearchOpen(false);
                               setCustomerSearchTerm("");
                             }}
