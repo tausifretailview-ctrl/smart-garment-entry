@@ -1,42 +1,86 @@
 
 
-# Customer Master Typography Enhancement
+# POS Quick Service Product Entry (Shortcode 1, 2, 3...)
 
 ## Overview
-Increase the typography scale in the Customer Master table from 13px to 14px for data cells, strengthen the customer name column, and adjust row height from h-11 to h-12 for better breathing room. Table headers stay at 12px for visual hierarchy.
+Add a fast-entry system for service products in POS. When the user types a short numeric code (like "1", "2", "3") and presses Enter, a compact dialog appears asking for Quantity and MRP. On confirm, the product is added to the cart instantly. This allows rapid billing of service items (alterations, stitching, loose items) without needing full barcode lookups.
 
-## Changes (Single File: `src/pages/CustomerMaster.tsx`)
+## How It Works
 
-### 1. Table Headers
-- Keep `text-[12px]` but change `font-bold` to `font-semibold` for a slightly softer header weight.
+1. User types "1" in the barcode field and presses Enter
+2. System detects it as a quick-service shortcode (single digit 1-9)
+3. A compact dialog opens showing "Service Product 1" with fields for Qty and MRP
+4. User enters Qty (e.g. 1) and MRP (e.g. 500), presses Enter or clicks Add
+5. Item is added to the cart as a service line item (no stock deduction)
+6. Focus returns to barcode input for next scan
 
-### 2. Customer Name Column
-- Change from `text-[13px] font-semibold` to `text-[14px] font-semibold` to increase prominence.
+## Changes
 
-### 3. All Data Cells
-- Replace all `text-[13px]` with `text-[14px]` across every TableCell (Sr No, Mobile, Email, GST, Opening Balance, Advance, Discount, Status, Actions).
-- Add `leading-5` to data cells for improved line-height.
+### 1. New Component: `src/components/QuickServiceProductDialog.tsx`
+A small, focused dialog with:
+- Title showing the shortcode number (e.g. "Quick Service Item #1")
+- Quantity input (default 1, auto-focused on MRP field since qty is usually 1)
+- MRP input (auto-focused for speed)
+- Enter key submits the form
+- ESC closes without adding
 
-### 4. Financial Columns (Opening Balance, Advance, Discount)
-- Update to `text-[14px] font-medium tabular-nums` for accounting clarity.
+### 2. Modified File: `src/pages/POSSales.tsx`
 
-### 5. Row Height
-- Change `h-11` to `h-12` on all data TableRows to accommodate the larger font.
+**New state variables:**
+- `showQuickServiceDialog` (boolean)
+- `quickServiceCode` (string - the shortcode entered)
 
-### 6. Empty/Loading State Cells
-- Update loading and "No customers found" cells from `text-[13px]` to `text-[14px]`.
+**Modified `searchAndAddProduct` function:**
+Before the existing barcode/name search logic, add a check:
+- If the search term is a single digit "1" through "9", open the QuickServiceProductDialog instead of searching products
+- This intercepts before any "Product not found" error
 
----
+**New handler `handleQuickServiceAdd`:**
+- Receives `{ code, quantity, mrp }` from the dialog
+- Creates a CartItem with:
+  - `productName`: "Service Item {code}" (or configurable name)
+  - `productType`: "service"
+  - `quantity`: user-entered qty
+  - `mrp`: user-entered MRP
+  - `unitCost`: same as MRP
+  - `netAmount`: qty * MRP
+  - Unique ID using timestamp (same pattern as existing service products)
+  - No stock validation (service product)
+- Adds to cart, plays success beep, closes dialog, refocuses barcode input
 
 ## Technical Details
 
-**File**: `src/pages/CustomerMaster.tsx`
+**QuickServiceProductDialog props:**
+```
+interface QuickServiceProductDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  serviceCode: string;
+  onAdd: (data: { code: string; quantity: number; mrp: number }) => void;
+}
+```
 
-**Find and replace patterns**:
-- All `text-[13px]` in TableCell elements become `text-[14px]`
-- All `font-bold` in TableHead elements become `font-semibold`
-- `h-11` on TableRow becomes `h-12`
-- Add `leading-5` to data TableCells
+**Cart item creation** follows the existing service product pattern from `addItemToCart`:
+- Unique ID: `service-{code}-{timestamp}-{random}`
+- `productType: 'service'`
+- No `variantId` or `productId` (empty strings)
+- `barcode`: the shortcode itself
+- `gstPer`: 0 (or organization default)
+- `discountPercent`: 0
 
-**No changes to**: Business logic, data fetching, mutations, other files, or header font size (stays 12px).
+**Shortcode detection** in `searchAndAddProduct`:
+```
+if (/^[1-9]$/.test(searchTerm)) {
+  setQuickServiceCode(searchTerm);
+  setShowQuickServiceDialog(true);
+  setSearchInput("");
+  return;
+}
+```
+
+**Mobile support**: The same logic flows through `onBarcodeSubmit` in `MobilePOSLayout`, so it works on mobile POS too without additional changes.
+
+## Files Changed
+1. **New**: `src/components/QuickServiceProductDialog.tsx` - Dialog component
+2. **Modified**: `src/pages/POSSales.tsx` - Add shortcode detection, state, and handler
 
