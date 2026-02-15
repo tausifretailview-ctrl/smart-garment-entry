@@ -820,13 +820,7 @@ const CustomerMaster = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => {
-                        setSelectedCustomerForHistory({
-                          id: customer.id,
-                          name: customer.customer_name
-                        });
-                        setShowCustomerHistory(true);
-                      }}
+                      onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)}
                       title="Account Ledger"
                     >
                       <BookOpen className="h-4 w-4 text-primary" />

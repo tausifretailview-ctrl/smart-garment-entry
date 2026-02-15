@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 interface CustomerLedgerProps {
   organizationId: string;
   paymentFilter?: string | null;
+  preSelectedCustomerId?: string | null;
 }
 
 interface Customer {
@@ -55,7 +56,7 @@ interface Transaction {
   };
 }
 
-export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedgerProps) {
+export function CustomerLedger({ organizationId, paymentFilter, preSelectedCustomerId }: CustomerLedgerProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
@@ -72,6 +73,7 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
       setPaymentStatusFilter(paymentFilter || "all");
     }
   }, [paymentFilter]);
+
 
   // Fetch all customers with their transaction summary using pagination
   const { data: customers, isLoading } = useQuery({
@@ -157,6 +159,16 @@ export function CustomerLedger({ organizationId, paymentFilter }: CustomerLedger
     },
     enabled: !!organizationId,
   });
+
+  // Auto-select customer when preSelectedCustomerId is provided and data is loaded
+  useEffect(() => {
+    if (preSelectedCustomerId && customers && customers.length > 0 && !selectedCustomer) {
+      const found = customers.find((c: Customer) => c.id === preSelectedCustomerId);
+      if (found) {
+        setSelectedCustomer(found);
+      }
+    }
+  }, [preSelectedCustomerId, customers, selectedCustomer]);
 
   // Fetch detailed transactions for selected customer
   const { data: transactions } = useQuery({
