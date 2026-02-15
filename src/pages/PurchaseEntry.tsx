@@ -2952,7 +2952,7 @@ const PurchaseEntry = () => {
               </p>
               
               {/* Show item counts */}
-              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Total Items:</span>
                   <span className="font-semibold">{savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)} labels</span>
