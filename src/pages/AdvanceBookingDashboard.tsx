@@ -204,9 +204,9 @@ export default function AdvanceBookingDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Coins className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold">Advance Booking</h1>
-          <Badge variant="secondary" className="text-xs">{totalCount} records</Badge>
+          <Coins className="h-7 w-7 text-primary" />
+          <h1 className="text-2xl font-bold">Advance Booking</h1>
+          <Badge variant="secondary" className="text-sm">{totalCount} records</Badge>
         </div>
         <Button onClick={() => setAddDialogOpen(true)} size="sm">
           <Plus className="h-4 w-4 mr-1" /> New Advance
@@ -217,26 +217,26 @@ export default function AdvanceBookingDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Total Advances</p>
-            <p className="text-xl font-bold">{summary?.total || 0}</p>
+            <p className="text-sm text-muted-foreground">Total Advances</p>
+            <p className="text-2xl font-bold">{summary?.total || 0}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Total Amount</p>
-            <p className="text-xl font-bold flex items-center gap-1"><IndianRupee className="h-4 w-4" />{fmt(summary?.totalAmount || 0)}</p>
+            <p className="text-sm text-muted-foreground">Total Amount</p>
+            <p className="text-2xl font-bold flex items-center gap-1"><IndianRupee className="h-5 w-5" />{fmt(summary?.totalAmount || 0)}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-orange-500">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Used Amount</p>
-            <p className="text-xl font-bold flex items-center gap-1"><TrendingUp className="h-4 w-4" />{fmt(summary?.usedAmount || 0)}</p>
+            <p className="text-sm text-muted-foreground">Used Amount</p>
+            <p className="text-2xl font-bold flex items-center gap-1"><TrendingUp className="h-5 w-5" />{fmt(summary?.usedAmount || 0)}</p>
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-purple-500">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Available Balance</p>
-            <p className="text-xl font-bold flex items-center gap-1"><Wallet className="h-4 w-4" />{fmt(summary?.available || 0)}</p>
+            <p className="text-sm text-muted-foreground">Available Balance</p>
+            <p className="text-2xl font-bold flex items-center gap-1"><Wallet className="h-5 w-5" />{fmt(summary?.available || 0)}</p>
           </CardContent>
         </Card>
       </div>
@@ -307,14 +307,14 @@ export default function AdvanceBookingDashboard() {
                 const canRefund = adv.status === "active" || adv.status === "partially_used";
                 return (
                   <TableRow key={adv.id}>
-                    <TableCell className="font-medium text-xs">{adv.advance_number}</TableCell>
+                    <TableCell className="font-medium text-sm">{adv.advance_number}</TableCell>
                     <TableCell className="text-sm">{adv.customers?.customer_name || "-"}</TableCell>
-                    <TableCell className="text-xs">{adv.customers?.phone || "-"}</TableCell>
-                    <TableCell className="text-xs">{adv.advance_date ? format(new Date(adv.advance_date), "dd/MM/yy") : "-"}</TableCell>
-                    <TableCell className="text-right font-medium">₹{fmt(adv.amount || 0)}</TableCell>
-                    <TableCell className="text-right text-muted-foreground">₹{fmt(adv.used_amount || 0)}</TableCell>
-                    <TableCell className="text-right font-semibold text-green-600">₹{fmt(available)}</TableCell>
-                    <TableCell className="text-xs capitalize">{adv.payment_method?.replace("_", " ") || "-"}</TableCell>
+                    <TableCell className="text-sm">{adv.customers?.phone || "-"}</TableCell>
+                    <TableCell className="text-sm">{adv.advance_date ? format(new Date(adv.advance_date), "dd/MM/yy") : "-"}</TableCell>
+                    <TableCell className="text-right text-sm font-medium">₹{fmt(adv.amount || 0)}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">₹{fmt(adv.used_amount || 0)}</TableCell>
+                    <TableCell className="text-right text-sm font-semibold text-green-600">₹{fmt(available)}</TableCell>
+                    <TableCell className="text-sm capitalize">{adv.payment_method?.replace("_", " ") || "-"}</TableCell>
                     <TableCell>{getStatusBadge(adv.status)}</TableCell>
                     <TableCell>
                       {canRefund && (
