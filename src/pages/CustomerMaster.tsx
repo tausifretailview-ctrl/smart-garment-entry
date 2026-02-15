@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +23,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban, ArrowUpDown, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -84,12 +83,10 @@ const CustomerMaster = () => {
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
   const { orgNavigate: navigate } = useOrgNavigation();
 
-  // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<Customer>();
   const pageContextMenu = useContextMenu<void>();
 
-  // Get context menu items for customer row
   const getCustomerContextMenuItems = (customer: Customer): ContextMenuItem[] => {
     return [
       {
@@ -146,7 +143,6 @@ const CustomerMaster = () => {
     ];
   };
 
-  // Get page-level context menu items
   const getPageContextMenuItems = (): ContextMenuItem[] => [
     {
       label: "POS Billing",
@@ -179,23 +175,19 @@ const CustomerMaster = () => {
     },
   ];
 
-  // Handle row right-click
   const handleRowContextMenu = (e: React.MouseEvent, customer: Customer) => {
     if (!isDesktop) return;
     rowContextMenu.openMenu(e, customer);
   };
 
-  // Handle page right-click (empty area)
   const handlePageContextMenu = (e: React.MouseEvent) => {
     if (!isDesktop) return;
     const target = e.target as HTMLElement;
     if (target.closest('tr') || target.closest('button') || target.closest('a')) return;
     pageContextMenu.openMenu(e, undefined);
   };
-  // Debounced search for server-side filtering
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  
-  // Debounce search input
   const searchTimerRef = useState<NodeJS.Timeout | null>(null);
   
   const handleSearchChange = (value: string) => {
@@ -205,7 +197,6 @@ const CustomerMaster = () => {
     searchTimerRef[0] = setTimeout(() => setDebouncedSearch(value), 300);
   };
 
-  // Get total count (lightweight query)
   const { data: totalCount = 0 } = useQuery({
     queryKey: ["customers-count", currentOrganization?.id],
     queryFn: async () => {
@@ -222,7 +213,6 @@ const CustomerMaster = () => {
     staleTime: 60000,
   });
 
-  // Server-side paginated + searched query
   const { data: customersPage, isLoading } = useQuery({
     queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage],
     queryFn: async () => {
@@ -262,7 +252,6 @@ const CustomerMaster = () => {
   const customers = customersPage?.customers || [];
   const filteredCount = customersPage?.filteredCount || 0;
 
-  // Fetch advance balances only for visible customers (not all)
   const visibleCustomerIds = customers.map(c => c.id);
   const { data: advanceBalances = {} } = useQuery({
     queryKey: ["customer-advances-summary", visibleCustomerIds],
@@ -300,7 +289,6 @@ const CustomerMaster = () => {
         throw new Error("Valid phone number is required");
       }
       
-      // Check for existing customer with same phone
       const { data: existingCustomers, error: checkError } = await supabase
         .from("customers")
         .select("id, customer_name, phone")
@@ -309,7 +297,6 @@ const CustomerMaster = () => {
       
       if (checkError) throw checkError;
       
-      // Find duplicate by normalized phone
       const duplicate = existingCustomers?.find(c => 
         normalizePhoneNumber(c.phone) === normalizedPhone
       );
@@ -318,7 +305,6 @@ const CustomerMaster = () => {
         throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       }
       
-      // Use phone as customer name if name is empty
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
         phone: normalizedPhone,
@@ -334,7 +320,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      invalidateCustomers(); // Update dashboard counts
+      invalidateCustomers();
       toast({ title: "Customer created successfully" });
       resetForm();
       setIsDialogOpen(false);
@@ -353,7 +339,6 @@ const CustomerMaster = () => {
         throw new Error("Valid phone number is required");
       }
       
-      // Check for existing customer with same phone (excluding current customer)
       const { data: existingCustomers, error: checkError } = await supabase
         .from("customers")
         .select("id, customer_name, phone")
@@ -363,7 +348,6 @@ const CustomerMaster = () => {
       
       if (checkError) throw checkError;
       
-      // Find duplicate by normalized phone
       const duplicate = existingCustomers?.find(c => 
         normalizePhoneNumber(c.phone) === normalizedPhone
       );
@@ -372,7 +356,6 @@ const CustomerMaster = () => {
         throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       }
       
-      // Use phone as customer name if name is empty
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
         phone: normalizedPhone,
@@ -470,11 +453,8 @@ const CustomerMaster = () => {
     }
   };
 
-  // Pagination computed from server-side count
   const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-
-  // handleSearchChange is defined above with debounce logic
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -518,13 +498,11 @@ const CustomerMaster = () => {
     let errorCount = 0;
     let skippedCount = 0;
 
-    // Filter out empty rows (no phone) and normalize phone numbers
     const validRows = mappedData.filter(row => {
       const phone = normalizePhoneNumber(row.phone);
       return phone && phone.length > 0;
     });
 
-    // Get existing phone numbers to check for duplicates (normalized)
     const { data: existingCustomers } = await supabase
       .from("customers")
       .select("phone")
@@ -537,7 +515,6 @@ const CustomerMaster = () => {
         .filter(Boolean)
     );
 
-    // Process in batches
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
       const batch = validRows.slice(i, i + BATCH_SIZE);
       const customersToInsert: any[] = [];
@@ -545,7 +522,6 @@ const CustomerMaster = () => {
       for (const row of batch) {
         const phone = normalizePhoneNumber(row.phone);
         
-        // Skip duplicates
         if (existingPhones.has(phone)) {
           skippedCount++;
           continue;
@@ -561,12 +537,11 @@ const CustomerMaster = () => {
           organization_id: currentOrganization.id,
         });
 
-        // Add to existing set to prevent duplicates within same import
         existingPhones.add(phone);
       }
 
       if (customersToInsert.length > 0) {
-        const { error, data } = await supabase
+        const { error } = await supabase
           .from("customers")
           .insert(customersToInsert);
         
@@ -578,7 +553,6 @@ const CustomerMaster = () => {
         }
       }
 
-      // Report progress
       if (onProgress) {
         onProgress({
           current: Math.min(i + BATCH_SIZE, validRows.length),
@@ -607,302 +581,321 @@ const CustomerMaster = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <BackToDashboard />
-      
-      <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">Customer Master</h1>
-          <span className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded-md">
-            Total: {totalCount.toLocaleString()} customers
-          </span>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowLegacyImport(true)}>
-            <History className="h-4 w-4 mr-2" />
-            Import Legacy Invoices
-          </Button>
-          <Button variant="outline" onClick={() => setShowUpdatePhonesDialog(true)}>
-            <Phone className="h-4 w-4 mr-2" />
-            Update Legacy Phones
-          </Button>
-          <Button variant="outline" onClick={() => setShowRelinkDialog(true)}>
-            <Link2 className="h-4 w-4 mr-2" />
-            Re-link Legacy
-          </Button>
-          <Button variant="outline" onClick={() => setShowBalanceImport(true)}>
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            Import Balances
-          </Button>
-          <Button variant="outline" onClick={() => setShowExcelImport(true)}>
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Import Customers
-          </Button>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Customer
+    <div className="bg-slate-50/50 min-h-screen" onContextMenu={handlePageContextMenu}>
+      <div className="space-y-4 p-4">
+        <BackToDashboard />
+        
+        <div className="bg-white shadow-sm rounded-lg p-5">
+          {/* Page Header - Vasy Style */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <h1 className="text-[20px] font-bold text-slate-800">Customer Master</h1>
+              <span className="text-[12px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full font-medium">
+                {totalCount.toLocaleString()} records
+              </span>
+            </div>
+            <div className="flex gap-2 items-center">
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowLegacyImport(true)}>
+                <History className="h-4 w-4 mr-2" />
+                Import Legacy Invoices
               </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="phone">Mobile Number *</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                  autoFocus
-                  placeholder="Enter mobile number"
-                />
-              </div>
-              <div>
-                <Label htmlFor="customer_name">Customer Name</Label>
-                <Input
-                  id="customer_name"
-                  value={formData.customer_name}
-                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                  placeholder="Enter customer name (optional)"
-                />
-              </div>
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="gst_number">GST Number</Label>
-                <Input
-                  id="gst_number"
-                  value={formData.gst_number}
-                  onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
-                <Input
-                  id="opening_balance"
-                  type="number"
-                  step="0.01"
-                  value={formData.opening_balance}
-                  onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
-                  placeholder="Receivable from customer"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Positive = Receivable from customer
-                </p>
-              </div>
-              <div>
-                <Label htmlFor="discount_percent">Discount %</Label>
-                <Input
-                  id="discount_percent"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  value={formData.discount_percent}
-                  onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })}
-                  placeholder="Fixed discount for this customer"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Auto-applied on POS & invoices
-                </p>
-              </div>
-              <Button type="submit" className="w-full">
-                {editingCustomer ? "Update" : "Create"} Customer
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowUpdatePhonesDialog(true)}>
+                <Phone className="h-4 w-4 mr-2" />
+                Update Legacy Phones
               </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Search className="h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search customers..."
-          value={searchQuery}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="max-w-sm"
-        />
-        {isSomeSelected && (
-          <Button 
-            variant="destructive" 
-            size="sm" 
-            onClick={handleBulkDelete}
-            disabled={bulkDeleteCustomers.isPending}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Selected ({selectedCustomers.size})
-          </Button>
-        )}
-      </div>
-
-      <Card className="border-border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12">
-                <Checkbox
-                  checked={isAllSelected}
-                  onCheckedChange={handleSelectAll}
-                  aria-label="Select all"
-                />
-              </TableHead>
-              <TableHead className="w-16">Sr No</TableHead>
-              <TableHead>Customer Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>GST Number</TableHead>
-              <TableHead className="text-right">Opening Bal.</TableHead>
-              <TableHead className="text-right">Advance</TableHead>
-              <TableHead className="text-right">Discount %</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center">Loading...</TableCell>
-              </TableRow>
-            ) : customers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={10} className="text-center">No customers found</TableCell>
-              </TableRow>
-            ) : (
-              customers.map((customer, index) => (
-                <TableRow 
-                  key={customer.id}
-                  onContextMenu={(e) => handleRowContextMenu(e, customer)}
-                >
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedCustomers.has(customer.id)}
-                      onCheckedChange={(checked) => handleSelectCustomer(customer.id, !!checked)}
-                      aria-label={`Select ${customer.customer_name}`}
-                    />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{startIndex + index + 1}</TableCell>
-                  <TableCell 
-                    className="font-medium cursor-pointer text-primary hover:underline"
-                    onClick={() => {
-                      setSelectedCustomerForHistory({
-                        id: customer.id,
-                        name: customer.customer_name
-                      });
-                      setShowCustomerHistory(true);
-                    }}
-                  >
-                    {customer.customer_name}
-                  </TableCell>
-                  <TableCell>{customer.phone || "-"}</TableCell>
-                  <TableCell>{customer.email || "-"}</TableCell>
-                  <TableCell>{customer.gst_number || "-"}</TableCell>
-                  <TableCell className="text-right">
-                    {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString()}` : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {advanceBalances[customer.id] ? (
-                      <span className="text-purple-600 font-medium">₹{Math.round(advanceBalances[customer.id]).toLocaleString()}</span>
-                    ) : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)}
-                      title="Account Ledger"
-                    >
-                      <BookOpen className="h-4 w-4 text-primary" />
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowRelinkDialog(true)}>
+                <Link2 className="h-4 w-4 mr-2" />
+                Re-link Legacy
+              </Button>
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowBalanceImport(true)}>
+                <ArrowUpDown className="h-4 w-4 mr-2" />
+                Import Balances
+              </Button>
+              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowExcelImport(true)}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Import Customers
+              </Button>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) resetForm();
+              }}>
+                <DialogTrigger asChild>
+                  <Button className="h-9 text-sm px-4 rounded-md">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Customer
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{editingCustomer ? "Edit Customer" : "Add New Customer"}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="phone">Mobile Number *</Label>
+                      <Input
+                        id="phone"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        required
+                        autoFocus
+                        placeholder="Enter mobile number"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="customer_name">Customer Name</Label>
+                      <Input
+                        id="customer_name"
+                        value={formData.customer_name}
+                        onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                        placeholder="Enter customer name (optional)"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="gst_number">GST Number</Label>
+                      <Input
+                        id="gst_number"
+                        value={formData.gst_number}
+                        onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
+                      <Input
+                        id="opening_balance"
+                        type="number"
+                        step="0.01"
+                        value={formData.opening_balance}
+                        onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
+                        placeholder="Receivable from customer"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Positive = Receivable from customer
+                      </p>
+                    </div>
+                    <div>
+                      <Label htmlFor="discount_percent">Discount %</Label>
+                      <Input
+                        id="discount_percent"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        value={formData.discount_percent}
+                        onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })}
+                        placeholder="Fixed discount for this customer"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auto-applied on POS & invoices
+                      </p>
+                    </div>
+                    <Button type="submit" className="w-full">
+                      {editingCustomer ? "Update" : "Create"} Customer
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedCustomerForBrandDiscount({
-                          id: customer.id,
-                          name: customer.customer_name
-                        });
-                        setShowBrandDiscountDialog(true);
-                      }}
-                      title="Brand-wise Discount"
-                    >
-                      <Tag className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(customer)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(customer.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount} customers
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              Previous
-            </Button>
-            <span className="text-sm">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-            </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
+
+          {/* Search + Filter Bar - Slim Professional Row */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search by name, phone, email..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="h-9 text-sm pl-9 rounded-md border"
+              />
+            </div>
+            {isSomeSelected && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                className="h-9 text-sm px-4 rounded-md"
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteCustomers.isPending}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected ({selectedCustomers.size})
+              </Button>
+            )}
+          </div>
+
+          {/* Table - Vasy ERP Grid Precision */}
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader className="bg-slate-100/80 border-b border-slate-200">
+                <TableRow className="hover:bg-slate-100/80">
+                  <TableHead className="w-12 py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={handleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                  <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Sr No</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Customer Name</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Mobile</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">Email</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">GST</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Opening Bal.</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Advance</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Discount %</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-center">Status</TableHead>
+                  <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center text-[13px] py-8 text-slate-500">Loading...</TableCell>
+                  </TableRow>
+                ) : customers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={11} className="text-center text-[13px] py-8 text-slate-500">No customers found</TableCell>
+                  </TableRow>
+                ) : (
+                  customers.map((customer, index) => (
+                    <TableRow 
+                      key={customer.id}
+                      className="h-11 hover:bg-blue-50/30 transition border-b border-slate-100"
+                      onContextMenu={(e) => handleRowContextMenu(e, customer)}
+                    >
+                      <TableCell className="py-2 px-4">
+                        <Checkbox
+                          checked={selectedCustomers.has(customer.id)}
+                          onCheckedChange={(checked) => handleSelectCustomer(customer.id, !!checked)}
+                          aria-label={`Select ${customer.customer_name}`}
+                        />
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>
+                      <TableCell 
+                        className="py-2 px-4 text-[13px] font-semibold text-blue-600 cursor-pointer hover:underline"
+                        onClick={() => {
+                          setSelectedCustomerForHistory({
+                            id: customer.id,
+                            name: customer.customer_name
+                          });
+                          setShowCustomerHistory(true);
+                        }}
+                      >
+                        {customer.customer_name}
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] text-slate-600">{customer.email || "-"}</TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums text-slate-800">
+                        {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString('en-IN')}` : "-"}
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums">
+                        {advanceBalances[customer.id] ? (
+                          <span className="text-purple-600">₹{Math.round(advanceBalances[customer.id]).toLocaleString('en-IN')}</span>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-[13px] text-right font-medium tabular-nums text-slate-700">
+                        {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-center">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200">
+                          Active
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2 px-4 text-right">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button
+                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
+                            onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)}
+                            title="Account Ledger"
+                          >
+                            <BookOpen className="h-4 w-4 text-blue-600" />
+                          </button>
+                          <button
+                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
+                            onClick={() => {
+                              setSelectedCustomerForBrandDiscount({
+                                id: customer.id,
+                                name: customer.customer_name
+                              });
+                              setShowBrandDiscountDialog(true);
+                            }}
+                            title="Brand-wise Discount"
+                          >
+                            <Tag className="h-4 w-4 text-slate-500" />
+                          </button>
+                          <button
+                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
+                            onClick={() => handleEdit(customer)}
+                            title="Edit"
+                          >
+                            <Pencil className="h-4 w-4 text-slate-500" />
+                          </button>
+                          <button
+                            className="h-8 w-8 rounded-md hover:bg-red-50 flex items-center justify-center transition"
+                            onClick={() => handleDelete(customer.id)}
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4 text-red-400" />
+                          </button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <p className="text-[13px] text-slate-500">
+                Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount.toLocaleString('en-IN')} customers
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-sm rounded-md"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-[13px] text-slate-600 tabular-nums">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 text-sm rounded-md"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <ExcelImportDialog
         open={showExcelImport}
@@ -922,7 +915,6 @@ const CustomerMaster = () => {
         />
       )}
 
-      {/* Customer History Dialog */}
       <CustomerHistoryDialog
         open={showCustomerHistory}
         onOpenChange={setShowCustomerHistory}
@@ -931,32 +923,27 @@ const CustomerMaster = () => {
         organizationId={currentOrganization?.id || ''}
       />
 
-      {/* Re-link Legacy Invoices Dialog */}
       <RelinkLegacyInvoicesDialog
         open={showRelinkDialog}
         onOpenChange={setShowRelinkDialog}
       />
 
-      {/* Update Legacy Phones Dialog */}
       <UpdateLegacyPhonesDialog
         open={showUpdatePhonesDialog}
         onOpenChange={setShowUpdatePhonesDialog}
       />
 
-      {/* Brand Discount Dialog */}
       <BrandDiscountDialog
         open={showBrandDiscountDialog}
         onOpenChange={setShowBrandDiscountDialog}
         customer={selectedCustomerForBrandDiscount}
       />
 
-      {/* Customer Balance Import Dialog */}
       <CustomerBalanceImportDialog
         open={showBalanceImport}
         onOpenChange={setShowBalanceImport}
       />
 
-      {/* Desktop Context Menus */}
       {isDesktop && (
         <>
           <DesktopContextMenu
