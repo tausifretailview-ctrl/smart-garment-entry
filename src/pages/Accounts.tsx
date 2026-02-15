@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,7 +42,10 @@ export default function Accounts() {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const { isAdmin, isManager } = useUserRoles();
-  const [selectedTab, setSelectedTab] = useState("customer-ledger");
+  const [searchParams] = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const urlCustomerId = searchParams.get("customer");
+  const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
   
   // Card filter state
   const [paymentCardFilter, setPaymentCardFilter] = useState<string | null>(null);
@@ -1489,6 +1493,7 @@ export default function Accounts() {
               <CustomerLedger 
                 organizationId={currentOrganization.id} 
                 paymentFilter={paymentCardFilter}
+                preSelectedCustomerId={urlCustomerId}
               />
             )}
           </TabsContent>
