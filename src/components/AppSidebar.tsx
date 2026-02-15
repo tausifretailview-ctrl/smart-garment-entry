@@ -147,8 +147,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">School</span>}
+                    <GraduationCap className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">School</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -230,8 +230,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">Master</span>}
+                    <Users className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">Master</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -287,8 +287,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">Inventory</span>}
+                    <Package className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">Inventory</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -394,8 +394,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">Sales</span>}
+                    <ShoppingCart className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">Sales</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -549,8 +549,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">Reports</span>}
+                    <BarChart3 className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">Reports</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -732,8 +732,8 @@ export function AppSidebar() {
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                   <div className="flex items-center gap-2">
-                    <Wallet className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
-                    {open && <span className="font-semibold dark:text-white">Accounts</span>}
+                    <Wallet className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    {open && <span className="font-semibold text-[15px] dark:text-white">Accounts</span>}
                   </div>
                   {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
                 </CollapsibleTrigger>
@@ -778,8 +778,8 @@ export function AppSidebar() {
             <SidebarGroupLabel asChild>
               <CollapsibleTrigger className="flex items-center justify-between w-full hover:bg-accent/50 dark:hover:bg-[hsl(213,32%,22%)] rounded-md p-2 transition-all duration-200 group">
                 <div className="flex items-center gap-2">
-                  <Settings className="h-4 w-4 sidebar-icon dark:text-[hsl(187,100%,42%)] group-hover:animate-icon-spin-slow" />
-                  {open && <span className="font-semibold dark:text-white">Settings</span>}
+                  <Settings className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)] group-hover:animate-icon-spin-slow" />
+                  {open && <span className="font-semibold text-[15px] dark:text-white">Settings</span>}
                 </div>
                 {open && <ChevronDown className="h-4 w-4 transition-all duration-300 group-data-[state=open]/collapsible:rotate-180 group-hover:text-primary dark:text-white" />}
               </CollapsibleTrigger>
