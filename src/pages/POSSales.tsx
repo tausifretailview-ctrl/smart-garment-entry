@@ -2709,16 +2709,6 @@ export default function POSSales() {
             <span>Clear</span>
           </Button>
           
-          {/* 11. WhatsApp - distinct green-600 (darker than Cash) */}
-          <Button
-            onClick={() => handleWhatsAppShare(true)}
-            disabled={items.length === 0}
-            className="h-14 flex flex-col items-center justify-center gap-1 text-xs w-full bg-none from-transparent to-transparent bg-green-600 hover:bg-green-700 text-white shadow-none disabled:opacity-50"
-            title="Send via WhatsApp"
-          >
-            <MessageCircle className="h-4 w-4" />
-            <span>WhatsApp</span>
-          </Button>
         </div>
       </div>
 
