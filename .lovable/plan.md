@@ -1,95 +1,64 @@
 
-
-# Advance Booking Dashboard - Full Feature Build
+# Ezzy ERP -- Full View UI Density Upgrade
 
 ## Overview
-Create a dedicated **Advance Booking Dashboard** page accessible from the Sales menu in the sidebar. This dashboard will mirror the style of existing dashboards (like Sales Invoice Dashboard) with summary cards, a searchable/filterable table of all advance bookings, and support for **refunding** advances.
+Upgrade the entire application from compact "Windows desktop density" to a spacious, professional ERP layout. This is a **purely frontend CSS and component change** -- no database, no API, no color changes.
 
-## What Will Be Built
+## Phase 1 -- Global Density (src/index.css)
 
-### 1. New Route & Page: `/advance-booking-dashboard`
-- New page file: `src/pages/AdvanceBookingDashboard.tsx`
-- Register route in `src/App.tsx` under the OrgLayout sales routes
-- Add "Advance Booking" menu item in the Sales section of the sidebar (`AppSidebar.tsx`)
+- Change body base font from `text-sm` (14px) to `text-[15px]`
+- Update `.erp-compact` overrides:
+  - Inputs: `h-8` to `h-10`
+  - Labels: `text-xs` to `text-sm`
+  - Table headers: `text-xs` to `text-[13px] font-semibold`
+- Update sidebar menu button overrides:
+  - `[data-sidebar="menu-button"]`: `h-10 text-[13px]` to `h-11 text-[14px]`
+  - `[data-sidebar="menu-sub-button"]`: `h-9 text-[13px]` to `h-10 text-[14px]`
+- Update global table styles:
+  - `th`: `text-xs px-3 py-2` to `text-[13px] font-semibold px-4 py-2.5`
+  - `td`: `text-sm px-3 py-2` to `text-sm px-4 py-2.5`
+- Update card padding: `p-4` to `p-5`
 
-### 2. Dashboard Summary Cards (Top Section)
-Four colored metric cards similar to Sales Invoice Dashboard:
-- **Total Advances** - Count of all advance records
-- **Total Amount** - Sum of all advance amounts (in INR)
-- **Used Amount** - Sum of used_amount across all advances
-- **Available Balance** - Total amount minus total used (pending balance)
+## Phase 2 -- Input Height (src/components/ui/input.tsx)
 
-### 3. Data Table with Filters
-- Columns: Advance No, Customer Name, Phone, Date, Amount, Used, Available, Payment Method, Status, Actions
-- **Search**: By advance number, customer name, or phone
-- **Date Filter**: All Time, Today, This Week, This Month, Custom Range
-- **Status Filter**: All, Active, Partially Used, Fully Used, Refunded
-- Server-side pagination (50 per page) with total count for performance
-- `staleTime: 30000` to reduce cloud usage
+- Change default height from `h-8` to `h-10`
 
-### 4. Add Advance Booking Button
-- "New Advance" button in the top-right corner
-- Opens the existing `AddAdvanceBookingDialog` component
+## Phase 3 -- Label Size (src/components/ui/label.tsx)
 
-### 5. Advance Refund Feature
-- New "Refund" action button in the Actions column (visible only for active/partially_used advances)
-- Opens a **Refund Dialog** with:
-  - Display: Advance number, customer name, original amount, used amount, available (refundable) balance
-  - Input: Refund amount (max = available balance), refund payment method, refund reason/description
-  - On submit: Updates the advance record's `used_amount` by adding the refund amount, and sets status to `fully_used` if fully consumed, or `refunded` if entire available balance is refunded
-- New database column needed: No new columns required. The status field already supports custom values. We will use status = `refunded` for fully refunded advances.
-- A new `advance_refunds` table will track refund history for audit purposes.
+- Change from `text-xs font-semibold` to `text-sm font-medium`
 
-### 6. Database Migration
-Create an `advance_refunds` table:
-```
-advance_refunds (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id),
-  advance_id UUID NOT NULL REFERENCES customer_advances(id),
-  refund_amount NUMERIC NOT NULL,
-  refund_date DATE NOT NULL DEFAULT CURRENT_DATE,
-  payment_method TEXT DEFAULT 'cash',
-  reason TEXT,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ DEFAULT now()
-)
-```
-With RLS policies matching the existing organization-scoped pattern.
+## Phase 4 -- Button Default Size (src/components/ui/button.tsx)
 
-## Technical Details
+- Default size: `h-9 px-4` to `h-10 px-5`
+- Icon size: `h-9 w-9` to `h-10 w-10`
 
-### Files to Create
-1. **`src/pages/AdvanceBookingDashboard.tsx`** - Main dashboard page with cards, filters, table, refund dialog
-2. Database migration for `advance_refunds` table
+## Phase 5 -- Dialog Full View (src/components/ui/dialog.tsx)
 
-### Files to Modify
-1. **`src/App.tsx`** - Add route for `/advance-booking-dashboard`
-2. **`src/components/AppSidebar.tsx`** - Add "Advance Booking" link under Sales menu (using `Coins` icon)
-3. **`src/hooks/useCustomerAdvances.tsx`** - Add `refundAdvance` mutation
+- Default content width: `max-w-lg` to `max-w-2xl`
+- Padding: `p-6` to `p-8`
+- Title: `text-lg` to `text-xl`
 
-### Sidebar Menu Addition
-Under the Sales collapsible menu, after the Challan Dashboard entry, add:
-```
-Advance Booking -> /advance-booking-dashboard
-```
-Using the `Coins` icon from lucide-react.
+## Phase 6 -- Sidebar Group Headers (src/components/AppSidebar.tsx)
 
-### Refund Logic (in useCustomerAdvances hook)
-```
-refundAdvance mutation:
-1. Validate refund amount <= available balance (amount - used_amount)
-2. Insert record into advance_refunds table
-3. Update customer_advances: used_amount += refundAmount
-4. If used_amount >= amount -> status = 'refunded' (or 'fully_used')
-5. Else -> status = 'partially_used'
-6. Invalidate relevant queries
-```
+- Group header icons: `h-4 w-4` to `h-5 w-5`
+- Group header label text: add `text-[15px]`
+- Add `space-y-1` between sidebar groups for breathing room
 
-### Performance Considerations
-- Server-side pagination with `.range()` (50 rows per page)
-- Debounced search (300ms)
-- `staleTime: 30000` on queries
-- Summary cards use a separate lightweight aggregation query
-- Join with customers table only for displayed page
+## Summary of Files to Modify
 
+| File | Change |
+|------|--------|
+| `src/index.css` | Body font, table density, sidebar heights, card padding, erp-compact overrides |
+| `src/components/ui/input.tsx` | `h-8` to `h-10` |
+| `src/components/ui/label.tsx` | `text-xs` to `text-sm`, `font-semibold` to `font-medium` |
+| `src/components/ui/button.tsx` | Default `h-9` to `h-10`, icon `h-9 w-9` to `h-10 w-10` |
+| `src/components/ui/dialog.tsx` | `max-w-lg` to `max-w-2xl`, `p-6` to `p-8`, title `text-xl` |
+| `src/components/AppSidebar.tsx` | Group header icon/text sizing, group spacing |
+
+## What Will NOT Change
+- Color scheme (all HSL values stay the same)
+- Dark theme colors
+- Sidebar background/foreground colors
+- Database schema or API logic
+- Mobile responsiveness (mobile breakpoints preserved)
+- POS screen layout (separate layout component)
