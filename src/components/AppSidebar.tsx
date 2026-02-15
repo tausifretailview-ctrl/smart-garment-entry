@@ -875,7 +875,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={isActive("/whatsapp-inbox")} className="dark:text-white dark:hover:bg-[hsl(213,32%,22%)] dark:data-[active=true]:bg-[hsl(213,32%,22%)] dark:data-[active=true]:border-l-2 dark:data-[active=true]:border-l-[hsl(187,100%,42%)]">
                   <NavLink to="/whatsapp-inbox" className="flex items-center gap-3 group">
-                    <Inbox className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
+                    <MessageSquare className="h-5 w-5 sidebar-icon dark:text-[hsl(187,100%,42%)]" />
                     {open && <span className="font-medium dark:text-white">WhatsApp Inbox</span>}
                   </NavLink>
                 </SidebarMenuButton>
