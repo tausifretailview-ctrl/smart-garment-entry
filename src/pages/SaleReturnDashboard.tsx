@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -51,7 +51,7 @@ interface BusinessDetails {
 }
 
 export default function SaleReturnDashboard() {
-  const navigate = useNavigate();
+  const { orgNavigate: navigate } = useOrgNavigation();
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
 
