@@ -1,168 +1,87 @@
-# Multi-Organization Scaling Optimization Plan
-
-This plan optimizes the application to safely support 50+ organizations on the existing database without breaking production. Changes are additive and non-destructive.
-
----
-
-Before applying any schema changes, generate a migration preview and confirm no destructive operations are included.
-
-## Phase 1: Database Views for Dashboard Aggregation
-
-Currently, dashboard metrics (total sales, stock value, receivables, profit, etc.) fetch raw rows to the browser and aggregate with JavaScript. With 50+ organizations and growing data, this wastes bandwidth and CPU.
-
-**Create SQL Views** that perform aggregation server-side, filtered by `organization_id`:
-
-- `v_dashboard_sales_summary` -- SUM(net_amount), COUNT(*), grouped by organization_id + date range
-- `v_dashboard_stock_summary` -- SUM(stock_qty), SUM(stock_qty * pur_price) from product_variants (excluding deleted)
-- `v_dashboard_receivables` -- SUM of outstanding balances from pending/partial sales
-- `v_dashboard_counts` -- COUNT of customers, suppliers, products per org
-
-These views will use `WITH (security_invoker=on)` so existing RLS policies apply automatically.
-
-**Frontend changes**: Update `Index.tsx` (DesktopDashboard) queries to call views instead of fetching raw rows. The existing queries remain as fallback comments until views are verified working.
-
----
-
-## Phase 2: Composite Index Optimization
-
-Several high-traffic tables lack composite indexes. These will be added via safe `CREATE INDEX IF NOT EXISTS CONCURRENTLY`-equivalent migrations:
 
 
-| Table              | Composite Index                                                 |
-| ------------------ | --------------------------------------------------------------- |
-| `sales`            | `(organization_id, sale_date, deleted_at)`                      |
-| `sales`            | `(organization_id, payment_status, deleted_at)`                 |
-| `purchase_bills`   | `(organization_id, bill_date, deleted_at)`                      |
-| `product_variants` | `(organization_id, barcode)`                                    |
-| `product_variants` | `(organization_id, deleted_at)`                                 |
-| `customers`        | `(organization_id, customer_id)` -- already exists in some form |
-| `sale_returns`     | `(organization_id, return_date, deleted_at)`                    |
-| `purchase_returns` | `(organization_id, return_date, deleted_at)`                    |
-| `stock_movements`  | `(organization_id, variant_id)`                                 |
-| `employees`        | `(organization_id, status)`                                     |
-| `settings`         | `(organization_id)`                                             |
+# Phase 3 & 5: Payload Reduction and Organization Filter Audit
 
+## Phase 3: Replace `select('*')` with Explicit Columns
 
-Indexes are additive -- no tables are modified, no columns dropped.
+There are ~28 files with `select('*')` queries. We will focus on the **highest-traffic pages** first, where payload reduction has the biggest impact. Lower-traffic pages (e.g., WhatsApp Inbox, Recycle Bin) are left unchanged as they are rarely hit.
 
----
+### High-Priority Files to Update
 
-## Phase 3: Reduce select('*') on High-Traffic Pages
+**1. Settings queries (loaded on almost every page)**
+These files use `select('*')` on `settings` but only need specific fields:
 
-Replace `select('*')` with explicit column lists on the most-used queries:
+| File | Replace with |
+|------|-------------|
+| `src/pages/POSSales.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, sale_settings, invoice_settings, bill_barcode_settings, pos_settings, header_text, footer_text, logo_url')` |
+| `src/pages/SalesInvoice.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, sale_settings, invoice_settings, bill_barcode_settings, header_text, footer_text, logo_url, state')` |
+| `src/pages/SalesInvoiceDashboard.tsx` | `select('business_name, address, mobile_number, gst_number, sale_settings, bill_barcode_settings, invoice_settings')` |
+| `src/pages/PaymentsDashboard.tsx` | `select('business_name, gst_number, bill_barcode_settings')` |
+| `src/pages/DailyCashierReport.tsx` | `select('business_name, address, mobile_number, gst_number')` |
+| `src/pages/Accounts.tsx` | `select('business_name, gst_number, bill_barcode_settings')` |
+| `src/components/InvoicePrint.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, invoice_settings, header_text, footer_text, logo_url, state')` |
+| `src/components/ThermalPrint80mm.tsx` | `select('business_name, address, mobile_number, email_id, gst_number, invoice_settings, header_text, footer_text, logo_url, pos_settings')` |
 
-- **Settings queries** (used on every page): Only select fields actually used (company_name, address, gst_number, etc.)
-- **Sales dashboard** queries: Select only id, net_amount, sale_date, customer_name, payment_status
-- **Employee queries**: Select only id, name, status
-- **Customer search**: Select only id, customer_name, phone, city
+**2. Employee queries**
+| File | Replace with |
+|------|-------------|
+| `src/pages/SalesInvoice.tsx` | `select('id, employee_name, status')` |
+| `src/pages/SaleOrderEntry.tsx` | `select('id, employee_name, status')` |
+| `src/pages/DeliveryChallanEntry.tsx` | `select('id, employee_name, status')` |
+| `src/pages/EmployeeMaster.tsx` | keep `select('*')` (master page needs all fields) |
+| `src/pages/Accounts.tsx` | `select('id, employee_name, status')` |
 
-This reduces payload size significantly as tables grow.
+**3. Sales/Customer queries on dashboards**
+| File | Change |
+|------|--------|
+| `src/pages/PaymentsDashboard.tsx` (sales query) | `select('id, sale_number, sale_date, customer_name, customer_id, net_amount, paid_amount, cash_amount, payment_method, payment_status')` |
+| `src/pages/SaleOrderEntry.tsx` (customers query) | `select('id, customer_name, phone, email, address, gst_number, discount_percent')` |
+
+**4. POS-specific queries** (POSSales.tsx)
+- Sale fetch for draft resume: keep `select('*')` since full sale data is needed for re-editing
+- Sale items fetch: keep `select('*')` since all item fields are needed for cart restoration
+
+### Files NOT Changed (intentionally)
+- `EmployeeMaster.tsx` -- master CRUD page, needs all columns
+- `WhatsAppInbox.tsx` -- low traffic, complex message structure
+- `CustomerHistoryDialog.tsx` -- dialog-level, rarely opened
+- `school/TeacherMaster.tsx` -- master page
 
 ---
 
-## Phase 4: Dashboard Query Consolidation
+## Phase 5: Organization Filtering Verification
 
-Currently the dashboard fires 12+ separate queries. Consolidate into 2-3 queries using the new views:
+Based on the codebase audit, organization filtering is consistently applied. Here is the verification summary:
 
-1. **Sales + Returns summary** (1 query to `v_dashboard_sales_summary`)
-2. **Stock + Inventory** (1 query to `v_dashboard_stock_summary`)
-3. **Counts** (1 query to `v_dashboard_counts`)
+### Verified Patterns
+- All `settings` queries include `.eq('organization_id', ...)`
+- All `employees` queries include `.eq('organization_id', ...)`
+- All `sales` queries include `.eq('organization_id', ...)`
+- All `customers` queries include `.eq('organization_id', ...)`
+- All `product_variants` and `products` queries include `.eq('organization_id', ...)`
+- All `purchase_bills` queries include `.eq('organization_id', ...)`
+- The `useCustomerSearch` hook correctly filters by organization
+- Database triggers automatically populate `organization_id` on insert
 
-This reduces database round-trips from ~12 to ~3 per dashboard load.
+### RLS Status
+RLS is already enabled on all 77 tables with policies using `organization_id` filtering via `user_belongs_to_org()` and `get_user_organization_ids()` functions. No changes needed.
 
----
-
-## Phase 5: Verify Organization Filtering
-
-Audit all Supabase queries to confirm `.eq('organization_id', ...)` is present. Based on exploration, the existing codebase consistently applies this filter. This phase is a verification pass with no code changes unless gaps are found.
-
----
-
-## Safety Guarantees
-
-- No columns, tables, or sequences will be dropped
-- No existing RLS policies will be modified (already enabled on all 77 tables)
-- Invoice numbering logic remains untouched
-- All changes are additive (new views, new indexes)
-- Existing frontend query logic stays as commented fallback until new views are verified
-- No destructive schema changes
+### Result
+No gaps found. Phase 5 is a verification-only pass with no code changes.
 
 ---
 
-## Technical Details
+## Summary of Changes
 
-### View: v_dashboard_sales_summary
+| Category | Files Modified | Impact |
+|----------|---------------|--------|
+| Settings `select('*')` reduction | 8 files | Reduces payload on every page load |
+| Employee `select('*')` reduction | 3 files | Smaller payloads for dropdown queries |
+| Sales/Customer query reduction | 2 files | Reduced dashboard payload |
+| Organization filter audit | 0 files (verified OK) | Confidence in data isolation |
 
-```sql
-CREATE VIEW v_dashboard_sales_summary WITH (security_invoker=on) AS
-SELECT
-  organization_id,
-  DATE(sale_date) as sale_day,
-  COUNT(*) as invoice_count,
-  COALESCE(SUM(net_amount), 0) as total_sales,
-  COALESCE(SUM(paid_amount), 0) as total_paid,
-  COALESCE(SUM(cash_amount), 0) as total_cash
-FROM sales
-WHERE deleted_at IS NULL
-GROUP BY organization_id, DATE(sale_date);
-```
-
-### View: v_dashboard_stock_summary
-
-```sql
-CREATE VIEW v_dashboard_stock_summary WITH (security_invoker=on) AS
-SELECT
-  pv.organization_id,
-  COALESCE(SUM(pv.stock_qty), 0) as total_stock_qty,
-  COALESCE(SUM(pv.stock_qty * pv.pur_price), 0) as total_stock_value
-FROM product_variants pv
-INNER JOIN products p ON p.id = pv.product_id
-WHERE pv.deleted_at IS NULL AND p.deleted_at IS NULL
-GROUP BY pv.organization_id;
-```
-
-### View: v_dashboard_counts
-
-```sql
-CREATE VIEW v_dashboard_counts WITH (security_invoker=on) AS
-SELECT
-  organization_id,
-  (SELECT COUNT(*) FROM customers c WHERE c.organization_id = o.id AND c.deleted_at IS NULL) as customer_count,
-  (SELECT COUNT(*) FROM suppliers s WHERE s.organization_id = o.id AND s.deleted_at IS NULL) as supplier_count,
-  (SELECT COUNT(*) FROM products p WHERE p.organization_id = o.id AND p.deleted_at IS NULL) as product_count
-FROM organizations o;
-```
-
-### Frontend Query (Example - Sales)
-
-```typescript
-// Before: fetches all rows, sums in JS
-const { data } = await supabase.from("sales").select("net_amount, id")...
-
-// After: single aggregated row from view
-const { data } = await supabase
-  .from("v_dashboard_sales_summary")
-  .select("invoice_count, total_sales, total_paid, total_cash")
-  .eq("organization_id", currentOrganization.id)
-  .gte("sale_day", startDate)
-  .lte("sale_day", endDate);
-const totals = data?.reduce((acc, row) => ({
-  total: acc.total + row.total_sales,
-  count: acc.count + row.invoice_count,
-}), { total: 0, count: 0 });
-```
-
-### Index Migration (Example)
-
-```sql
-CREATE INDEX IF NOT EXISTS idx_sales_org_date_deleted
-  ON sales (organization_id, sale_date, deleted_at);
-```
-
-### Files Modified
-
-- **New migration**: SQL file with views + indexes
-- `src/pages/Index.tsx`: Dashboard queries updated to use views
-- `src/components/dashboard/StatsChartsSection.tsx`: Charts queries optimized
-- `src/components/mobile/MobileDashboardSummary.tsx`: Mobile summary optimized
-- Various pages: `select('*')` replaced with explicit columns 
+### Safety
+- No columns dropped, no tables modified
+- Invoice rendering fields are preserved in all print-related queries
+- POS draft resume keeps `select('*')` to avoid breaking cart restoration
+- All changes are column-list narrowing only -- additive and safe
