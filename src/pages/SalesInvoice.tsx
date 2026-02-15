@@ -1924,7 +1924,7 @@ Thank you for choosing us!`;
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
       <Card className="p-6 relative overflow-hidden">

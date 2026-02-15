@@ -804,14 +804,14 @@ export default function StockReport() {
         
         {/* Always visible multi-field filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <div className="space-y-1 relative">
-            <label className="text-xs font-medium text-muted-foreground">Product Name</label>
+          <div className="space-y-2 relative">
+            <label className="text-sm font-medium text-muted-foreground">Product Name</label>
             <Input
               placeholder="Filter by name..."
               value={productNameFilter}
               onChange={(e) => setProductNameFilter(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="h-9 !bg-white !text-gray-900"
+              className="h-10 !bg-white !text-gray-900"
               list="product-name-suggestions"
             />
             <datalist id="product-name-suggestions">
@@ -820,10 +820,10 @@ export default function StockReport() {
               ))}
             </datalist>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Brand</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Brand</label>
             <Select value={brandFilter} onValueChange={setBrandFilter}>
-              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Brands" />
               </SelectTrigger>
               <SelectContent>
@@ -834,10 +834,10 @@ export default function StockReport() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Category</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Category</label>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>
               <SelectContent>
@@ -848,10 +848,10 @@ export default function StockReport() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Department</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Department</label>
             <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Departments" />
               </SelectTrigger>
               <SelectContent>
@@ -862,10 +862,10 @@ export default function StockReport() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Size</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Size</label>
             <Select value={sizeFilter} onValueChange={setSizeFilter}>
-              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Sizes" />
               </SelectTrigger>
               <SelectContent>
@@ -876,10 +876,10 @@ export default function StockReport() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Stock Status</label>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-muted-foreground">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
-              <SelectTrigger className="h-9 !bg-white !text-gray-900">
+              <SelectTrigger className="h-10 !bg-white !text-gray-900">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -903,10 +903,10 @@ export default function StockReport() {
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Supplier</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Supplier</label>
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                  <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
                     <SelectValue placeholder="All Suppliers" />
                   </SelectTrigger>
                   <SelectContent>
@@ -917,10 +917,10 @@ export default function StockReport() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Supplier Invoice</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-muted-foreground">Supplier Invoice</label>
                 <Select value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter}>
-                  <SelectTrigger className="h-9 !bg-white !text-gray-900">
+                  <SelectTrigger className="h-10 !bg-white !text-gray-900">
                     <SelectValue placeholder="All Invoices" />
                   </SelectTrigger>
                   <SelectContent>

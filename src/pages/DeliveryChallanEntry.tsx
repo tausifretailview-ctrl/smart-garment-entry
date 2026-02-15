@@ -836,7 +836,7 @@ export default function DeliveryChallanEntry() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={handleBarcodeSearch}
-                className="pl-10 pr-4 h-9"
+                className="pl-10 pr-4 h-10"
                 autoFocus
               />
             </div>
@@ -844,7 +844,7 @@ export default function DeliveryChallanEntry() {
             {/* Browse Products Search Bar */}
             <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="flex-1 min-w-[250px] h-9 justify-start text-left font-normal">
+                <Button variant="outline" className="flex-1 min-w-[250px] h-10 justify-start text-left font-normal">
                   <Search className="mr-2 h-4 w-4" /> Browse products by name, style...
                 </Button>
               </PopoverTrigger>

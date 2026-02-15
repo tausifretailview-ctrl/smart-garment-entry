@@ -260,32 +260,8 @@ All colors MUST be HSL.
 
 /* ERP Full View Styles */
 @layer base {
-  /* Professional ERP Density */
-  .erp-compact {
-    @apply text-[15px];
-  }
-  
-  .erp-compact input,
-  .erp-compact select,
-  .erp-compact textarea {
-    @apply h-10 text-sm;
-  }
-  
-  .erp-compact label {
-    @apply text-sm;
-  }
-  
-  .erp-compact .card {
-    @apply p-5;
-  }
-  
-  .erp-compact table th {
-    @apply h-9 text-[13px] font-semibold px-4 py-2.5;
-  }
-  
-  .erp-compact table td {
-    @apply px-4 py-2.5 text-sm;
-  }
+
+
 
   /* Sidebar menu item height - Professional ERP density */
   [data-sidebar="menu-button"] {

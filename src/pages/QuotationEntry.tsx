@@ -996,7 +996,7 @@ export default function QuotationEntry() {
   }, [searchInput]);
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-6 space-y-6">
       <BackToDashboard />
       
       <Card className="p-6">
@@ -1402,7 +1402,7 @@ export default function QuotationEntry() {
                   setFlatDiscountPercent(parseFloat(e.target.value) || 0);
                   setFlatDiscountAmount(0);
                 }}
-                className="h-9"
+                className="h-10"
               />
             </div>
             <div>
@@ -1415,7 +1415,7 @@ export default function QuotationEntry() {
                   setFlatDiscountAmount(parseFloat(e.target.value) || 0);
                   setFlatDiscountPercent(0);
                 }}
-                className="h-9"
+                className="h-10"
               />
             </div>
             <div className="col-span-2">
@@ -1425,7 +1425,7 @@ export default function QuotationEntry() {
                 step="0.01"
                 value={roundOff}
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
-                className="h-9"
+                className="h-10"
               />
             </div>
           </div>
