@@ -72,6 +72,7 @@ const ProductDashboard = () => {
   const { currentOrganization } = useOrganization();
   const [productRows, setProductRows] = useState<ProductRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefetching, setIsRefetching] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -358,7 +359,11 @@ const ProductDashboard = () => {
 
   const fetchProductVariants = async () => {
     if (!currentOrganization?.id) return;
-    setLoading(true);
+    if (productRows.length === 0) {
+      setLoading(true);
+    } else {
+      setIsRefetching(true);
+    }
     try {
       const offset = (currentPage - 1) * itemsPerPage;
       
@@ -484,6 +489,7 @@ const ProductDashboard = () => {
       });
     } finally {
       setLoading(false);
+      setIsRefetching(false);
     }
   };
 
@@ -814,7 +820,7 @@ const ProductDashboard = () => {
   const endIndex = filteredRows.length;
   const paginatedRows = filteredRows;
 
-  if (loading) {
+  if (loading && productRows.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
