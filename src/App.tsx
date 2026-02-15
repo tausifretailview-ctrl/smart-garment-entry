@@ -74,6 +74,7 @@ import StockAnalysis from "./pages/StockAnalysis";
 import BulkProductUpdate from "./pages/BulkProductUpdate";
 import DeliveryChallanEntry from "./pages/DeliveryChallanEntry";
 import DeliveryChallanDashboard from "./pages/DeliveryChallanDashboard";
+import AdvanceBookingDashboard from "./pages/AdvanceBookingDashboard";
 import SalesmanLayout from "./layouts/SalesmanLayout";
 import SalesmanDashboard from "./pages/salesman/SalesmanDashboard";
 import SalesmanCustomers from "./pages/salesman/SalesmanCustomers";
@@ -652,6 +653,18 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <DeliveryChallanDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Advance Booking */}
+                <Route
+                  path="advance-booking-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AdvanceBookingDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }

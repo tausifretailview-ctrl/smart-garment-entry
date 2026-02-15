@@ -106,6 +106,57 @@ export type Database = {
           },
         ]
       }
+      advance_refunds: {
+        Row: {
+          advance_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          organization_id: string
+          payment_method: string | null
+          reason: string | null
+          refund_amount: number
+          refund_date: string
+        }
+        Insert: {
+          advance_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          payment_method?: string | null
+          reason?: string | null
+          refund_amount: number
+          refund_date?: string
+        }
+        Update: {
+          advance_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          payment_method?: string | null
+          reason?: string | null
+          refund_amount?: number
+          refund_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "advance_refunds_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "customer_advances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "advance_refunds_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
