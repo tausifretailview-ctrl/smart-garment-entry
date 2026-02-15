@@ -23,7 +23,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen, SlidersHorizontal, Columns3 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -82,6 +90,21 @@ const CustomerMaster = () => {
   const [selectedCustomerForBrandDiscount, setSelectedCustomerForBrandDiscount] = useState<{ id: string; name: string } | null>(null);
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
   const { orgNavigate: navigate } = useOrgNavigation();
+
+  const [columnVisibility, setColumnVisibility] = useState({
+    srNo: true,
+    mobile: true,
+    email: true,
+    gst: true,
+    openingBalance: true,
+    advance: true,
+    discount: true,
+    status: true,
+  });
+
+  const toggleColumn = (col: keyof typeof columnVisibility) => {
+    setColumnVisibility(prev => ({ ...prev, [col]: !prev[col] }));
+  };
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<Customer>();
@@ -714,7 +737,7 @@ const CustomerMaster = () => {
             </div>
           </div>
 
-          {/* Search + Filter Bar - Slim Professional Row */}
+          {/* Search + Filter Bar */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -725,6 +748,29 @@ const CustomerMaster = () => {
                 className="h-9 text-sm pl-9 rounded-md border"
               />
             </div>
+            
+            {/* Column Filter Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 text-sm px-3 rounded-md gap-2">
+                  <Columns3 className="h-4 w-4" />
+                  Columns
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem checked={columnVisibility.srNo} onCheckedChange={() => toggleColumn('srNo')}>Sr No</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.mobile} onCheckedChange={() => toggleColumn('mobile')}>Mobile</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.email} onCheckedChange={() => toggleColumn('email')}>Email</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.gst} onCheckedChange={() => toggleColumn('gst')}>GST</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.openingBalance} onCheckedChange={() => toggleColumn('openingBalance')}>Opening Bal.</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.advance} onCheckedChange={() => toggleColumn('advance')}>Advance</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.discount} onCheckedChange={() => toggleColumn('discount')}>Discount %</DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={columnVisibility.status} onCheckedChange={() => toggleColumn('status')}>Status</DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {isSomeSelected && (
               <Button 
                 variant="destructive" 
@@ -751,26 +797,26 @@ const CustomerMaster = () => {
                       aria-label="Select all"
                     />
                   </TableHead>
-                   <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Sr No</TableHead>
+                   {columnVisibility.srNo && <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Sr No</TableHead>}
                    <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Customer Name</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Mobile</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Email</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">GST</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Opening Bal.</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Advance</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Discount %</TableHead>
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-center">Status</TableHead>
+                   {columnVisibility.mobile && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Mobile</TableHead>}
+                   {columnVisibility.email && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Email</TableHead>}
+                   {columnVisibility.gst && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">GST</TableHead>}
+                   {columnVisibility.openingBalance && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Opening Bal.</TableHead>}
+                   {columnVisibility.advance && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Advance</TableHead>}
+                   {columnVisibility.discount && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Discount %</TableHead>}
+                   {columnVisibility.status && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-center">Status</TableHead>}
                    <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                     <TableCell colSpan={11} className="text-center text-[14px] leading-5 py-8 text-slate-500">Loading...</TableCell>
+                     <TableCell colSpan={3 + Object.values(columnVisibility).filter(Boolean).length} className="text-center text-[14px] leading-5 py-8 text-slate-500">Loading...</TableCell>
                    </TableRow>
                  ) : customers.length === 0 ? (
                    <TableRow>
-                     <TableCell colSpan={11} className="text-center text-[14px] leading-5 py-8 text-slate-500">No customers found</TableCell>
+                     <TableCell colSpan={3 + Object.values(columnVisibility).filter(Boolean).length} className="text-center text-[14px] leading-5 py-8 text-slate-500">No customers found</TableCell>
                   </TableRow>
                 ) : (
                   customers.map((customer, index) => (
@@ -786,7 +832,7 @@ const CustomerMaster = () => {
                           aria-label={`Select ${customer.customer_name}`}
                         />
                       </TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>
+                       {columnVisibility.srNo && <TableCell className="py-2 px-4 text-[14px] leading-5 font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>}
                        <TableCell 
                          className="py-2 px-4 text-[14px] leading-5 font-semibold text-blue-600 cursor-pointer hover:underline"
                         onClick={() => {
@@ -799,25 +845,25 @@ const CustomerMaster = () => {
                       >
                         {customer.customer_name}
                       </TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-slate-600">{customer.email || "-"}</TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-800">
+                       {columnVisibility.mobile && <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>}
+                       {columnVisibility.email && <TableCell className="py-2 px-4 text-[14px] leading-5 text-slate-600">{customer.email || "-"}</TableCell>}
+                       {columnVisibility.gst && <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>}
+                       {columnVisibility.openingBalance && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-800">
                          {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString('en-IN')}` : "-"}
-                       </TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums">
+                       </TableCell>}
+                       {columnVisibility.advance && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums">
                          {advanceBalances[customer.id] ? (
                            <span className="text-purple-600">₹{Math.round(advanceBalances[customer.id]).toLocaleString('en-IN')}</span>
                          ) : "-"}
-                       </TableCell>
-                       <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-700">
+                       </TableCell>}
+                       {columnVisibility.discount && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-700">
                         {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
-                      </TableCell>
-                      <TableCell className="py-2 px-4 text-center">
+                      </TableCell>}
+                      {columnVisibility.status && <TableCell className="py-2 px-4 text-center">
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200">
                           Active
                         </span>
-                      </TableCell>
+                      </TableCell>}
                       <TableCell className="py-2 px-4 text-right">
                         <div className="flex items-center justify-end gap-0.5">
                           <button
