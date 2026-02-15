@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, RefreshCw, AlertCircle } from "lucide-react";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
 
@@ -14,66 +14,71 @@ export const MobileDashboardSummary = () => {
   const { isOnline } = useNetworkStatus();
   const { getRefreshInterval } = useTierBasedRefresh();
   
-  // Use ISO timestamps for proper UTC comparison
-  const todayStart = startOfDay(new Date()).toISOString();
-  const todayEnd = endOfDay(new Date()).toISOString();
+  const today = format(new Date(), "yyyy-MM-dd");
 
-  // Fetch today's stats with optimized queries
+  // Fetch today's stats using aggregation views
   const { data: todayStats, isLoading, isError, refetch } = useQuery({
-    queryKey: ["mobile-dashboard-summary", currentOrganization?.id, format(new Date(), "yyyy-MM-dd")],
+    queryKey: ["mobile-dashboard-summary", currentOrganization?.id, today],
     queryFn: async () => {
       if (!currentOrganization) return { invoiceCount: 0, customersServed: 0, itemsSold: 0, pendingCount: 0 };
       
-      // Get today's invoices - lightweight query
-      const { data: sales, error: salesError } = await supabase
-        .from("sales")
-        .select("id, customer_id")
+      // Get today's sales summary from view (1 query instead of fetching all rows)
+      const { data: salesSummary, error: salesError } = await supabase
+        .from("v_dashboard_sales_summary")
+        .select("invoice_count, total_sales")
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .gte("sale_date", todayStart)
-        .lte("sale_date", todayEnd);
+        .eq("sale_day", today)
+        .single();
       
-      if (salesError) throw salesError;
+      // PGRST116 = no rows (no sales today), not an error
+      if (salesError && salesError.code !== 'PGRST116') throw salesError;
       
-      const invoiceCount = sales?.length || 0;
+      const invoiceCount = Number(salesSummary?.invoice_count) || 0;
       
-      // Count unique customers served today
-      const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
-      const customersServed = uniqueCustomers.size;
-      
-      // Get items sold today - only if there are sales
+      // For customers served and items sold, we still need detail queries
+      // but only if there are sales today
+      let customersServed = 0;
       let itemsSold = 0;
-      const saleIds = sales?.map(s => s.id) || [];
-      if (saleIds.length > 0) {
-        const { data: items, error: itemsError } = await supabase
-          .from("sale_items")
-          .select("quantity")
-          .in("sale_id", saleIds);
+      
+      if (invoiceCount > 0) {
+        const { data: sales } = await supabase
+          .from("sales")
+          .select("id, customer_id")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .gte("sale_date", today)
+          .lte("sale_date", today + "T23:59:59");
         
-        if (itemsError) throw itemsError;
-        itemsSold = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+        const uniqueCustomers = new Set(sales?.map(s => s.customer_id).filter(Boolean));
+        customersServed = uniqueCustomers.size;
+        
+        const saleIds = sales?.map(s => s.id) || [];
+        if (saleIds.length > 0) {
+          const { data: items } = await supabase
+            .from("sale_items")
+            .select("quantity")
+            .in("sale_id", saleIds);
+          itemsSold = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+        }
       }
       
-      // Get pending payments count using COUNT for efficiency
-      const { count: pendingCount, error: pendingError } = await supabase
-        .from("sales")
-        .select("*", { count: "exact", head: true })
+      // Get pending payments from receivables view (1 query)
+      const { data: receivables } = await supabase
+        .from("v_dashboard_receivables")
+        .select("pending_count")
         .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .in("payment_status", ["pending", "partial"]);
-      
-      if (pendingError) throw pendingError;
+        .single();
       
       return {
         invoiceCount,
         customersServed,
         itemsSold,
-        pendingCount: pendingCount || 0
+        pendingCount: Number(receivables?.pending_count) || 0
       };
     },
     enabled: !!currentOrganization && isOnline,
-    staleTime: 60000, // 1 minute
-    refetchInterval: getRefreshInterval('fast'), // Tier-based polling
+    staleTime: 60000,
+    refetchInterval: getRefreshInterval('fast'),
     retry: 2,
   });
 
