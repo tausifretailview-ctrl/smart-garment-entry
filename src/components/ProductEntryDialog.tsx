@@ -795,8 +795,8 @@ export const ProductEntryDialog = ({ open, onOpenChange, onProductCreated, hideO
           <ScrollArea className="max-h-[calc(90vh-140px)] px-6">
             <div className="space-y-6 py-4">
               {/* Copy from Existing Product */}
-              <div className="space-y-1">
-                <Label className="text-xs flex items-center gap-1 text-muted-foreground">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1 text-muted-foreground">
                   <Copy className="h-3 w-3" />
                   Copy from Existing Product
                 </Label>

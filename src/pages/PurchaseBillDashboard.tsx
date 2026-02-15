@@ -1028,7 +1028,7 @@ const PurchaseBillDashboard = () => {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Bills</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Bills</CardDescription>
               <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -1041,7 +1041,7 @@ const PurchaseBillDashboard = () => {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Paid</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Paid</CardDescription>
               <CheckCircle2 className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -1054,7 +1054,7 @@ const PurchaseBillDashboard = () => {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Partial</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Partial</CardDescription>
               <Clock className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -1067,7 +1067,7 @@ const PurchaseBillDashboard = () => {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Unpaid</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Unpaid</CardDescription>
               <Wallet className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -1080,7 +1080,7 @@ const PurchaseBillDashboard = () => {
             className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
           >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Amount</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Amount</CardDescription>
               <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>

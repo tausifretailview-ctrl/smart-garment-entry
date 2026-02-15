@@ -600,7 +600,7 @@ export function SizeGridDialog({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs text-primary"
+                            className="text-primary"
                             onClick={() => setActiveCustomSizeColor(color)}
                           >
                             <Plus className="h-3 w-3 mr-1" />
@@ -612,7 +612,7 @@ export function SizeGridDialog({
                               placeholder="Size"
                               value={newSize}
                               onChange={(e) => setNewSize(e.target.value)}
-                              className="w-16 h-8 text-sm"
+                              className="w-20"
                             />
                             <Input
                               type="number"
@@ -620,12 +620,12 @@ export function SizeGridDialog({
                               placeholder="Qty"
                               value={newQty}
                               onChange={(e) => setNewQty(e.target.value)}
-                              className="w-16 h-8 text-sm"
+                              className="w-20"
                             />
-                            <Button size="sm" className="h-8" onClick={() => handleAddMultiColorCustomSize(color)}>
+                            <Button size="sm" onClick={() => handleAddMultiColorCustomSize(color)}>
                               Add
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-8" onClick={() => {
+                            <Button size="sm" variant="ghost" onClick={() => {
                               setActiveCustomSizeColor(null);
                               setNewSize("");
                               setNewQty("");
@@ -658,8 +658,8 @@ export function SizeGridDialog({
             {/* Add New Color Input for multi-color mode */}
             {allowAddColor && showAddColor && (
               <div className="mt-4 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
-                <div className="space-y-1">
-                  <Label className="text-xs">Color Name *</Label>
+                <div className="space-y-2">
+                  <Label>Color Name *</Label>
                   <Input
                     ref={colorInputRef}
                     placeholder="e.g., BK, RD, BL"
@@ -737,8 +737,8 @@ export function SizeGridDialog({
                 {/* Add New Color Input */}
                 {showAddColor && (
                   <div className="mt-3 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Color Name *</Label>
+                    <div className="space-y-2">
+                      <Label>Color Name *</Label>
                       <Input
                         ref={colorInputRef}
                         placeholder="e.g., BK, RD, BL"
@@ -791,8 +791,8 @@ export function SizeGridDialog({
                 {/* Add New Color Input for single/no color products */}
                 {allowAddColor && showAddColor && (
                   <div className="w-full mt-2 p-3 bg-muted/50 rounded-lg border flex flex-wrap gap-2 items-end">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Color Name *</Label>
+                    <div className="space-y-2">
+                      <Label>Color Name *</Label>
                       <Input
                         ref={colorInputRef}
                         placeholder="e.g., BK, RD, BL"

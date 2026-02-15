@@ -480,7 +480,7 @@ const DeliveryDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{deliveryStats?.total || 0}</div>
-              <p className="text-xs text-muted-foreground">All time deliveries</p>
+              <p className="text-sm text-muted-foreground">All time deliveries</p>
             </CardContent>
           </Card>
 
@@ -494,7 +494,7 @@ const DeliveryDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">{deliveryStats?.delivered || 0}</div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 ₹{deliveryStats?.deliveredValue?.toLocaleString("en-IN") || 0}
               </p>
             </CardContent>
@@ -510,7 +510,7 @@ const DeliveryDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{deliveryStats?.pending || 0}</div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 ₹{deliveryStats?.pendingValue?.toLocaleString("en-IN") || 0}
               </p>
             </CardContent>
@@ -526,7 +526,7 @@ const DeliveryDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-yellow-600">{deliveryStats?.inProcess || 0}</div>
-              <p className="text-xs text-muted-foreground">Currently processing</p>
+              <p className="text-sm text-muted-foreground">Currently processing</p>
             </CardContent>
           </Card>
         </div>

@@ -198,7 +198,7 @@ export default function SaleReturnDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Returns</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Returns</CardDescription>
               <Receipt className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -209,7 +209,7 @@ export default function SaleReturnDashboard() {
 
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Total Return Value</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Total Return Value</CardDescription>
               <TrendingDown className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
@@ -220,7 +220,7 @@ export default function SaleReturnDashboard() {
 
           <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/80">Average Return Value</CardDescription>
+              <CardDescription className="text-sm font-medium text-white/80">Average Return Value</CardDescription>
               <IndianRupee className="h-4 w-4 text-white" />
             </CardHeader>
             <CardContent>
