@@ -209,13 +209,13 @@ export function CustomerHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-6xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <ShoppingCart className="h-6 w-6 text-primary" />
             {customerName}
           </DialogTitle>
-          <DialogDescription>Customer account history and transactions</DialogDescription>
+          <DialogDescription className="text-sm">Customer account history and transactions</DialogDescription>
         </DialogHeader>
 
         {/* Summary Cards */}
@@ -227,41 +227,41 @@ export function CustomerHistoryDialog({
             return sum;
           }, 0);
           return (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-2 py-3">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3 py-3">
               <Card className="border-l-4 border-l-blue-500">
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">Opening Bal</p>
-                  <p className="text-sm font-bold text-blue-600">₹{openingBalance.toFixed(2)}</p>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Opening Bal</p>
+                  <p className="text-base font-bold text-blue-600">₹{openingBalance.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-green-500">
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">Total Sales</p>
-                  <p className="text-sm font-bold text-green-600">₹{totalSales.toFixed(2)}</p>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Total Sales</p>
+                  <p className="text-base font-bold text-green-600">₹{totalSales.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-purple-500">
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">Total Paid</p>
-                  <p className="text-sm font-bold text-purple-600">₹{totalPaid.toFixed(2)}</p>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Total Paid</p>
+                  <p className="text-base font-bold text-purple-600">₹{totalPaid.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-orange-500">
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">Advance</p>
-                  <p className="text-sm font-bold text-orange-600">₹{advanceBalance.toFixed(2)}</p>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Advance</p>
+                  <p className="text-base font-bold text-orange-600">₹{advanceBalance.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className="border-l-4 border-l-pink-500">
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">CR Pending</p>
-                  <p className="text-sm font-bold text-pink-600">₹{crPending.toFixed(2)}</p>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">CR Pending</p>
+                  <p className="text-base font-bold text-pink-600">₹{crPending.toFixed(2)}</p>
                 </CardContent>
               </Card>
               <Card className={`border-l-4 ${balance > 0 ? 'border-l-red-500' : 'border-l-emerald-500'}`}>
-                <CardContent className="p-2">
-                  <p className="text-[10px] text-muted-foreground">Current Bal</p>
-                  <p className={`text-sm font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Current Bal</p>
+                  <p className={`text-base font-bold ${balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                     ₹{Math.abs(balance).toFixed(2)}
                     {balance < 0 && ' CR'}
                   </p>
@@ -300,7 +300,7 @@ export function CustomerHistoryDialog({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1 mt-3 h-[350px]">
+          <ScrollArea className="flex-1 mt-3 h-[55vh]">
             {/* Sales Tab */}
             <TabsContent value="sales" className="mt-0">
               {salesLoading ? (
