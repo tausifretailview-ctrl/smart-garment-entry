@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban, ArrowUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, CheckSquare, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, Ban, ArrowUpDown, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -817,6 +817,20 @@ const CustomerMaster = () => {
                     {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
                   </TableCell>
                   <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedCustomerForHistory({
+                          id: customer.id,
+                          name: customer.customer_name
+                        });
+                        setShowCustomerHistory(true);
+                      }}
+                      title="Account Ledger"
+                    >
+                      <BookOpen className="h-4 w-4 text-primary" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
