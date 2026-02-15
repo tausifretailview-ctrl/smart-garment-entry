@@ -100,7 +100,7 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
     try {
       const { data, error } = await (supabase as any)
         .from('settings')
-        .select('*')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
 

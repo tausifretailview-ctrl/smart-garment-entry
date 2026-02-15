@@ -262,7 +262,7 @@ export default function SaleOrderEntry() {
       if (!currentOrganization?.id) return null;
       const { data, error } = await supabase
         .from('settings')
-        .select('*')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
       if (error) throw error;
@@ -311,7 +311,7 @@ export default function SaleOrderEntry() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('customers')
-          .select('*')
+          .select('id, customer_name, phone, email, address, gst_number, discount_percent')
           .eq('organization_id', currentOrganization.id)
           .is('deleted_at', null)
           .order('customer_name')
@@ -386,7 +386,7 @@ export default function SaleOrderEntry() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
+        .select('id, employee_name, status')
         .eq('organization_id', currentOrganization.id)
         .eq('status', 'active')
         .order('employee_name');

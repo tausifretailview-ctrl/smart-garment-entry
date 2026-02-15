@@ -112,7 +112,7 @@ export default function PaymentsDashboard() {
       
       const { data, error } = await supabase
         .from('settings')
-        .select('*')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
         .single();
 
@@ -129,7 +129,7 @@ export default function PaymentsDashboard() {
 
       let query = supabase
         .from('sales')
-        .select('*')
+        .select('id, sale_number, sale_date, customer_name, customer_id, customer_phone, customer_email, net_amount, paid_amount, cash_amount, payment_method, payment_status, payment_date, due_date, flat_discount_amount, flat_discount_percent, discount_amount, gross_amount, round_off, salesman, notes')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .order('sale_date', { ascending: false });

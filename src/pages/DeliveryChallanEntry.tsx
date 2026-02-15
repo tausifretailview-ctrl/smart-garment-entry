@@ -188,7 +188,7 @@ export default function DeliveryChallanEntry() {
       if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
+        .select('id, employee_name, status')
         .eq('organization_id', currentOrganization.id)
         .eq('status', 'active')
         .order('employee_name');
