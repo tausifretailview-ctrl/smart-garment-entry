@@ -698,10 +698,22 @@ export default function SalesInvoiceDashboard() {
     if (showInvoicePreviewSetting) {
       setShowPrintPreview(true);
     } else {
-      // Direct print without preview
-      setTimeout(() => {
-        handlePrint();
-      }, 100);
+      // Direct print without preview - poll until content is ready
+      const startedAt = Date.now();
+      const MAX_WAIT = 8000;
+      const poll = () => {
+        const el = printRef.current;
+        const text = (el?.textContent || '').trim();
+        const isReady = el && el.childElementCount > 0 && text.length > 32 && !/^loading\.?\.?\.?$/i.test(text) && !(text.toLowerCase().includes('loading') && text.length <= 32);
+        if (isReady) {
+          handlePrint();
+        } else if (Date.now() - startedAt < MAX_WAIT) {
+          setTimeout(poll, 150);
+        } else {
+          handlePrint(); // fallback
+        }
+      };
+      setTimeout(poll, 200);
     }
   };
 
