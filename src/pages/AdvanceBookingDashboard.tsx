@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Coins, Plus, Search, RefreshCw, Undo2, IndianRupee, TrendingUp, Wallet, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { format, startOfDay, startOfWeek, startOfMonth } from "date-fns";
 import { toast } from "sonner";
 import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
@@ -33,12 +33,18 @@ export default function AdvanceBookingDashboard() {
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [refundDialogOpen, setRefundDialogOpen] = useState(false);
-  const [selectedAdvance, setSelectedAdvance] = useState<any>(null);
-  const [refundAmount, setRefundAmount] = useState("");
-  const [refundMethod, setRefundMethod] = useState("cash");
-  const [refundReason, setRefundReason] = useState("");
+   const [addDialogOpen, setAddDialogOpen] = useState(false);
+   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+   const [editDialogOpen, setEditDialogOpen] = useState(false);
+   const [selectedAdvance, setSelectedAdvance] = useState<any>(null);
+   const [refundAmount, setRefundAmount] = useState("");
+   const [refundMethod, setRefundMethod] = useState("cash");
+   const [refundReason, setRefundReason] = useState("");
+   const [editAmount, setEditAmount] = useState("");
+   const [editPaymentMethod, setEditPaymentMethod] = useState("cash");
+   const [editDescription, setEditDescription] = useState("");
+   const [editChequeNumber, setEditChequeNumber] = useState("");
+   const [editTransactionId, setEditTransactionId] = useState("");
 
   // Debounced search
   const handleSearch = useCallback((value: string) => {
@@ -167,23 +173,83 @@ export default function AdvanceBookingDashboard() {
     onError: (err: Error) => toast.error(`Refund failed: ${err.message}`),
   });
 
-  const openRefund = (advance: any) => {
-    setSelectedAdvance(advance);
-    setRefundDialogOpen(true);
-  };
+   const openRefund = (advance: any) => {
+     setSelectedAdvance(advance);
+     setRefundDialogOpen(true);
+   };
 
-  const handleRefundSubmit = () => {
-    if (!selectedAdvance || !refundAmount || parseFloat(refundAmount) <= 0) {
-      toast.error("Enter a valid refund amount");
-      return;
-    }
-    refundMutation.mutate({
-      advanceId: selectedAdvance.id,
-      amount: parseFloat(refundAmount),
-      method: refundMethod,
-      reason: refundReason,
-    });
-  };
+   const openEdit = (advance: any) => {
+     setSelectedAdvance(advance);
+     setEditAmount(String(advance.amount || ""));
+     setEditPaymentMethod(advance.payment_method || "cash");
+     setEditDescription(advance.description || "");
+     setEditChequeNumber(advance.cheque_number || "");
+     setEditTransactionId(advance.transaction_id || "");
+     setEditDialogOpen(true);
+   };
+
+   // Edit mutation
+   const editMutation = useMutation({
+     mutationFn: async ({ advanceId, amount, paymentMethod, description, chequeNumber, transactionId }: {
+       advanceId: string; amount: number; paymentMethod: string; description: string; chequeNumber: string; transactionId: string;
+     }) => {
+       const updateData: any = {
+         amount,
+         payment_method: paymentMethod,
+         description: description || null,
+         cheque_number: paymentMethod === "cheque" ? (chequeNumber || null) : null,
+         transaction_id: (paymentMethod === "upi" || paymentMethod === "bank_transfer") ? (transactionId || null) : null,
+       };
+       const { error } = await supabase
+         .from("customer_advances")
+         .update(updateData)
+         .eq("id", advanceId);
+       if (error) throw error;
+     },
+     onSuccess: () => {
+       queryClient.invalidateQueries({ queryKey: ["advance-dashboard"] });
+       queryClient.invalidateQueries({ queryKey: ["advance-summary"] });
+       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+       toast.success("Advance updated successfully");
+       setEditDialogOpen(false);
+       setSelectedAdvance(null);
+     },
+     onError: (err: Error) => toast.error(`Update failed: ${err.message}`),
+   });
+
+   const handleEditSubmit = () => {
+     if (!selectedAdvance || !editAmount || parseFloat(editAmount) <= 0) {
+       toast.error("Enter a valid amount");
+       return;
+     }
+     const newAmount = parseFloat(editAmount);
+     if (newAmount < (selectedAdvance.used_amount || 0)) {
+       toast.error("Amount cannot be less than already used amount (₹" + fmt(selectedAdvance.used_amount || 0) + ")");
+       return;
+     }
+     editMutation.mutate({
+       advanceId: selectedAdvance.id,
+       amount: newAmount,
+       paymentMethod: editPaymentMethod,
+       description: editDescription,
+       chequeNumber: editChequeNumber,
+       transactionId: editTransactionId,
+     });
+   };
+
+   const handleRefundSubmit = () => {
+     if (!selectedAdvance || !refundAmount || parseFloat(refundAmount) <= 0) {
+       toast.error("Enter a valid refund amount");
+       return;
+     }
+     refundMutation.mutate({
+       advanceId: selectedAdvance.id,
+       amount: parseFloat(refundAmount),
+       method: refundMethod,
+       reason: refundReason,
+     });
+   };
 
   const availableForRefund = selectedAdvance ? (selectedAdvance.amount - selectedAdvance.used_amount) : 0;
 
@@ -316,13 +382,20 @@ export default function AdvanceBookingDashboard() {
                     <TableCell className="text-right text-sm font-semibold text-green-600">₹{fmt(available)}</TableCell>
                     <TableCell className="text-sm capitalize">{adv.payment_method?.replace("_", " ") || "-"}</TableCell>
                     <TableCell>{getStatusBadge(adv.status)}</TableCell>
-                    <TableCell>
-                      {canRefund && (
-                        <Button variant="outline" size="xs" onClick={() => openRefund(adv)} className="text-red-600 hover:text-red-700">
-                          <Undo2 className="h-3 w-3 mr-1" /> Refund
-                        </Button>
-                      )}
-                    </TableCell>
+                     <TableCell>
+                       <div className="flex items-center gap-1">
+                         {canRefund && (
+                           <>
+                             <Button variant="outline" size="xs" onClick={() => openEdit(adv)} className="text-blue-600 hover:text-blue-700">
+                               <Pencil className="h-3 w-3 mr-1" /> Edit
+                             </Button>
+                             <Button variant="outline" size="xs" onClick={() => openRefund(adv)} className="text-red-600 hover:text-red-700">
+                               <Undo2 className="h-3 w-3 mr-1" /> Refund
+                             </Button>
+                           </>
+                         )}
+                       </div>
+                     </TableCell>
                   </TableRow>
                 );
               })
@@ -431,7 +504,99 @@ export default function AdvanceBookingDashboard() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-    </div>
-  );
+       </Dialog>
+
+       {/* Edit Dialog */}
+       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+         <DialogContent className="sm:max-w-[450px]">
+           <DialogHeader>
+             <DialogTitle className="flex items-center gap-2">
+               <Pencil className="h-5 w-5 text-blue-500" />
+               Edit Advance
+             </DialogTitle>
+             <DialogDescription>Update advance booking details.</DialogDescription>
+           </DialogHeader>
+
+           {selectedAdvance && (
+             <div className="space-y-4 py-2">
+               <div className="grid grid-cols-2 gap-3 text-sm">
+                 <div><span className="text-muted-foreground">Advance No:</span> <span className="font-medium">{selectedAdvance.advance_number}</span></div>
+                 <div><span className="text-muted-foreground">Customer:</span> <span className="font-medium">{selectedAdvance.customers?.customer_name}</span></div>
+                 {(selectedAdvance.used_amount || 0) > 0 && (
+                   <div className="col-span-2"><span className="text-muted-foreground">Used Amount:</span> <span className="font-medium text-orange-600">₹{fmt(selectedAdvance.used_amount || 0)}</span></div>
+                 )}
+               </div>
+
+               <div className="space-y-2">
+                 <Label>Amount *</Label>
+                 <Input
+                   type="number"
+                   placeholder="Enter amount"
+                   value={editAmount}
+                   onChange={(e) => setEditAmount(e.target.value)}
+                   min={selectedAdvance.used_amount || 0}
+                 />
+                 {(selectedAdvance.used_amount || 0) > 0 && (
+                   <p className="text-xs text-muted-foreground">Minimum: ₹{fmt(selectedAdvance.used_amount || 0)} (already used)</p>
+                 )}
+               </div>
+
+               <div className="space-y-2">
+                 <Label>Payment Method</Label>
+                 <Select value={editPaymentMethod} onValueChange={setEditPaymentMethod}>
+                   <SelectTrigger><SelectValue /></SelectTrigger>
+                   <SelectContent>
+                     <SelectItem value="cash">Cash</SelectItem>
+                     <SelectItem value="card">Card</SelectItem>
+                     <SelectItem value="upi">UPI</SelectItem>
+                     <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                     <SelectItem value="cheque">Cheque</SelectItem>
+                   </SelectContent>
+                 </Select>
+               </div>
+
+               {editPaymentMethod === "cheque" && (
+                 <div className="space-y-2">
+                   <Label>Cheque Number</Label>
+                   <Input
+                     placeholder="Enter cheque number"
+                     value={editChequeNumber}
+                     onChange={(e) => setEditChequeNumber(e.target.value)}
+                   />
+                 </div>
+               )}
+
+               {(editPaymentMethod === "upi" || editPaymentMethod === "bank_transfer") && (
+                 <div className="space-y-2">
+                   <Label>Transaction ID</Label>
+                   <Input
+                     placeholder="Enter transaction ID"
+                     value={editTransactionId}
+                     onChange={(e) => setEditTransactionId(e.target.value)}
+                   />
+                 </div>
+               )}
+
+               <div className="space-y-2">
+                 <Label>Description (Optional)</Label>
+                 <Textarea
+                   placeholder="Description..."
+                   value={editDescription}
+                   onChange={(e) => setEditDescription(e.target.value)}
+                   rows={2}
+                 />
+               </div>
+             </div>
+           )}
+
+           <DialogFooter>
+             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+             <Button onClick={handleEditSubmit} disabled={editMutation.isPending}>
+               {editMutation.isPending ? "Saving..." : "Save Changes"}
+             </Button>
+           </DialogFooter>
+         </DialogContent>
+       </Dialog>
+     </div>
+   );
 }
