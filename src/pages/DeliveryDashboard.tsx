@@ -753,6 +753,7 @@ const DeliveryDashboard = () => {
                     <SelectItem value="delivered">Delivered</SelectItem>
                     <SelectItem value="in_process">In Process</SelectItem>
                     <SelectItem value="undelivered">Undelivered</SelectItem>
+                    <SelectItem value="order_cancelled" className="text-destructive">Order Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
