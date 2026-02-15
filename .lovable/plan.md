@@ -1,70 +1,42 @@
 
-# Customer Master UI Upgrade - Vasy ERP Professional Grid System
+
+# Customer Master Typography Enhancement
 
 ## Overview
-Redesign the Customer Master page to match Vasy ERP's professional grid standard while keeping existing Ezzy ERP colors, logic, and functionality intact. This is a layout-only upgrade focusing on typography, alignment, spacing, and visual polish.
+Increase the typography scale in the Customer Master table from 13px to 14px for data cells, strengthen the customer name column, and adjust row height from h-11 to h-12 for better breathing room. Table headers stay at 12px for visual hierarchy.
 
 ## Changes (Single File: `src/pages/CustomerMaster.tsx`)
 
-### 1. Page Container
-- Wrap content in a professional SaaS card container with `bg-slate-50/50 min-h-screen` outer wrapper and `bg-white shadow-sm rounded-lg p-5` inner card.
+### 1. Table Headers
+- Keep `text-[12px]` but change `font-bold` to `font-semibold` for a slightly softer header weight.
 
-### 2. Page Header (Vasy Style)
-- Title: `text-[20px] font-bold text-slate-800`
-- Action buttons: `h-9 text-sm px-4 rounded-md` in a `flex gap-2 items-center` row.
+### 2. Customer Name Column
+- Change from `text-[13px] font-semibold` to `text-[14px] font-semibold` to increase prominence.
 
-### 3. Search + Filter Bar
-- Slim professional row with `flex items-center gap-3 mb-4`
-- Search input: `h-9 text-sm px-3 rounded-md border`
+### 3. All Data Cells
+- Replace all `text-[13px]` with `text-[14px]` across every TableCell (Sr No, Mobile, Email, GST, Opening Balance, Advance, Discount, Status, Actions).
+- Add `leading-5` to data cells for improved line-height.
 
-### 4. Table Grid Precision
-- **Headers**: `text-[12px] uppercase tracking-wider font-bold`, background `bg-slate-100/80`, text color `text-slate-600`, padding `py-2 px-4`
-- **Data cells**: `text-[13px]`, row height `h-11`
-- **Row hover**: `hover:bg-blue-50/30 transition`
+### 4. Financial Columns (Opening Balance, Advance, Discount)
+- Update to `text-[14px] font-medium tabular-nums` for accounting clarity.
 
-### 5. Column Alignment (Critical)
-Reorder columns to: **Sr No | Customer Name | Mobile | Email | GST | Opening Balance | Advance | Discount % | Status | Actions**
+### 5. Row Height
+- Change `h-11` to `h-12` on all data TableRows to accommodate the larger font.
 
-| Column | Alignment | Style |
-|--------|-----------|-------|
-| Sr No | Left | `font-medium tabular-nums` |
-| Customer Name | Left | `font-semibold text-blue-600` |
-| Mobile / GST | Left | `tabular-nums` |
-| Opening Balance, Advance, Discount | **Right** | `text-right font-medium tabular-nums` with rupee formatting |
-| Actions | Right | Icon buttons `h-8 w-8 rounded-md hover:bg-slate-100` |
-
-### 6. Status Badges (Soft Vasy Style)
-- Active: `px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200`
-- No explicit status column exists currently, so we will add a visual "Active" badge column.
-
-### 7. Financial Number Polish
-- Apply `tabular-nums` to all currency and numeric columns to prevent digit jumping.
-- Format with `toLocaleString('en-IN')` consistently.
-
-### 8. Row Interactions
-- Add `hover:bg-blue-50/30 transition` to all table rows.
-- Keep existing context menu and click behaviors.
-
-### 9. Micro Refinements
-- Reduce table vertical padding slightly for high-density ERP feel
-- Remove heavy grid lines (use lighter borders)
-- Maintain sticky header via existing TableHeader `sticky top-0`
+### 6. Empty/Loading State Cells
+- Update loading and "No customers found" cells from `text-[13px]` to `text-[14px]`.
 
 ---
 
 ## Technical Details
 
-**File modified**: `src/pages/CustomerMaster.tsx`
+**File**: `src/pages/CustomerMaster.tsx`
 
-**Key class changes**:
-- Outer wrapper: `<div className="bg-slate-50/50 min-h-screen">` + `<div className="bg-white shadow-sm rounded-lg p-5">`
-- TableHeader override: custom className for `bg-slate-100/80` headers with `text-[12px] uppercase tracking-wider font-bold text-slate-600`
-- TableHead cells: override with `py-2 px-4` and appropriate alignment
-- TableCell data: `text-[13px]` with `tabular-nums` on numeric columns
-- TableRow: add `hover:bg-blue-50/30 transition h-11`
-- Action icon buttons: `h-8 w-8 rounded-md hover:bg-slate-100`
+**Find and replace patterns**:
+- All `text-[13px]` in TableCell elements become `text-[14px]`
+- All `font-bold` in TableHead elements become `font-semibold`
+- `h-11` on TableRow becomes `h-12`
+- Add `leading-5` to data TableCells
 
-**No changes to**:
-- Business logic, data fetching, mutations
-- Theme colors or global CSS
-- Any other files
+**No changes to**: Business logic, data fetching, mutations, other files, or header font size (stays 12px).
+
