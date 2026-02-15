@@ -929,10 +929,24 @@ export default function POSSales() {
   }, [productsData, playErrorBeep, toast]);
 
   const handleQuickServiceAdd = useCallback(({ code, quantity, mrp }: { code: string; quantity: number; mrp: number }) => {
+    // Try to find actual product name from products with matching barcode
+    let productName = `Service Item ${code}`;
+    if (productsData) {
+      for (const product of productsData) {
+        const variantMatch = product.product_variants?.find((v: any) => 
+          v.barcode?.toLowerCase() === code.toLowerCase()
+        );
+        if (variantMatch) {
+          productName = product.product_name;
+          break;
+        }
+      }
+    }
+
     const newItem: CartItem = {
       id: `service-${code}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       barcode: code,
-      productName: `Service Item ${code}`,
+      productName,
       size: '-',
       color: '',
       quantity,
@@ -953,7 +967,7 @@ export default function POSSales() {
     setShowQuickServiceDialog(false);
     setQuickServiceCode("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
-  }, [setItems, playSuccessBeep]);
+  }, [setItems, playSuccessBeep, productsData]);
 
   const addItemToCart = async (product: any, variant: any, overridePrice?: { sale_price: number; mrp: number }) => {
     // Service products: NEVER merge - each scan is a unique item with manual price entry
