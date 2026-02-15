@@ -39,7 +39,7 @@ export function AddAdvanceBookingDialog({
 
   const { createAdvance } = useCustomerAdvances(organizationId);
 
-  // Server-side search for customers
+  // Server-side search for customers with advance balances
   const { data: customers } = useQuery({
     queryKey: ["customers-for-advance", organizationId, customerSearchTerm],
     queryFn: async () => {
@@ -58,7 +58,29 @@ export function AddAdvanceBookingDialog({
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      // Fetch advance balances for these customers
+      if (data && data.length > 0) {
+        const customerIds = data.map(c => c.id);
+        const { data: advances } = await supabase
+          .from("customer_advances")
+          .select("customer_id, amount, used_amount")
+          .in("customer_id", customerIds)
+          .eq("organization_id", organizationId)
+          .in("status", ["active", "partially_used"]);
+
+        const balanceMap: Record<string, number> = {};
+        advances?.forEach(adv => {
+          const available = (adv.amount || 0) - (adv.used_amount || 0);
+          if (available > 0) {
+            balanceMap[adv.customer_id] = (balanceMap[adv.customer_id] || 0) + available;
+          }
+        });
+
+        return data.map(c => ({ ...c, advanceBalance: balanceMap[c.id] || 0 }));
+      }
+
+      return data?.map(c => ({ ...c, advanceBalance: 0 })) || [];
     },
     enabled: !!organizationId,
   });
@@ -181,15 +203,22 @@ export function AddAdvanceBookingDialog({
                         ?.map((customer) => (
                           <CommandItem
                             key={customer.id}
-                            value={customer.id}
+                            value={customer.customer_name + customer.phone}
                             onSelect={() => {
                               setCustomerId(customer.id);
                               setCustomerSearchOpen(false);
                               setCustomerSearchTerm("");
                             }}
                           >
-                            <div className="flex flex-col">
-                              <span className="font-medium">{customer.customer_name}</span>
+                            <div className="flex flex-col flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">{customer.customer_name}</span>
+                                {customer.advanceBalance > 0 && (
+                                  <span className="text-xs font-semibold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                                    ₹{customer.advanceBalance.toLocaleString("en-IN")} adv
+                                  </span>
+                                )}
+                              </div>
                               {customer.phone && (
                                 <span className="text-xs text-muted-foreground">{customer.phone}</span>
                               )}
