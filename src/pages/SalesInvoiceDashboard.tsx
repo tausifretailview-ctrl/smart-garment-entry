@@ -2493,7 +2493,7 @@ export default function SalesInvoiceDashboard() {
 
         {/* Hidden Invoice for Printing */}
         {invoiceToPrint && (
-          <div style={{
+          <div className="no-print" style={{
             position: 'fixed',
             top: '-9999px',
             left: '-9999px',
