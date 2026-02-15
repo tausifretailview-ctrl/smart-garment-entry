@@ -886,8 +886,8 @@ const PurchaseBillDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background px-6 py-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background via-accent/5 to-background px-6 py-6">
+      <div className="w-full space-y-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Receipt className="h-8 w-8 text-primary" />
@@ -1115,51 +1115,43 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        <Card className="shadow-lg border-border">
-          <CardHeader>
-            <div className="flex flex-col gap-4">
-              <div>
-                <CardTitle className="text-2xl">All Purchase Bills</CardTitle>
-                <CardDescription>
-                  {filteredBills.length} {filteredBills.length === 1 ? "bill" : "bills"} found
-                </CardDescription>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by bill no, supplier, barcode..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  type="date"
-                  placeholder="Start Date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="Search by bill no, supplier, barcode..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
                 />
-                <Input
-                  type="date"
-                  placeholder="End Date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-                <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
-                  <SelectTrigger className="gap-2">
-                    <ArrowUpDown className="h-4 w-4" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="desc">Newest First (DESC)</SelectItem>
-                    <SelectItem value="asc">Oldest First (ASC)</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
+              <Input
+                type="date"
+                placeholder="Start Date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-[160px]"
+              />
+              <Input
+                type="date"
+                placeholder="End Date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-[160px]"
+              />
+              <Select value={sortOrder} onValueChange={(value: "asc" | "desc") => setSortOrder(value)}>
+                <SelectTrigger className="w-[200px] gap-2">
+                  <ArrowUpDown className="h-4 w-4" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Newest First (DESC)</SelectItem>
+                  <SelectItem value="asc">Oldest First (ASC)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-          </CardHeader>
-          <CardContent>
             {filteredBills.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Receipt className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1385,7 +1377,7 @@ const PurchaseBillDashboard = () => {
                 </Table>
               </div>
             )}
-          </CardContent>
+          </div>
         </Card>
 
         {/* Pagination Controls */}
