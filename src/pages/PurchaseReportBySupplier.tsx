@@ -84,7 +84,7 @@ const PurchaseReportBySupplier = () => {
   const chartData = Object.values(supplierData).sort((a: any, b: any) => b.amount - a.amount).slice(0, 10);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
 
       <div className="flex justify-between items-center">

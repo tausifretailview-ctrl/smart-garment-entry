@@ -122,8 +122,8 @@ export default function AuditLog() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-background px-6 py-6">
+      <div className="w-full">
         <BackToDashboard />
         
         <div className="mb-6 flex items-center justify-between">

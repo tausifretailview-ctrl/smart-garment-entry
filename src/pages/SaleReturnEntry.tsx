@@ -465,7 +465,7 @@ export default function SaleReturnEntry() {
   const totals = calculateTotals();
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Sale Return Entry</h1>
           <Button variant="outline" onClick={() => navigate("/sale-returns")}>

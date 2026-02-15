@@ -3113,7 +3113,7 @@ export default function BarcodePrinting() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       {location.state?.purchaseItems ? (
         <div className="flex gap-2">
           <BackToDashboard label="Back to Purchase Bill Dashboard" to="/purchase-bills" />

@@ -257,7 +257,7 @@ export default function OrganizationManagement() {
 
   if (!currentOrganization) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="w-full px-6 py-6">
         <BackToDashboard />
         <Card className="mt-6">
           <CardContent className="pt-6">
@@ -270,7 +270,7 @@ export default function OrganizationManagement() {
 
   if (!isAdmin) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="w-full px-6 py-6">
         <BackToDashboard />
         <Card className="mt-6">
           <CardContent className="pt-6">
@@ -284,7 +284,7 @@ export default function OrganizationManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="w-full px-6 py-6 space-y-6">
       <BackToDashboard />
 
       <div className="flex items-center gap-3">
