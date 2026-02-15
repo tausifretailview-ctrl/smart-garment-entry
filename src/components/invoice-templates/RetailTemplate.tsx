@@ -164,9 +164,9 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   const fsGrand = isA4 ? "14px" : "12px";
   const headerFs = isA4 ? "20px" : "16px";
   const titleFs = isA4 ? "14px" : "11px";
-  const fsCustName = isA4 ? "14px" : "9px";
-  const fsCustDetail = isA4 ? "13px" : "9px";
-  const fsInvoiceNo = isA4 ? "14px" : "9px";
+  const fsCustName = isA4 ? "14px" : "12px";
+  const fsCustDetail = isA4 ? "13px" : "11px";
+  const fsInvoiceNo = isA4 ? "14px" : "12px";
 
   const cellBase: React.CSSProperties = {
     borderLeft: B,
