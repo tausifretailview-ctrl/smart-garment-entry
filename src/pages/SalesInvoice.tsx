@@ -364,7 +364,7 @@ export default function SalesInvoice() {
       
       const { data, error } = await supabase
         .from('settings')
-        .select('*')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
         .single();
       
@@ -439,7 +439,7 @@ export default function SalesInvoice() {
       
       const { data, error } = await supabase
         .from('employees')
-        .select('*')
+        .select('id, employee_name, status')
         .eq('organization_id', currentOrganization.id)
         .eq('status', 'active')
         .order('employee_name');

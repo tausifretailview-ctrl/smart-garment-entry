@@ -287,7 +287,7 @@ export default function SalesInvoiceDashboard() {
       
       const { data, error } = await supabase
         .from('settings')
-        .select('*')
+        .select('business_name, address, mobile_number, email_id, gst_number, sale_settings, bill_barcode_settings')
         .eq('organization_id', currentOrganization.id)
         .maybeSingle();
 
