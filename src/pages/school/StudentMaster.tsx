@@ -35,11 +35,13 @@ import {
   Edit,
   Trash2,
   Loader2,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Upload
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
+import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDialog";
 
 const StudentMaster = () => {
   const { currentOrganization } = useOrganization();
@@ -48,6 +50,7 @@ const StudentMaster = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [showBulkUpdate, setShowBulkUpdate] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -140,6 +143,14 @@ const StudentMaster = () => {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowBulkUpdate(true)} 
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Bulk Update
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => setShowExcelImport(true)} 
@@ -322,6 +333,12 @@ const StudentMaster = () => {
       <StudentExcelImportDialog 
         open={showExcelImport} 
         onOpenChange={setShowExcelImport} 
+      />
+
+      {/* Bulk Update Dialog */}
+      <StudentBulkUpdateDialog 
+        open={showBulkUpdate} 
+        onOpenChange={setShowBulkUpdate} 
       />
 
       {/* Delete Confirmation Dialog */}
