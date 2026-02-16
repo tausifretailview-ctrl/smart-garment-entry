@@ -652,6 +652,8 @@ export const studentMasterFields: TargetField[] = [
   { key: 'admission_number', label: 'Admission Number', type: 'text', required: true },
   { key: 'student_name', label: 'Student Name', type: 'text', required: true },
   { key: 'class_name', label: 'Class Name', type: 'text' },
+  { key: 'division', label: 'Division', type: 'text' },
+  { key: 'roll_number', label: 'Roll Number', type: 'text' },
   { key: 'date_of_birth', label: 'Date of Birth', type: 'text' },
   { key: 'gender', label: 'Gender', type: 'text' },
   { key: 'parent_name', label: 'Parent Name', type: 'text' },
@@ -665,7 +667,7 @@ export const studentMasterFields: TargetField[] = [
 ];
 
 export const studentMasterSampleData = [
-  { admission_number: 'ADM0001', student_name: 'Rahul Sharma', class_name: '10-A', date_of_birth: '2010-05-15', gender: 'male', parent_name: 'Suresh Sharma', parent_phone: '9876543210', parent_email: 'suresh@email.com', parent_relation: 'father', address: '123 Main Street, City', emergency_contact: '9876543211', admission_date: '2024-04-01', status: 'active' },
-  { admission_number: 'ADM0002', student_name: 'Priya Patel', class_name: '9-B', date_of_birth: '2011-08-22', gender: 'female', parent_name: 'Meena Patel', parent_phone: '9123456789', parent_email: 'meena@email.com', parent_relation: 'mother', address: '456 Park Avenue, Town', emergency_contact: '9123456788', admission_date: '2024-04-01', status: 'active' },
-  { admission_number: 'ADM0003', student_name: 'Amit Kumar', class_name: '8-A', date_of_birth: '2012-01-10', gender: 'male', parent_name: 'Raj Kumar', parent_phone: '9988776655', parent_email: '', parent_relation: 'father', address: '789 School Lane, Metro', emergency_contact: '', admission_date: '2024-06-15', status: 'active' },
+  { admission_number: 'ADM0001', student_name: 'Rahul Sharma', class_name: '10-A', division: 'A', roll_number: '1', date_of_birth: '2010-05-15', gender: 'male', parent_name: 'Suresh Sharma', parent_phone: '9876543210', parent_email: 'suresh@email.com', parent_relation: 'father', address: '123 Main Street, City', emergency_contact: '9876543211', admission_date: '2024-04-01', status: 'active' },
+  { admission_number: 'ADM0002', student_name: 'Priya Patel', class_name: '9-B', division: 'B', roll_number: '2', date_of_birth: '2011-08-22', gender: 'female', parent_name: 'Meena Patel', parent_phone: '9123456789', parent_email: 'meena@email.com', parent_relation: 'mother', address: '456 Park Avenue, Town', emergency_contact: '9123456788', admission_date: '2024-04-01', status: 'active' },
+  { admission_number: 'ADM0003', student_name: 'Amit Kumar', class_name: '8-A', division: 'A', roll_number: '3', date_of_birth: '2012-01-10', gender: 'male', parent_name: 'Raj Kumar', parent_phone: '9988776655', parent_email: '', parent_relation: 'father', address: '789 School Lane, Metro', emergency_contact: '', admission_date: '2024-06-15', status: 'active' },
 ];

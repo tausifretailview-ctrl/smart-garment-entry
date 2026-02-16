@@ -44,6 +44,8 @@ interface ParsedStudent {
   admission_number: string;
   student_name: string;
   class_name?: string;
+  division?: string;
+  roll_number?: string;
   date_of_birth?: string;
   gender?: string;
   parent_name?: string;
@@ -136,6 +138,8 @@ export const StudentExcelImportDialog = ({
             admission_number: isEmptyAdm ? "" : rawAdm,
             student_name: String(row["Student Name"] || row["student_name"] || row["Name"] || "").trim(),
             class_name: String(row["Class Name"] || row["class_name"] || row["Class"] || "").trim() || undefined,
+            division: String(row["Division"] || row["division"] || row["Div"] || "").trim() || undefined,
+            roll_number: String(row["Roll Number"] || row["roll_number"] || row["Roll No"] || row["Roll"] || "").trim() || undefined,
             date_of_birth: parseDate(row["Date of Birth"] || row["date_of_birth"] || row["DOB"]),
             gender: String(row["Gender"] || row["gender"] || "").toLowerCase().trim() || undefined,
             parent_name: String(row["Parent Name"] || row["parent_name"] || row["Father Name"] || row["Guardian"] || "").trim() || undefined,
@@ -286,6 +290,8 @@ export const StudentExcelImportDialog = ({
                 student_name: student.student_name,
                 class_id: classId,
                 academic_year_id: currentAcademicYear?.id || null,
+                division: student.division || null,
+                roll_number: student.roll_number || null,
                 date_of_birth: student.date_of_birth || null,
                 gender: student.gender || null,
                 parent_name: student.parent_name || null,
@@ -397,7 +403,7 @@ export const StudentExcelImportDialog = ({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Expected columns: Admission Number, Student Name, Class Name, Date of Birth, Gender, Parent Name, Parent Phone, Address, Status
+              Expected columns: Admission Number, Student Name, Class Name, Division, Roll Number, Date of Birth, Gender, Parent Name, Parent Phone, Address, Status
             </p>
           </div>
         )}
