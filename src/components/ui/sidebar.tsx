@@ -598,8 +598,8 @@ const SidebarMenuSubButton = React.forwardRef<
       className={cn(
         "flex h-9 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 text-sidebar-foreground/80 outline-none ring-sidebar-ring transition-all duration-200 aria-disabled:pointer-events-none aria-disabled:opacity-50 hover:bg-primary/10 hover:text-primary focus-visible:ring-2 active:bg-primary/20 active:text-primary disabled:pointer-events-none disabled:opacity-50 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0",
         "data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-medium",
-        size === "sm" && "text-[12px]",
-        size === "md" && "text-[13px]",
+        size === "sm" && "text-[14px]",
+        size === "md" && "text-[15px]",
         "group-data-[collapsible=icon]:hidden",
         className,
       )}
