@@ -7,24 +7,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, BookOpen, Edit, Trash2, Loader2 } from "lucide-react";
+import { Plus, BookOpen, Edit, Trash2, Loader2, ListPlus } from "lucide-react";
+
+const DEFAULT_CLASSES = [
+  { class_name: "NURSERY", display_order: 0 },
+  { class_name: "Jr.Kg", display_order: 1 },
+  { class_name: "Sr.Kg", display_order: 2 },
+  { class_name: "STD I", display_order: 3 },
+  { class_name: "STD II", display_order: 4 },
+  { class_name: "STD III", display_order: 5 },
+  { class_name: "STD IV", display_order: 6 },
+  { class_name: "STD V", display_order: 7 },
+  { class_name: "STD VI", display_order: 8 },
+  { class_name: "STD VII", display_order: 9 },
+  { class_name: "STD VIII", display_order: 10 },
+  { class_name: "STD IX", display_order: 11 },
+  { class_name: "STD X", display_order: 12 },
+];
 
 const ClassSectionSetup = () => {
   const { currentOrganization } = useOrganization();
@@ -107,6 +114,35 @@ const ClassSectionSetup = () => {
     },
   });
 
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentOrganization?.id) throw new Error("No organization");
+      const existingNames = classes.map((c: any) => c.class_name.toLowerCase().trim());
+      const toInsert = DEFAULT_CLASSES
+        .filter((dc) => !existingNames.includes(dc.class_name.toLowerCase()))
+        .map((dc) => ({
+          organization_id: currentOrganization.id,
+          class_name: dc.class_name,
+          section: "",
+          display_order: dc.display_order,
+          is_active: true,
+        }));
+      if (toInsert.length === 0) {
+        throw new Error("All default classes already exist");
+      }
+      const { error } = await supabase.from("school_classes").insert(toInsert);
+      if (error) throw error;
+      return toInsert.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["school-classes"] });
+      toast.success(`${count} default classes added`);
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    },
+  });
+
   const resetForm = () => {
     setFormData({ class_name: "", section: "", display_order: 0, is_active: true });
     setEditingClass(null);
@@ -145,6 +181,16 @@ const ClassSectionSetup = () => {
             Manage class and section structure
           </p>
         </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+          >
+            {seedMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListPlus className="h-4 w-4" />}
+            Add Default Classes
+          </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2" onClick={() => resetForm()}>
@@ -206,6 +252,7 @@ const ClassSectionSetup = () => {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
