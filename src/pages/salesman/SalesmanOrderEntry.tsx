@@ -290,7 +290,7 @@ const SalesmanOrderEntry = () => {
         .eq("status", "active")
         .is("deleted_at", null)
         .or(`product_name.ilike.%${term}%,style.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
-        .limit(20);
+        .limit(50);
 
       if (productsError) {
         console.error("Product search error:", productsError);
@@ -310,7 +310,7 @@ const SalesmanOrderEntry = () => {
         .is("deleted_at", null)
         .or(`barcode.ilike.%${term}%,color.ilike.%${term}%`)
         .gt("stock_qty", 0)
-        .limit(20);
+        .limit(50);
 
       // Fetch variants for matching products
       let productVariants: any[] = [];
@@ -325,7 +325,7 @@ const SalesmanOrderEntry = () => {
           .is("deleted_at", null)
           .in("product_id", productIds)
           .gt("stock_qty", 0)
-          .limit(30);
+          .limit(100);
 
         if (!variantsError && variants) {
           productVariants = variants;
