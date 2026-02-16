@@ -22,16 +22,17 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { ColumnDef } from "@tanstack/react-table";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { SupplierHistoryDialog } from "@/components/SupplierHistoryDialog";
 import { useSoftDelete, StockDependency } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { ERPTable } from "@/components/erp-table";
 
 interface PurchaseItem {
   id: string;
@@ -88,15 +89,6 @@ interface PurchaseBill {
   items?: PurchaseItem[];
 }
 
-// Default columns - defined OUTSIDE component to prevent re-render loops
-const DEFAULT_PURCHASE_COLUMNS = {
-  status: true,
-  recordPayment: true,
-  modify: true,
-  printBarcodes: true,
-  delete: true
-};
-
 const PurchaseBillDashboard = () => {
   const { toast } = useToast();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -106,7 +98,7 @@ const PurchaseBillDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [expandedBill, setExpandedBill] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
@@ -141,12 +133,7 @@ const PurchaseBillDashboard = () => {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('purchase');
-  
-  const { columnSettings, updateColumnSetting } = useDashboardColumnSettings(
-    "purchase_bill_dashboard",
-    DEFAULT_PURCHASE_COLUMNS
-  );
-  
+
   // Virtual scrolling ref
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -161,7 +148,7 @@ const PurchaseBillDashboard = () => {
       {
         label: "View Details",
         icon: Eye,
-        onClick: () => toggleExpanded(bill.id),
+        onClick: () => handleToggleExpand(bill.id),
       },
       {
         label: "Edit Bill",
@@ -397,14 +384,18 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  const toggleExpanded = useCallback(async (billId: string) => {
-    if (expandedBill === billId) {
-      setExpandedBill(null);
-    } else {
-      setExpandedBill(billId);
-      await fetchBillItems(billId);
-    }
-  }, [expandedBill, billItems]);
+  const handleToggleExpand = useCallback(async (billId: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(billId)) {
+        next.delete(billId);
+      } else {
+        next.add(billId);
+        fetchBillItems(billId);
+      }
+      return next;
+    });
+  }, [billItems]);
 
   const { softDelete, bulkSoftDelete, checkPurchaseStockDependencies } = useSoftDelete();
 
@@ -420,8 +411,6 @@ const PurchaseBillDashboard = () => {
     if (dependencies.length > 0) {
       setStockDependencies(dependencies);
       setShowDependencyWarning(true);
-    } else {
-      // No dependencies, show normal delete dialog (billToDelete is already set)
     }
   };
 
@@ -459,12 +448,6 @@ const PurchaseBillDashboard = () => {
     setStockDependencies([]);
   };
 
-  // Note: Stock restoration is now handled automatically by database triggers
-  // (handle_purchase_item_delete) when purchase_items are deleted.
-  // This prevents double stock deduction that was occurring previously.
-
-  // Note: toggleSelectAll moved after paginatedBills is defined
-
   const [bulkDependencies, setBulkDependencies] = useState<{billId: string; billNo: string; deps: StockDependency[]}[]>([]);
   const [showBulkDependencyWarning, setShowBulkDependencyWarning] = useState(false);
 
@@ -472,7 +455,6 @@ const PurchaseBillDashboard = () => {
     const billsToCheck = Array.from(selectedBills);
     setIsDeleting(true);
     
-    // Check each bill for dependencies
     const allDeps: {billId: string; billNo: string; deps: StockDependency[]}[] = [];
     for (const billId of billsToCheck) {
       const deps = await checkPurchaseStockDependencies(billId);
@@ -525,7 +507,6 @@ const PurchaseBillDashboard = () => {
   const handleFixMissingProductNames = async () => {
     setIsFixing(true);
     try {
-      // Fetch all purchase items with missing product_name
       const { data: itemsToFix, error: fetchError } = await supabase
         .from("purchase_items")
         .select(`
@@ -550,7 +531,6 @@ const PurchaseBillDashboard = () => {
         return;
       }
 
-      // Update each item with the correct product_name
       let updatedCount = 0;
       for (const item of itemsToFix) {
         const productName = (item.product_variants as any)?.products?.product_name;
@@ -574,7 +554,6 @@ const PurchaseBillDashboard = () => {
         description: `Fixed ${updatedCount} purchase item(s) with missing product names`,
       });
 
-      // Refresh bills to reflect changes
       await fetchBills();
     } catch (error: any) {
       toast({
@@ -619,7 +598,6 @@ const PurchaseBillDashboard = () => {
     const currentPaid = selectedBillForPayment.paid_amount || 0;
     const newTotalPaid = currentPaid + amount;
 
-    // Allow small tolerance (₹1) for floating-point differences
     if (newTotalPaid > selectedBillForPayment.net_amount + 1) {
       toast({
         title: "Amount Exceeds Bill Total",
@@ -631,7 +609,6 @@ const PurchaseBillDashboard = () => {
 
     setIsRecordingPayment(true);
     try {
-      // Determine new payment status
       let newStatus = 'unpaid';
       if (Math.abs(newTotalPaid - selectedBillForPayment.net_amount) < 1) {
         newStatus = 'paid';
@@ -639,7 +616,6 @@ const PurchaseBillDashboard = () => {
         newStatus = 'partial';
       }
 
-      // Update purchase bill with payment
       const { error: updateError } = await supabase
         .from("purchase_bills")
         .update({
@@ -650,7 +626,6 @@ const PurchaseBillDashboard = () => {
 
       if (updateError) throw updateError;
 
-      // Generate voucher number for payment
       const { data: voucherNumber, error: voucherNumberError } = await supabase.rpc(
         "generate_voucher_number",
         { p_type: "payment", p_date: paymentDate }
@@ -658,7 +633,6 @@ const PurchaseBillDashboard = () => {
 
       if (voucherNumberError) throw voucherNumberError;
 
-      // Create voucher entry for supplier payment
       const paymentDescription = `Payment for Bill: ${selectedBillForPayment.software_bill_no || selectedBillForPayment.supplier_invoice_no} | Supplier: ${selectedBillForPayment.supplier_name}${paymentNotes ? ` | ${paymentNotes}` : ''}`;
       
       const { error: voucherError } = await supabase
@@ -708,11 +682,10 @@ const PurchaseBillDashboard = () => {
   };
 
   const handlePrintBarcodes = async (billId: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent card expansion/collapse
+    event.stopPropagation();
     setPrintingBill(billId);
 
     try {
-      // Fetch bill details
       const { data: billData, error: billError } = await supabase
         .from("purchase_bills")
         .select("id, software_bill_no, supplier_id")
@@ -721,7 +694,6 @@ const PurchaseBillDashboard = () => {
 
       if (billError) throw billError;
 
-      // Fetch supplier code separately
       let supplierCode = "";
       if (billData?.supplier_id) {
         const { data: supplierData } = await supabase
@@ -733,7 +705,6 @@ const PurchaseBillDashboard = () => {
         supplierCode = supplierData?.supplier_code || "";
       }
 
-      // Fetch bill items with product details directly from purchase_items
       const { data: items, error } = await supabase
         .from("purchase_items")
         .select("*")
@@ -750,7 +721,6 @@ const PurchaseBillDashboard = () => {
         return;
       }
 
-      // Format items for barcode printing page - use saved product details
       const barcodeItems = items.map((item: any) => ({
         sku_id: item.sku_id,
         product_name: item.product_name || "",
@@ -761,14 +731,13 @@ const PurchaseBillDashboard = () => {
         size: item.size,
         sale_price: item.sale_price,
         mrp: item.mrp,
-        pur_price: item.pur_price, // Include purchase price for purchase code calculation
+        pur_price: item.pur_price,
         barcode: item.barcode,
         qty: item.qty,
         bill_number: item.bill_number || "",
         supplier_code: supplierCode,
       }));
 
-      // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
         state: { purchaseItems: barcodeItems, billId: billId } 
       });
@@ -784,19 +753,17 @@ const PurchaseBillDashboard = () => {
     }
   };
 
-  // Memoize filtered and sorted bills to avoid recomputing on every render
+  // Memoize filtered and sorted bills
   const filteredBills = useMemo(() => {
     return bills.filter((bill) => {
       const searchLower = searchQuery.toLowerCase();
       
-      // Check basic bill fields
       const matchesBasicSearch =
         searchQuery === "" ||
         bill.supplier_name.toLowerCase().includes(searchLower) ||
         bill.supplier_invoice_no?.toLowerCase().includes(searchLower) ||
         bill.software_bill_no?.toLowerCase().includes(searchLower);
       
-      // Check barcode in bill items
       const items = billItems[bill.id] || [];
       const matchesBarcodeSearch = searchQuery !== "" && items.some(item => 
         item.barcode?.toLowerCase().includes(searchLower) ||
@@ -865,7 +832,6 @@ const PurchaseBillDashboard = () => {
   const getPaymentStatusBadge = (bill: PurchaseBill) => {
     const status = bill.payment_status || 'unpaid';
     const paidAmount = bill.paid_amount || 0;
-    // Use tolerance for floating point comparison (within 1 rupee is considered fully paid)
     const isFullyPaid = status === 'paid' || Math.abs(paidAmount - bill.net_amount) < 1;
     
     if (isFullyPaid) {
@@ -876,6 +842,252 @@ const PurchaseBillDashboard = () => {
       return <Badge className="min-w-[70px] justify-center bg-red-500 hover:bg-red-600 text-white">Not Paid</Badge>;
     }
   };
+
+  // ERPTable column definitions
+  const columns = useMemo<ColumnDef<PurchaseBill, any>[]>(() => [
+    {
+      id: "select",
+      header: () => (
+        <Checkbox
+          checked={selectedBills.size === paginatedBills.length && paginatedBills.length > 0}
+          onCheckedChange={toggleSelectAll}
+        />
+      ),
+      cell: ({ row }) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedBills.has(row.original.id)}
+            onCheckedChange={() => toggleSelectBill(row.original.id)}
+          />
+        </div>
+      ),
+      size: 40,
+    },
+    {
+      id: "srNo",
+      header: "Sr. No.",
+      cell: ({ row }) => {
+        const globalIndex = paginatedBills.indexOf(row.original);
+        return <span className="font-medium">{(currentPage - 1) * itemsPerPage + globalIndex + 1}</span>;
+      },
+      size: 70,
+    },
+    {
+      accessorKey: "software_bill_no",
+      header: "Bill No.",
+      cell: ({ row }) => (
+        <Badge variant="secondary" className="font-mono text-xs">
+          {row.original.software_bill_no || "N/A"}
+        </Badge>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: "bill_date",
+      header: "Date",
+      cell: ({ row }) => (
+        <Badge variant="outline">
+          {format(new Date(row.original.bill_date), "dd MMM yyyy")}
+        </Badge>
+      ),
+      size: 130,
+    },
+    {
+      accessorKey: "supplier_invoice_no",
+      header: "Invoice No.",
+      cell: ({ row }) => (
+        <span className="font-mono text-sm">{row.original.supplier_invoice_no}</span>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: "supplier_name",
+      header: "Supplier Name",
+      cell: ({ row }) => {
+        const bill = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            <span 
+              className={bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline font-medium" : "font-medium"}
+              onClick={(e) => {
+                if (bill.supplier_id) {
+                  e.stopPropagation();
+                  setSelectedSupplierForHistory({ id: bill.supplier_id, name: bill.supplier_name });
+                  setShowSupplierHistory(true);
+                }
+              }}
+            >
+              {bill.supplier_name}
+            </span>
+            <Badge variant="outline" className="text-xs">
+              Qty: {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
+            </Badge>
+          </div>
+        );
+      },
+      size: 220,
+    },
+    {
+      accessorKey: "gross_amount",
+      header: "Gross Amount",
+      cell: ({ row }) => (
+        <span className="text-right block tabular-nums">₹{row.original.gross_amount.toFixed(2)}</span>
+      ),
+      size: 120,
+    },
+    {
+      accessorKey: "gst_amount",
+      header: "GST Amount",
+      cell: ({ row }) => (
+        <span className="text-right block tabular-nums">₹{row.original.gst_amount.toFixed(2)}</span>
+      ),
+      size: 110,
+    },
+    {
+      accessorKey: "net_amount",
+      header: "Net Amount",
+      cell: ({ row }) => (
+        <span className="text-right block font-semibold text-primary tabular-nums">₹{row.original.net_amount.toFixed(2)}</span>
+      ),
+      size: 120,
+    },
+    {
+      id: "payment_status",
+      header: "Payment Status",
+      cell: ({ row }) => (
+        <div className="text-center">{getPaymentStatusBadge(row.original)}</div>
+      ),
+      size: 130,
+    },
+    {
+      id: "items_count",
+      header: "Items",
+      cell: ({ row }) => (
+        <div className="text-center">
+          <Badge variant="secondary">
+            {billItems[row.original.id]?.length || 0}
+          </Badge>
+        </div>
+      ),
+      size: 70,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const bill = row.original;
+        return (
+          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => handleOpenPaymentDialog(bill, e)}
+              title="Record Payment"
+            >
+              <Wallet className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate("/purchase-entry", { state: { editBillId: bill.id } });
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => handlePrintBarcodes(bill.id, e)}
+              disabled={printingBill === bill.id}
+            >
+              {printingBill === bill.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Printer className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => handleDeleteClick(bill, e)}
+              disabled={deletingBill === bill.id}
+              className="text-destructive hover:text-destructive"
+            >
+              {deletingBill === bill.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        );
+      },
+      size: 180,
+    },
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill]);
+
+  // Render sub-row content for expanded bills
+  const renderSubRow = useCallback((bill: PurchaseBill) => {
+    const items = billItems[bill.id];
+    if (!items || items.length === 0) return null;
+    
+    return (
+      <div className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-sm">Purchase Items Details</h4>
+          {bill.notes && (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium">Notes:</span> {bill.notes}
+            </p>
+          )}
+        </div>
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead>Product Description</TableHead>
+                <TableHead>Barcode</TableHead>
+                <TableHead className="text-right">Quantity</TableHead>
+                <TableHead className="text-right">Purchase Price</TableHead>
+                <TableHead className="text-right">Sale Price</TableHead>
+                {showMrp && <TableHead className="text-right">MRP</TableHead>}
+                <TableHead className="text-right">GST %</TableHead>
+                <TableHead className="text-right">Line Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    {formatProductDescription(item)}
+                  </TableCell>
+                  <TableCell>
+                    {item.barcode ? (
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {item.barcode}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">{item.qty}</TableCell>
+                  <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
+                  {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
+                  <TableCell className="text-right">{item.gst_per}%</TableCell>
+                  <TableCell className="text-right font-semibold">
+                    ₹{item.line_total.toFixed(2)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    );
+  }, [billItems, showMrp]);
 
   if (loading) {
     return (
@@ -894,61 +1106,6 @@ const PurchaseBillDashboard = () => {
             <h1 className="text-3xl font-bold text-foreground">Purchase Bills</h1>
           </div>
           <div className="flex gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Settings2 className="h-4 w-4" />
-                  Columns
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-64">
-                <div className="space-y-4">
-                  <h4 className="font-medium text-sm">Show/Hide Columns</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="status"
-                        checked={columnSettings.status}
-                        onCheckedChange={(checked) => updateColumnSetting('status', checked as boolean)}
-                      />
-                      <Label htmlFor="status" className="text-sm cursor-pointer">Payment Status</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="recordPayment"
-                        checked={columnSettings.recordPayment}
-                        onCheckedChange={(checked) => updateColumnSetting('recordPayment', checked as boolean)}
-                      />
-                      <Label htmlFor="recordPayment" className="text-sm cursor-pointer">Record Payment</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="modify"
-                        checked={columnSettings.modify}
-                        onCheckedChange={(checked) => updateColumnSetting('modify', checked as boolean)}
-                      />
-                      <Label htmlFor="modify" className="text-sm cursor-pointer">Edit</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="printBarcodes"
-                        checked={columnSettings.printBarcodes}
-                        onCheckedChange={(checked) => updateColumnSetting('printBarcodes', checked as boolean)}
-                      />
-                      <Label htmlFor="printBarcodes" className="text-sm cursor-pointer">Print Barcodes</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="delete"
-                        checked={columnSettings.delete}
-                        onCheckedChange={(checked) => updateColumnSetting('delete', checked as boolean)}
-                      />
-                      <Label htmlFor="delete" className="text-sm cursor-pointer">Delete</Label>
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
             <Button 
               onClick={handleFixMissingProductNames} 
               variant="outline"
@@ -969,32 +1126,28 @@ const PurchaseBillDashboard = () => {
           </div>
         </div>
 
-        {/* Unsaved Draft Card */}
+        {/* Draft Resume Card */}
         {hasDraft && draftData && (
-          <Card className="mb-6 border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20">
+          <Card className="border-amber-300 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-700 mb-4">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                    <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                  </div>
+                  <FileText className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                   <div>
-                    <CardTitle className="text-base text-amber-800 dark:text-amber-200">
-                      Unsaved Purchase Bill Found
+                    <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+                      {(draftData as any)?.editBillId ? "Unsaved Purchase Edit" : "Unsaved Purchase Draft"}
                     </CardTitle>
-                    <CardDescription className="text-amber-600 dark:text-amber-400">
-                      {lastSaved ? `Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
-                      {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
-                      {draftData.billData?.supplier_name && ` • ${draftData.billData.supplier_name}`}
+                    <CardDescription className="text-amber-700 dark:text-amber-400">
+                      {(draftData as any)?.items?.length || 0} items • Saved {lastSaved ? formatDistanceToNow(lastSaved, { addSuffix: true }) : "recently"}
                     </CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={async () => {
-                      await deleteDraft();
+                    onClick={() => {
+                      deleteDraft();
                       toast({
                         title: "Draft Discarded",
                         description: "The unsaved purchase bill has been removed",
@@ -1008,7 +1161,6 @@ const PurchaseBillDashboard = () => {
                   <Button
                     size="sm"
                     onClick={() => {
-                      // Resume always loads from the saved draft payload (it may already include edit mode info)
                       navigate("/purchase-entry", { state: { loadDraft: true } });
                     }}
                     className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
@@ -1022,11 +1174,9 @@ const PurchaseBillDashboard = () => {
           </Card>
         )}
 
-        {/* Summary Statistics - Vasy ERP Style Vibrant Cards */}
+        {/* Summary Statistics */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg"
-          >
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Total Bills</CardDescription>
               <Receipt className="h-4 w-4 text-white" />
@@ -1037,9 +1187,7 @@ const PurchaseBillDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg"
-          >
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Paid</CardDescription>
               <CheckCircle2 className="h-4 w-4 text-white" />
@@ -1050,9 +1198,7 @@ const PurchaseBillDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg"
-          >
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-amber-500 to-amber-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Partial</CardDescription>
               <Clock className="h-4 w-4 text-white" />
@@ -1063,9 +1209,7 @@ const PurchaseBillDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg"
-          >
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Unpaid</CardDescription>
               <Wallet className="h-4 w-4 text-white" />
@@ -1076,9 +1220,7 @@ const PurchaseBillDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card 
-            className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg"
-          >
+          <Card className="cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] bg-gradient-to-br from-violet-500 to-violet-600 border-0 shadow-lg">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardDescription className="text-sm font-medium text-white/80">Total Amount</CardDescription>
               <IndianRupee className="h-4 w-4 text-white" />
@@ -1159,223 +1301,19 @@ const PurchaseBillDashboard = () => {
                 <p className="text-sm">Create your first purchase bill to get started</p>
               </div>
             ) : (
-              <div 
-                ref={tableContainerRef}
-                className="border rounded-lg max-h-[600px] overflow-auto"
-              >
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-foreground text-background [&>th]:text-background">
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={selectedBills.size === paginatedBills.length && paginatedBills.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                        />
-                      </TableHead>
-                      <TableHead className="w-16">Sr. No.</TableHead>
-                      <TableHead>Bill No.</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Invoice No.</TableHead>
-                      <TableHead>Supplier Name</TableHead>
-                      <TableHead className="text-right">Gross Amount</TableHead>
-                      <TableHead className="text-right">GST Amount</TableHead>
-                      <TableHead className="text-right">Net Amount</TableHead>
-                      {columnSettings.status && <TableHead className="text-center">Payment Status</TableHead>}
-                      <TableHead className="text-center">Items</TableHead>
-                      <TableHead className="text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-              <TableBody>
-                {paginatedBills.map((bill, index) => (
-                      <>
-                        <TableRow
-                          key={bill.id}
-                          className="cursor-pointer hover:bg-muted/30 transition-colors"
-                          onClick={() => toggleExpanded(bill.id)}
-                          onContextMenu={(e) => handleRowContextMenu(e, bill)}
-                        >
-                        <TableCell>
-                          {expandedBill === bill.id ? (
-                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                          ) : (
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedBills.has(bill.id)}
-                            onCheckedChange={() => toggleSelectBill(bill.id)}
-                          />
-                        </TableCell>
-                          <TableCell className="font-medium">{(currentPage - 1) * itemsPerPage + index + 1}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary" className="font-mono text-xs">
-                              {bill.software_bill_no || "N/A"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {format(new Date(bill.bill_date), "dd MMM yyyy")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-sm">{bill.supplier_invoice_no}</TableCell>
-                          <TableCell className="font-medium">
-                            <span 
-                              className={bill.supplier_id ? "cursor-pointer text-blue-600 hover:underline" : ""}
-                              onClick={(e) => {
-                                if (bill.supplier_id) {
-                                  e.stopPropagation();
-                                  setSelectedSupplierForHistory({ id: bill.supplier_id, name: bill.supplier_name });
-                                  setShowSupplierHistory(true);
-                                }
-                              }}
-                            >
-                              {bill.supplier_name}
-                            </span>
-                            <Badge variant="outline" className="ml-2 text-xs">
-                              Qty: {billItems[bill.id]?.reduce((sum, item) => sum + item.qty, 0) || 0}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">₹{bill.gross_amount.toFixed(2)}</TableCell>
-                          <TableCell className="text-right">₹{bill.gst_amount.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-semibold text-primary">
-                            ₹{bill.net_amount.toFixed(2)}
-                          </TableCell>
-                          {columnSettings.status && (
-                            <TableCell className="text-center">
-                              {getPaymentStatusBadge(bill)}
-                            </TableCell>
-                          )}
-                          <TableCell className="text-center">
-                            <Badge variant="secondary">
-                              {billItems[bill.id]?.length || 0}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              {columnSettings.recordPayment && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => handleOpenPaymentDialog(bill, e)}
-                                  className="gap-1"
-                                  title="Record Payment"
-                                >
-                                  <Wallet className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {columnSettings.modify && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    navigate("/purchase-entry", { state: { editBillId: bill.id } });
-                                  }}
-                                  className="gap-1"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              )}
-                              {columnSettings.printBarcodes && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => handlePrintBarcodes(bill.id, e)}
-                                  disabled={printingBill === bill.id}
-                                  className="gap-1"
-                                >
-                                  {printingBill === bill.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Printer className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-                              {columnSettings.delete && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={(e) => handleDeleteClick(bill, e)}
-                                  disabled={deletingBill === bill.id}
-                                  className="gap-1 text-destructive hover:text-destructive"
-                                >
-                                  {deletingBill === bill.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Trash2 className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-
-                        {/* Expanded Items Row */}
-                        {expandedBill === bill.id && billItems[bill.id] && billItems[bill.id].length > 0 && (
-                          <TableRow>
-                            <TableCell colSpan={columnSettings.status ? 13 : 12} className="bg-muted/20 p-0">
-                              <div className="p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                  <h4 className="font-semibold text-sm">Purchase Items Details</h4>
-                                  {bill.notes && (
-                                    <p className="text-sm text-muted-foreground">
-                                      <span className="font-medium">Notes:</span> {bill.notes}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="border rounded-lg overflow-hidden">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow className="bg-muted/30">
-                                        <TableHead>Product Description</TableHead>
-                                        <TableHead>Barcode</TableHead>
-                                        <TableHead className="text-right">Quantity</TableHead>
-                                        <TableHead className="text-right">Purchase Price</TableHead>
-                                        <TableHead className="text-right">Sale Price</TableHead>
-                                        {showMrp && <TableHead className="text-right">MRP</TableHead>}
-                                        <TableHead className="text-right">GST %</TableHead>
-                                        <TableHead className="text-right">Line Total</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                       {billItems[bill.id].map((item) => (
-                                        <TableRow key={item.id}>
-                                          <TableCell className="font-medium whitespace-nowrap">
-                                            {formatProductDescription(item)}
-                                          </TableCell>
-                                          <TableCell>
-                                            {item.barcode ? (
-                                              <Badge variant="outline" className="font-mono text-xs">
-                                                {item.barcode}
-                                              </Badge>
-                                            ) : (
-                                              <span className="text-muted-foreground">—</span>
-                                            )}
-                                          </TableCell>
-                                          <TableCell className="text-right">{item.qty}</TableCell>
-                                          <TableCell className="text-right">₹{item.pur_price.toFixed(2)}</TableCell>
-                                          <TableCell className="text-right">₹{item.sale_price.toFixed(2)}</TableCell>
-                                          {showMrp && <TableCell className="text-right">₹{(item.mrp || 0).toFixed(2)}</TableCell>}
-                                          <TableCell className="text-right">{item.gst_per}%</TableCell>
-                                          <TableCell className="text-right font-semibold">
-                                            ₹{item.line_total.toFixed(2)}
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <ERPTable
+                tableId="purchase_bills"
+                columns={columns}
+                data={paginatedBills}
+                stickyFirstColumn={false}
+                isLoading={loading}
+                emptyMessage="No purchase bills found"
+                renderSubRow={renderSubRow}
+                expandedRows={expandedRows}
+                onToggleExpand={handleToggleExpand}
+                getRowId={(bill) => bill.id}
+                onRowContextMenu={handleRowContextMenu}
+              />
             )}
           </div>
         </Card>
