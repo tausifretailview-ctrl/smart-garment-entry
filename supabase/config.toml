@@ -3,6 +3,9 @@ project_id = "lkbbrqcsbhqjvsxiorvp"
 [functions.backup-to-drive]
 verify_jwt = false
 
+[functions.auto-backup]
+verify_jwt = false
+
 [functions.update-google-secrets]
 verify_jwt = false
 
