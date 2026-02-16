@@ -2227,38 +2227,39 @@ const PurchaseEntry = () => {
     <div className="min-h-screen bg-background px-6 py-6">
       <div className="w-full space-y-4">
         <BackToDashboard label="Back to Purchase Dashboard" to="/purchase-bills" />
-        <div className="mb-6 flex items-center gap-3">
-          <ShoppingCart className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">
-            {isEditMode ? "Edit Purchase Bill" : "Purchase Entry"}
-          </h1>
+        
+        {/* Header Card */}
+        <div className="bg-card rounded-xl border shadow-sm p-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShoppingCart className="h-5 w-5 text-primary" />
+            <h1 className="text-[18px] font-semibold text-foreground">
+              {isEditMode ? "Edit Purchase Bill" : "Purchase Entry"}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <InlineTotalQty 
+              totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
+              itemCount={lineItems.filter(i => i.product_id).length}
+            />
+            {!isEditMode && lastPurchaseBill && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5 text-xs">
+                <span className="text-muted-foreground font-medium">Last Bill:</span>{" "}
+                <span className="text-foreground font-semibold">{lastPurchaseBill.software_bill_no}</span>
+                {lastPurchaseBill.supplier_invoice_no && (
+                  <>
+                    {" | "}
+                    <span className="text-muted-foreground font-medium">Supplier Inv:</span>{" "}
+                    <span className="text-foreground font-semibold">{lastPurchaseBill.supplier_invoice_no}</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        <Card className="shadow-lg border-border mb-6">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Bill Information</CardTitle>
-            <div className="flex items-center gap-3">
-              {/* Inline Total Qty */}
-              <InlineTotalQty 
-                totalQty={lineItems.reduce((sum, item) => sum + item.qty, 0)} 
-                itemCount={lineItems.filter(i => i.product_id).length}
-              />
-              {!isEditMode && lastPurchaseBill && (
-                <div className="text-sm text-muted-foreground bg-muted px-3 py-1.5 rounded-md">
-                  <span className="font-medium">Last Bill:</span>{" "}
-                  <span className="text-foreground">{lastPurchaseBill.software_bill_no}</span>
-                  {lastPurchaseBill.supplier_invoice_no && (
-                    <>
-                      {" | "}
-                      <span className="font-medium">Supplier Inv:</span>{" "}
-                      <span className="text-foreground">{lastPurchaseBill.supplier_invoice_no}</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        {/* Supplier & Bill Details Card */}
+        <div className="erp-invoice-info-card">
+          <div className="erp-invoice-section-label">Supplier & Bill Details</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="software_bill_no">Software Bill No</Label>
@@ -2423,13 +2424,13 @@ const PurchaseEntry = () => {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            </div>
+          </div>
 
-        <Card className="shadow-lg border-border mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle>Products</CardTitle>
+        {/* Products Table Card */}
+        <div className="bg-card rounded-xl border shadow-sm p-5">
+          <div className="flex items-center justify-between flex-wrap gap-4 mb-4">
+            <div className="erp-invoice-section-label mb-0">Products</div>
               <div className="flex items-center gap-4">
                 <Button
                   onClick={() => setShowExcelImport(true)}
@@ -2465,11 +2466,9 @@ const PurchaseEntry = () => {
                 </div>
               </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader className="sticky top-0 z-10">
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 erp-invoice-table-header">
                   <TableRow>
                     <TableHead className="w-10">
                       <Checkbox
@@ -2821,25 +2820,22 @@ const PurchaseEntry = () => {
             {lineItems.length === 0 && (
               <p className="text-xs text-center mt-2 text-muted-foreground">Tip: Press Alt+↓ to copy the last row</p>
             )}
-          </CardContent>
-        </Card>
+        </div>
 
         {lineItems.length > 0 && (
-          <div className="flex justify-end mb-6">
-            <Card className="w-80 shadow-lg border-border">
-              <CardHeader>
-                <CardTitle className="text-lg">Bill Totals</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex justify-between">
+          <div className="flex justify-end">
+            <div className="erp-invoice-summary-card w-96">
+              <div className="erp-invoice-section-label">Bill Summary</div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-[13px]">
                   <span className="text-muted-foreground">Total Qty:</span>
                   <span className="font-semibold">{totals.totalQty}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-[13px]">
                   <span className="text-muted-foreground">Gross Amount:</span>
                   <span className="font-semibold">₹{totals.grossAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-[13px]">
                   <span className="text-muted-foreground">Total Discount:</span>
                   <Input
                     type="number"
@@ -2847,15 +2843,15 @@ const PurchaseEntry = () => {
                     value={discountAmount}
                     onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
                     onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right text-destructive"
+                    className="w-28 text-right text-destructive h-8 text-[13px]"
                     placeholder="0.00"
                   />
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-[13px]">
                   <span className="text-muted-foreground">GST Amount:</span>
                   <span className="font-semibold">₹{totals.gstAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-[13px]">
                   <span className="text-muted-foreground">Other Charges:</span>
                   <Input
                     type="number"
@@ -2863,11 +2859,11 @@ const PurchaseEntry = () => {
                     value={otherCharges}
                     onChange={(e) => setOtherCharges(parseFloat(e.target.value) || 0)}
                     onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right"
+                    className="w-28 text-right h-8 text-[13px]"
                     placeholder="0.00"
                   />
                 </div>
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center text-[13px]">
                   <span className="text-muted-foreground">Round Off:</span>
                   <Input
                     type="number"
@@ -2875,22 +2871,23 @@ const PurchaseEntry = () => {
                     value={roundOff}
                     onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                     onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    className="w-28 text-right"
+                    className="w-28 text-right h-8 text-[13px]"
                     placeholder="0.00"
                   />
                 </div>
-                <div className="flex justify-between border-t pt-2 text-lg">
-                  <span className="font-semibold">Net Amount:</span>
-                  <span className="font-bold text-primary">
+                <div className="flex justify-between items-center border-t border-border pt-3 mt-2">
+                  <span className="text-[15px] font-semibold">Net Amount:</span>
+                  <span className="text-[20px] font-bold text-primary">
                     ₹{totals.netAmount.toFixed(2)}
                   </span>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="flex justify-end gap-3">
+        {/* Sticky Action Bar */}
+        <div className="erp-invoice-sticky-actions flex justify-end gap-3 rounded-xl">
           <Button
             onClick={handlePrintBarcodes}
             disabled={lineItems.length === 0}
@@ -3130,7 +3127,6 @@ const PurchaseEntry = () => {
           }}
         />
 
-      </div>
     </div>
   );
 };
