@@ -256,6 +256,7 @@ export type Database = {
           records_count: Json | null
           started_at: string
           status: string
+          storage_path: string | null
           tables_included: string[] | null
         }
         Insert: {
@@ -272,6 +273,7 @@ export type Database = {
           records_count?: Json | null
           started_at?: string
           status: string
+          storage_path?: string | null
           tables_included?: string[] | null
         }
         Update: {
@@ -288,6 +290,7 @@ export type Database = {
           records_count?: Json | null
           started_at?: string
           status?: string
+          storage_path?: string | null
           tables_included?: string[] | null
         }
         Relationships: [
@@ -3943,6 +3946,9 @@ export type Database = {
       settings: {
         Row: {
           address: string | null
+          auto_backup_enabled: boolean | null
+          backup_email: string | null
+          backup_retention_days: number | null
           bill_barcode_settings: Json | null
           business_name: string | null
           created_at: string | null
@@ -3950,6 +3956,7 @@ export type Database = {
           email_id: string | null
           gst_number: string | null
           id: string
+          last_auto_backup_at: string | null
           mobile_number: string | null
           organization_id: string
           product_settings: Json | null
@@ -3960,6 +3967,9 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          auto_backup_enabled?: boolean | null
+          backup_email?: string | null
+          backup_retention_days?: number | null
           bill_barcode_settings?: Json | null
           business_name?: string | null
           created_at?: string | null
@@ -3967,6 +3977,7 @@ export type Database = {
           email_id?: string | null
           gst_number?: string | null
           id?: string
+          last_auto_backup_at?: string | null
           mobile_number?: string | null
           organization_id: string
           product_settings?: Json | null
@@ -3977,6 +3988,9 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          auto_backup_enabled?: boolean | null
+          backup_email?: string | null
+          backup_retention_days?: number | null
           bill_barcode_settings?: Json | null
           business_name?: string | null
           created_at?: string | null
@@ -3984,6 +3998,7 @@ export type Database = {
           email_id?: string | null
           gst_number?: string | null
           id?: string
+          last_auto_backup_at?: string | null
           mobile_number?: string | null
           organization_id?: string
           product_settings?: Json | null

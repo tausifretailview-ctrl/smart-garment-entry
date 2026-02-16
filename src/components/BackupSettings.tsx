@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useBackup } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle, Cloud, Mail, ChevronDown, Shield } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,43 +17,101 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import OrganizationResetDialog from "./OrganizationResetDialog";
 
 const BackupSettings = () => {
-  const { organizationRole } = useOrganization();
-  const { backupLogs, isLoadingLogs, isBackingUp, isDownloading, startBackup, downloadBackup, downloadBackupAsExcel, formatFileSize } = useBackup();
+  const { organizationRole, currentOrganization } = useOrganization();
+  const { 
+    backupLogs, isLoadingLogs, isBackingUp, isDownloading, 
+    startBackup, downloadBackup, downloadBackupAsExcel, formatFileSize,
+    startCloudBackup, isCloudBackingUp, downloadCloudBackup
+  } = useBackup();
   
+  // Auto-backup settings
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
+  const [backupEmail, setBackupEmail] = useState("");
+  const [retentionDays, setRetentionDays] = useState("30");
+  const [lastAutoBackupAt, setLastAutoBackupAt] = useState<string | null>(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Google Drive credentials (advanced)
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [refreshToken, setRefreshToken] = useState("");
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [showRefreshToken, setShowRefreshToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Load settings
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!currentOrganization?.id) return;
+      try {
+        const { data } = await supabase
+          .from('settings')
+          .select('auto_backup_enabled, backup_email, backup_retention_days, last_auto_backup_at')
+          .eq('organization_id', currentOrganization.id)
+          .maybeSingle();
+        
+        if (data) {
+          setAutoBackupEnabled((data as any).auto_backup_enabled || false);
+          setBackupEmail((data as any).backup_email || "");
+          setRetentionDays(String((data as any).backup_retention_days || 30));
+          setLastAutoBackupAt((data as any).last_auto_backup_at);
+        }
+      } catch (e) {
+        console.error('Failed to load backup settings:', e);
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+    loadSettings();
+  }, [currentOrganization?.id]);
+
+  const handleSaveAutoBackupSettings = async (enabled?: boolean) => {
+    if (!currentOrganization?.id) return;
+    setIsSavingSettings(true);
+    try {
+      const updates: Record<string, any> = {
+        auto_backup_enabled: enabled !== undefined ? enabled : autoBackupEnabled,
+        backup_email: backupEmail.trim() || null,
+        backup_retention_days: parseInt(retentionDays),
+      };
+
+      const { error } = await supabase
+        .from('settings')
+        .update(updates)
+        .eq('organization_id', currentOrganization.id);
+
+      if (error) throw error;
+      toast.success("Backup settings saved!");
+    } catch (error: any) {
+      console.error('Failed to save backup settings:', error);
+      toast.error("Failed to save settings");
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleToggleAutoBackup = async (checked: boolean) => {
+    setAutoBackupEnabled(checked);
+    await handleSaveAutoBackupSettings(checked);
+  };
 
   const handleSaveCredentials = async () => {
     if (!clientId.trim() || !clientSecret.trim() || !refreshToken.trim()) {
       toast.error("Please fill in all credential fields");
       return;
     }
-
     setIsSaving(true);
     try {
-      // Call an edge function to update the secrets
       const { error } = await supabase.functions.invoke('update-google-secrets', {
-        body: {
-          clientId: clientId.trim(),
-          clientSecret: clientSecret.trim(),
-          refreshToken: refreshToken.trim()
-        }
+        body: { clientId: clientId.trim(), clientSecret: clientSecret.trim(), refreshToken: refreshToken.trim() }
       });
-
       if (error) throw error;
-
       toast.success("Google Drive credentials saved successfully!");
-      // Clear the form after successful save
-      setClientId("");
-      setClientSecret("");
-      setRefreshToken("");
+      setClientId(""); setClientSecret(""); setRefreshToken("");
     } catch (error: any) {
-      console.error("Failed to save credentials:", error);
-      toast.error(error.message || "Failed to save credentials. Please try again.");
+      toast.error(error.message || "Failed to save credentials.");
     } finally {
       setIsSaving(false);
     }
@@ -76,247 +137,208 @@ const BackupSettings = () => {
 
   return (
     <div className="space-y-6">
-      {/* Local Download Backup */}
+      {/* Cloud Auto-Backup */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Cloud className="h-5 w-5" />
+            Cloud Auto-Backup
+          </CardTitle>
+          <CardDescription>
+            Automatically backs up your data daily. No setup required.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoadingSettings ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div>
+                  <h4 className="font-medium">Enable Daily Auto-Backup</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Backup runs automatically when you open the app each day
+                  </p>
+                </div>
+                <Switch
+                  checked={autoBackupEnabled}
+                  onCheckedChange={handleToggleAutoBackup}
+                  disabled={isSavingSettings}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="backupEmail" className="flex items-center gap-1">
+                    <Mail className="h-3.5 w-3.5" />
+                    Email Notification (optional)
+                  </Label>
+                  <Input
+                    id="backupEmail"
+                    type="email"
+                    placeholder="admin@company.com"
+                    value={backupEmail}
+                    onChange={(e) => setBackupEmail(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Receive backup notifications at this email
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="retention" className="flex items-center gap-1">
+                    <Shield className="h-3.5 w-3.5" />
+                    Retention Period
+                  </Label>
+                  <Select value={retentionDays} onValueChange={setRetentionDays}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="7">7 days</SelectItem>
+                      <SelectItem value="14">14 days</SelectItem>
+                      <SelectItem value="30">30 days</SelectItem>
+                      <SelectItem value="60">60 days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Older backups are automatically removed
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {lastAutoBackupAt ? (
+                    <span>Last backup: {format(new Date(lastAutoBackupAt), 'dd MMM yyyy, hh:mm a')}</span>
+                  ) : (
+                    <span>No automatic backup yet</span>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveAutoBackupSettings()}
+                  disabled={isSavingSettings}
+                  variant="outline"
+                  className="gap-1"
+                >
+                  {isSavingSettings ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Save Settings
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Manual Backup */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Local Backup
+            Manual Backup
           </CardTitle>
           <CardDescription>
-            Download your organization data as a JSON file to your local machine.
+            Download or create a cloud backup on demand.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <div>
-              <h4 className="font-medium">Download Backup</h4>
-              <p className="text-sm text-muted-foreground">
-                Export all organization data to a JSON file
-              </p>
-            </div>
-            <Button 
-              onClick={downloadBackup} 
-              disabled={isDownloading}
-              className="gap-2"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Download Backup
-                </>
-              )}
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={downloadBackup} disabled={isDownloading} variant="outline" className="gap-2">
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download JSON
             </Button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <div>
-              <h4 className="font-medium">Download as Excel</h4>
-              <p className="text-sm text-muted-foreground">
-                Export all data to Excel for analysis in spreadsheet software
-              </p>
-            </div>
-            <Button 
-              onClick={downloadBackupAsExcel} 
-              disabled={isDownloading}
-              variant="outline"
-              className="gap-2"
-            >
-              {isDownloading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Downloading...
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Download Excel
-                </>
-              )}
+            <Button onClick={downloadBackupAsExcel} disabled={isDownloading} variant="outline" className="gap-2">
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+              Download Excel
+            </Button>
+            <Button onClick={startCloudBackup} disabled={isCloudBackingUp} className="gap-2">
+              {isCloudBackingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+              Cloud Backup Now
             </Button>
           </div>
 
           <div className="text-sm text-muted-foreground">
-            <p className="font-medium mb-2">Data included in backup:</p>
-            <ul className="grid grid-cols-2 md:grid-cols-4 gap-1">
-              <li>• Customers</li>
-              <li>• Suppliers</li>
-              <li>• Products & Variants</li>
-              <li>• Sales & Returns</li>
-              <li>• Purchases & Returns</li>
-              <li>• Quotations</li>
-              <li>• Sale Orders</li>
-              <li>• Credit Notes</li>
-              <li>• Voucher Entries</li>
-              <li>• Account Ledgers</li>
-              <li>• Employees</li>
-              <li>• Settings</li>
-            </ul>
+            <p className="font-medium mb-1">Data included:</p>
+            <p className="text-xs">
+              Customers, Suppliers, Products, Sales, Purchases, Returns, Quotations, Sale Orders, Credit Notes, Vouchers, Ledgers, Employees, Settings
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Google Drive Backup */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <HardDrive className="h-5 w-5" />
-            Google Drive Backup
-          </CardTitle>
-          <CardDescription>
-            Backup your organization data to Google Drive. All masters, transactions, and settings will be exported.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-            <div>
-              <h4 className="font-medium">Manual Backup</h4>
-              <p className="text-sm text-muted-foreground">
-                Create a backup of all organization data now
-              </p>
-            </div>
-            <Button 
-              onClick={startBackup} 
-              disabled={isBackingUp}
-              className="gap-2"
-            >
-              {isBackingUp ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Backing up...
-                </>
-              ) : (
-                <>
-                  <CloudUpload className="h-4 w-4" />
-                  Backup Now
-                </>
-              )}
-            </Button>
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            <p className="font-medium mb-2">Data included in backup:</p>
-            <ul className="grid grid-cols-2 md:grid-cols-4 gap-1">
-              <li>• Customers</li>
-              <li>• Suppliers</li>
-              <li>• Products & Variants</li>
-              <li>• Sales & Returns</li>
-              <li>• Purchases & Returns</li>
-              <li>• Quotations</li>
-              <li>• Sale Orders</li>
-              <li>• Credit Notes</li>
-              <li>• Voucher Entries</li>
-              <li>• Account Ledgers</li>
-              <li>• Employees</li>
-              <li>• Settings</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5" />
-            Google Drive Credentials
-          </CardTitle>
-          <CardDescription>
-            Configure your Google API credentials for Drive backup. Get these from 
-            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary ml-1 underline">
-              Google Cloud Console
-            </a>
-            {" "}and{" "}
-            <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-              OAuth Playground
-            </a>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientId">Client ID</Label>
-              <Input
-                id="clientId"
-                type="text"
-                placeholder="xxxxx.apps.googleusercontent.com"
-                value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="clientSecret">Client Secret</Label>
-              <div className="relative">
-                <Input
-                  id="clientSecret"
-                  type={showClientSecret ? "text" : "password"}
-                  placeholder="GOCSPX-xxxxxx"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowClientSecret(!showClientSecret)}
-                >
-                  {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      {/* Advanced: Google Drive */}
+      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+        <Card>
+          <CollapsibleTrigger className="w-full">
+            <CardHeader className="cursor-pointer">
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5" />
+                  Advanced: Google Drive Setup
+                </span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+              </CardTitle>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-4">
+              <CardDescription>
+                For power users: backup directly to Google Drive using OAuth credentials.
+              </CardDescription>
+              
+              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+                <div>
+                  <h4 className="font-medium">Google Drive Backup</h4>
+                  <p className="text-sm text-muted-foreground">Backup to your Google Drive account</p>
+                </div>
+                <Button onClick={startBackup} disabled={isBackingUp} className="gap-2">
+                  {isBackingUp ? <><Loader2 className="h-4 w-4 animate-spin" />Backing up...</> : <><CloudUpload className="h-4 w-4" />Backup to Drive</>}
                 </Button>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="refreshToken">Refresh Token</Label>
-              <div className="relative">
-                <Input
-                  id="refreshToken"
-                  type={showRefreshToken ? "text" : "password"}
-                  placeholder="1//04xxxxxx"
-                  value={refreshToken}
-                  onChange={(e) => setRefreshToken(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowRefreshToken(!showRefreshToken)}
-                >
-                  {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Get this from OAuth Playground after authorizing with Google Drive API scope
-              </p>
-            </div>
-          </div>
-          
-          <Button 
-            onClick={handleSaveCredentials} 
-            disabled={isSaving || !clientId || !clientSecret || !refreshToken}
-            className="gap-2"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Save Credentials
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
 
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="clientId">Client ID</Label>
+                  <Input id="clientId" type="text" placeholder="xxxxx.apps.googleusercontent.com" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="clientSecret">Client Secret</Label>
+                  <div className="relative">
+                    <Input id="clientSecret" type={showClientSecret ? "text" : "password"} placeholder="GOCSPX-xxxxxx" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+                    <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
+                      {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="refreshToken">Refresh Token</Label>
+                  <div className="relative">
+                    <Input id="refreshToken" type={showRefreshToken ? "text" : "password"} placeholder="1//04xxxxxx" value={refreshToken} onChange={(e) => setRefreshToken(e.target.value)} />
+                    <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowRefreshToken(!showRefreshToken)}>
+                      {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Get credentials from{" "}
+                    <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google Cloud Console</a>
+                    {" "}and{" "}
+                    <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">OAuth Playground</a>
+                  </p>
+                </div>
+              </div>
+              
+              <Button onClick={handleSaveCredentials} disabled={isSaving || !clientId || !clientSecret || !refreshToken} className="gap-2">
+                {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : <><Save className="h-4 w-4" />Save Credentials</>}
+              </Button>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Backup History */}
       <Card>
         <CardHeader>
           <CardTitle>Backup History</CardTitle>
@@ -329,7 +351,7 @@ const BackupSettings = () => {
             </div>
           ) : !backupLogs?.length ? (
             <div className="text-center py-8 text-muted-foreground">
-              No backups yet. Create your first backup above.
+              No backups yet. Enable auto-backup or create one manually.
             </div>
           ) : (
             <Table>
@@ -346,27 +368,29 @@ const BackupSettings = () => {
               <TableBody>
                 {backupLogs.map((log) => (
                   <TableRow key={log.id}>
+                    <TableCell>{format(new Date(log.created_at), 'dd MMM yyyy, hh:mm a')}</TableCell>
                     <TableCell>
-                      {format(new Date(log.created_at), 'dd MMM yyyy, hh:mm a')}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {log.backup_type}
-                      </Badge>
+                      <Badge variant="outline" className="capitalize">{log.backup_type}</Badge>
                     </TableCell>
                     <TableCell>{getStatusBadge(log.status)}</TableCell>
                     <TableCell>{formatFileSize(log.file_size)}</TableCell>
                     <TableCell>{getTotalRecords(log.records_count as Record<string, number>)}</TableCell>
-                    <TableCell>
-                      {log.drive_file_link && (
+                    <TableCell className="flex gap-1">
+                      {(log as any).storage_path && log.status === 'completed' && (
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(log.drive_file_link!, '_blank')}
+                          onClick={() => downloadCloudBackup((log as any).storage_path, log.file_name)}
                           className="gap-1"
                         >
+                          <Download className="h-4 w-4" />
+                          Download
+                        </Button>
+                      )}
+                      {log.drive_file_link && (
+                        <Button variant="ghost" size="sm" onClick={() => window.open(log.drive_file_link!, '_blank')} className="gap-1">
                           <ExternalLink className="h-4 w-4" />
-                          View
+                          Drive
                         </Button>
                       )}
                     </TableCell>
@@ -403,7 +427,6 @@ const BackupSettings = () => {
                 </div>
               </div>
             </div>
-            
             <div className="flex justify-end">
               <OrganizationResetDialog />
             </div>
