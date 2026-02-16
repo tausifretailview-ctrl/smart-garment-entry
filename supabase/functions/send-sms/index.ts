@@ -22,9 +22,31 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Authenticate the requesting user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "No authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const msg91ApiKey = Deno.env.get("MSG91_API_KEY");
+
+    // Verify the user's token
+    const { createClient: createAnonClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const supabaseAuth = createAnonClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+      global: { headers: { Authorization: authHeader } }
+    });
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!msg91ApiKey) {
       console.error("MSG91_API_KEY not configured");
@@ -141,7 +163,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("Error in send-sms function:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "An internal error occurred" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

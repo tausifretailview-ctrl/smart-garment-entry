@@ -18,6 +18,15 @@ serve(async (req) => {
     const saltKey = Deno.env.get('PHONEPE_SALT_KEY');
     const saltIndex = Deno.env.get('PHONEPE_SALT_INDEX') || '1';
 
+    // Reject if salt key is not configured
+    if (!saltKey) {
+      console.error('PHONEPE_SALT_KEY not configured - rejecting request');
+      return new Response(
+        JSON.stringify({ error: 'Webhook not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Handle both GET (redirect) and POST (callback) methods
@@ -135,9 +144,8 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('PhonePe webhook error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: 'Internal server error', message: errorMessage }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

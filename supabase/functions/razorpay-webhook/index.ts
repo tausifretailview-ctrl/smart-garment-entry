@@ -23,8 +23,17 @@ serve(async (req) => {
     const payload = await req.text();
     const signature = req.headers.get('x-razorpay-signature');
 
-    // Verify webhook signature if secret is configured
-    if (razorpayWebhookSecret && signature) {
+    // Reject if webhook secret is not configured
+    if (!razorpayWebhookSecret) {
+      console.error('RAZORPAY_WEBHOOK_SECRET not configured - rejecting request');
+      return new Response(
+        JSON.stringify({ error: 'Webhook not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify webhook signature
+    if (signature) {
       const encoder = new TextEncoder();
       const key = await crypto.subtle.importKey(
         'raw',
@@ -130,9 +139,8 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     console.error('Razorpay webhook error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: 'Internal server error', message: errorMessage }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
