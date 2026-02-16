@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Card } from "@/components/ui/card";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -1185,23 +1185,29 @@ export default function SaleOrderEntry() {
   }, [searchInput]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="max-w-[1400px] mx-auto px-6 py-6 space-y-6">
       <BackToDashboard />
       
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-6 w-6" />
+      {/* Section A: Sticky Header */}
+      <div className="bg-card rounded-xl border shadow-sm p-5 sticky top-0 z-30">
+        <div className="flex items-center justify-between">
+          <h1 className="text-[18px] font-semibold flex items-center gap-2">
+            <ClipboardList className="h-5 w-5 text-primary" />
             {editingOrderId ? 'Edit Sale Order' : 'New Sale Order'}
             {quotationId && <Badge variant="outline">From Quotation</Badge>}
           </h1>
-          <div className="flex items-center gap-2">
-            <Label>Order No:</Label>
-            <Input value={orderNumber} readOnly className="w-40 bg-muted" />
+          <div className="flex items-center gap-3">
+            <Label className="text-[13px] font-medium text-muted-foreground">Order No:</Label>
+            <span className="font-mono bg-muted/40 px-3 py-1 rounded-md text-[15px] font-semibold">{orderNumber}</span>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      {/* Section B: Customer & Order Details */}
+      <div className="bg-secondary/50 dark:bg-muted/20 rounded-xl border shadow-sm p-6">
+        <div className="erp-invoice-section-label">ORDER & CUSTOMER DETAILS</div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <Label>Order Date</Label>
             <Popover>
@@ -1232,8 +1238,8 @@ export default function SaleOrderEntry() {
             </Popover>
           </div>
 
-          <div>
-            <Label>Customer</Label>
+          <div className="md:col-span-2">
+            <Label className="flex items-center gap-1">Customer <span className="ml-1 w-1.5 h-1.5 inline-block bg-destructive rounded-full"></span></Label>
             <div className="flex gap-2">
               <Select value={selectedCustomerId} onValueChange={(value) => {
                 setSelectedCustomerId(value);
@@ -1300,9 +1306,11 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
         </div>
+      </div>
 
-        {/* Entry Mode Toggle & Product Search */}
-        <div className="mb-4 flex items-center gap-4">
+      {/* Section C: Entry Mode + Product Search */}
+      <div className="bg-card rounded-xl border shadow-sm p-5">
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Label className="text-sm">Entry Mode:</Label>
             <div className="flex items-center gap-2">
@@ -1319,7 +1327,7 @@ export default function SaleOrderEntry() {
             </div>
           </div>
         </div>
-        <div className="mb-4">
+        <div className="mt-4">
           <Popover open={openProductSearch} onOpenChange={setOpenProductSearch}>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start">
@@ -1416,11 +1424,14 @@ export default function SaleOrderEntry() {
             </PopoverContent>
           </Popover>
         </div>
+      </div>
 
-        {/* Line Items Table with Stock Difference */}
+      {/* Section D: Line Items Table */}
+      <div className="bg-card rounded-xl border shadow-sm p-6">
+        <div className="erp-invoice-section-label">LINE ITEMS</div>
         <div className="border rounded-md overflow-hidden relative">
           <Table>
-            <TableHeader>
+            <TableHeader className="erp-invoice-table-header">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
@@ -1450,7 +1461,7 @@ export default function SaleOrderEntry() {
               {lineItems.map((item, index) => {
                 const stockInfo = getStockDifference(item);
                 return (
-                  <TableRow key={item.id} className={item.productId ? '' : 'opacity-50'}>
+                  <TableRow key={item.id} className={cn("h-14 border-b border-border/50 hover:bg-primary/[0.03] transition-colors", !item.productId && 'opacity-50')}>
                     <TableCell>{index + 1}</TableCell>
                     <TableCell className="min-w-[180px] max-w-[280px]">
                       {item.productId ? (
@@ -1566,7 +1577,7 @@ export default function SaleOrderEntry() {
                         />
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-medium">₹{item.lineTotal.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">₹{item.lineTotal.toFixed(2)}</TableCell>
                     <TableCell>
                       {item.productId && (
                         <Button variant="ghost" size="icon" onClick={() => removeItem(item.id)}>
@@ -1665,12 +1676,15 @@ export default function SaleOrderEntry() {
             <div ref={tableEndRef} />
           </ScrollArea>
         </div>
-        <div className="mt-2 text-sm text-muted-foreground">
+        <div className="mt-3 text-sm text-muted-foreground">
           Total Items: {lineItems.filter(item => item.productId).length}
         </div>
+      </div>
 
-        {/* Summary with Flat Discount & Round Off */}
-        <div className="mt-4 flex justify-between items-start">
+      {/* Section E: Order Summary */}
+      <div className="flex flex-col md:flex-row gap-6">
+        <div className="bg-card rounded-xl border shadow-sm p-6 flex-1">
+          <div className="erp-invoice-section-label">DISCOUNTS & ADJUSTMENTS</div>
           <div className="grid grid-cols-2 gap-4 w-80">
             <div>
               <Label>Flat Discount %</Label>
@@ -1710,26 +1724,33 @@ export default function SaleOrderEntry() {
               />
             </div>
           </div>
-          <div className="w-72 space-y-2">
-            <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Line Discount:</span><span>-₹{totalLineDiscount.toFixed(2)}</span></div>
+        </div>
+        <div className="erp-invoice-summary-card w-full md:w-96">
+          <div className="erp-invoice-section-label">ORDER SUMMARY</div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-[14px] font-medium"><span>Gross Amount:</span><span className="tabular-nums">₹{grossAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-[14px] font-medium"><span>Line Discount:</span><span className="tabular-nums">-₹{totalLineDiscount.toFixed(2)}</span></div>
             {calculatedFlatDiscount > 0 && (
-              <div className="flex justify-between"><span>Flat Discount:</span><span>-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[14px] font-medium"><span>Flat Discount:</span><span className="tabular-nums">-₹{calculatedFlatDiscount.toFixed(2)}</span></div>
             )}
             {taxType === "exclusive" && (
-              <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[14px] font-medium"><span>GST:</span><span className="tabular-nums">₹{totalGST.toFixed(2)}</span></div>
             )}
             {roundOff !== 0 && (
-              <div className="flex justify-between"><span>Round Off:</span><span>₹{roundOff.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[14px] font-medium"><span>Round Off:</span><span className="tabular-nums">₹{roundOff.toFixed(2)}</span></div>
             )}
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Net Amount:</span><span>₹{netAmount.toFixed(2)}</span>
+            <div className="border-t mt-4 pt-4 flex justify-between">
+              <span className="text-[16px] font-bold">Net Amount:</span>
+              <span className="text-[24px] font-extrabold text-primary tabular-nums">₹{netAmount.toFixed(2)}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Notes & Terms */}
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Section F: Notes & Terms */}
+      <div className="bg-card rounded-xl border shadow-sm p-6">
+        <div className="erp-invoice-section-label">NOTES & TERMS</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label>Terms & Conditions</Label>
             <Textarea value={termsConditions} onChange={(e) => setTermsConditions(e.target.value)} rows={3} />
@@ -1739,19 +1760,24 @@ export default function SaleOrderEntry() {
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
           </div>
         </div>
+      </div>
 
-        {/* Actions */}
-        <div className="mt-6 flex gap-4">
-          <Button onClick={() => handleSaveOrder().then(r => r.success && navigate('/sale-order-dashboard'))} disabled={isSaving} className="flex-1">
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? 'Saving...' : 'Book Sale Order'}
+      {/* Section G: Sticky Action Footer */}
+      <div className="erp-invoice-sticky-actions">
+        <div className="flex gap-4 justify-end">
+          <Button variant="outline" onClick={() => navigate('/sale-order-dashboard')} className="h-11 rounded-lg px-6">
+            Cancel
           </Button>
-          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="outline" className="flex-1">
+          <Button onClick={handleSaveAndPrint} disabled={isSaving} variant="secondary" className="h-11 rounded-lg px-6">
             <Printer className="mr-2 h-4 w-4" />
             Save & Print
           </Button>
+          <Button onClick={() => handleSaveOrder().then(r => r.success && navigate('/sale-order-dashboard'))} disabled={isSaving} className="h-11 rounded-lg px-6 shadow-sm">
+            <Save className="mr-2 h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Book Sale Order'}
+          </Button>
         </div>
-      </Card>
+      </div>
 
       {/* Print Component (hidden) */}
       <div className="hidden">
