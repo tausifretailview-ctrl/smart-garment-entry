@@ -290,11 +290,11 @@ All colors MUST be HSL.
 
   /* Table density for ERP - Full View */
   table th {
-    @apply text-[14px] font-semibold px-4 py-3;
+    @apply text-[12px] uppercase tracking-wider font-semibold px-4 py-3;
   }
 
   table td {
-    @apply text-[15px] px-4 py-3 border-b border-muted;
+    @apply text-[14px] px-4 py-3 border-b border-muted;
   }
 
   table tbody tr {
@@ -314,7 +314,7 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground text-base;
+    @apply bg-background text-foreground text-[15px] leading-relaxed antialiased;
   }
 }
 
@@ -379,6 +379,43 @@ All colors MUST be HSL.
   
   .brand-glow-strong {
     box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
+  }
+
+  /* ERP Typography Utilities */
+  .erp-page-title {
+    @apply text-2xl font-bold tracking-tight;
+  }
+
+  .erp-section-title {
+    @apply text-lg font-semibold;
+  }
+
+  .erp-table-header {
+    @apply text-[12px] uppercase tracking-wider font-semibold;
+  }
+
+  .erp-table-data {
+    @apply text-[14px];
+  }
+
+  .erp-financial {
+    @apply text-[14px] font-medium text-right tabular-nums;
+  }
+
+  .erp-customer-name {
+    @apply text-[14px] font-semibold;
+  }
+
+  .erp-form-label {
+    @apply text-[13px] font-medium;
+  }
+
+  .erp-badge {
+    @apply text-[11px] font-semibold;
+  }
+
+  .erp-kpi-value {
+    @apply text-2xl font-bold tracking-tight;
   }
 
   /* Active state indicator */
