@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -14,6 +14,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { 
   Plus, 
@@ -23,17 +33,23 @@ import {
   Phone,
   Mail,
   Edit,
-  Eye,
+  Trash2,
+  Loader2,
   FileSpreadsheet
 } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
 
 const StudentMaster = () => {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { data: students = [], isLoading } = useQuery({
     queryKey: ["students", currentOrganization?.id, searchTerm],
@@ -89,6 +105,26 @@ const StudentMaster = () => {
     },
     enabled: !!currentOrganization?.id,
   });
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("students")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", studentToDelete.id);
+      if (error) throw error;
+      toast({ title: "Success", description: "Student moved to recycle bin" });
+      setStudentToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      queryClient.invalidateQueries({ queryKey: ["student-stats"] });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 p-6">
@@ -250,13 +286,23 @@ const StudentMaster = () => {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => orgNavigate(`/student-entry/${student.id}`)}
+                          title="Edit"
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setStudentToDelete(student)}
+                          className="text-destructive hover:text-destructive"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -273,6 +319,29 @@ const StudentMaster = () => {
         open={showExcelImport} 
         onOpenChange={setShowExcelImport} 
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!studentToDelete} onOpenChange={(open) => !open && setStudentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Student</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{studentToDelete?.student_name}</strong> ({studentToDelete?.admission_number})? This will move the record to the recycle bin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteStudent}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
