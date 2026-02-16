@@ -885,7 +885,7 @@ export default function POSSales() {
     }
   }, [recordKeystroke, detectScannerInput]);
 
-  const searchAndAddProduct = useCallback((searchTerm: string) => {
+  const searchAndAddProduct = useCallback(async (searchTerm: string) => {
     // Quick service shortcodes (1-9) ALWAYS open the dialog, even if a product has that barcode
     if (/^[1-9]$/.test(searchTerm)) {
       setQuickServiceCode(searchTerm);
@@ -928,9 +928,10 @@ export default function POSSales() {
     }
 
     if (foundVariant && foundProduct) {
-      // addItemToCart handles beep sound internally
-      addItemToCart(foundProduct, foundVariant);
+      // Clear input immediately for fast scanning UX
       setSearchInput("");
+      // Await stock check before adding - prevents out-of-stock items from being added
+      await addItemToCart(foundProduct, foundVariant);
     } else {
       // Clear input and show error for barcode not found
       setSearchInput("");
