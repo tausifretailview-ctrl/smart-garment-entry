@@ -76,24 +76,24 @@ export const Header = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-sidebar-border backdrop-blur-md bg-sidebar/95 text-sidebar-foreground shadow-sm">
+    <header className="sticky top-0 z-50 w-full border-b border-border backdrop-blur-md bg-card/95 text-foreground shadow-sm">
       <div className="flex h-14 items-center justify-between px-4 max-w-full">
         {/* Left Side - Logo and Mobile Menu */}
         <div className="flex items-center gap-2">
           {/* Mobile Menu */}
           <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
             <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon" className="text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary">
+              <Button variant="ghost" size="icon" className="text-foreground hover:bg-muted hover:text-primary">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-[300px] bg-sidebar text-sidebar-foreground border-sidebar-border">
+            <SheetContent side="left" className="w-[300px] bg-card text-foreground border-border">
               <nav className="flex flex-col gap-4 mt-8">
                 {quickActions.map((action) => (
                   <Button
                     key={action.label}
                     variant="ghost"
-                    className="justify-start text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"
+                    className="justify-start text-foreground hover:bg-muted hover:text-primary"
                     onClick={() => {
                       handleQuickAction(action);
                       setMobileMenuOpen(false);
@@ -112,10 +112,10 @@ export const Header = () => {
             onClick={() => orgNavigate("/")}
             className="flex items-center gap-1.5"
           >
-            <div className="bg-sidebar-primary p-1 rounded">
-              <Package className="h-3.5 w-3.5 text-sidebar-primary-foreground" />
+            <div className="bg-primary p-1 rounded">
+              <Package className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
-            <span className="hidden sm:block text-sm font-semibold text-sidebar-foreground">
+            <span className="hidden sm:block text-sm font-semibold text-foreground">
               Ezzy ERP
             </span>
           </button>
@@ -129,7 +129,7 @@ export const Header = () => {
               variant="ghost"
               size="icon"
               onClick={() => handleQuickAction(action)}
-              className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary"
+              className="h-8 w-8 text-foreground hover:bg-muted hover:text-primary"
               title={action.label}
             >
               <action.icon className="h-4 w-4" />
@@ -140,7 +140,7 @@ export const Header = () => {
         {/* Right Side - Compact icons */}
         <div className="flex items-center gap-1">
           {/* Search */}
-          <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary">
+          <Button variant="ghost" size="icon" className="hidden md:flex h-8 w-8 text-foreground hover:bg-muted hover:text-primary">
             <Search className="h-4 w-4" />
           </Button>
 
@@ -161,7 +161,7 @@ export const Header = () => {
                   alert(message);
                 }
               }}
-              className="relative text-sidebar-primary border-sidebar-primary/30 hover:bg-sidebar-accent hover:text-sidebar-primary gap-1"
+              className="relative text-primary border-primary/30 hover:bg-muted hover:text-primary gap-1"
               title="Install App"
             >
               <Download className="h-4 w-4" />
@@ -176,9 +176,9 @@ export const Header = () => {
           <OrganizationSelector />
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-primary">
+          <Button variant="ghost" size="icon" className="relative h-8 w-8 text-foreground hover:bg-muted hover:text-primary">
             <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-sidebar-primary rounded-full" />
+            <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-primary rounded-full" />
           </Button>
 
           {/* User Menu */}
@@ -186,7 +186,7 @@ export const Header = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="rounded-full hover:bg-sidebar-accent h-8 w-8">
                 <Avatar className="h-6 w-6">
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-[10px] font-medium">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-medium">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
