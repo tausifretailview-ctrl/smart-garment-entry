@@ -98,49 +98,8 @@ export const useBackup = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Auto-backup trigger on app load
-  useEffect(() => {
-    if (!currentOrganization?.id || autoBackupTriggered.current) return;
-    
-    const checkAndRunAutoBackup = async () => {
-      try {
-        const { data: settings } = await supabase
-          .from('settings')
-          .select('auto_backup_enabled, last_auto_backup_at')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-
-        if (!(settings as any)?.auto_backup_enabled) return;
-
-        const lastBackup = (settings as any)?.last_auto_backup_at;
-        const today = new Date().toISOString().split('T')[0];
-        
-        if (lastBackup) {
-          const lastBackupDate = new Date(lastBackup).toISOString().split('T')[0];
-          if (lastBackupDate === today) return; // Already backed up today
-        }
-
-        autoBackupTriggered.current = true;
-        toast.info("Daily backup running in background...", { duration: 3000 });
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        await supabase.functions.invoke('auto-backup', {
-          body: { organizationId: currentOrganization.id, backupType: 'automatic' },
-        });
-
-        queryClient.invalidateQueries({ queryKey: ['backup-logs'] });
-        toast.success("Daily backup completed!", { duration: 3000 });
-      } catch (e) {
-        console.error('Auto-backup failed:', e);
-      }
-    };
-
-    // Delay to not block app load
-    const timer = setTimeout(checkAndRunAutoBackup, 5000);
-    return () => clearTimeout(timer);
-  }, [currentOrganization?.id, queryClient]);
+  // Auto-backup is now handled by a scheduled cron job at 11:00 PM IST
+  // No on-login trigger needed
 
   // Google Drive backup (existing)
   const startBackup = async () => {
