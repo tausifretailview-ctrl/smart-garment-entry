@@ -2198,7 +2198,25 @@ const ProductEntry = () => {
                         return (
                           <TableRow key={index} className="text-xs">
                             {formData.product_type !== 'service' && (
-                              <TableCell className="font-medium text-primary py-1 text-xs">{variant.color || '-'}</TableCell>
+                              <TableCell className="py-1 px-1">
+                                <Input
+                                  list="color-suggestions"
+                                  value={variant.color || ''}
+                                  placeholder="-"
+                                  className="h-7 w-20 text-xs font-medium text-primary px-2 py-0 uppercase"
+                                  onChange={(e) => {
+                                    const val = e.target.value.toUpperCase();
+                                    handleVariantChange(index, "color", val);
+                                  }}
+                                  onBlur={(e) => {
+                                    const val = e.target.value.trim().toUpperCase();
+                                    handleVariantChange(index, "color", val);
+                                    if (val && !formData.colors.includes(val)) {
+                                      setFormData(prev => ({ ...prev, colors: [...prev.colors, val] }));
+                                    }
+                                  }}
+                                />
+                              </TableCell>
                             )}
                             <TableCell className="font-medium py-1 text-xs">{variant.size}</TableCell>
                             <TableCell className="py-1">
@@ -2319,6 +2337,11 @@ const ProductEntry = () => {
                       })}
                     </TableBody>
                   </Table>
+                  <datalist id="color-suggestions">
+                    {formData.colors.map(c => (
+                      <option key={c} value={c} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             )}
