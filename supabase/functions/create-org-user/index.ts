@@ -45,10 +45,35 @@ Deno.serve(async (req) => {
 
     const { email, password, role, organizationId }: CreateUserRequest = await req.json()
 
-    // Validate input
+    // Validate input with strict checks
     if (!email || !password || !role || !organizationId) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate email format and length
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email) || email.length > 255) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid email format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate password length
+    if (password.length < 6 || password.length > 128) {
+      return new Response(
+        JSON.stringify({ error: 'Password must be between 6 and 128 characters' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate role
+    if (!['admin', 'manager', 'user'].includes(role)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
