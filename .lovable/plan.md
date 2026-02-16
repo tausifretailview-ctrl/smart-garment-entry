@@ -1,67 +1,203 @@
 
 
-# Ezzy ERP -- Final UI Polish (Enterprise SaaS Finish)
+# Ezzy ERP -- Advanced Enterprise Table System
 
-Last-mile refinements to achieve a polished, premium enterprise feel. No color theme changes -- all updates use existing CSS variables for theme compatibility.
+## Overview
 
----
+Create a reusable `ERPTable` wrapper component that adds enterprise-grade table features (sticky headers, column resizing, column show/hide, column reorder, density toggle, sticky footer) on top of the existing Ezzy table UI. Then integrate it across the five major dashboard pages.
 
-## Changes
-
-### 1. `src/components/ui/table.tsx`
-
-- **TableHeader**: Change `bg-sidebar [&_tr]:border-sidebar-border` to `bg-muted/70 [&_tr]:border-muted` (light header instead of dark sidebar-colored header)
-- **TableHead**: Change `text-white` to `text-foreground` (fixes contrast for light header background)
-- **TableRow**: Change `hover:bg-muted/50` to `hover:bg-primary/5` (subtle brand-tinted hover)
-- **TableRow**: Change `border-border` to `border-muted` (softer row borders)
-
-### 2. `src/index.css` -- Global table rules
-
-- Update `table td` border from `border-muted` to `border-muted/80` for softer lines
-- Update `table tbody tr` hover from `hover:bg-muted/50` to `hover:bg-primary/5`
-- Update `.card` class from `p-5` to `p-6`
-- Update `.erp-financial` utility: add `tracking-tight`
-
-### 3. `src/components/ui/card.tsx`
-
-- **Card**: Add `hover:shadow-md` to existing transition classes for interactive lift effect
-
-### 4. `src/components/Header.tsx`
-
-- Change header background from `bg-sidebar/95 text-sidebar-foreground border-sidebar-border` to `bg-card/95 text-foreground border-border` with `backdrop-blur-md`
-- Update all child button colors from sidebar-specific tokens to standard theme tokens (e.g., `text-foreground`, `hover:bg-muted`, `hover:text-primary`)
-- Update avatar fallback from `bg-sidebar-primary text-sidebar-primary-foreground` to `bg-primary text-primary-foreground`
-- Update notification dot from `bg-sidebar-primary` to `bg-primary`
-- Update mobile sheet from sidebar colors to standard colors
-
-### 5. `src/components/ui/sidebar.tsx` -- Active state refinement
-
-- **SidebarMenuButton variants**: Update `data-[active=true]` styles from `border-l-2` to `border-l-4` for a more prominent active indicator
-- Ensure smooth `transition-all duration-200` is present (already in place)
-
-### 6. `src/index.css` -- Sidebar active indicator
-
-- Update the `[data-sidebar="menu-button"][data-active="true"]` rule: change `border-left: 3px` to `border-left: 4px` for consistency with the component-level change
+This requires installing `@tanstack/react-table` (new dependency) and leveraging the already-installed `@dnd-kit` packages for column reorder. No backend logic changes.
 
 ---
 
-## Files Changed
+## Architecture
 
-| File | Change |
-|------|--------|
-| `src/components/ui/table.tsx` | Light header bg, brand hover, softer borders, fix text color |
-| `src/index.css` | Softer td border, brand hover, card padding, financial tracking, sidebar active width |
-| `src/components/ui/card.tsx` | Add hover shadow elevation |
-| `src/components/Header.tsx` | Light header bar with backdrop blur, standard theme tokens |
-| `src/components/ui/sidebar.tsx` | Active border-l-4 |
+The system is built as a single generic `ERPTable` component that accepts column definitions and data, and internally manages:
+
+- Column visibility, ordering, and widths (persisted to localStorage keyed by table ID)
+- Sticky header via CSS `position: sticky`
+- Sticky first column via CSS `position: sticky; left: 0`
+- Column resize drag handles
+- Column reorder via `@dnd-kit/sortable`
+- Density toggle (compact 40px / comfortable 56px row height)
+- Sticky footer row for financial totals
+- Horizontal scroll container
+
+```text
++--------------------------------------------------+
+|  ERPTable                                        |
+|  +----------------------------------------------+|
+|  | Toolbar: density toggle | column picker       ||
+|  +----------------------------------------------+|
+|  | overflow-x-auto                               ||
+|  | +------------------------------------------+ ||
+|  | | Sticky Header (with resize handles)      | ||
+|  | | Sticky Col 0 | Col 1 | Col 2 | ...      | ||
+|  | +------------------------------------------+ ||
+|  | | Data rows                                | ||
+|  | +------------------------------------------+ ||
+|  | | Sticky Footer (totals)                   | ||
+|  | +------------------------------------------+ ||
+|  +----------------------------------------------+|
++--------------------------------------------------+
+```
+
+---
+
+## New Dependency
+
+- `@tanstack/react-table` -- provides headless table primitives (column defs, visibility, sizing, sorting)
+
+Already installed:
+- `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` -- for column drag-and-drop reorder
+
+---
+
+## New Files
+
+### 1. `src/components/erp-table/ERPTable.tsx`
+
+The main generic component. Accepts:
+
+```text
+Props:
+  tableId: string               -- unique key for localStorage persistence
+  columns: ColumnDef[]          -- @tanstack/react-table column definitions
+  data: T[]                     -- row data array
+  stickyFirstColumn?: boolean   -- pin first column (default: true)
+  footerRow?: ReactNode         -- optional sticky footer content
+  defaultColumnVisibility?: Record<string, boolean>
+  defaultDensity?: "compact" | "comfortable"
+  onRowClick?: (row: T) => void
+  onRowContextMenu?: (e, row: T) => void
+  renderRowActions?: (row: T) => ReactNode
+  isLoading?: boolean
+  emptyMessage?: string
+```
+
+Internally uses:
+- `useReactTable` from `@tanstack/react-table` with `getCoreRowModel`, column visibility, column sizing
+- `SortableContext` + `DndContext` from `@dnd-kit` for header drag reorder
+- localStorage read/write for column order, visibility, and widths
+- CSS `position: sticky` for header and first column
+
+### 2. `src/components/erp-table/ERPTableToolbar.tsx`
+
+Toolbar rendered above the table with:
+- Density toggle button (compact/comfortable icons)
+- Column visibility dropdown (checkboxes for each column)
+- Column order reset button
+
+### 3. `src/components/erp-table/DraggableHeader.tsx`
+
+A single draggable table header cell that wraps `useSortable` from `@dnd-kit/sortable`. Includes:
+- Drag handle on hover
+- Resize handle (thin vertical bar on right edge, cursor: col-resize)
+- Column name text
+
+### 4. `src/components/erp-table/useERPTablePersistence.ts`
+
+Custom hook for reading/writing table settings to localStorage:
+
+```text
+Key format: erp-table-{tableId}
+Value: {
+  columnOrder: string[]
+  columnVisibility: Record<string, boolean>
+  columnSizing: Record<string, number>
+  density: "compact" | "comfortable"
+}
+```
+
+### 5. `src/components/erp-table/index.ts`
+
+Barrel export file.
+
+---
+
+## Page Integrations
+
+Each page integration follows the same pattern:
+1. Define `@tanstack/react-table` column definitions (mapping existing inline JSX to `cell` renderers)
+2. Replace the existing `<Table>` block with `<ERPTable>`
+3. Move row actions into `renderRowActions`
+4. Keep all existing data fetching, filtering, pagination, and business logic untouched
+
+### Pages to integrate:
+
+| Page | File | Table ID | Sticky Col | Footer |
+|------|------|----------|------------|--------|
+| Customer Master | `src/pages/CustomerMaster.tsx` | `customer_master` | Customer Name | No |
+| Sales Invoice Dashboard | `src/pages/SalesInvoiceDashboard.tsx` | `sales_invoice` | Invoice No | Yes (totals) |
+| Purchase Bill Dashboard | `src/pages/PurchaseBillDashboard.tsx` | `purchase_bills` | Bill No | Yes (totals) |
+| Product Dashboard | `src/pages/ProductDashboard.tsx` | `product_list` | Product Name | No |
+| Product Tracking Report | `src/pages/ProductTrackingReport.tsx` | `product_tracking` | Barcode | No |
+
+Each page keeps its existing:
+- Search/filter UI
+- Pagination controls
+- Context menus
+- Selection checkboxes
+- Expanded row logic (for Purchase/Sales dashboards)
+
+The `<ERPTable>` replaces only the `<Table>...</Table>` block in each page.
+
+---
+
+## CSS Additions (`src/index.css`)
+
+```css
+/* ERPTable sticky column */
+.erp-table-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: inherit;
+}
+
+/* ERPTable sticky header + first col intersection */
+.erp-table-sticky-col-header {
+  position: sticky;
+  left: 0;
+  z-index: 15;
+  background: inherit;
+}
+
+/* Column resize handle */
+.erp-col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+th:hover .erp-col-resize-handle,
+.erp-col-resize-handle.resizing {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.3);
+}
+```
+
+---
+
+## Existing `useDashboardColumnSettings` hook
+
+The existing hook persists column visibility to the database (per organization). The new ERPTable system uses localStorage for fast, per-user persistence of column order, widths, and density. Column visibility can optionally delegate to the existing hook for pages that already use it (Purchase, Sales, Product dashboards) -- the ERPTable will accept an `externalColumnVisibility` prop for this case.
 
 ---
 
 ## What Is NOT Changed
 
-- No color theme variables modified
+- No color theme changes
+- No backend/database changes
 - No business logic changes
+- No data fetching changes
 - No print styles modified
-- No typography scale changes (already at full-view density)
-- No routing or data flow changes
+- No routing changes
+- Existing pagination, search, filters, context menus all preserved
+- The base `src/components/ui/table.tsx` primitives remain unchanged (ERPTable uses them internally)
 
