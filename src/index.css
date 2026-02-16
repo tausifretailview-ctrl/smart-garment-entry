@@ -987,6 +987,39 @@ All colors MUST be HSL.
   }
 }
 
+/* ERPTable sticky column */
+.erp-table-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: inherit;
+}
+
+.erp-table-sticky-col-header {
+  position: sticky;
+  left: 0;
+  z-index: 15;
+  background: inherit;
+}
+
+/* Column resize handle */
+.erp-col-resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+th:hover .erp-col-resize-handle,
+.erp-col-resize-handle.resizing {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.3);
+}
+
 /* Mobile responsive utilities */
 @media (max-width: 1023px) {
   /* Hide desktop-only elements on mobile */
