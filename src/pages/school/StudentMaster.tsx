@@ -36,12 +36,15 @@ import {
   Trash2,
   Loader2,
   FileSpreadsheet,
-  Upload
+  Upload,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
-import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { StudentExcelImportDialog } from "@/components/school/StudentExcelImportDialog";
 import { StudentBulkUpdateDialog } from "@/components/school/StudentBulkUpdateDialog";
+
+const PAGE_SIZE = 50;
 
 const StudentMaster = () => {
   const { currentOrganization } = useOrganization();
@@ -53,11 +56,21 @@ const StudentMaster = () => {
   const [showBulkUpdate, setShowBulkUpdate] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: students = [], isLoading } = useQuery({
-    queryKey: ["students", currentOrganization?.id, searchTerm],
+  // Reset to page 1 when search changes
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const { data: studentsResult, isLoading } = useQuery({
+    queryKey: ["students", currentOrganization?.id, searchTerm, currentPage],
     queryFn: async () => {
-      if (!currentOrganization?.id) return [];
+      if (!currentOrganization?.id) return { data: [], count: 0 };
+
+      const from = (currentPage - 1) * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
       let query = supabase
         .from("students")
@@ -70,21 +83,26 @@ const StudentMaster = () => {
           academic_years (
             year_name
           )
-        `)
+        `, { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .order("student_name");
+        .order("student_name")
+        .range(from, to);
 
       if (searchTerm) {
         query = query.or(`student_name.ilike.%${searchTerm}%,admission_number.ilike.%${searchTerm}%,parent_phone.ilike.%${searchTerm}%`);
       }
 
-      const { data, error } = await query.limit(100);
+      const { data, error, count } = await query;
       if (error) throw error;
-      return data || [];
+      return { data: data || [], count: count || 0 };
     },
     enabled: !!currentOrganization?.id,
   });
+
+  const students = studentsResult?.data || [];
+  const totalCount = studentsResult?.count || 0;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const { data: stats } = useQuery({
     queryKey: ["student-stats", currentOrganization?.id],
@@ -209,7 +227,7 @@ const StudentMaster = () => {
           <Input
             placeholder="Search by name, admission no, or phone..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -221,6 +239,7 @@ const StudentMaster = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[60px]">Sr No</TableHead>
                 <TableHead>Adm. No</TableHead>
                 <TableHead>Student Name</TableHead>
                 <TableHead>Class</TableHead>
@@ -235,13 +254,13 @@ const StudentMaster = () => {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     Loading students...
                   </TableCell>
                 </TableRow>
               ) : students.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     <div className="text-muted-foreground">
                     {searchTerm ? "No students found matching your search" : "No students added yet"}
                     </div>
@@ -258,8 +277,11 @@ const StudentMaster = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                students.map((student: any) => (
+                students.map((student: any, index: number) => (
                   <TableRow key={student.id}>
+                    <TableCell className="font-mono text-sm text-muted-foreground">
+                      {(currentPage - 1) * PAGE_SIZE + index + 1}
+                    </TableCell>
                     <TableCell className="font-mono text-sm">
                       {student.admission_number}
                     </TableCell>
@@ -326,6 +348,40 @@ const StudentMaster = () => {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t border-muted">
+              <span className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} students
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm font-medium px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                  className="gap-1"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
