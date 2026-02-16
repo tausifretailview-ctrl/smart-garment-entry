@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -9,29 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen, SlidersHorizontal, Columns3 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -46,6 +30,8 @@ import { CustomerBalanceImportDialog } from "@/components/CustomerBalanceImportD
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
+import { ColumnDef } from "@tanstack/react-table";
+import { ERPTable } from "@/components/erp-table";
 
 interface Customer {
   id: string;
@@ -91,21 +77,6 @@ const CustomerMaster = () => {
   const [showUpdatePhonesDialog, setShowUpdatePhonesDialog] = useState(false);
   const { orgNavigate: navigate } = useOrgNavigation();
 
-  const [columnVisibility, setColumnVisibility] = useState({
-    srNo: true,
-    mobile: true,
-    email: true,
-    gst: true,
-    openingBalance: true,
-    advance: true,
-    discount: true,
-    status: true,
-  });
-
-  const toggleColumn = (col: keyof typeof columnVisibility) => {
-    setColumnVisibility(prev => ({ ...prev, [col]: !prev[col] }));
-  };
-
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<Customer>();
   const pageContextMenu = useContextMenu<void>();
@@ -116,10 +87,7 @@ const CustomerMaster = () => {
         label: "View Ledger",
         icon: Eye,
         onClick: () => {
-          setSelectedCustomerForHistory({
-            id: customer.id,
-            name: customer.customer_name
-          });
+          setSelectedCustomerForHistory({ id: customer.id, name: customer.customer_name });
           setShowCustomerHistory(true);
         },
       },
@@ -149,10 +117,7 @@ const CustomerMaster = () => {
         label: "Brand Discounts",
         icon: Tag,
         onClick: () => {
-          setSelectedCustomerForBrandDiscount({
-            id: customer.id,
-            name: customer.customer_name
-          });
+          setSelectedCustomerForBrandDiscount({ id: customer.id, name: customer.customer_name });
           setShowBrandDiscountDialog(true);
         },
       },
@@ -181,10 +146,7 @@ const CustomerMaster = () => {
     {
       label: "Add New Customer",
       icon: Plus,
-      onClick: () => {
-        resetForm();
-        setIsDialogOpen(true);
-      },
+      onClick: () => { resetForm(); setIsDialogOpen(true); },
     },
     {
       label: "Add Invoice",
@@ -307,26 +269,17 @@ const CustomerMaster = () => {
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       const normalizedPhone = normalizePhoneNumber(data.phone);
-      
-      if (!normalizedPhone) {
-        throw new Error("Valid phone number is required");
-      }
+      if (!normalizedPhone) throw new Error("Valid phone number is required");
       
       const { data: existingCustomers, error: checkError } = await supabase
         .from("customers")
         .select("id, customer_name, phone")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
-      
       if (checkError) throw checkError;
       
-      const duplicate = existingCustomers?.find(c => 
-        normalizePhoneNumber(c.phone) === normalizedPhone
-      );
-      
-      if (duplicate) {
-        throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
-      }
+      const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
+      if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
@@ -357,10 +310,7 @@ const CustomerMaster = () => {
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       const normalizedPhone = normalizePhoneNumber(data.phone);
-      
-      if (!normalizedPhone) {
-        throw new Error("Valid phone number is required");
-      }
+      if (!normalizedPhone) throw new Error("Valid phone number is required");
       
       const { data: existingCustomers, error: checkError } = await supabase
         .from("customers")
@@ -368,16 +318,10 @@ const CustomerMaster = () => {
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .neq("id", id);
-      
       if (checkError) throw checkError;
       
-      const duplicate = existingCustomers?.find(c => 
-        normalizePhoneNumber(c.phone) === normalizedPhone
-      );
-      
-      if (duplicate) {
-        throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
-      }
+      const duplicate = existingCustomers?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone);
+      if (duplicate) throw new Error(`Customer with this phone already exists: ${duplicate.customer_name || duplicate.phone}`);
       
       const customerData = {
         customer_name: data.customer_name.trim() || normalizedPhone,
@@ -435,15 +379,7 @@ const CustomerMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({
-      customer_name: "",
-      phone: "",
-      email: "",
-      address: "",
-      gst_number: "",
-      opening_balance: "",
-      discount_percent: "",
-    });
+    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "" });
     setEditingCustomer(null);
   };
 
@@ -479,21 +415,9 @@ const CustomerMaster = () => {
   const totalPages = Math.ceil(filteredCount / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedCustomers(new Set(customers.map(c => c.id)));
-    } else {
-      setSelectedCustomers(new Set());
-    }
-  };
-
   const handleSelectCustomer = (customerId: string, checked: boolean) => {
     const newSelected = new Set(selectedCustomers);
-    if (checked) {
-      newSelected.add(customerId);
-    } else {
-      newSelected.delete(customerId);
-    }
+    if (checked) { newSelected.add(customerId); } else { newSelected.delete(customerId); }
     setSelectedCustomers(newSelected);
   };
 
@@ -504,7 +428,6 @@ const CustomerMaster = () => {
     }
   };
 
-  const isAllSelected = customers.length > 0 && customers.every(c => selectedCustomers.has(c.id));
   const isSomeSelected = selectedCustomers.size > 0;
 
   const handleExcelImport = async (
@@ -515,7 +438,6 @@ const CustomerMaster = () => {
       toast({ title: "No organization selected", variant: "destructive" });
       return;
     }
-
     const BATCH_SIZE = 50;
     let successCount = 0;
     let errorCount = 0;
@@ -533,9 +455,7 @@ const CustomerMaster = () => {
       .is("deleted_at", null);
     
     const existingPhones = new Set(
-      (existingCustomers || [])
-        .map(c => normalizePhoneNumber(c.phone))
-        .filter(Boolean)
+      (existingCustomers || []).map(c => normalizePhoneNumber(c.phone)).filter(Boolean)
     );
 
     for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
@@ -544,76 +464,183 @@ const CustomerMaster = () => {
 
       for (const row of batch) {
         const phone = normalizePhoneNumber(row.phone);
-        
-        if (existingPhones.has(phone)) {
-          skippedCount++;
-          continue;
-        }
-
+        if (existingPhones.has(phone)) { skippedCount++; continue; }
         customersToInsert.push({
           customer_name: row.customer_name?.toString().trim() || phone,
-          phone: phone,
-          email: row.email?.toString().trim() || '',
-          address: row.address?.toString().trim() || '',
+          phone, email: row.email?.toString().trim() || '', address: row.address?.toString().trim() || '',
           gst_number: row.gst_number?.toString().trim() || '',
           opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
           organization_id: currentOrganization.id,
         });
-
         existingPhones.add(phone);
       }
 
       if (customersToInsert.length > 0) {
-        const { error } = await supabase
-          .from("customers")
-          .insert(customersToInsert);
-        
-        if (error) {
-          console.error('Batch insert error:', error);
-          errorCount += customersToInsert.length;
-        } else {
-          successCount += customersToInsert.length;
-        }
+        const { error } = await supabase.from("customers").insert(customersToInsert);
+        if (error) { errorCount += customersToInsert.length; } else { successCount += customersToInsert.length; }
       }
 
       if (onProgress) {
-        onProgress({
-          current: Math.min(i + BATCH_SIZE, validRows.length),
-          total: validRows.length,
-          successCount,
-          errorCount,
-          skippedCount,
-          isImporting: true,
-        });
+        onProgress({ current: Math.min(i + BATCH_SIZE, validRows.length), total: validRows.length, successCount, errorCount, skippedCount, isImporting: true });
       }
     }
 
     queryClient.invalidateQueries({ queryKey: ["customers"] });
-    
     const skippedEmptyRows = mappedData.length - validRows.length;
     let description = `${successCount} customers imported`;
     if (skippedCount > 0) description += `, ${skippedCount} duplicates skipped`;
     if (skippedEmptyRows > 0) description += `, ${skippedEmptyRows} empty rows skipped`;
     if (errorCount > 0) description += `, ${errorCount} failed`;
-    
-    toast({
-      title: "Import completed",
-      description,
-    });
+    toast({ title: "Import completed", description });
     setShowExcelImport(false);
   };
+
+  // ERPTable columns for Customer Master
+  const tableColumns = useMemo<ColumnDef<Customer, any>[]>(() => [
+    {
+      id: "select",
+      header: () => (
+        <Checkbox
+          checked={customers.length > 0 && customers.every(c => selectedCustomers.has(c.id))}
+          onCheckedChange={(checked) => {
+            if (checked) { setSelectedCustomers(new Set(customers.map(c => c.id))); }
+            else { setSelectedCustomers(new Set()); }
+          }}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={selectedCustomers.has(row.original.id)}
+          onCheckedChange={(checked) => handleSelectCustomer(row.original.id, !!checked)}
+          aria-label={`Select ${row.original.customer_name}`}
+        />
+      ),
+      size: 48,
+      enableResizing: false,
+    },
+    {
+      id: "srNo",
+      header: "Sr No",
+      cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{startIndex + row.index + 1}</span>,
+      size: 64,
+    },
+    {
+      id: "customer_name",
+      accessorKey: "customer_name",
+      header: "Customer Name",
+      size: 200,
+      cell: ({ row }) => (
+        <span
+          className="font-semibold text-primary cursor-pointer hover:underline"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedCustomerForHistory({ id: row.original.id, name: row.original.customer_name });
+            setShowCustomerHistory(true);
+          }}
+        >
+          {row.original.customer_name}
+        </span>
+      ),
+    },
+    {
+      id: "phone",
+      accessorKey: "phone",
+      header: "Mobile",
+      size: 130,
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue() || "-"}</span>,
+    },
+    {
+      id: "email",
+      accessorKey: "email",
+      header: "Email",
+      size: 180,
+      cell: ({ getValue }) => <span className="text-muted-foreground">{getValue() || "-"}</span>,
+    },
+    {
+      id: "gst_number",
+      accessorKey: "gst_number",
+      header: "GST",
+      size: 160,
+      cell: ({ getValue }) => <span className="tabular-nums">{getValue() || "-"}</span>,
+    },
+    {
+      id: "opening_balance",
+      accessorKey: "opening_balance",
+      header: "Opening Bal.",
+      size: 130,
+      cell: ({ getValue }) => {
+        const val = getValue() as number | null;
+        return <span className="text-right font-medium tabular-nums block">{val ? `₹${val.toLocaleString('en-IN')}` : "-"}</span>;
+      },
+    },
+    {
+      id: "advance",
+      accessorFn: (row) => advanceBalances[row.id] || 0,
+      header: "Advance",
+      size: 120,
+      cell: ({ row }) => {
+        const adv = advanceBalances[row.original.id];
+        return <span className="text-right font-medium tabular-nums block">{adv ? <span className="text-purple-600">₹{Math.round(adv).toLocaleString('en-IN')}</span> : "-"}</span>;
+      },
+    },
+    {
+      id: "discount_percent",
+      accessorKey: "discount_percent",
+      header: "Discount %",
+      size: 100,
+      cell: ({ getValue }) => {
+        const val = getValue() as number | null;
+        return <span className="text-right font-medium tabular-nums block">{val ? `${val}%` : "-"}</span>;
+      },
+    },
+    {
+      id: "status",
+      header: "Status",
+      size: 90,
+      cell: () => (
+        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200">
+          Active
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      size: 160,
+      cell: ({ row }) => {
+        const customer = row.original;
+        return (
+          <div className="flex items-center justify-end gap-0.5">
+            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)} title="Account Ledger">
+              <BookOpen className="h-4 w-4 text-primary" />
+            </button>
+            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => { setSelectedCustomerForBrandDiscount({ id: customer.id, name: customer.customer_name }); setShowBrandDiscountDialog(true); }} title="Brand-wise Discount">
+              <Tag className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center transition" onClick={() => handleEdit(customer)} title="Edit">
+              <Pencil className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <button className="h-8 w-8 rounded-md hover:bg-destructive/10 flex items-center justify-center transition" onClick={() => handleDelete(customer.id)} title="Delete">
+              <Trash2 className="h-4 w-4 text-destructive/70" />
+            </button>
+          </div>
+        );
+      },
+    },
+  ], [customers, selectedCustomers, advanceBalances, startIndex, navigate]);
 
   return (
     <div className="bg-slate-50/50 min-h-screen" onContextMenu={handlePageContextMenu}>
       <div className="space-y-4 p-4">
         <BackToDashboard />
         
-        <div className="bg-white shadow-sm rounded-lg p-5">
-          {/* Page Header - Vasy Style */}
+        <div className="bg-card shadow-sm rounded-lg p-5">
+          {/* Page Header */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
-              <h1 className="text-[20px] font-bold text-slate-800">Customer Master</h1>
-              <span className="text-[12px] text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full font-medium">
+              <h1 className="text-[20px] font-bold text-foreground">Customer Master</h1>
+              <span className="text-[12px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
                 {totalCount.toLocaleString()} records
               </span>
             </div>
@@ -638,10 +665,7 @@ const CustomerMaster = () => {
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
                 Import Customers
               </Button>
-              <Dialog open={isDialogOpen} onOpenChange={(open) => {
-                setIsDialogOpen(open);
-                if (!open) resetForm();
-              }}>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="h-9 text-sm px-4 rounded-md">
                     <Plus className="h-4 w-4 mr-2" />
@@ -655,288 +679,78 @@ const CustomerMaster = () => {
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <Label htmlFor="phone">Mobile Number *</Label>
-                      <Input
-                        id="phone"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        required
-                        autoFocus
-                        placeholder="Enter mobile number"
-                      />
+                      <Input id="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} required autoFocus placeholder="Enter mobile number" />
                     </div>
                     <div>
                       <Label htmlFor="customer_name">Customer Name</Label>
-                      <Input
-                        id="customer_name"
-                        value={formData.customer_name}
-                        onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                        placeholder="Enter customer name (optional)"
-                      />
+                      <Input id="customer_name" value={formData.customer_name} onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })} placeholder="Enter customer name (optional)" />
                     </div>
                     <div>
                       <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      />
+                      <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                     </div>
                     <div>
                       <Label htmlFor="address">Address</Label>
-                      <Textarea
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      />
+                      <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} />
                     </div>
                     <div>
                       <Label htmlFor="gst_number">GST Number</Label>
-                      <Input
-                        id="gst_number"
-                        value={formData.gst_number}
-                        onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })}
-                      />
+                      <Input id="gst_number" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} />
                     </div>
                     <div>
                       <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
-                      <Input
-                        id="opening_balance"
-                        type="number"
-                        step="0.01"
-                        value={formData.opening_balance}
-                        onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })}
-                        placeholder="Receivable from customer"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Positive = Receivable from customer
-                      </p>
+                      <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Receivable from customer" />
+                      <p className="text-xs text-muted-foreground mt-1">Positive = Receivable from customer</p>
                     </div>
                     <div>
                       <Label htmlFor="discount_percent">Discount %</Label>
-                      <Input
-                        id="discount_percent"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        max="100"
-                        value={formData.discount_percent}
-                        onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })}
-                        placeholder="Fixed discount for this customer"
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Auto-applied on POS & invoices
-                      </p>
+                      <Input id="discount_percent" type="number" step="0.01" min="0" max="100" value={formData.discount_percent} onChange={(e) => setFormData({ ...formData, discount_percent: e.target.value })} placeholder="Fixed discount for this customer" />
+                      <p className="text-xs text-muted-foreground mt-1">Auto-applied on POS & invoices</p>
                     </div>
-                    <Button type="submit" className="w-full">
-                      {editingCustomer ? "Update" : "Create"} Customer
-                    </Button>
+                    <Button type="submit" className="w-full">{editingCustomer ? "Update" : "Create"} Customer</Button>
                   </form>
                 </DialogContent>
               </Dialog>
             </div>
           </div>
 
-          {/* Search + Filter Bar */}
+          {/* Search + Bulk Actions */}
           <div className="flex items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search by name, phone, email..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="h-9 text-sm pl-9 rounded-md border"
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name, phone, email..." value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} className="h-9 text-sm pl-9 rounded-md border" />
             </div>
-            
-            {/* Column Filter Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 text-sm px-3 rounded-md gap-2">
-                  <Columns3 className="h-4 w-4" />
-                  Columns
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel>Toggle Columns</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuCheckboxItem checked={columnVisibility.srNo} onCheckedChange={() => toggleColumn('srNo')}>Sr No</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.mobile} onCheckedChange={() => toggleColumn('mobile')}>Mobile</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.email} onCheckedChange={() => toggleColumn('email')}>Email</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.gst} onCheckedChange={() => toggleColumn('gst')}>GST</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.openingBalance} onCheckedChange={() => toggleColumn('openingBalance')}>Opening Bal.</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.advance} onCheckedChange={() => toggleColumn('advance')}>Advance</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.discount} onCheckedChange={() => toggleColumn('discount')}>Discount %</DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem checked={columnVisibility.status} onCheckedChange={() => toggleColumn('status')}>Status</DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             {isSomeSelected && (
-              <Button 
-                variant="destructive" 
-                size="sm" 
-                className="h-9 text-sm px-4 rounded-md"
-                onClick={handleBulkDelete}
-                disabled={bulkDeleteCustomers.isPending}
-              >
+              <Button variant="destructive" size="sm" className="h-9 text-sm px-4 rounded-md" onClick={handleBulkDelete} disabled={bulkDeleteCustomers.isPending}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected ({selectedCustomers.size})
               </Button>
             )}
           </div>
 
-          {/* Table - Vasy ERP Grid Precision */}
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader className="bg-slate-100/80 border-b border-slate-200">
-                <TableRow className="hover:bg-slate-100/80">
-                  <TableHead className="w-12 py-2 px-4 text-[12px] uppercase tracking-wider font-bold text-slate-600">
-                    <Checkbox
-                      checked={isAllSelected}
-                      onCheckedChange={handleSelectAll}
-                      aria-label="Select all"
-                    />
-                  </TableHead>
-                   {columnVisibility.srNo && <TableHead className="w-16 py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Sr No</TableHead>}
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Customer Name</TableHead>
-                   {columnVisibility.mobile && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Mobile</TableHead>}
-                   {columnVisibility.email && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">Email</TableHead>}
-                   {columnVisibility.gst && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600">GST</TableHead>}
-                   {columnVisibility.openingBalance && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Opening Bal.</TableHead>}
-                   {columnVisibility.advance && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Advance</TableHead>}
-                   {columnVisibility.discount && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Discount %</TableHead>}
-                   {columnVisibility.status && <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-center">Status</TableHead>}
-                   <TableHead className="py-2 px-4 text-[12px] uppercase tracking-wider font-semibold text-slate-600 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                     <TableCell colSpan={3 + Object.values(columnVisibility).filter(Boolean).length} className="text-center text-[14px] leading-5 py-8 text-slate-500">Loading...</TableCell>
-                   </TableRow>
-                 ) : customers.length === 0 ? (
-                   <TableRow>
-                     <TableCell colSpan={3 + Object.values(columnVisibility).filter(Boolean).length} className="text-center text-[14px] leading-5 py-8 text-slate-500">No customers found</TableCell>
-                  </TableRow>
-                ) : (
-                  customers.map((customer, index) => (
-                    <TableRow 
-                      key={customer.id}
-                      className="h-12 hover:bg-blue-50/30 transition border-b border-slate-100"
-                      onContextMenu={(e) => handleRowContextMenu(e, customer)}
-                    >
-                      <TableCell className="py-2 px-4">
-                        <Checkbox
-                          checked={selectedCustomers.has(customer.id)}
-                          onCheckedChange={(checked) => handleSelectCustomer(customer.id, !!checked)}
-                          aria-label={`Select ${customer.customer_name}`}
-                        />
-                      </TableCell>
-                       {columnVisibility.srNo && <TableCell className="py-2 px-4 text-[14px] leading-5 font-medium tabular-nums text-slate-500">{startIndex + index + 1}</TableCell>}
-                       <TableCell 
-                         className="py-2 px-4 text-[14px] leading-5 font-semibold text-blue-600 cursor-pointer hover:underline"
-                        onClick={() => {
-                          setSelectedCustomerForHistory({
-                            id: customer.id,
-                            name: customer.customer_name
-                          });
-                          setShowCustomerHistory(true);
-                        }}
-                      >
-                        {customer.customer_name}
-                      </TableCell>
-                       {columnVisibility.mobile && <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-700">{customer.phone || "-"}</TableCell>}
-                       {columnVisibility.email && <TableCell className="py-2 px-4 text-[14px] leading-5 text-slate-600">{customer.email || "-"}</TableCell>}
-                       {columnVisibility.gst && <TableCell className="py-2 px-4 text-[14px] leading-5 tabular-nums text-slate-600">{customer.gst_number || "-"}</TableCell>}
-                       {columnVisibility.openingBalance && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-800">
-                         {customer.opening_balance ? `₹${customer.opening_balance.toLocaleString('en-IN')}` : "-"}
-                       </TableCell>}
-                       {columnVisibility.advance && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums">
-                         {advanceBalances[customer.id] ? (
-                           <span className="text-purple-600">₹{Math.round(advanceBalances[customer.id]).toLocaleString('en-IN')}</span>
-                         ) : "-"}
-                       </TableCell>}
-                       {columnVisibility.discount && <TableCell className="py-2 px-4 text-[14px] leading-5 text-right font-medium tabular-nums text-slate-700">
-                        {customer.discount_percent ? `${customer.discount_percent}%` : "-"}
-                      </TableCell>}
-                      {columnVisibility.status && <TableCell className="py-2 px-4 text-center">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 text-green-700 border border-green-200">
-                          Active
-                        </span>
-                      </TableCell>}
-                      <TableCell className="py-2 px-4 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <button
-                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
-                            onClick={() => navigate("/accounts?tab=customer-ledger&customer=" + customer.id)}
-                            title="Account Ledger"
-                          >
-                            <BookOpen className="h-4 w-4 text-blue-600" />
-                          </button>
-                          <button
-                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
-                            onClick={() => {
-                              setSelectedCustomerForBrandDiscount({
-                                id: customer.id,
-                                name: customer.customer_name
-                              });
-                              setShowBrandDiscountDialog(true);
-                            }}
-                            title="Brand-wise Discount"
-                          >
-                            <Tag className="h-4 w-4 text-slate-500" />
-                          </button>
-                          <button
-                            className="h-8 w-8 rounded-md hover:bg-slate-100 flex items-center justify-center transition"
-                            onClick={() => handleEdit(customer)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4 text-slate-500" />
-                          </button>
-                          <button
-                            className="h-8 w-8 rounded-md hover:bg-red-50 flex items-center justify-center transition"
-                            onClick={() => handleDelete(customer.id)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-400" />
-                          </button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          {/* ERPTable */}
+          <ERPTable
+            tableId="customer_master"
+            columns={tableColumns}
+            data={customers}
+            stickyFirstColumn={false}
+            isLoading={isLoading}
+            emptyMessage="No customers found"
+            defaultColumnVisibility={{}}
+            defaultDensity="comfortable"
+            onRowContextMenu={handleRowContextMenu}
+          />
 
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
-              <p className="text-[13px] text-slate-500">
+              <p className="text-[13px] text-muted-foreground">
                 Showing {startIndex + 1}–{Math.min(startIndex + ITEMS_PER_PAGE, filteredCount)} of {filteredCount.toLocaleString('en-IN')} customers
               </p>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 text-sm rounded-md"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-[13px] text-slate-600 tabular-nums">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 text-sm rounded-md"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
+                <Button variant="outline" size="sm" className="h-9 text-sm rounded-md" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>Previous</Button>
+                <span className="text-[13px] text-muted-foreground tabular-nums">Page {currentPage} of {totalPages}</span>
+                <Button variant="outline" size="sm" className="h-9 text-sm rounded-md" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Next</Button>
               </div>
             </div>
           )}
@@ -954,11 +768,7 @@ const CustomerMaster = () => {
       />
 
       {currentOrganization?.id && (
-        <LegacyInvoiceImportDialog
-          open={showLegacyImport}
-          onOpenChange={setShowLegacyImport}
-          organizationId={currentOrganization.id}
-        />
+        <LegacyInvoiceImportDialog open={showLegacyImport} onOpenChange={setShowLegacyImport} organizationId={currentOrganization.id} />
       )}
 
       <CustomerHistoryDialog
@@ -969,26 +779,10 @@ const CustomerMaster = () => {
         organizationId={currentOrganization?.id || ''}
       />
 
-      <RelinkLegacyInvoicesDialog
-        open={showRelinkDialog}
-        onOpenChange={setShowRelinkDialog}
-      />
-
-      <UpdateLegacyPhonesDialog
-        open={showUpdatePhonesDialog}
-        onOpenChange={setShowUpdatePhonesDialog}
-      />
-
-      <BrandDiscountDialog
-        open={showBrandDiscountDialog}
-        onOpenChange={setShowBrandDiscountDialog}
-        customer={selectedCustomerForBrandDiscount}
-      />
-
-      <CustomerBalanceImportDialog
-        open={showBalanceImport}
-        onOpenChange={setShowBalanceImport}
-      />
+      <RelinkLegacyInvoicesDialog open={showRelinkDialog} onOpenChange={setShowRelinkDialog} />
+      <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
+      <BrandDiscountDialog open={showBrandDiscountDialog} onOpenChange={setShowBrandDiscountDialog} customer={selectedCustomerForBrandDiscount} />
+      <CustomerBalanceImportDialog open={showBalanceImport} onOpenChange={setShowBalanceImport} />
 
       {isDesktop && (
         <>

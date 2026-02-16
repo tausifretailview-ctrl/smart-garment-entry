@@ -1,17 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -24,6 +16,8 @@ import { Search, Barcode } from "lucide-react";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { format } from "date-fns";
+import { ColumnDef } from "@tanstack/react-table";
+import { ERPTable } from "@/components/erp-table";
 
 interface MovementRecord {
   id: string;
@@ -40,6 +34,111 @@ interface MovementRecord {
   category: string;
   brand: string;
 }
+
+const columns: ColumnDef<MovementRecord, any>[] = [
+  {
+    id: "date",
+    accessorKey: "created_at",
+    header: "Date & Time",
+    size: 160,
+    cell: ({ getValue }) => (
+      <span className="font-mono text-sm">
+        {format(new Date(getValue()), "dd/MM/yyyy HH:mm")}
+      </span>
+    ),
+  },
+  {
+    id: "barcode",
+    accessorKey: "barcode",
+    header: "Barcode",
+    size: 140,
+    cell: ({ getValue }) => (
+      <span className="font-mono font-semibold">{getValue() || "N/A"}</span>
+    ),
+  },
+  {
+    id: "product_name",
+    accessorKey: "product_name",
+    header: "Product Name",
+    size: 200,
+    cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+  },
+  {
+    id: "size",
+    accessorKey: "size",
+    header: "Size",
+    size: 80,
+  },
+  {
+    id: "type",
+    accessorKey: "movement_type",
+    header: "Type",
+    size: 100,
+    cell: ({ getValue }) => {
+      const type = getValue() as string;
+      return (
+        <span
+          className={`px-2 py-1 rounded-full text-xs font-medium ${
+            type === "purchase"
+              ? "bg-green-100 text-green-700"
+              : "bg-red-100 text-red-700"
+          }`}
+        >
+          {type === "purchase" ? "Purchase" : "Sale"}
+        </span>
+      );
+    },
+  },
+  {
+    id: "bill_number",
+    accessorKey: "bill_number",
+    header: "Bill Number",
+    size: 130,
+    cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
+  },
+  {
+    id: "credit",
+    accessorFn: (row) => (row.movement_type === "purchase" ? row.quantity : null),
+    header: "Credit (In)",
+    size: 100,
+    cell: ({ getValue }) => (
+      <span className="text-right font-semibold text-green-600 block">
+        {getValue() != null ? getValue() : "-"}
+      </span>
+    ),
+  },
+  {
+    id: "debit",
+    accessorFn: (row) => (row.movement_type === "sale" ? Math.abs(row.quantity) : null),
+    header: "Debit (Out)",
+    size: 100,
+    cell: ({ getValue }) => (
+      <span className="text-right font-semibold text-red-600 block">
+        {getValue() != null ? getValue() : "-"}
+      </span>
+    ),
+  },
+  {
+    id: "balance",
+    accessorKey: "running_balance",
+    header: "Balance",
+    size: 100,
+    cell: ({ getValue }) => (
+      <span className="text-right font-bold block">{getValue()}</span>
+    ),
+  },
+  {
+    id: "notes",
+    accessorKey: "notes",
+    header: "Notes",
+    size: 200,
+    cell: ({ getValue }) => (
+      <span className="text-sm text-muted-foreground truncate max-w-xs block">
+        {getValue() as string}
+      </span>
+    ),
+  },
+];
 
 const ProductTrackingReport = () => {
   const { currentOrganization } = useOrganization();
@@ -100,7 +199,6 @@ const ProductTrackingReport = () => {
 
       if (error) throw error;
 
-      // Calculate running balance for each product variant
       const movementsByVariant: { [key: string]: MovementRecord[] } = {};
       
       data?.forEach((movement: any) => {
@@ -117,7 +215,7 @@ const ProductTrackingReport = () => {
         if (movement.movement_type === 'purchase') {
           runningBalance += movement.quantity;
         } else if (movement.movement_type === 'sale') {
-          runningBalance += movement.quantity; // quantity is already negative from database
+          runningBalance += movement.quantity;
         }
 
         movementsByVariant[variantId].push({
@@ -137,13 +235,11 @@ const ProductTrackingReport = () => {
         });
       });
 
-      // Flatten all movements
       const allMovements: MovementRecord[] = [];
       Object.values(movementsByVariant).forEach(variantMovements => {
         allMovements.push(...variantMovements);
       });
 
-      // Sort by date descending (latest first)
       allMovements.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setMovements(allMovements);
@@ -215,7 +311,6 @@ const ProductTrackingReport = () => {
     setItemsPerPage(Number(value));
   };
 
-  // Get unique categories and brands for filters
   const uniqueCategories = Array.from(new Set(movements.map(m => m.category).filter(Boolean)));
   const uniqueBrands = Array.from(new Set(movements.map(m => m.brand).filter(Boolean)));
 
@@ -346,72 +441,17 @@ const ProductTrackingReport = () => {
           </div>
         </Card>
 
-        {/* Movements Table */}
+        {/* Movements Table - ERPTable */}
         <Card>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date & Time</TableHead>
-                  <TableHead>Barcode</TableHead>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Bill Number</TableHead>
-                  <TableHead className="text-right">Credit (In)</TableHead>
-                  <TableHead className="text-right">Debit (Out)</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedMovements.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                      No movement records found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  paginatedMovements.map((movement) => (
-                    <TableRow key={movement.id}>
-                      <TableCell className="font-mono text-sm">
-                        {format(new Date(movement.created_at), "dd/MM/yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell className="font-mono font-semibold">
-                        {movement.barcode || "N/A"}
-                      </TableCell>
-                      <TableCell className="font-medium">{movement.product_name}</TableCell>
-                      <TableCell>{movement.size}</TableCell>
-                      <TableCell>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            movement.movement_type === "purchase"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {movement.movement_type === "purchase" ? "Purchase" : "Sale"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono">{movement.bill_number}</TableCell>
-                      <TableCell className="text-right font-semibold text-green-600">
-                        {movement.movement_type === "purchase" ? movement.quantity : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-red-600">
-                        {movement.movement_type === "sale" ? Math.abs(movement.quantity) : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {movement.running_balance}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                        {movement.notes}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ERPTable
+            tableId="product_tracking"
+            columns={columns}
+            data={paginatedMovements}
+            stickyFirstColumn={true}
+            isLoading={loading}
+            emptyMessage="No movement records found"
+            defaultColumnVisibility={{}}
+          />
 
           {/* Pagination */}
           {filteredMovements.length > 0 && (
