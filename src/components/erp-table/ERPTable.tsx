@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, Fragment } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,6 +29,7 @@ import { DraggableHeader } from "./DraggableHeader";
 import { ERPTableToolbar } from "./ERPTableToolbar";
 import { useERPTablePersistence, ERPTableDensity } from "./useERPTablePersistence";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 export interface ERPTableProps<T> {
   tableId: string;
@@ -44,6 +45,14 @@ export interface ERPTableProps<T> {
   emptyMessage?: string;
   showToolbar?: boolean;
   className?: string;
+  /** Renders expandable content below a row */
+  renderSubRow?: (row: T) => React.ReactNode;
+  /** Externally controlled expanded state */
+  expandedRows?: Set<string>;
+  /** Callback when expand toggled */
+  onToggleExpand?: (id: string) => void;
+  /** Extract unique ID from row data */
+  getRowId?: (row: T) => string;
 }
 
 export function ERPTable<T>({
@@ -53,13 +62,17 @@ export function ERPTable<T>({
   stickyFirstColumn = true,
   footerRow,
   defaultColumnVisibility,
-  defaultDensity = "comfortable",
+  defaultDensity = "compact",
   onRowClick,
   onRowContextMenu,
   isLoading = false,
   emptyMessage = "No data found",
   showToolbar = true,
   className,
+  renderSubRow,
+  expandedRows,
+  onToggleExpand,
+  getRowId,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
 
@@ -120,7 +133,9 @@ export function ERPTable<T>({
     [headerGroups]
   );
 
+  const visibleColumnCount = headerIds.length;
   const rowHeight = persistence.density === "compact" ? "h-10" : "h-14";
+  const hasSubRows = !!renderSubRow;
 
   return (
     <div className={cn("space-y-0", className)}>
@@ -176,39 +191,58 @@ export function ERPTable<T>({
                 ) : rows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={headerIds.length}
+                      colSpan={visibleColumnCount}
                       className="text-center py-12 text-muted-foreground text-[15px]"
                     >
                       {emptyMessage}
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
-                    <tr
-                      key={row.id}
-                      className={cn(
-                        rowHeight,
-                        "border-b border-muted/80 hover:bg-primary/5 transition-colors",
-                        onRowClick && "cursor-pointer"
-                      )}
-                      onClick={() => onRowClick?.(row.original)}
-                      onContextMenu={(e) => onRowContextMenu?.(e, row.original)}
-                    >
-                      {row.getVisibleCells().map((cell, idx) => (
-                        <td
-                          key={cell.id}
-                          style={{ width: cell.column.getSize() }}
+                  rows.map((row) => {
+                    const rowId = getRowId ? getRowId(row.original) : row.id;
+                    const isExpanded = hasSubRows && expandedRows?.has(rowId);
+
+                    return (
+                      <Fragment key={row.id}>
+                        <tr
                           className={cn(
-                            "text-[15px] border-b border-muted/80",
-                            persistence.density === "compact" ? "px-3 py-1.5" : "px-5 py-4",
-                            stickyFirstColumn && idx === 0 && "erp-table-sticky-col bg-card"
+                            rowHeight,
+                            "border-b border-muted/80 hover:bg-primary/5 transition-colors",
+                            onRowClick && "cursor-pointer",
+                            hasSubRows && "cursor-pointer"
                           )}
+                          onClick={() => {
+                            if (hasSubRows && onToggleExpand) {
+                              onToggleExpand(rowId);
+                            }
+                            onRowClick?.(row.original);
+                          }}
+                          onContextMenu={(e) => onRowContextMenu?.(e, row.original)}
                         >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))
+                          {row.getVisibleCells().map((cell, idx) => (
+                            <td
+                              key={cell.id}
+                              style={{ width: cell.column.getSize() }}
+                              className={cn(
+                                "text-[15px] border-b border-muted/80",
+                                persistence.density === "compact" ? "px-3 py-1.5" : "px-5 py-4",
+                                stickyFirstColumn && idx === 0 && "erp-table-sticky-col bg-card"
+                              )}
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                        {isExpanded && renderSubRow && (
+                          <tr>
+                            <td colSpan={visibleColumnCount} className="bg-muted/20 p-0">
+                              {renderSubRow(row.original)}
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })
                 )}
               </tbody>
 
