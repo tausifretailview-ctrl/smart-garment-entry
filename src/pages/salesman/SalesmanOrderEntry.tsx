@@ -289,7 +289,7 @@ const SalesmanOrderEntry = () => {
         .eq("organization_id", currentOrganization.id)
         .eq("status", "active")
         .is("deleted_at", null)
-        .or(`product_name.ilike.%${term}%,style.ilike.%${term}%`)
+        .or(`product_name.ilike.%${term}%,style.ilike.%${term}%,brand.ilike.%${term}%,category.ilike.%${term}%`)
         .limit(20);
 
       if (productsError) {
@@ -308,7 +308,7 @@ const SalesmanOrderEntry = () => {
         `)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
-        .ilike("barcode", `%${term}%`)
+        .or(`barcode.ilike.%${term}%,color.ilike.%${term}%`)
         .gt("stock_qty", 0)
         .limit(20);
 
@@ -367,7 +367,18 @@ const SalesmanOrderEntry = () => {
         { productName: 'product.product_name' }
       );
 
-      setProducts(sortedProducts);
+      // Multi-term client-side filtering
+      const searchTerms = term.toLowerCase().split(/\s+/).filter(Boolean);
+      const filtered = searchTerms.length > 1
+        ? sortedProducts.filter(({ product, variants }) => {
+            const haystack = `${product.product_name} ${product.brand || ''} ${product.category || ''}`.toLowerCase();
+            const variantHaystack = variants.map(v => `${v.color} ${v.size} ${v.barcode}`).join(' ').toLowerCase();
+            const combined = `${haystack} ${variantHaystack}`;
+            return searchTerms.every(t => combined.includes(t));
+          })
+        : sortedProducts;
+
+      setProducts(filtered);
     } catch (error) {
       console.error("Product search error:", error);
       setProducts([]);
@@ -621,9 +632,11 @@ const SalesmanOrderEntry = () => {
             placeholder="Search product or scan barcode..."
             value={productSearch}
             onChange={(e) => {
-              setProductSearch(e.target.value);
-              searchProducts(e.target.value);
+              const val = e.target.value;
+              setProductSearch(val);
               setShowProductSearch(true);
+              if ((window as any).__salesmanSearchTimer) clearTimeout((window as any).__salesmanSearchTimer);
+              (window as any).__salesmanSearchTimer = setTimeout(() => searchProducts(val), 300);
             }}
             onFocus={() => setShowProductSearch(true)}
             className="pl-10 h-12"
