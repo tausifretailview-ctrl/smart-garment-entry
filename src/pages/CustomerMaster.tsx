@@ -642,15 +642,28 @@ const CustomerMaster = () => {
         <BackToDashboard />
         
         <div className="bg-card shadow-sm rounded-lg p-5">
-          {/* Page Header */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
+          {/* Single-line Header: Title + Search + Tools + Add */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-3 shrink-0">
               <h1 className="text-[20px] font-bold text-foreground">Customer Master</h1>
               <span className="text-[12px] text-muted-foreground bg-muted px-2.5 py-1 rounded-full font-medium">
                 {totalCount.toLocaleString()} records
               </span>
             </div>
-            <div className="flex gap-2 items-center">
+
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name, phone, email..." value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} className="h-9 text-sm pl-9 rounded-md border" />
+            </div>
+
+            {isSomeSelected && (
+              <Button variant="destructive" size="sm" className="h-9 text-sm px-4 rounded-md shrink-0" onClick={handleBulkDelete} disabled={bulkDeleteCustomers.isPending}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected ({selectedCustomers.size})
+              </Button>
+            )}
+
+            <div className="flex gap-2 items-center ml-auto shrink-0">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="h-9 text-sm px-4 rounded-md">
@@ -731,19 +744,6 @@ const CustomerMaster = () => {
             </div>
           </div>
 
-          {/* Search + Bulk Actions */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name, phone, email..." value={searchQuery} onChange={(e) => handleSearchChange(e.target.value)} className="h-9 text-sm pl-9 rounded-md border" />
-            </div>
-            {isSomeSelected && (
-              <Button variant="destructive" size="sm" className="h-9 text-sm px-4 rounded-md" onClick={handleBulkDelete} disabled={bulkDeleteCustomers.isPending}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete Selected ({selectedCustomers.size})
-              </Button>
-            )}
-          </div>
 
           {/* ERPTable */}
           <ERPTable
