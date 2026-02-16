@@ -68,13 +68,13 @@ All colors MUST be HSL.
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
     --shadow-card: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 
-    /* ERP Design Tokens */
+  /* ERP Design Tokens */
     --erp-radius: 0.375rem;
-    --erp-card-padding: 1.25rem;
-    --erp-section-gap: 1.5rem;
-    --erp-form-gap: 1rem;
-    --erp-row-height: 3rem;
-    --erp-input-height: 2.5rem;
+    --erp-card-padding: 1.5rem;
+    --erp-section-gap: 2rem;
+    --erp-form-gap: 1.5rem;
+    --erp-row-height: 3.5rem;
+    --erp-input-height: 2.75rem;
 
     /* Dark slate sidebar */
     --sidebar-background: 222 47% 11%;
@@ -274,13 +274,13 @@ All colors MUST be HSL.
 
 
 
-  /* Sidebar menu item height - Professional ERP density */
+  /* Sidebar menu item height - Full View ERP density */
   [data-sidebar="menu-button"] {
-    @apply h-11 text-[14px];
+    @apply h-12 text-[15px];
   }
 
   [data-sidebar="menu-sub-button"] {
-    @apply h-10 text-[14px];
+    @apply h-11 text-[15px];
   }
 
   /* Card padding standard */
@@ -289,12 +289,17 @@ All colors MUST be HSL.
   }
 
   /* Table density for ERP - Full View */
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
   table th {
-    @apply text-[12px] uppercase tracking-wider font-semibold px-4 py-3;
+    @apply text-[13px] uppercase tracking-wider font-semibold px-5 py-4;
   }
 
   table td {
-    @apply text-[14px] px-4 py-3 border-b border-muted;
+    @apply text-[15px] px-5 py-4 border-b border-muted;
   }
 
   table tbody tr {
@@ -313,8 +318,13 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    font-size: 16px;
+  }
+
   body {
-    @apply bg-background text-foreground text-[15px] leading-relaxed antialiased;
+    @apply bg-background text-foreground text-[16px] antialiased;
+    line-height: 1.6;
   }
 }
 
@@ -381,41 +391,41 @@ All colors MUST be HSL.
     box-shadow: 0 0 30px hsl(var(--primary) / 0.4);
   }
 
-  /* ERP Typography Utilities */
+  /* ERP Typography Utilities - Full View Scale */
   .erp-page-title {
-    @apply text-2xl font-bold tracking-tight;
+    @apply text-[26px] font-bold tracking-tight;
   }
 
   .erp-section-title {
-    @apply text-lg font-semibold;
+    @apply text-[20px] font-semibold;
   }
 
   .erp-table-header {
-    @apply text-[12px] uppercase tracking-wider font-semibold;
+    @apply text-[13px] uppercase tracking-wider font-semibold;
   }
 
   .erp-table-data {
-    @apply text-[14px];
+    @apply text-[15px];
   }
 
   .erp-financial {
-    @apply text-[14px] font-medium text-right tabular-nums;
+    @apply text-[15px] font-medium text-right tabular-nums;
   }
 
   .erp-customer-name {
-    @apply text-[14px] font-semibold;
+    @apply text-[15px] font-semibold;
   }
 
   .erp-form-label {
-    @apply text-[13px] font-medium;
+    @apply text-[14px] font-medium;
   }
 
   .erp-badge {
-    @apply text-[11px] font-semibold;
+    @apply text-[13px] font-semibold;
   }
 
   .erp-kpi-value {
-    @apply text-2xl font-bold tracking-tight;
+    @apply text-[28px] font-bold tracking-tight;
   }
 
   /* Active state indicator */
