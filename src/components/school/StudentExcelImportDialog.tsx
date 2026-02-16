@@ -172,17 +172,29 @@ export const StudentExcelImportDialog = ({
       return date.toISOString().split("T")[0];
     }
     
-    // If it's a string, try to parse it
     const str = String(value).trim();
-    if (!str) return undefined;
+    if (!str || str.toLowerCase() === "nan" || str.toLowerCase() === "null") return undefined;
     
-    // Try common date formats
+    // Try DD/MM/YYYY format first (most common in Indian Excel files)
+    const ddmmyyyy = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (ddmmyyyy) {
+      const [, day, month, year] = ddmmyyyy;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+    
+    // Try YYYY-MM-DD (ISO format)
+    const iso = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (iso) {
+      return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
+    }
+    
+    // Fallback: try native Date parsing
     const parsed = new Date(str);
     if (!isNaN(parsed.getTime())) {
       return parsed.toISOString().split("T")[0];
     }
     
-    return str; // Return as-is if can't parse
+    return undefined; // Return undefined instead of unparseable string
   };
 
   // Find class ID by name
