@@ -1,6 +1,5 @@
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, Download, FileX } from "lucide-react";
@@ -13,7 +12,6 @@ import { ProfessionalTemplate } from "@/components/invoice-templates/Professiona
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
   
-  // Update OG meta tags
   const ogTitle = document.querySelector('meta[property="og:title"]');
   const ogDesc = document.querySelector('meta[property="og:description"]');
   const ogUrl = document.querySelector('meta[property="og:url"]');
@@ -31,63 +29,38 @@ export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
   const printRef = useRef<HTMLDivElement>(null);
 
-  // Fetch sale data
-  const { data: sale, isLoading: saleLoading, error: saleError } = useQuery({
-    queryKey: ['public-sale', saleId],
+  // Fetch sanitized invoice data via secure edge function
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['public-invoice', saleId],
     queryFn: async () => {
       if (!saleId) return null;
-      const { data, error } = await supabase
-        .from('sales')
-        .select(`*, sale_items (*)`)
-        .eq('id', saleId)
-        .is('deleted_at', null) // Exclude soft-deleted invoices
-        .maybeSingle(); // Use maybeSingle to avoid error when not found
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-public-invoice?saleId=${saleId}`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+        }
+      );
       
-      if (error) throw error;
-      return data;
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch invoice');
+      }
+      
+      return response.json();
     },
     enabled: !!saleId,
   });
 
-  // Fetch organization settings
-  const { data: settings, isLoading: settingsLoading } = useQuery({
-    queryKey: ['public-settings', sale?.organization_id],
-    queryFn: async () => {
-      if (!sale?.organization_id) return null;
-      const { data, error } = await supabase
-        .from('settings')
-        .select('*')
-        .eq('organization_id', sale.organization_id)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!sale?.organization_id,
-  });
+  const sale = data?.sale;
+  const settings = data?.settings;
+  const organization = data?.organization;
 
-  // Fetch organization for slug
-  const { data: organization } = useQuery({
-    queryKey: ['public-organization', sale?.organization_id],
-    queryFn: async () => {
-      if (!sale?.organization_id) return null;
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('slug, name')
-        .eq('id', sale.organization_id)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!sale?.organization_id,
-  });
-
-  // Update meta tags when settings load
+  // Update meta tags when data loads
   useEffect(() => {
     if (settings?.business_name && sale?.sale_number) {
-      const logoUrl = (settings?.sale_settings as any)?.invoiceLogo || '';
-      updateMetaTags(settings.business_name, sale.sale_number, organization?.slug, logoUrl);
+      updateMetaTags(settings.business_name, sale.sale_number, organization?.slug, settings.invoiceLogo);
     }
   }, [settings, sale, organization]);
 
@@ -96,7 +69,7 @@ export default function PublicInvoiceView() {
     documentTitle: sale?.sale_number || "Invoice",
   });
 
-  if (saleLoading || settingsLoading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
@@ -107,7 +80,7 @@ export default function PublicInvoiceView() {
     );
   }
 
-  if (saleError || !sale) {
+  if (error || !sale) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
         <Card className="p-8 max-w-md text-center">
@@ -122,7 +95,6 @@ export default function PublicInvoiceView() {
   }
 
   const saleItems = sale.sale_items || [];
-  const totalQty = saleItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 md:p-8">
@@ -147,13 +119,13 @@ export default function PublicInvoiceView() {
             mobile={settings?.mobile_number || ""}
             email={settings?.email_id || ""}
             gstNumber={settings?.gst_number || ""}
-            logoUrl={(settings?.sale_settings as any)?.invoiceLogo || ""}
+            logoUrl={settings?.invoiceLogo || ""}
             logoPlacement="left"
             invoiceNumber={sale.sale_number}
             invoiceDate={new Date(sale.sale_date)}
             customerName={sale.customer_name}
-            customerAddress={sale.customer_address || ""}
-            customerMobile={sale.customer_phone || ""}
+            customerAddress=""
+            customerMobile=""
             customerGSTIN=""
             items={saleItems.map((item: any, index: number) => ({
               sr: index + 1,

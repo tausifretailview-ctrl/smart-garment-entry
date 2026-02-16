@@ -189,6 +189,7 @@ export type Database = {
           metadata: Json | null
           new_values: Json | null
           old_values: Json | null
+          organization_id: string | null
           user_agent: string | null
           user_email: string | null
           user_id: string | null
@@ -203,6 +204,7 @@ export type Database = {
           metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
+          organization_id?: string | null
           user_agent?: string | null
           user_email?: string | null
           user_id?: string | null
@@ -217,11 +219,27 @@ export type Database = {
           metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
+          organization_id?: string | null
           user_agent?: string | null
           user_email?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
       }
       backup_logs: {
         Row: {
@@ -5680,6 +5698,7 @@ export type Database = {
         Args: { p_date?: string; p_type: string }
         Returns: string
       }
+      get_org_public_info: { Args: { p_slug: string }; Returns: Json }
       get_org_whatsapp_stats: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: {
