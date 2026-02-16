@@ -285,7 +285,7 @@ All colors MUST be HSL.
 
   /* Card padding standard */
   .card {
-    @apply p-5;
+    @apply p-6;
   }
 
   /* Table density for ERP - Full View */
@@ -299,17 +299,17 @@ All colors MUST be HSL.
   }
 
   table td {
-    @apply text-[15px] px-5 py-4 border-b border-muted;
+    @apply text-[15px] px-5 py-4 border-b border-muted/80;
   }
 
   table tbody tr {
-    @apply hover:bg-muted/50 transition-colors;
+    @apply hover:bg-primary/5 transition-colors;
   }
 }
 
 /* Sidebar Active Indicator Bar */
 [data-sidebar="menu-button"][data-active="true"] {
-  border-left: 3px solid hsl(var(--sidebar-primary));
+  border-left: 4px solid hsl(var(--sidebar-primary));
   background: hsl(var(--sidebar-accent));
 }
 
@@ -409,7 +409,7 @@ All colors MUST be HSL.
   }
 
   .erp-financial {
-    @apply text-[15px] font-medium text-right tabular-nums;
+    @apply text-[15px] font-medium text-right tabular-nums tracking-tight;
   }
 
   .erp-customer-name {
