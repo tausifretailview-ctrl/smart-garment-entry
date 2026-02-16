@@ -542,8 +542,8 @@ const PurchaseReturnDashboard = () => {
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
+                  <TableRow className="h-10">
+                    <TableHead className="w-8 px-2 py-1.5">
                       <input
                         type="checkbox"
                         checked={selectedReturns.size === filteredReturns.length}
@@ -551,17 +551,17 @@ const PurchaseReturnDashboard = () => {
                         className="rounded"
                       />
                     </TableHead>
-                    <TableHead>Return No.</TableHead>
-                    <TableHead>Return Date</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Original Bill</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Gross Amount</TableHead>
-                    <TableHead className="text-right">GST</TableHead>
-                    <TableHead className="text-right">Net Amount</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Credit Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Ret. No.</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Date</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Supplier</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Orig. Bill</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Qty</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Gross Amt</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px] text-right">GST</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Net Amt</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Notes</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px]">Status</TableHead>
+                    <TableHead className="px-2 py-1.5 text-[13px] text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -569,10 +569,10 @@ const PurchaseReturnDashboard = () => {
                     <>
                       <TableRow 
                         key={returnRecord.id} 
-                        className="hover:bg-muted/50 cursor-pointer"
+                        className="hover:bg-muted/50 cursor-pointer h-10"
                         onClick={() => toggleExpanded(returnRecord.id)}
                       >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedReturns.has(returnRecord.id)}
@@ -580,15 +580,15 @@ const PurchaseReturnDashboard = () => {
                             className="rounded"
                           />
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary" className="font-medium">
+                        <TableCell className="px-2 py-1.5 text-sm">
+                          <Badge variant="secondary" className="font-medium text-xs px-1.5 py-0.5">
                             {returnRecord.return_number || "-"}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="px-2 py-1.5 text-sm whitespace-nowrap">
                           {format(new Date(returnRecord.return_date), "dd MMM yyyy")}
                         </TableCell>
-                        <TableCell className="font-medium">
+                        <TableCell className="px-2 py-1.5 text-sm font-medium max-w-[160px] truncate">
                           <span 
                             className={returnRecord.supplier_id ? "cursor-pointer text-blue-600 hover:underline" : ""}
                             onClick={(e) => {
@@ -602,100 +602,105 @@ const PurchaseReturnDashboard = () => {
                             {returnRecord.supplier_name}
                           </span>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
+                        <TableCell className="px-2 py-1.5 text-sm">
+                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
                             {returnRecord.original_bill_number || "N/A"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="px-2 py-1.5 text-sm text-right font-medium tabular-nums">
                           {returnRecord.total_qty || 0}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums">
                           ₹{returnRecord.gross_amount.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums">
                           ₹{returnRecord.gst_amount.toFixed(2)}
                         </TableCell>
-                        <TableCell className="text-right font-semibold">
+                        <TableCell className="px-2 py-1.5 text-sm text-right font-semibold tabular-nums text-primary">
                           ₹{returnRecord.net_amount.toFixed(2)}
                         </TableCell>
-                        <TableCell className="max-w-xs truncate">
+                        <TableCell className="px-2 py-1.5 text-sm max-w-[120px] truncate">
                           {returnRecord.notes || "-"}
                         </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                           {returnRecord.credit_status === 'pending' && (
-                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
+                            <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300 text-xs px-1.5 py-0">
                               Pending
                             </Badge>
                           )}
                           {returnRecord.credit_status === 'adjusted' && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 text-xs px-1.5 py-0">
                               Adjusted
                             </Badge>
                           )}
                           {returnRecord.credit_status === 'refunded' && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300 text-xs px-1.5 py-0">
                               Refunded
                             </Badge>
                           )}
                           {returnRecord.credit_status === 'adjusted_outstanding' && (
-                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300">
-                              Adjusted (Outstanding)
+                            <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-300 text-xs px-1.5 py-0">
+                              Adj. (O/S)
                             </Badge>
                           )}
                           {!returnRecord.credit_status && (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-end gap-1">
+                        <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-0.5">
                             {(returnRecord.credit_status === 'pending' || !returnRecord.credit_status) && (
                               <Button
                                 variant="ghost"
-                                size="sm"
+                                size="icon"
+                                className="h-7 w-7"
                                 onClick={() => {
                                   setSelectedReturnForAdjust(returnRecord);
                                   setShowAdjustDialog(true);
                                 }}
                                 title="Adjust Credit Note"
                               >
-                                <CreditCard className="h-4 w-4 text-purple-600" />
+                                <CreditCard className="h-3.5 w-3.5 text-purple-600" />
                               </Button>
                             )}
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => navigate(`/purchase-return-entry?edit=${returnRecord.id}`)}
-                              title="Edit Return"
+                              title="Edit"
                             >
-                              <Edit className="h-4 w-4 text-blue-600" />
+                              <Edit className="h-3.5 w-3.5 text-blue-600" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => handlePrintPreviewClick(returnRecord)}
-                              title="Print Preview"
+                              title="Preview"
                             >
-                              <Eye className="h-4 w-4 text-green-600" />
+                              <Eye className="h-3.5 w-3.5 text-green-600" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => handlePrintClick(returnRecord)}
-                              title="Print Return Receipt"
+                              title="Print"
                             >
-                              <Printer className="h-4 w-4 text-primary" />
+                              <Printer className="h-3.5 w-3.5 text-primary" />
                             </Button>
                             <Button
                               variant="ghost"
-                              size="sm"
+                              size="icon"
+                              className="h-7 w-7"
                               onClick={() => toggleExpanded(returnRecord.id)}
                               title={expandedReturns.has(returnRecord.id) ? "Collapse" : "Expand"}
                             >
                               {expandedReturns.has(returnRecord.id) ? (
-                                <ChevronUp className="h-4 w-4" />
+                                <ChevronUp className="h-3.5 w-3.5" />
                               ) : (
-                                <ChevronDown className="h-4 w-4" />
+                                <ChevronDown className="h-3.5 w-3.5" />
                               )}
                             </Button>
                           </div>
