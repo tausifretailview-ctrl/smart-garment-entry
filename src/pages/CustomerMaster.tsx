@@ -754,7 +754,7 @@ const CustomerMaster = () => {
             isLoading={isLoading}
             emptyMessage="No customers found"
             defaultColumnVisibility={{}}
-            defaultDensity="comfortable"
+            defaultDensity="compact"
             onRowContextMenu={handleRowContextMenu}
           />
 
