@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -1259,8 +1260,8 @@ const PurchaseBillDashboard = () => {
 
         <Card className="p-6">
           <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <div className="relative flex-1 min-w-[200px]">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by bill no, supplier, barcode..."
@@ -1293,6 +1294,7 @@ const PurchaseBillDashboard = () => {
                   <SelectItem value="asc">Oldest First (ASC)</SelectItem>
                 </SelectContent>
               </Select>
+              <div id="erp-toolbar-portal-purchase" className="flex items-center gap-2 ml-auto" />
             </div>
             {filteredBills.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
@@ -1313,6 +1315,11 @@ const PurchaseBillDashboard = () => {
                 onToggleExpand={handleToggleExpand}
                 getRowId={(bill) => bill.id}
                 onRowContextMenu={handleRowContextMenu}
+                showToolbar={false}
+                renderToolbar={(toolbar) => {
+                  const el = document.getElementById('erp-toolbar-portal-purchase');
+                  return el ? createPortal(toolbar, el) : toolbar;
+                }}
               />
             )}
           </div>

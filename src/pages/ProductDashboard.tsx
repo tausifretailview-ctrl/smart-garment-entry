@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -1119,8 +1120,8 @@ const ProductDashboard = () => {
                 </Button>
               </div>
 
-              <div className="flex items-center gap-2 flex-1 max-w-md">
-                <div className="relative flex-1">
+              <div className="flex items-center gap-2 flex-1">
+                <div className="relative flex-1 max-w-sm">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by name, brand, barcode..."
@@ -1129,14 +1130,17 @@ const ProductDashboard = () => {
                     className="pl-9"
                   />
                 </div>
-                <Button
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => navigate("/product-entry")}
-                >
-                  <Plus className="h-4 w-4" />
-                  Create New
-                </Button>
+                <div id="erp-toolbar-portal-product" className="flex items-center gap-2" />
+                <div className="ml-auto">
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => navigate("/product-entry")}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create New
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1398,7 +1402,7 @@ const ProductDashboard = () => {
                 <p className="text-sm">Add your first product to get started</p>
               </div>
             ) : (
-              <ERPTable<ProductRow>
+               <ERPTable<ProductRow>
                 tableId="product_list"
                 columns={productColumns}
                 data={paginatedRows}
@@ -1409,6 +1413,11 @@ const ProductDashboard = () => {
                 onToggleExpand={toggleExpanded}
                 getRowId={(row) => row.product_id}
                 onRowContextMenu={handleRowContextMenu}
+                showToolbar={false}
+                renderToolbar={(toolbar) => {
+                  const el = document.getElementById('erp-toolbar-portal-product');
+                  return el ? createPortal(toolbar, el) : toolbar;
+                }}
               />
             )}
           </CardContent>
