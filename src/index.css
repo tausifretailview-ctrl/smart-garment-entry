@@ -987,6 +987,65 @@ All colors MUST be HSL.
   }
 }
 
+/* ERP Invoice Entry - Section-based premium layout */
+.erp-invoice-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  margin-bottom: 12px;
+}
+
+.erp-invoice-summary-card {
+  background: linear-gradient(135deg, hsl(217 91% 97%) 0%, hsl(226 70% 97%) 100%);
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+  padding: 24px;
+}
+
+.dark .erp-invoice-summary-card {
+  background: linear-gradient(135deg, hsl(217 91% 15% / 0.3) 0%, hsl(226 70% 15% / 0.2) 100%);
+}
+
+.erp-invoice-table-header th {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: hsl(210 20% 96%);
+  color: hsl(var(--muted-foreground));
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+.dark .erp-invoice-table-header th {
+  background: hsl(var(--muted));
+}
+
+.erp-invoice-sticky-actions {
+  position: sticky;
+  bottom: 0;
+  background: hsl(var(--card) / 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid hsl(var(--border));
+  padding: 16px 24px;
+  margin: 0 -24px -24px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+  z-index: 20;
+}
+
+.erp-invoice-info-card {
+  background: hsl(210 20% 98%);
+  border-radius: 12px;
+  border: 1px solid hsl(var(--border));
+  padding: 20px;
+}
+
+.dark .erp-invoice-info-card {
+  background: hsl(var(--card));
+}
+
 /* ERPTable sticky column */
 .erp-table-sticky-col {
   position: sticky;

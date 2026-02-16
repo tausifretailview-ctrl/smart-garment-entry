@@ -1924,33 +1924,35 @@ Thank you for choosing us!`;
   const netAmount = Math.round(netBeforeRoundOff + roundOff);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <BackToDashboard label="Back to Sales Dashboard" to="/sales-invoice-dashboard" />
       
-      <Card className="p-6 relative overflow-hidden">
-        {/* Sticky Header Section */}
-        <div className="sticky top-0 z-30 bg-card pb-4 -mt-6 pt-6 -mx-6 px-6 border-b border-border shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Home className="h-6 w-6" />
-              {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
-            </h1>
-            <div className="flex items-center gap-3">
-              {/* Last Invoice Info at Top */}
-              {lastInvoice && !editingInvoiceId && (
-                <div className="bg-muted/50 border rounded-lg px-3 py-1.5 text-sm">
-                  <span className="text-muted-foreground">Last: </span>
-                  <span className="font-semibold">{lastInvoice.sale_number}</span>
-                  <span className="text-muted-foreground"> | Qty: </span>
-                  <span className="font-semibold">{lastInvoice.total_qty}</span>
-                  <span className="text-muted-foreground"> | Amt: </span>
-                  <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
-                  <span className="text-muted-foreground"> | </span>
-                  <span className="font-semibold">{lastInvoice.customer_name}</span>
-                </div>
-              )}
+      {/* Header Card */}
+      <div className="bg-card rounded-xl border shadow-sm p-5 flex items-center justify-between">
+        <h1 className="text-[18px] font-semibold flex items-center gap-2">
+          <Home className="h-5 w-5 text-primary" />
+          {editingInvoiceId ? 'Edit Invoice' : 'New Invoice'}
+        </h1>
+        <div className="flex items-center gap-3">
+          {lastInvoice && !editingInvoiceId && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg px-3 py-1.5 text-xs">
+              <span className="text-muted-foreground">Last: </span>
+              <span className="font-semibold text-primary">{lastInvoice.sale_number}</span>
+              <span className="text-muted-foreground"> | Qty: </span>
+              <span className="font-semibold">{lastInvoice.total_qty}</span>
+              <span className="text-muted-foreground"> | Amt: </span>
+              <span className="font-semibold">₹{Math.round(lastInvoice.net_amount || 0).toLocaleString('en-IN')}</span>
+              <span className="text-muted-foreground"> | </span>
+              <span className="font-semibold">{lastInvoice.customer_name}</span>
             </div>
-          </div>
+          )}
+        </div>
+      </div>
+
+
+      {/* Invoice Details Card */}
+      <div className="erp-invoice-info-card">
+        <div className="erp-invoice-section-label">Invoice Details</div>
 
           {/* Simplified Form - matching Quotation/Sale Order layout */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
@@ -2215,10 +2217,13 @@ Thank you for choosing us!`;
                   ))}
                 </SelectContent>
               </Select>
-            </div>
           </div>
+      </div>
+      </div>
 
-          {/* Product Search with Barcode Scan */}
+      {/* Product Search & Entry Mode Card */}
+      <div className="bg-card rounded-xl border shadow-sm p-5">
+          <div className="erp-invoice-section-label">Product Entry</div>
           <div className="flex items-center gap-4 flex-wrap">
             {/* Entry Mode Toggle */}
             <div className="flex items-center gap-2">
@@ -2354,12 +2359,14 @@ Thank you for choosing us!`;
               </span>
             </div>
           </div>
-        </div>
+      </div>
 
-        {/* Scrollable Line Items Table */}
-        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto mt-4 isolate">
+      {/* Products Table Card */}
+      <div className="bg-card rounded-xl border shadow-sm p-5">
+        <div className="erp-invoice-section-label">Line Items</div>
+        <div ref={tableContainerRef} className="max-h-[calc(100vh-420px)] overflow-y-auto isolate">
           <Table>
-            <TableHeader className="z-0">
+            <TableHeader className="z-0 erp-invoice-table-header">
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead className="min-w-[180px] max-w-[280px]">Product</TableHead>
@@ -2537,13 +2544,17 @@ Thank you for choosing us!`;
           </Table>
         </div>
 
-        {/* Summary */}
-        <div className="mt-4 flex justify-end">
-          <div className="w-80 space-y-2">
-            <div className="flex justify-between"><span>Gross Amount:</span><span>₹{grossAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Line Discount:</span><span>-₹{lineItemDiscount.toFixed(2)}</span></div>
-            <div className="flex justify-between items-center">
-              <span>Flat Disc %:</span>
+      </div>
+
+      {/* Bill Summary Card */}
+      <div className="flex justify-end">
+        <div className="erp-invoice-summary-card w-96">
+          <div className="erp-invoice-section-label">Bill Summary</div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Gross Amount:</span><span className="font-medium">₹{grossAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">Line Discount:</span><span className="font-medium text-destructive">-₹{lineItemDiscount.toFixed(2)}</span></div>
+            <div className="flex justify-between items-center text-[13px]">
+              <span className="text-muted-foreground">Flat Disc %:</span>
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
@@ -2553,15 +2564,15 @@ Thank you for choosing us!`;
                   placeholder="0"
                   onChange={(e) => setFlatDiscountPercent(parseFloat(e.target.value) || 0)}
                   onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                  className="w-20 h-8"
+                  className="w-20 h-8 text-[13px]"
                 />
                 {flatDiscountPercent > 0 && (
                   <span className="text-xs text-muted-foreground">(-₹{flatDiscountPercentAmount.toFixed(2)})</span>
                 )}
               </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span>Flat Disc ₹:</span>
+            <div className="flex justify-between items-center text-[13px]">
+              <span className="text-muted-foreground">Flat Disc ₹:</span>
               <Input
                 type="number"
                 min="0"
@@ -2569,20 +2580,20 @@ Thank you for choosing us!`;
                 placeholder="0"
                 onChange={(e) => setFlatDiscountRupees(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-20 h-8"
+                className="w-20 h-8 text-[13px]"
               />
             </div>
             {(flatDiscountPercent > 0 || flatDiscountRupees > 0) && (
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between text-[13px]">
                 <span className="text-muted-foreground">Total Flat Discount:</span>
                 <span className="font-medium text-destructive">-₹{flatDiscountAmount.toFixed(2)}</span>
               </div>
             )}
             {taxType === "exclusive" && (
-              <div className="flex justify-between"><span>GST:</span><span>₹{totalGST.toFixed(2)}</span></div>
+              <div className="flex justify-between text-[13px]"><span className="text-muted-foreground">GST:</span><span className="font-medium">₹{totalGST.toFixed(2)}</span></div>
             )}
-            <div className="flex justify-between items-center">
-              <span>Round Off:</span>
+            <div className="flex justify-between items-center text-[13px]">
+              <span className="text-muted-foreground">Round Off:</span>
               <Input
                 type="number"
                 step="0.01"
@@ -2590,29 +2601,33 @@ Thank you for choosing us!`;
                 placeholder="0"
                 onChange={(e) => setRoundOff(parseFloat(e.target.value) || 0)}
                 onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                className="w-24 h-8"
+                className="w-24 h-8 text-[13px]"
               />
             </div>
-            <div className="flex justify-between font-bold text-lg border-t pt-2">
-              <span>Net Amount:</span><span>₹{netAmount.toLocaleString('en-IN')}</span>
+            <div className="flex justify-between items-center border-t border-border pt-3 mt-2">
+              <span className="text-[15px] font-semibold">Net Amount:</span>
+              <span className="text-[20px] font-bold text-primary">₹{netAmount.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Notes */}
-        <div className="mt-6">
-          <Label>Notes</Label>
-          <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="max-w-md" />
-        </div>
+      {/* Notes */}
+      <div className="bg-card rounded-xl border shadow-sm p-5">
+        <Label>Notes</Label>
+        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="max-w-md mt-2" />
+      </div>
 
-        {/* Actions - simplified */}
-        <div className="mt-6 flex gap-4">
-          <Button onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="flex-1">
-            <Eye className="mr-2 h-4 w-4" />
-            {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
-          </Button>
-        </div>
-      </Card>
+      {/* Sticky Action Bar */}
+      <div className="erp-invoice-sticky-actions flex gap-4 rounded-xl">
+        <Button variant="outline" onClick={() => navigate('/sales-invoice-dashboard')} className="min-w-[120px]">
+          Cancel
+        </Button>
+        <Button onClick={handleSaveInvoice} disabled={isSaving || savingLockRef.current} className="flex-1">
+          <Eye className="mr-2 h-4 w-4" />
+          {isSaving ? 'Saving...' : editingInvoiceId ? 'Update Invoice' : 'Save Invoice'}
+        </Button>
+      </div>
 
       {/* Create Customer Dialog */}
       <Dialog open={openCustomerDialog} onOpenChange={setOpenCustomerDialog}>
