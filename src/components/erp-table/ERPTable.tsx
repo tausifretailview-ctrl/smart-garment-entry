@@ -53,6 +53,8 @@ export interface ERPTableProps<T> {
   onToggleExpand?: (id: string) => void;
   /** Extract unique ID from row data */
   getRowId?: (row: T) => string;
+  /** Render prop that receives toolbar element for custom placement */
+  renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
 export function ERPTable<T>({
@@ -73,6 +75,7 @@ export function ERPTable<T>({
   expandedRows,
   onToggleExpand,
   getRowId,
+  renderToolbar,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
 
@@ -137,16 +140,18 @@ export function ERPTable<T>({
   const rowHeight = persistence.density === "compact" ? "h-10" : "h-14";
   const hasSubRows = !!renderSubRow;
 
+  const toolbarElement = (
+    <ERPTableToolbar
+      table={table}
+      density={persistence.density}
+      onToggleDensity={persistence.toggleDensity}
+      onResetSettings={persistence.resetSettings}
+    />
+  );
+
   return (
     <div className={cn("space-y-0", className)}>
-      {showToolbar && (
-        <ERPTableToolbar
-          table={table}
-          density={persistence.density}
-          onToggleDensity={persistence.toggleDensity}
-          onResetSettings={persistence.resetSettings}
-        />
-      )}
+      {renderToolbar ? renderToolbar(toolbarElement) : showToolbar && <div className="mb-2">{toolbarElement}</div>}
 
       <div className="border border-border rounded-md overflow-hidden">
         <div className="overflow-x-auto">

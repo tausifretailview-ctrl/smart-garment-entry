@@ -54,6 +54,7 @@ interface SalesInvoiceERPTableProps {
   productsById: Record<string, any> | undefined;
   deliveryHistory: Record<string, any[]>;
   saleReturns: Record<string, any[]>;
+  renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
 export function SalesInvoiceERPTable({
@@ -101,6 +102,7 @@ export function SalesInvoiceERPTable({
   productsById,
   deliveryHistory,
   saleReturns,
+  renderToolbar,
 }: SalesInvoiceERPTableProps) {
   const columns = useMemo<ColumnDef<any, any>[]>(() => {
     const cols: ColumnDef<any, any>[] = [
@@ -598,6 +600,8 @@ export function SalesInvoiceERPTable({
       getRowId={(invoice) => invoice.id}
       onRowContextMenu={handleRowContextMenu}
       footerRow={footerRow}
+      showToolbar={!renderToolbar}
+      renderToolbar={renderToolbar}
     />
   );
 }
