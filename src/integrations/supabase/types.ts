@@ -70,7 +70,7 @@ export type Database = {
           current_balance: number | null
           id: string
           opening_balance: number | null
-          organization_id: string | null
+          organization_id: string
           parent_account_id: string | null
           updated_at: string | null
         }
@@ -81,7 +81,7 @@ export type Database = {
           current_balance?: number | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id: string
           parent_account_id?: string | null
           updated_at?: string | null
         }
@@ -92,7 +92,7 @@ export type Database = {
           current_balance?: number | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id?: string
           parent_account_id?: string | null
           updated_at?: string | null
         }
@@ -344,19 +344,19 @@ export type Database = {
         Row: {
           id: number
           next_barcode: number
-          organization_id: string | null
+          organization_id: string
           updated_at: string | null
         }
         Insert: {
           id?: number
           next_barcode?: number
-          organization_id?: string | null
+          organization_id: string
           updated_at?: string | null
         }
         Update: {
           id?: number
           next_barcode?: number
-          organization_id?: string | null
+          organization_id?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -446,7 +446,7 @@ export type Database = {
           id: number
           month: number
           next_sequence: number
-          organization_id: string | null
+          organization_id: string
           updated_at: string | null
           year: number
         }
@@ -454,7 +454,7 @@ export type Database = {
           id?: number
           month: number
           next_sequence?: number
-          organization_id?: string | null
+          organization_id: string
           updated_at?: string | null
           year: number
         }
@@ -462,7 +462,7 @@ export type Database = {
           id?: number
           month?: number
           next_sequence?: number
-          organization_id?: string | null
+          organization_id?: string
           updated_at?: string | null
           year?: number
         }
@@ -1028,7 +1028,7 @@ export type Database = {
           gst_number: string | null
           id: string
           opening_balance: number | null
-          organization_id: string | null
+          organization_id: string
           phone: string | null
           points_balance: number | null
           points_redeemed: number | null
@@ -1046,7 +1046,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id: string
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
@@ -1064,7 +1064,7 @@ export type Database = {
           gst_number?: string | null
           id?: string
           opening_balance?: number | null
-          organization_id?: string | null
+          organization_id?: string
           phone?: string | null
           points_balance?: number | null
           points_redeemed?: number | null
@@ -1408,7 +1408,7 @@ export type Database = {
           field_sales_access: boolean | null
           id: string
           joining_date: string | null
-          organization_id: string | null
+          organization_id: string
           phone: string | null
           status: string | null
           updated_at: string | null
@@ -1425,7 +1425,7 @@ export type Database = {
           field_sales_access?: boolean | null
           id?: string
           joining_date?: string | null
-          organization_id?: string | null
+          organization_id: string
           phone?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1442,7 +1442,7 @@ export type Database = {
           field_sales_access?: boolean | null
           id?: string
           joining_date?: string | null
-          organization_id?: string | null
+          organization_id?: string
           phone?: string | null
           status?: string | null
           updated_at?: string | null
@@ -2444,7 +2444,7 @@ export type Database = {
           hsn_code: string | null
           id: string
           image_url: string | null
-          organization_id: string | null
+          organization_id: string
           product_name: string
           product_type: string
           size_group_id: string | null
@@ -2466,7 +2466,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          organization_id?: string | null
+          organization_id: string
           product_name: string
           product_type?: string
           size_group_id?: string | null
@@ -2488,7 +2488,7 @@ export type Database = {
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          organization_id?: string | null
+          organization_id?: string
           product_name?: string
           product_type?: string
           size_group_id?: string | null
@@ -2532,7 +2532,7 @@ export type Database = {
           id: string
           net_amount: number
           notes: string | null
-          organization_id: string | null
+          organization_id: string
           other_charges: number | null
           paid_amount: number | null
           payment_status: string | null
@@ -2553,7 +2553,7 @@ export type Database = {
           id?: string
           net_amount?: number
           notes?: string | null
-          organization_id?: string | null
+          organization_id: string
           other_charges?: number | null
           paid_amount?: number | null
           payment_status?: string | null
@@ -2574,7 +2574,7 @@ export type Database = {
           id?: string
           net_amount?: number
           notes?: string | null
-          organization_id?: string | null
+          organization_id?: string
           other_charges?: number | null
           paid_amount?: number | null
           payment_status?: string | null
@@ -3718,7 +3718,7 @@ export type Database = {
           irn: string | null
           net_amount: number
           notes: string | null
-          organization_id: string | null
+          organization_id: string
           paid_amount: number | null
           payment_date: string | null
           payment_method: string
@@ -3771,7 +3771,7 @@ export type Database = {
           irn?: string | null
           net_amount?: number
           notes?: string | null
-          organization_id?: string | null
+          organization_id: string
           paid_amount?: number | null
           payment_date?: string | null
           payment_method: string
@@ -3824,7 +3824,7 @@ export type Database = {
           irn?: string | null
           net_amount?: number
           notes?: string | null
-          organization_id?: string | null
+          organization_id?: string
           paid_amount?: number | null
           payment_date?: string | null
           payment_method?: string
@@ -4711,7 +4711,7 @@ export type Database = {
           discount_amount: number | null
           discount_reason: string | null
           id: string
-          organization_id: string | null
+          organization_id: string
           reference_id: string | null
           reference_type: string | null
           total_amount: number
@@ -4730,7 +4730,7 @@ export type Database = {
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
-          organization_id?: string | null
+          organization_id: string
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
@@ -4749,7 +4749,7 @@ export type Database = {
           discount_amount?: number | null
           discount_reason?: string | null
           id?: string
-          organization_id?: string | null
+          organization_id?: string
           reference_id?: string | null
           reference_type?: string | null
           total_amount?: number
