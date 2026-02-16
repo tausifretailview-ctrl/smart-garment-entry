@@ -4870,6 +4870,8 @@ export type Database = {
           access_token: string | null
           api_provider: string
           api_version: string
+          auto_send_fee_receipt: boolean | null
+          auto_send_fee_reminder: boolean | null
           auto_send_invoice: boolean
           auto_send_invoice_link: boolean | null
           auto_send_payment_reminder: boolean
@@ -4886,6 +4888,10 @@ export type Database = {
           chatbot_system_prompt: string | null
           created_at: string
           custom_api_url: string | null
+          fee_receipt_template_name: string | null
+          fee_receipt_template_params: Json | null
+          fee_reminder_template_name: string | null
+          fee_reminder_template_params: Json | null
           followup_chat_message: string | null
           followup_invoice_message: string | null
           followup_menu_message: string | null
@@ -4927,6 +4933,8 @@ export type Database = {
           access_token?: string | null
           api_provider?: string
           api_version?: string
+          auto_send_fee_receipt?: boolean | null
+          auto_send_fee_reminder?: boolean | null
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
@@ -4943,6 +4951,10 @@ export type Database = {
           chatbot_system_prompt?: string | null
           created_at?: string
           custom_api_url?: string | null
+          fee_receipt_template_name?: string | null
+          fee_receipt_template_params?: Json | null
+          fee_reminder_template_name?: string | null
+          fee_reminder_template_params?: Json | null
           followup_chat_message?: string | null
           followup_invoice_message?: string | null
           followup_menu_message?: string | null
@@ -4984,6 +4996,8 @@ export type Database = {
           access_token?: string | null
           api_provider?: string
           api_version?: string
+          auto_send_fee_receipt?: boolean | null
+          auto_send_fee_reminder?: boolean | null
           auto_send_invoice?: boolean
           auto_send_invoice_link?: boolean | null
           auto_send_payment_reminder?: boolean
@@ -5000,6 +5014,10 @@ export type Database = {
           chatbot_system_prompt?: string | null
           created_at?: string
           custom_api_url?: string | null
+          fee_receipt_template_name?: string | null
+          fee_receipt_template_params?: Json | null
+          fee_reminder_template_name?: string | null
+          fee_reminder_template_params?: Json | null
           followup_chat_message?: string | null
           followup_invoice_message?: string | null
           followup_menu_message?: string | null

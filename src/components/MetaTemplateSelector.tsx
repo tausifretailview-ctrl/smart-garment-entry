@@ -53,7 +53,7 @@ export function getTemplateHeaderType(components: any): 'TEXT' | 'DOCUMENT' | 'I
 }
 
 interface MetaTemplateSelectorProps {
-  templateType: 'invoice' | 'quotation' | 'sale_order' | 'payment_reminder';
+  templateType: 'invoice' | 'quotation' | 'sale_order' | 'payment_reminder' | 'fee_receipt' | 'fee_reminder';
   selectedTemplateId: string | null;
   selectedTemplateName: string;
   params: TemplateParam[];
@@ -120,6 +120,28 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'contact_number', label: 'Contact Number', description: 'Your business phone' },
     { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
   ],
+  fee_receipt: [
+    { key: 'student_name', label: 'Student Name', description: 'Student\'s name' },
+    { key: 'admission_number', label: 'Admission Number', description: 'Student admission number' },
+    { key: 'class_name', label: 'Class', description: 'Student class name' },
+    { key: 'receipt_number', label: 'Receipt Number', description: 'Fee receipt number' },
+    { key: 'amount', label: 'Amount Paid', description: 'Total amount paid' },
+    { key: 'fee_heads', label: 'Fee Heads', description: 'Fee head details' },
+    { key: 'payment_method', label: 'Payment Method', description: 'Cash/UPI/Card etc.' },
+    { key: 'organization_name', label: 'Organization Name', description: 'School name' },
+    { key: 'date', label: 'Date', description: 'Payment date' },
+    { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
+  ],
+  fee_reminder: [
+    { key: 'student_name', label: 'Student Name', description: 'Student\'s name' },
+    { key: 'admission_number', label: 'Admission Number', description: 'Student admission number' },
+    { key: 'class_name', label: 'Class', description: 'Student class name' },
+    { key: 'amount', label: 'Pending Amount', description: 'Total fee due' },
+    { key: 'organization_name', label: 'Organization Name', description: 'School name' },
+    { key: 'payment_link', label: 'Payment Link', description: 'UPI/Payment link' },
+    { key: 'upi_id', label: 'UPI ID', description: 'UPI ID for payment' },
+    { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
+  ],
 };
 
 const templateTypeLabels: Record<string, string> = {
@@ -127,6 +149,8 @@ const templateTypeLabels: Record<string, string> = {
   quotation: 'Quotation Template',
   sale_order: 'Sale Order Template',
   payment_reminder: 'Payment Reminder Template',
+  fee_receipt: 'Fee Receipt Template',
+  fee_reminder: 'Fee Reminder Template',
 };
 
 // Preset template configurations for quick setup

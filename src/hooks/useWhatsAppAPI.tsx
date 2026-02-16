@@ -41,11 +41,18 @@ export interface WhatsAppSettings {
   quotation_template_name: string | null;
   sale_order_template_name: string | null;
   payment_reminder_template_name: string | null;
+  fee_receipt_template_name: string | null;
+  fee_reminder_template_name: string | null;
   // Template parameter mappings
   invoice_template_params: TemplateParam[] | null;
   quotation_template_params: TemplateParam[] | null;
   sale_order_template_params: TemplateParam[] | null;
   payment_reminder_template_params: TemplateParam[] | null;
+  fee_receipt_template_params: TemplateParam[] | null;
+  fee_reminder_template_params: TemplateParam[] | null;
+  // Auto-send fee settings
+  auto_send_fee_receipt: boolean;
+  auto_send_fee_reminder: boolean;
   // AI Chatbot settings
   chatbot_enabled: boolean;
   chatbot_greeting: string | null;
@@ -147,6 +154,12 @@ export const useWhatsAppAPI = () => {
         payment_reminder_template_params: Array.isArray(data.payment_reminder_template_params) 
           ? data.payment_reminder_template_params as unknown as TemplateParam[] 
           : [],
+        fee_receipt_template_params: Array.isArray(data.fee_receipt_template_params)
+          ? data.fee_receipt_template_params as unknown as TemplateParam[]
+          : [],
+        fee_reminder_template_params: Array.isArray(data.fee_reminder_template_params)
+          ? data.fee_reminder_template_params as unknown as TemplateParam[]
+          : [],
         // Parse document header template params
         invoice_document_template_params: Array.isArray(data.invoice_document_template_params)
           ? data.invoice_document_template_params as unknown as TemplateParam[]
@@ -182,6 +195,12 @@ export const useWhatsAppAPI = () => {
           : undefined,
         payment_reminder_template_params: newSettings.payment_reminder_template_params 
           ? JSON.parse(JSON.stringify(newSettings.payment_reminder_template_params)) 
+          : undefined,
+        fee_receipt_template_params: newSettings.fee_receipt_template_params
+          ? JSON.parse(JSON.stringify(newSettings.fee_receipt_template_params))
+          : undefined,
+        fee_reminder_template_params: newSettings.fee_reminder_template_params
+          ? JSON.parse(JSON.stringify(newSettings.fee_reminder_template_params))
           : undefined,
         invoice_document_template_params: newSettings.invoice_document_template_params
           ? JSON.parse(JSON.stringify(newSettings.invoice_document_template_params))
