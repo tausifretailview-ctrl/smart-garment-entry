@@ -1288,26 +1288,7 @@ const POSDashboard = () => {
                   <SelectItem value="pending">Pending</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={creditNoteFilter} onValueChange={setCreditNoteFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Credit Note" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="with_credit_note">With C/Note</SelectItem>
-                  <SelectItem value="without_credit_note">Without C/Note</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={refundFilter} onValueChange={setRefundFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Refund" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="with_refund">With Refund</SelectItem>
-                  <SelectItem value="without_refund">Without Refund</SelectItem>
-                </SelectContent>
-              </Select>
+              
               
               {/* Column Settings Popover */}
               <Popover>
