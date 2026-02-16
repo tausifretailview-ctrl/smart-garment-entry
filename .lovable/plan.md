@@ -1,102 +1,52 @@
 
 
-# Easy Auto-Backup: Zero-Config Cloud Storage + Optional Email
+# Scheduled Auto-Backup at Fixed Time + Email with Backup File
 
-## The Problem
+## Overview
 
-The current Google Drive backup requires users to navigate Google Cloud Console, create OAuth credentials, and use OAuth Playground to get a refresh token -- this is far too technical for most users.
-
-## The Solution
-
-Replace the complex Google Drive setup with a **zero-configuration cloud backup** system that works out of the box, plus an optional email delivery.
+Change backup from "on every login" to a **fixed nightly schedule (11:00 PM IST)** that runs automatically for **all organizations** with auto-backup enabled, and **emails the actual backup JSON file** to a configured email address.
 
 ---
 
-## How It Works
+## How It Will Work
 
-**1. Cloud Storage Backups (No Setup Required)**
-- Backups are saved to a private storage bucket built into Lovable Cloud
-- Admin simply toggles "Enable Daily Auto-Backup" ON
-- Every time the app is opened, it checks if today's backup exists -- if not, it runs automatically in the background
-- Last 30 days of backups are retained (older ones auto-deleted)
-- Users can download any backup from the history table
+1. A database cron job fires every night at 11:00 PM IST (5:30 PM UTC)
+2. It calls a new backend function `scheduled-backup` (no user login required)
+3. The function loops through ALL organizations that have `auto_backup_enabled = true`
+4. For each org: generates backup, uploads to cloud storage, then emails the backup file as an attachment to the configured email address
+5. Remove the "on app load" auto-trigger from the frontend
 
-**2. Email Backup (Optional -- Just Enter Email)**
-- Admin enters one or more email addresses in settings
-- A small backup summary + download link is emailed daily
-- Uses a backend function to send the email -- no API keys needed from the user
+---
 
-**3. Keep Google Drive as Advanced Option**
-- The existing Google Drive section stays but is collapsed under "Advanced" for power users who want it
+## Email Delivery
+
+To send emails with the backup file attached, we need an email service. **Resend** is the simplest option -- it's free for up to 100 emails/day and takes just one API key.
+
+**What you need to do:** Sign up at [resend.dev](https://resend.dev), get an API key, and provide it when prompted. Alternatively, you can use a free domain like `onboarding@resend.dev` for testing.
 
 ---
 
 ## Technical Details
 
-### Database Changes
-- Add columns to `settings` table:
-  - `auto_backup_enabled` (boolean, default false)
-  - `backup_email` (text, nullable -- comma-separated emails)
-  - `last_auto_backup_at` (timestamptz, nullable)
-  - `backup_retention_days` (integer, default 30)
+### 1. New Edge Function: `scheduled-backup`
+- Does NOT require user authentication (called by cron)
+- Uses service role to query all organizations where `auto_backup_enabled = true`
+- For each org: gathers data, uploads to storage, sends email with JSON attachment
+- Logs everything to `backup_logs`
 
-### Storage Bucket
-- Create a private `organization-backups` storage bucket
-- Files stored as: `{org_id}/{YYYY-MM-DD}.json`
-- RLS: users can only access their own organization's backups
+### 2. Database Cron Job (pg_cron + pg_net)
+- Schedule: `30 17 * * *` (5:30 PM UTC = 11:00 PM IST)
+- Calls `scheduled-backup` edge function via HTTP POST
+- No user session needed
 
-### Edge Function: `auto-backup`
-- Takes `organizationId`, generates the JSON backup (same data as current)
-- Uploads to the storage bucket instead of Google Drive
-- Logs to `backup_logs` table as before
-- Optionally sends email notification with a time-limited download link
+### 3. Settings Update
+- `backup_email` field already exists -- will use it for sending the actual file
+- Default email for all orgs: `tausifpatel728@gmail.com` (configurable per org)
 
-### Frontend: Simplified Backup Settings
-- **Toggle**: "Enable Daily Auto-Backup" (one click)
-- **Email field**: "Send backup notification to" (optional)
-- **Retention**: Dropdown for 7 / 14 / 30 / 60 days
-- **Google Drive**: Collapsed under "Advanced Setup" accordion
-- **History table**: Same as current, but with download buttons for cloud backups
-
-### Auto-Trigger Logic (in `useBackup` hook)
-- On app load, check `last_auto_backup_at` in settings
-- If auto-backup is enabled AND no backup exists for today, trigger `auto-backup` edge function in background
-- Non-blocking -- user sees a subtle toast "Daily backup running..." and can continue working
-
-### Backup Cleanup
-- A database function `cleanup_old_backups()` deletes storage files and log entries older than the retention period
-- Called by the auto-backup edge function after each successful backup
-
----
-
-## UI Layout (Settings > Backup Tab)
-
-```text
-+-----------------------------------------------+
-| Cloud Auto-Backup                              |
-| Automatically backs up your data daily.        |
-| No setup required.                             |
-|                                                |
-| [Toggle] Enable Daily Auto-Backup              |
-|                                                |
-| Email Notification (optional)                  |
-| [ admin@company.com                    ]       |
-|                                                |
-| Retention: [ 30 days v ]                       |
-|                                                |
-| Last backup: Today at 9:15 AM                  |
-+-----------------------------------------------+
-
-+-----------------------------------------------+
-| Manual Backup                                  |
-| [Download JSON]  [Download Excel]  [Cloud Now] |
-+-----------------------------------------------+
-
-> Advanced: Google Drive Setup (collapsed)        
-+-----------------------------------------------+
-| Backup History (table -- same as current)      |
-+-----------------------------------------------+
-```
+### 4. Frontend Changes
+- **Remove** the auto-trigger on app load from `useBackup.tsx`
+- Update `BackupSettings.tsx` description: "Backup runs automatically at 11:00 PM every night" instead of "when you open the app"
+- Email field description: "Backup file will be sent to this email daily"
 
 ---
 
@@ -104,14 +54,23 @@ Replace the complex Google Drive setup with a **zero-configuration cloud backup*
 
 | File | Action |
 |------|--------|
-| `supabase/functions/auto-backup/index.ts` | Create -- backup to storage bucket |
-| `src/components/BackupSettings.tsx` | Rewrite -- simplified UI with toggle, email, retention |
-| `src/hooks/useBackup.tsx` | Update -- add auto-trigger on app load, cloud download |
-| Database migration | Add settings columns, create storage bucket + policies |
+| `supabase/functions/scheduled-backup/index.ts` | Create -- loops all orgs, backs up, emails |
+| `supabase/config.toml` | Add scheduled-backup function config |
+| `src/hooks/useBackup.tsx` | Remove on-login auto-trigger useEffect |
+| `src/components/BackupSettings.tsx` | Update descriptions to reflect 11 PM schedule |
+| Database (pg_cron) | Set up cron schedule via SQL insert |
+
+---
+
+## Secret Required
+
+- **RESEND_API_KEY** -- needed for sending emails. You will be prompted to enter this.
+
+---
 
 ## What Stays the Same
-- All existing backup data and logs are preserved
-- Local JSON and Excel download still work exactly as before
-- Google Drive option remains available under "Advanced"
-- No existing data is deleted or modified
+- Manual backup buttons (JSON, Excel, Cloud Now) unchanged
+- Backup history table unchanged
+- Google Drive advanced section unchanged
+- All existing backup data preserved
 
