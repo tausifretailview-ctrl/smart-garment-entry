@@ -22,7 +22,7 @@ export function ERPTableToolbar<T>({
   const allColumns = table.getAllLeafColumns().filter((c) => c.id !== "actions");
 
   return (
-    <div className="flex items-center gap-2 mb-2">
+    <div className="flex items-center gap-2 mb-2 flex-nowrap">
       {/* Density toggle */}
       <Button
         variant="outline"
