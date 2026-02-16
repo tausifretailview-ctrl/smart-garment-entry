@@ -15,7 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileSpreadsheet, History, Link2, Phone, Tag, ShoppingCart, Wallet, FileText, RefreshCw, Eye, ArrowUpDown, BookOpen, ChevronDown, Settings2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
@@ -645,26 +651,37 @@ const CustomerMaster = () => {
               </span>
             </div>
             <div className="flex gap-2 items-center">
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowLegacyImport(true)}>
-                <History className="h-4 w-4 mr-2" />
-                Import Legacy Invoices
-              </Button>
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowUpdatePhonesDialog(true)}>
-                <Phone className="h-4 w-4 mr-2" />
-                Update Legacy Phones
-              </Button>
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowRelinkDialog(true)}>
-                <Link2 className="h-4 w-4 mr-2" />
-                Re-link Legacy
-              </Button>
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowBalanceImport(true)}>
-                <ArrowUpDown className="h-4 w-4 mr-2" />
-                Import Balances
-              </Button>
-              <Button variant="outline" className="h-9 text-sm px-4 rounded-md" onClick={() => setShowExcelImport(true)}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Import Customers
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 text-sm px-4 rounded-md">
+                    <Settings2 className="h-4 w-4 mr-2" />
+                    Tools
+                    <ChevronDown className="h-3.5 w-3.5 ml-1.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
+                  <DropdownMenuItem onClick={() => setShowLegacyImport(true)}>
+                    <History className="h-4 w-4 mr-2" />
+                    Import Legacy Invoices
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowUpdatePhonesDialog(true)}>
+                    <Phone className="h-4 w-4 mr-2" />
+                    Update Legacy Phones
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowRelinkDialog(true)}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Re-link Legacy
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowBalanceImport(true)}>
+                    <ArrowUpDown className="h-4 w-4 mr-2" />
+                    Import Balances
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowExcelImport(true)}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Import Customers
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="h-9 text-sm px-4 rounded-md">
