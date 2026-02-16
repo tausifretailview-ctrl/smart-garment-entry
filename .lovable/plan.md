@@ -1,104 +1,67 @@
 
 
-# Full-View Professional ERP Density Upgrade
+# Ezzy ERP -- Final UI Polish (Enterprise SaaS Finish)
 
-Upgrade the entire Ezzy ERP from compact SaaS density to a spacious, large-screen-optimized professional ERP layout (Vasy ERP style). No color or logic changes -- only scale, spacing, and typography.
-
----
-
-## Summary of Changes
-
-| Element | Current | New |
-|---------|---------|-----|
-| HTML base font | (browser default) | 16px |
-| Body text | 15px | 16px, line-height 1.6 |
-| Page titles | text-2xl (~24px) | text-[26px], mb-8 |
-| Section titles | text-lg | text-[20px] |
-| Table headers | 12px, py-3, px-4 | 13px, py-4, px-5 |
-| Table data | 14px, py-3, px-4 | 15px, py-4, px-5 |
-| Table row height | h-10 | h-14 |
-| Financial columns | 14px | 15px |
-| KPI values | text-2xl | text-[28px] |
-| Form labels | 13px | 14px |
-| Input height | h-10 | h-11, text-[15px] |
-| Select trigger | h-10, text-sm | h-11, text-[15px] |
-| Card padding | p-3 | p-6 |
-| Badge text | 11px | 13px, px-3 py-1 |
-| Dialog width | max-w-2xl | max-w-3xl, p-8 |
-| Dialog title | text-xl | text-[22px] |
-| Sidebar menu items | h-11, 14px | h-12, 15px |
-| Sidebar group labels | (default) | 13px uppercase tracking-wider |
-| Sidebar icons | size-4 | size-5 |
+Last-mile refinements to achieve a polished, premium enterprise feel. No color theme changes -- all updates use existing CSS variables for theme compatibility.
 
 ---
 
-## File-by-File Changes
+## Changes
 
-### 1. `src/index.css` -- Global CSS
+### 1. `src/components/ui/table.tsx`
 
-- Add `html { font-size: 16px; }` rule
-- Update `body` from `text-[15px] leading-relaxed` to `text-[16px] antialiased` with `line-height: 1.6`
-- Update `table th` from `text-[12px] px-4 py-3` to `text-[13px] py-4 px-5`
-- Update `table td` from `text-[14px] px-4 py-3` to `text-[15px] py-4 px-5`
-- Add `table { border-collapse: separate; border-spacing: 0; }`
-- Update sidebar selectors: `[data-sidebar="menu-button"]` from `h-11 text-[14px]` to `h-12 text-[15px]`; sub-button from `h-10 text-[14px]` to `h-11 text-[15px]`
-- Update ERP utility classes:
-  - `.erp-page-title`: `text-[26px] font-bold tracking-tight`
-  - `.erp-section-title`: `text-[20px] font-semibold`
-  - `.erp-table-header`: `text-[13px]`
-  - `.erp-table-data`: `text-[15px]`
-  - `.erp-financial`: `text-[15px]`
-  - `.erp-customer-name`: `text-[15px] font-semibold`
-  - `.erp-form-label`: `text-[14px] font-medium`
-  - `.erp-badge`: `text-[13px] font-semibold`
-  - `.erp-kpi-value`: `text-[28px] font-bold tracking-tight`
-- Update ERP design tokens: `--erp-row-height: 3.5rem; --erp-input-height: 2.75rem;`
+- **TableHeader**: Change `bg-sidebar [&_tr]:border-sidebar-border` to `bg-muted/70 [&_tr]:border-muted` (light header instead of dark sidebar-colored header)
+- **TableHead**: Change `text-white` to `text-foreground` (fixes contrast for light header background)
+- **TableRow**: Change `hover:bg-muted/50` to `hover:bg-primary/5` (subtle brand-tinted hover)
+- **TableRow**: Change `border-border` to `border-muted` (softer row borders)
 
-### 2. `src/components/ui/table.tsx`
+### 2. `src/index.css` -- Global table rules
 
-- `TableHead`: Change `h-10 px-4 py-3 text-[12px]` to `h-14 px-5 py-4 text-[13px]`
-- `TableCell`: Change `px-4 py-3 text-[14px]` to `px-5 py-4 text-[15px]`
+- Update `table td` border from `border-muted` to `border-muted/80` for softer lines
+- Update `table tbody tr` hover from `hover:bg-muted/50` to `hover:bg-primary/5`
+- Update `.card` class from `p-5` to `p-6`
+- Update `.erp-financial` utility: add `tracking-tight`
 
 ### 3. `src/components/ui/card.tsx`
 
-- `CardHeader`: Change `p-3` to `p-6`
-- `CardContent`: Change `p-3 pt-0` to `p-6 pt-0`
-- `CardFooter`: Change `p-3 pt-0` to `p-6 pt-0`
-- `Card`: Add `rounded-xl` (keep existing rounded-md override-able)
+- **Card**: Add `hover:shadow-md` to existing transition classes for interactive lift effect
 
-### 4. `src/components/ui/badge.tsx`
+### 4. `src/components/Header.tsx`
 
-- Change base from `px-2 py-0.5 text-[11px]` to `px-3 py-1 text-[13px]`
+- Change header background from `bg-sidebar/95 text-sidebar-foreground border-sidebar-border` to `bg-card/95 text-foreground border-border` with `backdrop-blur-md`
+- Update all child button colors from sidebar-specific tokens to standard theme tokens (e.g., `text-foreground`, `hover:bg-muted`, `hover:text-primary`)
+- Update avatar fallback from `bg-sidebar-primary text-sidebar-primary-foreground` to `bg-primary text-primary-foreground`
+- Update notification dot from `bg-sidebar-primary` to `bg-primary`
+- Update mobile sheet from sidebar colors to standard colors
 
-### 5. `src/components/ui/label.tsx`
+### 5. `src/components/ui/sidebar.tsx` -- Active state refinement
 
-- Change from `text-[13px]` to `text-[14px]`
+- **SidebarMenuButton variants**: Update `data-[active=true]` styles from `border-l-2` to `border-l-4` for a more prominent active indicator
+- Ensure smooth `transition-all duration-200` is present (already in place)
 
-### 6. `src/components/ui/input.tsx`
+### 6. `src/index.css` -- Sidebar active indicator
 
-- Change from `h-10` to `h-11 text-[15px]`
+- Update the `[data-sidebar="menu-button"][data-active="true"]` rule: change `border-left: 3px` to `border-left: 4px` for consistency with the component-level change
 
-### 7. `src/components/ui/select.tsx`
+---
 
-- `SelectTrigger`: Change `h-10 text-sm` to `h-11 text-[15px]`
+## Files Changed
 
-### 8. `src/components/ui/dialog.tsx`
-
-- `DialogContent`: Change `max-w-2xl p-8` to `max-w-3xl p-8` (p-8 already present)
-- `DialogTitle`: Change `text-xl` to `text-[22px]`
-
-### 9. `src/components/ui/sidebar.tsx`
-
-- `SidebarGroupLabel`: Change `text-[13px]` to `text-[13px] uppercase tracking-wider`
-- `sidebarMenuButtonVariants`: Change `[&>svg]:size-4` to `[&>svg]:size-5`; default height `h-10` to `h-12`; sm `h-8` to `h-10`
-- `SidebarMenuSub`: Update icon size reference
+| File | Change |
+|------|--------|
+| `src/components/ui/table.tsx` | Light header bg, brand hover, softer borders, fix text color |
+| `src/index.css` | Softer td border, brand hover, card padding, financial tracking, sidebar active width |
+| `src/components/ui/card.tsx` | Add hover shadow elevation |
+| `src/components/Header.tsx` | Light header bar with backdrop blur, standard theme tokens |
+| `src/components/ui/sidebar.tsx` | Active border-l-4 |
 
 ---
 
 ## What Is NOT Changed
 
-- No color theme changes
+- No color theme variables modified
 - No business logic changes
 - No print styles modified
+- No typography scale changes (already at full-view density)
 - No routing or data flow changes
 
