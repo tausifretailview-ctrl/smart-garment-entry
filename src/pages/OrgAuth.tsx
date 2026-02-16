@@ -72,11 +72,10 @@ export default function OrgAuth() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from("organizations")
-          .select("id, name, slug, settings")
-          .eq("slug", orgSlug)
-          .single();
+        // Use secure RPC function that returns only safe fields
+        const { data, error } = await supabase.rpc("get_org_public_info", {
+          p_slug: orgSlug,
+        });
 
         if (error || !data) {
           setError("Organization not found");
@@ -84,16 +83,19 @@ export default function OrgAuth() {
           return;
         }
 
-        setOrganization(data);
+        const orgData = data as any;
+        setOrganization({
+          id: orgData.id,
+          name: orgData.name,
+          slug: orgData.slug,
+          settings: orgData.settings,
+        });
 
-        const { data: settingsData } = await supabase
-          .from("settings")
-          .select("business_name, bill_barcode_settings")
-          .eq("organization_id", data.id)
-          .single();
-
-        if (settingsData) {
-          setOrgSettings(settingsData as OrgSettings);
+        if (orgData.business_name || orgData.bill_barcode_settings) {
+          setOrgSettings({
+            business_name: orgData.business_name,
+            bill_barcode_settings: orgData.bill_barcode_settings,
+          });
         }
       } catch (err) {
         console.error("Error fetching organization:", err);
