@@ -48,7 +48,9 @@ export const parseLocalizedNumber = (
 // Normalize phone number: strip non-digits, remove Indian country code prefixes, return last 10 digits
 export const normalizePhoneNumber = (phone: string | number | null | undefined): string => {
   if (!phone) return '';
-  let normalized = String(phone).replace(/\D/g, ''); // Remove all non-digits
+  // Remove trailing .0 that Excel adds to numbers before stripping non-digits
+  let raw = String(phone).replace(/\.0$/, '');
+  let normalized = raw.replace(/\D/g, ''); // Remove all non-digits
   
   // Handle Indian number formats - extract last 10 digits
   if (normalized.length >= 10) {
