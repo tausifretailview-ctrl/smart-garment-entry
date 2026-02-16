@@ -1025,15 +1025,15 @@ const POSDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
+    <div className="min-h-screen bg-background px-8 py-6">
       
-      <div className="w-full space-y-6">
+      <div className="w-full space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">
+            <h1 className="text-[26px] font-bold tracking-tight text-foreground">
               POS Dashboard
             </h1>
-            <p className="text-muted-foreground mt-1">View and manage all POS sales</p>
+            <p className="text-sm text-muted-foreground">View and manage all POS sales</p>
           </div>
           <div className="flex gap-2">
             <Button onClick={() => navigate("/pos-sales")} className="gap-2">
@@ -1055,18 +1055,18 @@ const POSDashboard = () => {
         </div>
 
         {/* Summary Statistics - Flat Solid Color Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-blue-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Total Bills</CardDescription>
-              <Receipt className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Total Bills</CardDescription>
+              <Receipt className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.totalBills}</div>
-              <p className="text-xs text-white/80">Qty: {summaryStats.totalQty}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.totalBills}</div>
+              <p className="text-[11px] text-white/80">Qty: {summaryStats.totalQty}</p>
             </CardContent>
           </Card>
 
@@ -1074,13 +1074,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-amber-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("hold")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">On Hold</CardDescription>
-              <Pause className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">On Hold</CardDescription>
+              <Pause className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.holdCount}</div>
-              <p className="text-xs text-white/80">₹{summaryStats.holdAmount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.holdCount}</div>
+              <p className="text-[11px] text-white/80">₹{summaryStats.holdAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1088,13 +1088,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-emerald-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("completed")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Completed</CardDescription>
-              <CheckCircle2 className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Completed</CardDescription>
+              <CheckCircle2 className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.completedCount}</div>
-              <p className="text-xs text-white/80">₹{summaryStats.completedAmount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.completedCount}</div>
+              <p className="text-[11px] text-white/80">₹{summaryStats.completedAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1102,13 +1102,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-orange-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("pending")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Pending/Partial</CardDescription>
-              <Clock className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Pending/Partial</CardDescription>
+              <Clock className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.pendingCount}</div>
-              <p className="text-xs text-white/80">₹{summaryStats.pendingAmount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.pendingCount}</div>
+              <p className="text-[11px] text-white/80">₹{summaryStats.pendingAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1116,13 +1116,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-violet-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("all")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Sale Amount</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Sale Amount</CardDescription>
+              <IndianRupee className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
-              <p className="text-xs text-white/80">Disc: ₹{summaryStats.totalDiscount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalAmount.toFixed(0)}</div>
+              <p className="text-[11px] text-white/80">Disc: ₹{summaryStats.totalDiscount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1130,13 +1130,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-rose-500 border-0 shadow-none"
             onClick={() => setRefundFilter("with_refund")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">With Refunds</CardDescription>
-              <RefreshCcw className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">With Refunds</CardDescription>
+              <RefreshCcw className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.refundCount}</div>
-              <p className="text-xs text-white/80">₹{summaryStats.refundAmount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.refundCount}</div>
+              <p className="text-[11px] text-white/80">₹{summaryStats.refundAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
 
@@ -1144,30 +1144,30 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-indigo-500 border-0 shadow-none"
             onClick={() => setCreditNoteFilter("with_credit_note")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Credit Notes</CardDescription>
-              <FileText className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Credit Notes</CardDescription>
+              <FileText className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{summaryStats.creditNoteCount}</div>
-              <p className="text-xs text-white/80">₹{summaryStats.creditNoteAmount.toFixed(0)}</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">{summaryStats.creditNoteCount}</div>
+              <p className="text-[11px] text-white/80">₹{summaryStats.creditNoteAmount.toFixed(0)}</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Payment Method Totals */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card 
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-green-500 border-0 shadow-none"
             onClick={() => setPaymentMethodFilter("cash")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Total Cash</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Total Cash</CardDescription>
+              <IndianRupee className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalCash.toFixed(0)}</div>
-              <p className="text-xs text-white/80">{summaryStats.cashBillCount} Bills</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalCash.toFixed(0)}</div>
+              <p className="text-[11px] text-white/80">{summaryStats.cashBillCount} Bills</p>
             </CardContent>
           </Card>
 
@@ -1175,13 +1175,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-cyan-500 border-0 shadow-none"
             onClick={() => setPaymentMethodFilter("card")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Total Card</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Total Card</CardDescription>
+              <IndianRupee className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalCard.toFixed(0)}</div>
-              <p className="text-xs text-white/80">{summaryStats.cardBillCount} Bills</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalCard.toFixed(0)}</div>
+              <p className="text-[11px] text-white/80">{summaryStats.cardBillCount} Bills</p>
             </CardContent>
           </Card>
 
@@ -1189,13 +1189,13 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-purple-500 border-0 shadow-none"
             onClick={() => setPaymentMethodFilter("upi")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Total UPI</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Total UPI</CardDescription>
+              <IndianRupee className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalUpi.toFixed(0)}</div>
-              <p className="text-xs text-white/80">{summaryStats.upiBillCount} Bills</p>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalUpi.toFixed(0)}</div>
+              <p className="text-[11px] text-white/80">{summaryStats.upiBillCount} Bills</p>
             </CardContent>
           </Card>
 
@@ -1203,26 +1203,26 @@ const POSDashboard = () => {
             className="cursor-pointer hover:opacity-90 transition-opacity duration-200 bg-red-500 border-0 shadow-none"
             onClick={() => setPaymentStatusFilter("pending")}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-xs font-medium text-white/90">Total Balance</CardDescription>
-              <IndianRupee className="h-4 w-4 text-white" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 p-3 pb-1">
+              <CardDescription className="text-[11px] font-medium text-white/90">Total Balance</CardDescription>
+              <IndianRupee className="h-3.5 w-3.5 text-white" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">₹{summaryStats.totalBalance.toFixed(0)}</div>
+            <CardContent className="p-3 pt-0">
+              <div className="text-xl font-bold text-white">₹{summaryStats.totalBalance.toFixed(0)}</div>
             </CardContent>
           </Card>
         </div>
 
         <Card className="border-border/50 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
+          <CardHeader className="p-4 pb-3">
+            <CardTitle className="flex items-center gap-2 text-[18px]">
+              <Receipt className="h-4 w-4 text-primary" />
               Sales Records
             </CardTitle>
-            <CardDescription>Search and filter your sales history</CardDescription>
+            <CardDescription className="text-[13px]">Search and filter your sales history</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-4">
+          <CardContent className="space-y-3 p-4 pt-0">
+            <div className="flex gap-3 flex-wrap">
               <div className="flex-[2] min-w-[280px] relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1425,31 +1425,31 @@ const POSDashboard = () => {
               >
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[50px]">
+                    <TableRow className="h-10 bg-muted/70">
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold w-[40px]">
                         <Checkbox
                           checked={selectedSales.size === filteredSales.length && filteredSales.length > 0}
                           onCheckedChange={toggleSelectAll}
                         />
                       </TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>Sale Number</TableHead>
-                      <TableHead>Customer</TableHead>
-                      {columnSettings.phone && <TableHead>Phone</TableHead>}
-                      <TableHead>Date</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Cash</TableHead>
-                      <TableHead>Card</TableHead>
-                      <TableHead>UPI</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      {columnSettings.refund && <TableHead>Refund Amt</TableHead>}
-                      {columnSettings.refundStatus && <TableHead>Refund Status</TableHead>}
-                      {columnSettings.creditNoteAmt && <TableHead>C/Note Amt</TableHead>}
-                      {columnSettings.creditNoteStatus && <TableHead>C/Note Status</TableHead>}
-                      {columnSettings.status && <TableHead>Pay Status</TableHead>}
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] w-[30px]"></TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Sale Number</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Customer</TableHead>
+                      {columnSettings.phone && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Phone</TableHead>}
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Date</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Amount</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Cash</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Card</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">UPI</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Paid</TableHead>
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Balance</TableHead>
+                      {columnSettings.refund && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Refund</TableHead>}
+                      {columnSettings.refundStatus && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Ref. Status</TableHead>}
+                      {columnSettings.creditNoteAmt && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">C/Note Amt</TableHead>}
+                      {columnSettings.creditNoteStatus && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">C/Note</TableHead>}
+                      {columnSettings.status && <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold">Pay Status</TableHead>}
+                      <TableHead className="px-2 py-1.5 text-[13px] uppercase tracking-wider font-semibold text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1463,31 +1463,31 @@ const POSDashboard = () => {
                       paginatedSales.map((sale) => (
                         <React.Fragment key={sale.id}>
                           <TableRow
-                            className="cursor-pointer hover:bg-accent/50"
+                            className="cursor-pointer hover:bg-accent/50 h-10"
                           >
-                            <TableCell onClick={(e) => e.stopPropagation()}>
+                            <TableCell className="px-2 py-1.5" onClick={(e) => e.stopPropagation()}>
                               <Checkbox
                                 checked={selectedSales.has(sale.id)}
                                 onCheckedChange={() => toggleSelectSale(sale.id)}
                               />
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                               {expandedSale === sale.id ? (
-                                <ChevronDown className="h-4 w-4" />
+                                <ChevronDown className="h-3.5 w-3.5" />
                               ) : (
-                                <ChevronRight className="h-4 w-4" />
+                                <ChevronRight className="h-3.5 w-3.5" />
                               )}
                             </TableCell>
-                            <TableCell className="font-medium" onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm font-medium" onClick={() => toggleExpanded(sale.id)}>
                               <div className="flex flex-col">
                                 <span>{sale.sale_number}</span>
-                                <span className="text-xs text-foreground/70">
+                                <span className="text-[11px] text-foreground/70">
                                   {sale.sale_date ? format(new Date(sale.sale_date), "hh:mm a") : ''}
                                 </span>
                               </div>
                             </TableCell>
                             <TableCell 
-                              className="cursor-pointer text-blue-600 hover:underline"
+                              className="px-2 py-1.5 text-sm cursor-pointer text-blue-600 hover:underline"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedCustomerForHistory({
@@ -1500,30 +1500,30 @@ const POSDashboard = () => {
                               {sale.customer_name?.toUpperCase()}
                             </TableCell>
                             {columnSettings.phone && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
                                 {sale.customer_phone || '-'}
                               </TableCell>
                             )}
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>
                               {sale.sale_date ? format(new Date(sale.sale_date), "dd/MM/yyyy") : '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {saleItems[sale.id]?.reduce((sum, item) => sum + item.quantity, 0) || '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums font-semibold text-primary" onClick={() => toggleExpanded(sale.id)}>₹{Math.round(sale.net_amount).toLocaleString('en-IN')}</TableCell>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {sale.cash_amount ? `₹${Math.round(sale.cash_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {sale.card_amount ? `₹${Math.round(sale.card_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {sale.upi_amount ? `₹${Math.round(sale.upi_amount).toLocaleString('en-IN')}` : '-'}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               ₹{Math.round(sale.paid_amount || 0).toLocaleString('en-IN')}
                             </TableCell>
-                            <TableCell onClick={() => toggleExpanded(sale.id)}>
+                            <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                               {sale.payment_status !== 'completed' ? (
                                 <span className="font-semibold text-orange-600">
                                   ₹{Math.round(sale.net_amount - (sale.paid_amount || 0)).toLocaleString('en-IN')}
@@ -1533,7 +1533,7 @@ const POSDashboard = () => {
                               )}
                             </TableCell>
                             {columnSettings.refund && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                                 {(sale.refund_amount || 0) > 0 ? (
                                   <span className="font-semibold text-red-600">
                                     ₹{Math.round(sale.refund_amount || 0).toLocaleString('en-IN')}
@@ -1544,20 +1544,20 @@ const POSDashboard = () => {
                               </TableCell>
                             )}
                             {columnSettings.refundStatus && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {(sale.refund_amount || 0) > 0 ? (
-                                  <Badge variant="destructive" className="bg-red-500 text-white">
+                                  <Badge variant="destructive" className="bg-red-500 text-white text-[11px] px-1.5 py-0">
                                     Refunded
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-muted-foreground">
+                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">
                                     No Refund
                                   </Badge>
                                 )}
                               </TableCell>
                             )}
                             {columnSettings.creditNoteAmt && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5 text-sm text-right tabular-nums" onClick={() => toggleExpanded(sale.id)}>
                                 {sale.credit_note_id ? (
                                   <span className="font-semibold text-violet-600">
                                     ₹{Math.round(sale.credit_note_amount || 0).toLocaleString('en-IN')}
@@ -1568,22 +1568,22 @@ const POSDashboard = () => {
                               </TableCell>
                             )}
                             {columnSettings.creditNoteStatus && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 {sale.credit_note_id ? (
-                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white">
+                                  <Badge className="bg-violet-500 hover:bg-violet-600 text-white text-[11px] px-1.5 py-0">
                                     Issued
                                   </Badge>
                                 ) : (
-                                  <Badge variant="outline" className="text-muted-foreground">
+                                  <Badge variant="outline" className="text-muted-foreground text-[11px] px-1.5 py-0">
                                     None
                                   </Badge>
                                 )}
                               </TableCell>
                             )}
                             {columnSettings.status && (
-                              <TableCell onClick={() => toggleExpanded(sale.id)}>
+                              <TableCell className="px-2 py-1.5" onClick={() => toggleExpanded(sale.id)}>
                                 <Badge 
-                                  className={`min-w-[80px] justify-center whitespace-nowrap ${
+                                  className={`min-w-[60px] justify-center whitespace-nowrap text-[11px] px-1.5 py-0 ${
                                     sale.payment_status === "completed" 
                                       ? "bg-green-500 hover:bg-green-600 text-white" 
                                       : sale.payment_status === "partial" 
@@ -1603,81 +1603,87 @@ const POSDashboard = () => {
                                 </Badge>
                               </TableCell>
                             )}
-                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-2">
+                            <TableCell className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-end gap-0.5">
                                 {sale.payment_status !== 'completed' && (
                                   <Button 
                                     variant="ghost" 
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openPaymentDialog(sale);
                                     }}
                                     title="Record Payment"
                                   >
-                                    <IndianRupee className="h-4 w-4 text-purple-600" />
+                                    <IndianRupee className="h-3.5 w-3.5 text-purple-600" />
                                   </Button>
                                 )}
                                 {columnSettings.copyLink && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handleCopyLink(sale, e)}
                                     title="Copy Invoice Link"
                                   >
-                                    <Link2 className="h-4 w-4 text-blue-600" />
+                                    <Link2 className="h-3.5 w-3.5 text-blue-600" />
                                   </Button>
                                 )}
                                 {columnSettings.preview && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handlePreviewClick(sale, e)}
                                     title="Preview Invoice"
                                   >
-                                    <Eye className="h-4 w-4 text-primary" />
+                                    <Eye className="h-3.5 w-3.5 text-primary" />
                                   </Button>
                                 )}
                                 {columnSettings.whatsapp && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handleWhatsAppShare(sale, e)}
                                     title="Share on WhatsApp"
                                     disabled={!sale.customer_phone}
                                   >
-                                    <MessageCircle className="h-4 w-4 text-green-600" />
+                                    <MessageCircle className="h-3.5 w-3.5 text-green-600" />
                                   </Button>
                                 )}
-                                {/* Resend WhatsApp API - Only show when WhatsApp API is enabled */}
                                 {whatsAppAPISettings?.is_active && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handleResendWhatsAppAPI(sale, e)}
                                     title="Resend via WhatsApp API"
                                     disabled={!sale.customer_phone || isSendingWhatsAppAPI}
                                   >
-                                    <Send className="h-4 w-4 text-teal-600" />
+                                    <Send className="h-3.5 w-3.5 text-teal-600" />
                                   </Button>
                                 )}
                                 {columnSettings.print && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handlePrintClick(sale, e)}
                                     title="Print Invoice (Ctrl+P)"
                                   >
-                                    <Printer className="h-4 w-4" />
+                                    <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
                                 {columnSettings.modify && (
                                   <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-7 w-7"
                                     onClick={(e) => handleEditSale(sale.id, e)}
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Edit className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
                               </div>
@@ -1685,45 +1691,45 @@ const POSDashboard = () => {
                           </TableRow>
                           {expandedSale === sale.id && saleItems[sale.id] && (
                             <TableRow>
-                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="bg-muted/50 p-4">
-                                <div className="space-y-4">
+                              <TableCell colSpan={(columnSettings.status ? 1 : 0) + (columnSettings.refund ? 1 : 0) + 16} className="bg-muted/30 p-3">
+                                <div className="space-y-3">
                                   <div>
-                                    <h4 className="font-semibold text-sm mb-2">Sale Items:</h4>
+                                    <h4 className="font-semibold text-[13px] mb-1.5">Sale Items:</h4>
                                     <div className="rounded-md border">
                                       <Table>
                                         <TableHeader>
-                                          <TableRow>
-                                            <TableHead>Product</TableHead>
-                                            {showItemBrand && <TableHead>Brand</TableHead>}
-                                            {showItemColor && <TableHead>Color</TableHead>}
-                                            {showItemStyle && <TableHead>Style</TableHead>}
-                                            <TableHead>Size</TableHead>
-                                            {showItemBarcode && <TableHead>Barcode</TableHead>}
-                                            {showItemHsn && <TableHead>HSN</TableHead>}
-                                            <TableHead>Quantity</TableHead>
-                                            {showItemMrp && <TableHead>MRP</TableHead>}
-                                            <TableHead>Unit Price</TableHead>
-                                            <TableHead>Discount</TableHead>
-                                            <TableHead>GST</TableHead>
-                                            <TableHead className="text-right">Total</TableHead>
+                                          <TableRow className="h-9 bg-muted/50">
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Product</TableHead>
+                                            {showItemBrand && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Brand</TableHead>}
+                                            {showItemColor && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Color</TableHead>}
+                                            {showItemStyle && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Style</TableHead>}
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Size</TableHead>
+                                            {showItemBarcode && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Barcode</TableHead>}
+                                            {showItemHsn && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">HSN</TableHead>}
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Qty</TableHead>
+                                            {showItemMrp && <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">MRP</TableHead>}
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Rate</TableHead>
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Disc%</TableHead>
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">GST%</TableHead>
+                                            <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Total</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                           {saleItems[sale.id].map((item) => (
-                                            <TableRow key={item.id}>
-                                              <TableCell>{item.product_name}</TableCell>
-                                              {showItemBrand && <TableCell>{item.brand || '-'}</TableCell>}
-                                              {showItemColor && <TableCell>{item.color || '-'}</TableCell>}
-                                              {showItemStyle && <TableCell>{item.style || '-'}</TableCell>}
-                                              <TableCell>{item.size}</TableCell>
-                                              {showItemBarcode && <TableCell className="text-xs font-mono">{item.barcode || '-'}</TableCell>}
-                                              {showItemHsn && <TableCell className="text-xs">{item.hsn_code || '-'}</TableCell>}
-                                              <TableCell>{item.quantity}</TableCell>
-                                              {showItemMrp && <TableCell>₹{Math.round(item.mrp).toLocaleString('en-IN')}</TableCell>}
-                                              <TableCell>₹{Math.round(item.unit_price).toLocaleString('en-IN')}</TableCell>
-                                              <TableCell>{item.discount_percent}%</TableCell>
-                                              <TableCell>{item.gst_percent}%</TableCell>
-                                              <TableCell className="text-right">₹{Math.round(item.line_total).toLocaleString('en-IN')}</TableCell>
+                                            <TableRow key={item.id} className="h-9">
+                                              <TableCell className="px-2 py-1 text-sm">{item.product_name}</TableCell>
+                                              {showItemBrand && <TableCell className="px-2 py-1 text-sm">{item.brand || '-'}</TableCell>}
+                                              {showItemColor && <TableCell className="px-2 py-1 text-sm">{item.color || '-'}</TableCell>}
+                                              {showItemStyle && <TableCell className="px-2 py-1 text-sm">{item.style || '-'}</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm">{item.size}</TableCell>
+                                              {showItemBarcode && <TableCell className="px-2 py-1 text-xs font-mono">{item.barcode || '-'}</TableCell>}
+                                              {showItemHsn && <TableCell className="px-2 py-1 text-xs">{item.hsn_code || '-'}</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{item.quantity}</TableCell>
+                                              {showItemMrp && <TableCell className="px-2 py-1 text-sm text-right tabular-nums">₹{Math.round(item.mrp).toLocaleString('en-IN')}</TableCell>}
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">₹{Math.round(item.unit_price).toLocaleString('en-IN')}</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{item.discount_percent}%</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums">{item.gst_percent}%</TableCell>
+                                              <TableCell className="px-2 py-1 text-sm text-right tabular-nums font-semibold">₹{Math.round(item.line_total).toLocaleString('en-IN')}</TableCell>
                                             </TableRow>
                                           ))}
                                         </TableBody>
@@ -1733,30 +1739,30 @@ const POSDashboard = () => {
 
                                   {saleReturns[sale.sale_number] && saleReturns[sale.sale_number].length > 0 && (
                                     <div>
-                                      <h4 className="font-semibold text-sm mb-2 text-red-600">Linked Sale Returns:</h4>
+                                      <h4 className="font-semibold text-[13px] mb-1.5 text-red-600">Linked Sale Returns:</h4>
                                       <div className="rounded-md border border-red-200 bg-red-50/50">
                                         <Table>
                                           <TableHeader>
-                                            <TableRow>
-                                              <TableHead>Return No</TableHead>
-                                              <TableHead>Return Date</TableHead>
-                                              <TableHead>Customer</TableHead>
-                                              <TableHead className="text-right">Return Amount</TableHead>
-                                              <TableHead>Notes</TableHead>
+                                            <TableRow className="h-9 bg-muted/50">
+                                              <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Return No</TableHead>
+                                              <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Return Date</TableHead>
+                                              <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Customer</TableHead>
+                                              <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold text-right">Return Amt</TableHead>
+                                              <TableHead className="px-2 py-1 text-[12px] uppercase tracking-wider font-semibold">Notes</TableHead>
                                             </TableRow>
                                           </TableHeader>
                                           <TableBody>
                                             {saleReturns[sale.sale_number].map((ret: any) => (
-                                              <TableRow key={ret.id}>
-                                                <TableCell>
-                                                  <Badge variant="destructive">{ret.return_number || "-"}</Badge>
+                                              <TableRow key={ret.id} className="h-9">
+                                                <TableCell className="px-2 py-1">
+                                                  <Badge variant="destructive" className="text-[11px] px-1.5 py-0">{ret.return_number || "-"}</Badge>
                                                 </TableCell>
-                                                <TableCell>{new Date(ret.return_date).toLocaleDateString()}</TableCell>
-                                                <TableCell>{ret.customer_name?.toUpperCase()}</TableCell>
-                                                <TableCell className="text-right font-medium text-red-600">
+                                                <TableCell className="px-2 py-1 text-sm">{new Date(ret.return_date).toLocaleDateString()}</TableCell>
+                                                <TableCell className="px-2 py-1 text-sm">{ret.customer_name?.toUpperCase()}</TableCell>
+                                                <TableCell className="px-2 py-1 text-sm text-right font-medium text-red-600 tabular-nums">
                                                   ₹{Math.round(ret.net_amount).toLocaleString('en-IN')}
                                                 </TableCell>
-                                                <TableCell className="text-sm text-muted-foreground">
+                                                <TableCell className="px-2 py-1 text-sm text-muted-foreground">
                                                   {ret.notes || "-"}
                                                 </TableCell>
                                               </TableRow>
