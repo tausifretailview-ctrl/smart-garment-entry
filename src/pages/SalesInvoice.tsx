@@ -2171,22 +2171,6 @@ Thank you for choosing us!`;
               </Popover>
             </div>
 
-            {/* Due Date */}
-            <div>
-              <Label>Due Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dueDate, "PPP")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0 z-50">
-                  <Calendar mode="single" selected={dueDate} onSelect={(d) => d && setDueDate(d)} />
-                </PopoverContent>
-              </Popover>
-            </div>
-
             {/* Tax Type */}
             <div>
               <Label>Tax Type</Label>
